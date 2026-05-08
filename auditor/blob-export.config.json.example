@@ -1,0 +1,5 @@
+{
+  "StorageAccountName": "jmlauditlogs",
+  "ContainerName": "audit-exports",
+  "SasToken": "sv=2023-11-03&ss=b&srt=sco&sp=rwdlacu&se=2027-01-01T00:00:00Z&st=2026-01-01T00:00:00Z&spr=https&sig=REPLACE_WITH_YOUR_SAS_SIGNATURE"
+}

@@ -1,3 +1,9 @@
+/* ── Local fonts ────────────────────────────────────────────────────────────── */
+@font-face { font-family: 'Inter'; src: url('fonts/inter-400.woff2') format('woff2'); font-weight: 400; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Inter'; src: url('fonts/inter-500.woff2') format('woff2'); font-weight: 500; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Inter'; src: url('fonts/inter-600.woff2') format('woff2'); font-weight: 600; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Inter'; src: url('fonts/inter-700.woff2') format('woff2'); font-weight: 700; font-style: normal; font-display: swap; }
+
 /* ── Variables ─────────────────────────────────────────────────────────────── */
 :root {
   --bg-app:       #0d0f14;
@@ -140,6 +146,18 @@ body {
 .sidebar-footer {
   padding: 10px 10px 12px;
   border-top: 1px solid var(--border);
+}
+
+.sidebar-operator {
+  display: flex; align-items: center; gap: 7px;
+  padding: 5px 12px 7px;
+  font-size: 12px; font-weight: 500; color: var(--text-muted);
+}
+
+.operator-dot {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--success); flex-shrink: 0;
+  box-shadow: 0 0 5px var(--success);
 }
 
 .sidebar-tenant {
@@ -738,3 +756,90 @@ body {
   margin-top: 5px; font-size: 11px; color: var(--text-dim);
   font-family: 'Consolas', monospace;
 }
+
+/* ── Exports tab ───────────────────────────────────────────────────────────── */
+.exports-content {
+  flex: 1; overflow-y: auto; padding: 20px 24px;
+  display: flex; flex-direction: column; gap: 14px;
+}
+
+.exports-content::-webkit-scrollbar { width: 5px; }
+.exports-content::-webkit-scrollbar-track { background: transparent; }
+.exports-content::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+.export-card {
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: var(--radius); overflow: hidden;
+}
+
+.export-card-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 16px 12px; border-bottom: 1px solid var(--border);
+}
+
+.export-card-title-row {
+  display: flex; align-items: center; gap: 10px;
+}
+
+.export-icon {
+  width: 18px; height: 18px; color: var(--text-muted); flex-shrink: 0;
+}
+
+.export-card-name {
+  font-size: 14px; font-weight: 600; color: var(--text-primary);
+}
+
+.export-status-chip {
+  font-size: 11px; font-weight: 600; padding: 2px 9px;
+  border-radius: 20px; letter-spacing: 0.03em;
+}
+
+.chip-ok           { background: var(--success-soft); color: var(--success); }
+.chip-configured   { background: var(--accent-soft);  color: var(--accent); }
+.chip-unconfigured { background: var(--bg-app); color: var(--text-dim); border: 1px solid var(--border); }
+.chip-error        { background: var(--danger-soft);  color: var(--danger); }
+.chip-unknown      { background: var(--bg-app); color: var(--text-dim); border: 1px solid var(--border); }
+
+.btn-run {
+  padding: 6px 14px; border-radius: 6px;
+  background: var(--accent); border: none;
+  color: #fff; font-size: 13px; font-weight: 500; font-family: var(--font);
+  cursor: pointer; transition: background 0.15s;
+  flex-shrink: 0;
+}
+
+.btn-run:hover:not(:disabled) { background: var(--accent-hover); }
+.btn-run:disabled { opacity: 0.45; cursor: not-allowed; }
+
+.export-card-body {
+  padding: 12px 16px; display: flex; flex-direction: column; gap: 7px;
+}
+
+.export-meta-row {
+  display: flex; align-items: baseline; gap: 10px; font-size: 13px;
+}
+
+.export-meta-label {
+  color: var(--text-dim); min-width: 88px; flex-shrink: 0;
+  font-size: 12px;
+}
+
+.export-meta-val { color: var(--text-primary); }
+.export-meta-val.mono { font-family: 'Consolas', monospace; font-size: 12px; }
+
+.export-error {
+  font-size: 12px; color: var(--danger); margin-top: 4px;
+  font-family: 'Consolas', monospace; word-break: break-all;
+}
+
+.export-card-footer {
+  padding: 8px 16px; border-top: 1px solid var(--border);
+  font-size: 11px; color: var(--text-dim);
+  background: rgba(0,0,0,0.15);
+}
+
+.export-config-path {
+  font-family: 'Consolas', monospace; color: var(--text-muted);
+}
+
+.export-config-hint { color: var(--text-dim); }

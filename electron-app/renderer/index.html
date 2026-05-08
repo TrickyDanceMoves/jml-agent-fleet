@@ -3,9 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; script-src 'self'">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; script-src 'self'">
   <link rel="stylesheet" href="styles.css">
   <title>JML Console</title>
 </head>
@@ -47,12 +45,20 @@
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
             <span>Security</span>
           </button>
+          <button class="nav-item" data-tab="exports">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+            <span>Exports</span>
+          </button>
           <button class="nav-item" data-tab="audit-log">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><line x1="10" y1="9" x2="8" y2="9"/></svg>
             <span>Audit Log</span>
           </button>
         </div>
         <div class="sidebar-footer">
+          <div class="sidebar-operator">
+            <span class="operator-dot"></span>
+            <span id="sidebar-operator-name"></span>
+          </div>
           <div class="sidebar-tenant">contoso.onmicrosoft.com</div>
         </div>
       </nav>
@@ -199,6 +205,82 @@
                 <div class="loading-hint">Loading...</div>
               </div>
             </div>
+          </div>
+        </div>
+
+        <!-- Exports -->
+        <div class="view" id="view-exports">
+          <div class="view-header">
+            <div class="view-header-left">
+              <h1>Exports</h1>
+              <span class="view-header-meta" id="exports-last-updated"></span>
+            </div>
+            <button class="btn-ghost" id="refresh-exports">Refresh</button>
+          </div>
+          <div class="exports-content">
+
+            <!-- Azure Blob -->
+            <div class="export-card" id="export-card-blob">
+              <div class="export-card-header">
+                <div class="export-card-title-row">
+                  <svg class="export-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
+                  <span class="export-card-name">Azure Blob Storage</span>
+                  <span class="export-status-chip" id="blob-status-chip">—</span>
+                </div>
+                <button class="btn-run" id="btn-run-blob">Export Now</button>
+              </div>
+              <div class="export-card-body">
+                <div class="export-meta-row">
+                  <span class="export-meta-label">Last export</span>
+                  <span class="export-meta-val" id="blob-last-run">—</span>
+                </div>
+                <div class="export-meta-row">
+                  <span class="export-meta-label">Container</span>
+                  <span class="export-meta-val mono" id="blob-container">—</span>
+                </div>
+                <div class="export-meta-row">
+                  <span class="export-meta-label">Entries</span>
+                  <span class="export-meta-val" id="blob-entries">—</span>
+                </div>
+                <div class="export-error" id="blob-error"></div>
+              </div>
+              <div class="export-card-footer">
+                Config: <span class="export-config-path">auditor/blob-export.config.json</span>
+                &nbsp;·&nbsp; <span class="export-config-hint">copy blob-export.config.json.example to configure</span>
+              </div>
+            </div>
+
+            <!-- Microsoft Sentinel -->
+            <div class="export-card" id="export-card-sentinel">
+              <div class="export-card-header">
+                <div class="export-card-title-row">
+                  <svg class="export-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></svg>
+                  <span class="export-card-name">Microsoft Sentinel</span>
+                  <span class="export-status-chip" id="sentinel-status-chip">—</span>
+                </div>
+                <button class="btn-run" id="btn-run-sentinel">Ingest Now</button>
+              </div>
+              <div class="export-card-body">
+                <div class="export-meta-row">
+                  <span class="export-meta-label">Last ingest</span>
+                  <span class="export-meta-val" id="sentinel-last-run">—</span>
+                </div>
+                <div class="export-meta-row">
+                  <span class="export-meta-label">Workspace</span>
+                  <span class="export-meta-val mono" id="sentinel-workspace">—</span>
+                </div>
+                <div class="export-meta-row">
+                  <span class="export-meta-label">Events sent</span>
+                  <span class="export-meta-val" id="sentinel-events">—</span>
+                </div>
+                <div class="export-error" id="sentinel-error"></div>
+              </div>
+              <div class="export-card-footer">
+                Config: <span class="export-config-path">auditor/sentinel.config.json</span>
+                &nbsp;·&nbsp; <span class="export-config-hint">copy sentinel.config.json.example to configure</span>
+              </div>
+            </div>
+
           </div>
         </div>
 

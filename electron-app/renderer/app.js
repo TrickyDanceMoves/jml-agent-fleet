@@ -14,6 +14,7 @@ function switchTab(tab) {
   if (tab === 'audit-log') loadAuditLog();
   if (tab === 'dashboard') loadDashboard();
   if (tab === 'security')  loadSecurity();
+  if (tab === 'exports')   loadExports();
 }
 
 document.querySelectorAll('.nav-item').forEach(btn => {
@@ -278,6 +279,94 @@ window.api.onSecurityReports((data) => {
   }).join('');
 });
 
+// ── Exports tab ───────────────────────────────────────────────────────────────
+document.getElementById('refresh-exports').addEventListener('click', loadExports);
+
+function loadExports() {
+  document.getElementById('exports-last-updated').textContent = '';
+  window.api.getExportsStatus();
+}
+
+function applyExportStatus(id, status) {
+  const chip    = document.getElementById(id + '-status-chip');
+  const lastRun = document.getElementById(id + '-last-run');
+  const errEl   = document.getElementById(id + '-error');
+
+  if (!status) {
+    chip.textContent = 'Unknown';
+    chip.className   = 'export-status-chip chip-unknown';
+    return;
+  }
+
+  if (!status.configured) {
+    chip.textContent = 'Not configured';
+    chip.className   = 'export-status-chip chip-unconfigured';
+    lastRun.textContent = '—';
+  } else if (status.error) {
+    chip.textContent = 'Error';
+    chip.className   = 'export-status-chip chip-error';
+    errEl.textContent = status.error;
+    lastRun.textContent = status.lastRun ? new Date(status.lastRun).toLocaleString() : '—';
+  } else if (status.lastRun) {
+    chip.textContent = 'OK';
+    chip.className   = 'export-status-chip chip-ok';
+    lastRun.textContent = new Date(status.lastRun).toLocaleString();
+  } else {
+    chip.textContent = 'Configured';
+    chip.className   = 'export-status-chip chip-configured';
+    lastRun.textContent = 'Never run';
+  }
+}
+
+window.api.onExportsStatus((data) => {
+  const now = new Date().toLocaleTimeString();
+  document.getElementById('exports-last-updated').textContent = 'Updated ' + now;
+
+  const b = data.blob;
+  applyExportStatus('blob', b);
+  if (b) {
+    document.getElementById('blob-container').textContent = b.container || '—';
+    document.getElementById('blob-entries').textContent   = b.entriesExported != null ? b.entriesExported + ' entries' : '—';
+    if (!b.error) document.getElementById('blob-error').textContent = '';
+  }
+
+  const s = data.sentinel;
+  applyExportStatus('sentinel', s);
+  if (s) {
+    document.getElementById('sentinel-workspace').textContent = s.workspaceId ? s.workspaceId.slice(0, 8) + '…' : '—';
+    document.getElementById('sentinel-events').textContent    = s.eventsIngested != null ? s.eventsIngested + ' events' : '—';
+    if (!s.error) document.getElementById('sentinel-error').textContent = '';
+  }
+});
+
+function setRunning(type, running) {
+  const btn = document.getElementById('btn-run-' + type);
+  btn.disabled    = running;
+  btn.textContent = running
+    ? (type === 'blob' ? 'Exporting…' : 'Ingesting…')
+    : (type === 'blob' ? 'Export Now' : 'Ingest Now');
+}
+
+document.getElementById('btn-run-blob').addEventListener('click', () => {
+  setRunning('blob', true);
+  window.api.runBlobExport();
+});
+
+document.getElementById('btn-run-sentinel').addEventListener('click', () => {
+  setRunning('sentinel', true);
+  window.api.runSentinelIngest();
+});
+
+window.api.onExportRunResult((result) => {
+  setRunning(result.type, false);
+  if (result.ok) {
+    window.api.getExportsStatus();
+  } else {
+    const errEl = document.getElementById(result.type === 'blob' ? 'blob-error' : 'sentinel-error');
+    errEl.textContent = result.error || 'Unknown error';
+  }
+});
+
 // ── Audit log ─────────────────────────────────────────────────────────────────
 document.getElementById('refresh-log').addEventListener('click', loadAuditLog);
 
@@ -419,4 +508,5 @@ function renderMarkdown(text) {
 })();
 
 // ── Init ──────────────────────────────────────────────────────────────────────
+document.getElementById('sidebar-operator-name').textContent = window.api.currentUser;
 loadDashboard();
