@@ -9,6 +9,9 @@
       - Group.ReadWrite.All                     (create role-assignable groups)
       - AccessReview.ReadWrite.All              (create access certification campaigns)
 
+    Grants to Auditor:
+      - IdentityRiskyUser.Read.All              (Identity Protection risky user scan)
+
     Grants to Joiner, Mover, Leaver, Enroller:
       - PrivilegedAccess.ReadWrite.AzureADGroup (self-activate PIM membership)
 #>
@@ -31,6 +34,7 @@ $needed = @{
     "PrivilegedAccess.ReadWrite.AzureADGroup"  = ($graphSP.appRoles | Where-Object { $_.value -eq "PrivilegedAccess.ReadWrite.AzureADGroup" }).id
     "Group.ReadWrite.All"                      = ($graphSP.appRoles | Where-Object { $_.value -eq "Group.ReadWrite.All" }).id
     "AccessReview.ReadWrite.All"               = ($graphSP.appRoles | Where-Object { $_.value -eq "AccessReview.ReadWrite.All" }).id
+    "IdentityRiskyUser.Read.All"               = ($graphSP.appRoles | Where-Object { $_.value -eq "IdentityRiskyUser.Read.All" }).id
 }
 
 Write-Host "[Permissions] Resolved app role IDs:"
@@ -62,6 +66,11 @@ Grant-AppPermission -SpObjectId $provisionerSpId -AppName "Provisioner" -Permiss
 Grant-AppPermission -SpObjectId $provisionerSpId -AppName "Provisioner" -Permission "Group.ReadWrite.All"
 Grant-AppPermission -SpObjectId $provisionerSpId -AppName "Provisioner" -Permission "AccessReview.ReadWrite.All"
 
+# Auditor - Identity Protection read
+$auditorSpId = "21e2c37d-b4c8-452c-b81d-ced561beab2b"
+Write-Host "`n[Permissions] Auditor..."
+Grant-AppPermission -SpObjectId $auditorSpId -AppName "Auditor" -Permission "IdentityRiskyUser.Read.All"
+
 # Agents - PIM self-activation only
 $agents = @{
     Joiner   = "JOINER-SP-OBJECT-ID-000000000001a"
@@ -76,5 +85,4 @@ foreach ($a in $agents.GetEnumerator()) {
 
 Write-Host "`n[Permissions] Done. Next steps:" -ForegroundColor Cyan
 Write-Host "  1. Run .\New-PIMGroups.ps1 (if not already done)" -ForegroundColor Cyan
-Write-Host "  2. Set agentPimCampaign.reviewerObjectId in shared/access-cert-config.json" -ForegroundColor Cyan
-Write-Host "  3. Run certifier\Invoke-CertificationCampaign.ps1 -WhatIf to preview campaigns" -ForegroundColor Cyan
+Write-Host "  2. Run auditor\Invoke-RiskyUserScan.ps1 -WhatIf to test Identity Protection integration" -ForegroundColor Cyan

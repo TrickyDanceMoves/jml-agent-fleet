@@ -45,6 +45,7 @@ if ($WhatIf)     { Write-Log "WhatIf mode -- no changes will be made" "WARN" }
 # ── Interactive auth as admin ─────────────────────────────────────────────────
 $provConfig = Get-Content (Join-Path $PSScriptRoot "config.json") | ConvertFrom-Json
 Write-Log "Connecting interactively -- a browser window will open (sign in with your admin work account)"
+Set-MgGraphOption -DisableLoginByWAM $true
 Connect-MgGraph `
     -TenantId $provConfig.TenantId `
     -Scopes "Policy.ReadWrite.ConditionalAccess","Policy.Read.All","Application.Read.All" `
