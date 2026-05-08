@@ -56,6 +56,25 @@ Connect-AgentGraph -Config $config
 Write-Log "Connected to Microsoft Graph (AppOnly)"
 Test-CredentialExpiry
 
+# SoD check — validate incoming groups don't conflict with each other
+$incomingGroups = @($payload.groups | Where-Object { $_ })
+Write-Log "Running SoD check for incoming groups: $(if ($incomingGroups.Count) { $incomingGroups -join ', ' } else { '(none)' })"
+$sodResult = & (Join-Path $agentsRoot "shared\Invoke-SoDCheck.ps1") `
+    -UserPrincipalName $payload.userPrincipalName `
+    -IncomingGroups $incomingGroups `
+    -NewUser `
+    -WhatIf:$WhatIf.IsPresent
+Write-AuditEntry -Agent "joiner" -Action "SoDCheck" -Subject $payload.userPrincipalName -WhatIf $WhatIf.IsPresent `
+    -Outcome $(if ($sodResult.Passed) { "passed" } else { "blocked" }) `
+    -Details @{ blocks = $sodResult.Blocks; warnings = $sodResult.Warnings; detail = $sodResult.Details }
+if (-not $sodResult.Passed) {
+    Write-Log ("SoD check BLOCKED provisioning: " + ($sodResult.Details -join "; ")) "ERROR"
+    exit 1
+}
+if ($sodResult.Warnings.Count -gt 0) {
+    Write-Log ("SoD warnings (proceeding): " + ($sodResult.Details -join "; ")) "WARN"
+}
+
 # Check user does not already exist
 Write-Log ("Checking if user already exists: " + $payload.userPrincipalName)
 $existingUser = $null

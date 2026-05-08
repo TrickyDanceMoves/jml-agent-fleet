@@ -1,0 +1,41 @@
+{
+  "_comment": "Separation of Duties policy. Each rule defines a pair of groups/roles that must not coexist on a single user. Action: block (hard stop) or warn (flags for approval).",
+  "version": "1.0",
+  "rules": [
+    {
+      "id":          "SOD-001",
+      "description": "Accounts Payable and Accounts Receivable must be separated",
+      "action":      "block",
+      "conflictA":   { "type": "group", "displayName": "Accounts Payable" },
+      "conflictB":   { "type": "group", "displayName": "Accounts Receivable" }
+    },
+    {
+      "id":          "SOD-002",
+      "description": "Finance approvers cannot also be Finance requesters",
+      "action":      "block",
+      "conflictA":   { "type": "group", "displayName": "Finance-Approvers" },
+      "conflictB":   { "type": "group", "displayName": "Finance-Requesters" }
+    },
+    {
+      "id":          "SOD-003",
+      "description": "IT admins should not also hold end-user helpdesk role",
+      "action":      "warn",
+      "conflictA":   { "type": "group", "displayName": "IT-Administrators" },
+      "conflictB":   { "type": "group", "displayName": "IT-Helpdesk" }
+    },
+    {
+      "id":          "SOD-004",
+      "description": "Global Administrator role must not be combined with any JML agent group",
+      "action":      "block",
+      "conflictA":   { "type": "directoryRole", "displayName": "Global Administrator" },
+      "conflictB":   { "type": "group", "displayName": "AI Agents" }
+    },
+    {
+      "id":          "SOD-005",
+      "description": "Payroll processors must not also have HR data admin access",
+      "action":      "block",
+      "conflictA":   { "type": "group", "displayName": "Payroll-Processors" },
+      "conflictB":   { "type": "group", "displayName": "HR-DataAdmins" }
+    }
+  ]
+}

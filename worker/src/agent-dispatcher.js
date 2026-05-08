@@ -6,6 +6,11 @@
  * Joiner/Mover: writes a temp payload JSON to the agent's logs/ dir, passes
  *   -PayloadPath to the script, then removes the temp file.
  * Leaver: passes -UserPrincipalName, -TicketRef, -Stage directly as params.
+ *
+ * PIM: before each dispatch, invokes the PIM helper script to request
+ *   time-bound group activation. After dispatch, deactivates immediately.
+ *   If pim-config.json has no groupIds yet (setup not run), PIM is skipped
+ *   gracefully and permanent roles remain in use.
  */
 
 const path = require('path');
@@ -66,39 +71,59 @@ function invokePs1(scriptPath, args) {
   };
 }
 
+const PIM_HELPER = path.join(AGENTS_ROOT, 'shared', 'Invoke-PIMHelper.ps1');
+const EVENT_TYPE_TO_AGENT = { hire: 'joiner', terminate: 'leaver', transfer: 'mover' };
+
+function invokePIM(action, agentName, justification) {
+  if (!fs.existsSync(PIM_HELPER)) return; // helper not present — skip silently
+  const result = invokePs1(PIM_HELPER, ['-Action', action, '-AgentName', agentName, '-Justification', justification]);
+  if (result.exitCode !== 0) {
+    // PIM failure on deactivate is non-fatal; on activate it throws to the caller
+    if (action === 'Activate') throw new Error(`PIM activation failed (exit ${result.exitCode}): ${result.stderr}`);
+  }
+}
+
 function dispatch(event) {
   const { eventType, eventId } = event;
+  const agentName   = EVENT_TYPE_TO_AGENT[eventType];
+  const justification = `JML ${eventType} ${event.ticketRef || event.eventId}`;
 
-  if (eventType === 'hire') {
-    const payload     = buildJoinerPayload(event);
-    const payloadPath = writePayloadFile('joiner', eventId, payload);
-    const scriptPath  = path.join(AGENTS_ROOT, 'joiner', 'Invoke-JoinerProcess.ps1');
-    try {
-      return invokePs1(scriptPath, ['-PayloadPath', payloadPath]);
-    } finally {
-      fs.rmSync(payloadPath, { force: true });
+  if (!agentName) throw new Error(`Unknown eventType: ${eventType}`);
+
+  invokePIM('Activate', agentName, justification);
+
+  try {
+    if (eventType === 'hire') {
+      const payload     = buildJoinerPayload(event);
+      const payloadPath = writePayloadFile('joiner', eventId, payload);
+      const scriptPath  = path.join(AGENTS_ROOT, 'joiner', 'Invoke-JoinerProcess.ps1');
+      try {
+        return invokePs1(scriptPath, ['-PayloadPath', payloadPath]);
+      } finally {
+        fs.rmSync(payloadPath, { force: true });
+      }
     }
-  }
 
-  if (eventType === 'terminate') {
-    const scriptPath = path.join(AGENTS_ROOT, 'leaver', 'Invoke-LeaverProcess.ps1');
-    const args = ['-UserPrincipalName', event.employee.email, '-Stage', 'Both'];
-    if (event.ticketRef) args.push('-TicketRef', event.ticketRef);
-    return invokePs1(scriptPath, args);
-  }
-
-  if (eventType === 'transfer') {
-    const payload     = buildMoverPayload(event);
-    const payloadPath = writePayloadFile('mover', eventId, payload);
-    const scriptPath  = path.join(AGENTS_ROOT, 'mover', 'Invoke-MoverProcess.ps1');
-    try {
-      return invokePs1(scriptPath, ['-PayloadPath', payloadPath]);
-    } finally {
-      fs.rmSync(payloadPath, { force: true });
+    if (eventType === 'terminate') {
+      const scriptPath = path.join(AGENTS_ROOT, 'leaver', 'Invoke-LeaverProcess.ps1');
+      const args = ['-UserPrincipalName', event.employee.email, '-Stage', 'Both'];
+      if (event.ticketRef) args.push('-TicketRef', event.ticketRef);
+      return invokePs1(scriptPath, args);
     }
-  }
 
-  throw new Error(`Unknown eventType: ${eventType}`);
+    if (eventType === 'transfer') {
+      const payload     = buildMoverPayload(event);
+      const payloadPath = writePayloadFile('mover', eventId, payload);
+      const scriptPath  = path.join(AGENTS_ROOT, 'mover', 'Invoke-MoverProcess.ps1');
+      try {
+        return invokePs1(scriptPath, ['-PayloadPath', payloadPath]);
+      } finally {
+        fs.rmSync(payloadPath, { force: true });
+      }
+    }
+  } finally {
+    invokePIM('Deactivate', agentName, justification);
+  }
 }
 
 module.exports = { dispatch };

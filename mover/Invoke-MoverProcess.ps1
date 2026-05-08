@@ -57,6 +57,24 @@ try {
 }
 Write-Log ("Found: " + $user.DisplayName + " | Dept: " + $user.Department + " | Title: " + $user.JobTitle)
 
+# SoD check — validate current + incoming groups don't create conflicts
+$incomingGroups = @($payload.groupsToAdd | Where-Object { $_ })
+Write-Log "Running SoD check (current memberships + incoming: $(if ($incomingGroups.Count) { $incomingGroups -join ', ' } else { '(none)' }))"
+$sodResult = & (Join-Path $agentsRoot "shared\Invoke-SoDCheck.ps1") `
+    -UserPrincipalName $payload.userPrincipalName `
+    -IncomingGroups $incomingGroups `
+    -WhatIf:$WhatIf.IsPresent
+Write-AuditEntry -Agent "mover" -Action "SoDCheck" -Subject $payload.userPrincipalName -WhatIf $WhatIf.IsPresent `
+    -Outcome $(if ($sodResult.Passed) { "passed" } else { "blocked" }) `
+    -Details @{ blocks = $sodResult.Blocks; warnings = $sodResult.Warnings; detail = $sodResult.Details }
+if (-not $sodResult.Passed) {
+    Write-Log ("SoD check BLOCKED move: " + ($sodResult.Details -join "; ")) "ERROR"
+    exit 1
+}
+if ($sodResult.Warnings.Count -gt 0) {
+    Write-Log ("SoD warnings (proceeding): " + ($sodResult.Details -join "; ")) "WARN"
+}
+
 $results = [ordered]@{
     RunId             = $runId
     WhatIf            = $WhatIf.IsPresent
