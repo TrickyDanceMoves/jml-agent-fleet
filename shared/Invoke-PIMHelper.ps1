@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     Thin wrapper called by the Node.js worker to activate/deactivate PIM
     group memberships before and after each PS1 agent invocation.
@@ -7,7 +7,7 @@
     "Activate" or "Deactivate"
 
 .PARAMETER AgentName
-    Agent name (joiner, mover, leaver, enroller) — must match pim-config.json
+    Agent name (joiner, mover, leaver, enroller) - must match pim-config.json
 
 .PARAMETER Justification
     Passed through to PIM request for audit trail (typically "JML <type> <ticketRef>")
@@ -30,7 +30,7 @@ $agentsRoot = Split-Path $PSScriptRoot -Parent
 # Load the agent's own config to connect as that agent (not the provisioner)
 $configPath = Join-Path $agentsRoot "$AgentName\config.json"
 if (-not (Test-Path $configPath)) {
-    Write-Host "[PIM] No config.json for '$AgentName' — skipping"
+    Write-Host "[PIM] No config.json for '$AgentName' - skipping"
     exit 0
 }
 $config = Get-Content $configPath | ConvertFrom-Json

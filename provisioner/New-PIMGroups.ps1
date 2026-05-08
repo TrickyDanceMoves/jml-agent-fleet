@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     One-time setup: migrates JML agents from permanent role assignments to
     PIM for Groups eligible memberships using Microsoft Entra ID Governance.
@@ -42,11 +42,14 @@ Write-Host "[PIM Setup] Connected to Microsoft Graph" -ForegroundColor Cyan
 $roleTemplateIds = @{
     "User Administrator"         = "fe930be7-5e62-47db-91af-98c3a49a38b1"
     "License Administrator"      = "4d6ac14f-3453-41d0-bef9-a3e0c569773a"
-    "Cloud Device Administrator" = "7698a772-787b-4757-b42a-0d2f4b56e8a0"
+    "Cloud Device Administrator" = "7698a772-787b-4ac8-901f-60d6b08affd2"
 }
 
-# Duration for eligible assignments (permanent eligibility, activation is time-boxed)
-$eligibilityExpiry = @{ type = "noExpiration" }
+# Eligible assignment expiry — 2 years (policy requires a finite date; renew as needed)
+$eligibilityExpiry = @{
+    type     = "afterDuration"
+    duration = "P180D"
+}
 
 function New-RoleAssignableGroup {
     param([string]$DisplayName, [string]$Description)
@@ -126,7 +129,7 @@ function Add-EligibleMember {
             startDateTime = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
             expiration    = $eligibilityExpiry
         }
-        justification = "JML agent PIM migration — permanent eligibility, time-boxed activation"
+        justification = "JML agent PIM migration - permanent eligibility, time-boxed activation"
     }
     Invoke-MgGraphRequest -Method POST `
         -Uri "https://graph.microsoft.com/v1.0/identityGovernance/privilegedAccess/group/assignmentScheduleRequests" `
@@ -166,6 +169,10 @@ foreach ($groupName in $pimConfig.groups.PSObject.Properties.Name) {
     $id = New-RoleAssignableGroup -DisplayName $groupName -Description "JML PIM group for $($groupCfg.roleDisplayName)"
     $groupIds[$groupName] = $id
 }
+
+# Allow Entra replication to catch up before assigning roles
+Write-Host "`n[PIM Setup] Waiting 30s for Entra replication before role assignment..." -ForegroundColor DarkGray
+Start-Sleep -Seconds 30
 
 # --- Phase 2: Assign roles to groups ---
 Write-Host "`n[PIM Setup] Phase 2: Assigning directory roles to groups..." -ForegroundColor Cyan
@@ -217,4 +224,4 @@ if (-not $WhatIf) {
     Write-Host "[PIM Setup] pim-config.json updated with group IDs" -ForegroundColor Green
 }
 
-Write-Host "`n[PIM Setup] Done$(if ($WhatIf) { ' (WHATIF — no changes made)' })." -ForegroundColor Cyan
+Write-Host "`n[PIM Setup] Done$(if ($WhatIf) { ' (WHATIF - no changes made)' })." -ForegroundColor Cyan

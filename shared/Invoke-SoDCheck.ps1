@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     Checks a user's current memberships against the SoD policy before provisioning.
 
@@ -7,10 +7,10 @@
     current group memberships and directory role assignments.
 
     Returns an object with:
-      .Passed   — $true if no blocking conflicts found
-      .Blocks   — array of rule IDs that must stop provisioning
-      .Warnings — array of rule IDs that should be flagged but can proceed
-      .Details  — human-readable strings for audit log
+      .Passed   - $true if no blocking conflicts found
+      .Blocks   - array of rule IDs that must stop provisioning
+      .Warnings - array of rule IDs that should be flagged but can proceed
+      .Details  - human-readable strings for audit log
 
     Call Connect-AgentGraph before invoking this function.
 
@@ -34,7 +34,7 @@ param(
 
     [string[]]$IncomingGroups = @(),
 
-    # Set for Joiner (user doesn't exist yet) — skips Graph memberOf lookup,
+    # Set for Joiner (user doesn't exist yet) - skips Graph memberOf lookup,
     # checks only whether incoming groups conflict with each other.
     [switch]$NewUser,
 
@@ -45,8 +45,8 @@ $ErrorActionPreference = "Stop"
 
 $policyPath = Join-Path $PSScriptRoot "sod-policy.json"
 if (-not (Test-Path $policyPath)) {
-    Write-Warning "[SoD] sod-policy.json not found at $policyPath — skipping check"
-    return [PSCustomObject]@{ Passed = $true; Blocks = @(); Warnings = @(); Details = @("Policy file not found — check skipped") }
+    Write-Warning "[SoD] sod-policy.json not found at $policyPath - skipping check"
+    return [PSCustomObject]@{ Passed = $true; Blocks = @(); Warnings = @(); Details = @("Policy file not found - check skipped") }
 }
 
 $policy = Get-Content $policyPath | ConvertFrom-Json
@@ -61,7 +61,7 @@ if (-not $NewUser.IsPresent) {
         $currentGroups = @($memberOf.value | Where-Object { $_.'@odata.type' -eq '#microsoft.graph.group' } | Select-Object -ExpandProperty displayName)
         $currentRoles  = @($memberOf.value | Where-Object { $_.'@odata.type' -eq '#microsoft.graph.directoryRole' } | Select-Object -ExpandProperty displayName)
     } catch {
-        Write-Warning "[SoD] Could not fetch memberships for $UserPrincipalName — $($_.Exception.Message)"
+        Write-Warning "[SoD] Could not fetch memberships for $UserPrincipalName - $($_.Exception.Message)"
     }
 }
 
@@ -92,7 +92,7 @@ foreach ($rule in $policy.rules) {
     $setA, $setB = Resolve-MemberSet $rule
 
     if ($setA.Count -gt 0 -and $setB.Count -gt 0) {
-        $msg = "[$($rule.id)] $($rule.description) — '$($rule.conflictA.displayName)' conflicts with '$($rule.conflictB.displayName)'"
+        $msg = "[$($rule.id)] $($rule.description) - '$($rule.conflictA.displayName)' conflicts with '$($rule.conflictB.displayName)'"
         $details += $msg
 
         if ($rule.action -eq "block") {
