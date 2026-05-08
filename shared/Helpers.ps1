@@ -261,7 +261,7 @@ function Invoke-GraphWithRetry {
     }
 }
 
-# ── PIM for Groups — JIT role activation ──────────────────────────────────────
+# ── PIM for Groups -JIT role activation ──────────────────────────────────────
 
 function Request-PIMActivation {
     <#
@@ -283,14 +283,14 @@ function Request-PIMActivation {
 
     $pimConfigPath = Join-Path $agentsRoot "shared\pim-config.json"
     if (-not (Test-Path $pimConfigPath)) {
-        Write-Log "[PIM] pim-config.json not found — skipping PIM activation (permanent roles in use)" "WARN"
+        Write-Log "[PIM] pim-config.json not found -skipping PIM activation (permanent roles in use)" "WARN"
         return
     }
 
     $pimCfg   = Get-Content $pimConfigPath | ConvertFrom-Json
     $agentCfg = $pimCfg.agents.$AgentName
     if (-not $agentCfg) {
-        Write-Log "[PIM] No PIM config entry for agent '$AgentName' — skipping" "WARN"
+        Write-Log "[PIM] No PIM config entry for agent '$AgentName' -skipping" "WARN"
         return
     }
 
@@ -299,7 +299,7 @@ function Request-PIMActivation {
     foreach ($groupName in $agentCfg.requiredGroups) {
         $groupId = $pimCfg.groups.$groupName.groupId
         if (-not $groupId) {
-            Write-Log "[PIM] Group '$groupName' has no groupId — run New-PIMGroups.ps1 first" "WARN"
+            Write-Log "[PIM] Group '$groupName' has no groupId -run New-PIMGroups.ps1 first" "WARN"
             continue
         }
 
@@ -307,7 +307,7 @@ function Request-PIMActivation {
         $active = Invoke-MgGraphRequest -Method GET `
             -Uri "https://graph.microsoft.com/v1.0/identityGovernance/privilegedAccess/group/assignmentSchedules?`$filter=groupId eq '$groupId' and principalId eq '$($agentCfg.objectId)' and status eq 'Provisioned'"
         if ($active.value.Count -gt 0) {
-            Write-Log "[PIM] Already active in '$groupName' — skipping activation" "INFO"
+            Write-Log "[PIM] Already active in '$groupName' -skipping activation" "INFO"
             continue
         }
 
@@ -327,7 +327,7 @@ function Request-PIMActivation {
             Invoke-MgGraphRequest -Method POST `
                 -Uri "https://graph.microsoft.com/v1.0/identityGovernance/privilegedAccess/group/assignmentScheduleRequests" `
                 -Body ($body | ConvertTo-Json -Depth 5) | Out-Null
-            Write-Log "[PIM] Activated '$groupName' for $hours hour(s) — $Justification" "INFO"
+            Write-Log "[PIM] Activated '$groupName' for $hours hour(s) -$Justification" "INFO"
         } catch {
             Write-Log "[PIM] Failed to activate '$groupName': $($_.Exception.Message)" "ERROR"
             throw
@@ -339,12 +339,12 @@ function Remove-PIMActivation {
     <#
     .SYNOPSIS
         Explicitly deactivates the agent's PIM group memberships after an operation.
-        Optional — activations also expire automatically per DurationHours.
+        Optional -activations also expire automatically per DurationHours.
     #>
     param(
         [Parameter(Mandatory=$true)]
         [string]$AgentName,
-        [string]$Justification = "JML operation complete — self-deactivating"
+        [string]$Justification = "JML operation complete -self-deactivating"
     )
 
     $pimConfigPath = Join-Path $agentsRoot "shared\pim-config.json"
@@ -372,7 +372,7 @@ function Remove-PIMActivation {
                 -Body ($body | ConvertTo-Json -Depth 5) | Out-Null
             Write-Log "[PIM] Deactivated '$groupName'" "INFO"
         } catch {
-            # Non-fatal — activation will expire on its own
+            # Non-fatal -activation will expire on its own
             Write-Log "[PIM] Could not deactivate '$groupName' (will expire automatically): $($_.Exception.Message)" "WARN"
         }
     }
