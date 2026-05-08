@@ -35,6 +35,23 @@ Rules:
 - Always confirm full details before calling a tool
 - For leavers, explain the two-stage process and confirm each stage
 - Auto-generate UPNs as firstname.lastname@${TENANT_DOMAIN}
+
+AI-ASSISTED PROVISIONING:
+
+For JOINER and MOVER requests — after collecting the user's department and job title,
+call suggest_provisioning to get peer-based recommendations. Present the output to the
+operator: "Based on X peers in [Department], I recommend licenses: [...] and groups: [...]
+— want to use these, or adjust?" Let them confirm or modify before proceeding.
+
+For ALL operations in LIVE mode — before calling any submit_* tool, call score_risk with
+the full operation details. Then:
+- riskLevel 'low' or 'medium': show the assessment briefly, then proceed.
+- riskLevel 'high': show the risk reasons and ask the operator to explicitly confirm
+  before continuing.
+- riskLevel 'critical' or blocked=true: do NOT proceed. Explain the block clearly.
+- dualApproval=true: inform the operator that a second approval token is required.
+
+In WHATIF mode score_risk is informational — show it but don't gate on it.
 `.trim();
 
 const AUDITOR_SYSTEM = `
@@ -134,6 +151,33 @@ const APPROVER_TOOLS = [
     }
   },
   {
+    name: 'suggest_provisioning',
+    description: 'Get peer-based license and group recommendations for a new hire or mover. Call this after learning their department and job title.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        department: { type: 'string', description: 'The user\'s department' },
+        jobTitle:   { type: 'string', description: 'The user\'s job title' }
+      },
+      required: ['department', 'jobTitle']
+    }
+  },
+  {
+    name: 'score_risk',
+    description: 'Score a provisioning operation for risk before executing it in Live mode. Returns riskLevel, score, reasons, and whether the operation is blocked.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        operation:         { type: 'string', enum: ['joiner','enroller','mover','leaver_soft','leaver_hard'] },
+        userPrincipalName: { type: 'string', description: 'Target UPN. Use NEW_USER for joiners who don\'t exist yet.' },
+        licenses:          { type: 'array', items: { type: 'string' }, description: 'License SKU names being assigned' },
+        groups:            { type: 'array', items: { type: 'string' }, description: 'Group display names being assigned' },
+        newDepartment:     { type: 'string', description: 'For movers: the destination department' }
+      },
+      required: ['operation', 'userPrincipalName']
+    }
+  },
+  {
     name: 'submit_leaver_soft',
     description: 'Stage 1 leaver: disable account and revoke all sign-in sessions.',
     input_schema: {
@@ -219,6 +263,25 @@ function executeTool(agent, toolName, input, whatif) {
 
   const w = whatif ? true : false;
   switch (toolName) {
+    case 'suggest_provisioning': {
+      const raw = runPs(path.join(AGENTS_DIR, 'auditor', 'Invoke-ProvisioningRecommendation.ps1'), {
+        Department: input.department,
+        JobTitle:   input.jobTitle
+      });
+      const jsonLine = raw.trim().split('\n').filter(l => l.trim().startsWith('{')).pop();
+      return jsonLine ? JSON.parse(jsonLine) : { error: 'No output from recommendation script' };
+    }
+    case 'score_risk': {
+      const raw = runPs(path.join(AGENTS_DIR, 'auditor', 'Invoke-RiskScore.ps1'), {
+        Operation:         input.operation,
+        UserPrincipalName: input.userPrincipalName,
+        Licenses:          input.licenses,
+        Groups:            input.groups,
+        NewDepartment:     input.newDepartment
+      });
+      const jsonLine = raw.trim().split('\n').filter(l => l.trim().startsWith('{')).pop();
+      return jsonLine ? JSON.parse(jsonLine) : { error: 'No output from risk score script' };
+    }
     case 'submit_joiner':
       return parsePs1Output(runPs(path.join(AGENTS_DIR, 'joiner', 'Invoke-JoinerProcess.ps1'), {
         GivenName: input.givenName, Surname: input.surname,
