@@ -1,0 +1,16 @@
+{
+    "_comment": "UEBA anomaly detection thresholds. excludeAgents and excludeWhatif filter noise from administrative/test operations.",
+    "windowDays": 7,
+    "businessHoursStart": 7,
+    "businessHoursEnd": 19,
+    "burstCountPerAgent": 5,
+    "burstWindowMinutes": 60,
+    "repeatedSubjectThreshold": 4,
+    "repeatedFailureThreshold": 2,
+    "bulkTerminationPerDay": 3,
+    "outcomeFailureRateThreshold": 0.30,
+    "notifyOnCritical": true,
+    "notifyOnWarning": false,
+    "excludeAgents": ["auditor", "certifier"],
+    "excludeWhatif": true
+}
