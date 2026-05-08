@@ -7,6 +7,7 @@ const fs    = require('fs');
 const os    = require('os');
 
 const AGENTS_DIR    = path.join(os.homedir(), '.claude', 'agents');
+const REPORTS_DIR   = path.join(__dirname, '..', 'auditor', 'reports');
 const TENANT_DOMAIN = 'contoso.onmicrosoft.com';
 
 // ── Agent state ───────────────────────────────────────────────────────────────
@@ -366,6 +367,23 @@ ipcMain.on('get-dashboard-stats', (event) => {
   } catch (err) {
     event.sender.send('dashboard-stats', { error: err.message });
   }
+});
+
+ipcMain.on('get-security-reports', (event) => {
+  function latestReport(prefix) {
+    if (!fs.existsSync(REPORTS_DIR)) return null;
+    const files = fs.readdirSync(REPORTS_DIR)
+      .filter(f => f.startsWith(prefix) && f.endsWith('.json'))
+      .sort().reverse();
+    if (!files.length) return null;
+    try { return JSON.parse(fs.readFileSync(path.join(REPORTS_DIR, files[0]), 'utf8')); }
+    catch { return null; }
+  }
+  event.sender.send('security-reports', {
+    ueba:       latestReport('ueba-'),
+    drift:      latestReport('drift-'),
+    riskyUsers: latestReport('risky-users-')
+  });
 });
 
 ipcMain.on('window-minimize', () => { if (win) win.minimize(); });

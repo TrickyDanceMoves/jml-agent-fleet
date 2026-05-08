@@ -43,6 +43,10 @@
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
             <span>Auditor</span>
           </button>
+          <button class="nav-item" data-tab="security">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+            <span>Security</span>
+          </button>
           <button class="nav-item" data-tab="audit-log">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><line x1="10" y1="9" x2="8" y2="9"/></svg>
             <span>Audit Log</span>
@@ -155,6 +159,45 @@
               <button class="send-btn" id="send-auditor">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
               </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Security -->
+        <div class="view" id="view-security">
+          <div class="view-header">
+            <div class="view-header-left">
+              <h1>Security</h1>
+              <span class="view-header-meta" id="security-last-updated"></span>
+            </div>
+            <button class="btn-ghost" id="refresh-security">Refresh</button>
+          </div>
+          <div class="security-content">
+            <div class="security-scanner-grid">
+              <div class="security-scanner-card" id="sec-ueba">
+                <div class="scanner-label">UEBA</div>
+                <div class="scanner-counts" id="sec-ueba-counts"><span class="count-badge loading">—</span></div>
+                <div class="scanner-meta" id="sec-ueba-meta">No report</div>
+              </div>
+              <div class="security-scanner-card" id="sec-drift">
+                <div class="scanner-label">Drift Detection</div>
+                <div class="scanner-counts" id="sec-drift-counts"><span class="count-badge loading">—</span></div>
+                <div class="scanner-meta" id="sec-drift-meta">No report</div>
+              </div>
+              <div class="security-scanner-card" id="sec-risky">
+                <div class="scanner-label">Identity Protection</div>
+                <div class="scanner-counts" id="sec-risky-counts"><span class="count-badge loading">—</span></div>
+                <div class="scanner-meta" id="sec-risky-meta">No report</div>
+              </div>
+            </div>
+            <div class="security-findings-section">
+              <div class="section-header">
+                <div class="section-title">All Findings</div>
+                <span id="security-findings-count" class="view-header-meta"></span>
+              </div>
+              <div id="security-findings-list" class="findings-list">
+                <div class="loading-hint">Loading...</div>
+              </div>
             </div>
           </div>
         </div>
