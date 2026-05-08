@@ -650,3 +650,91 @@ body {
 .activity-detail-row { display: flex; gap: 6px; }
 .activity-detail-key { color: var(--text-dim); min-width: 88px; flex-shrink: 0; }
 .activity-detail-val { color: var(--text-primary); }
+
+/* ── Security dashboard ────────────────────────────────────────────────────── */
+.security-content {
+  flex: 1; overflow-y: auto; padding: 20px 24px;
+  display: flex; flex-direction: column; gap: 20px;
+}
+
+.security-content::-webkit-scrollbar { width: 5px; }
+.security-content::-webkit-scrollbar-track { background: transparent; }
+.security-content::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+.security-scanner-grid {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px;
+}
+
+.security-scanner-card {
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 16px;
+  border-left: 3px solid var(--border-light);
+}
+
+.security-scanner-card#sec-ueba  { border-left-color: var(--accent); }
+.security-scanner-card#sec-drift { border-left-color: var(--warning); }
+.security-scanner-card#sec-risky { border-left-color: #a855f7; }
+
+.scanner-label {
+  font-size: 11px; font-weight: 600; color: var(--text-muted);
+  text-transform: uppercase; letter-spacing: 0.07em; margin-bottom: 10px;
+}
+
+.scanner-counts { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; min-height: 22px; }
+
+.scanner-meta { font-size: 11px; color: var(--text-dim); }
+
+.count-badge {
+  font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 4px;
+  letter-spacing: 0.03em; white-space: nowrap;
+}
+
+.count-badge.critical { background: var(--danger-soft);  color: var(--danger);  }
+.count-badge.warning  { background: var(--warning-soft); color: var(--warning); }
+.count-badge.info     { background: var(--accent-soft);  color: var(--accent);  }
+.count-badge.ok       { background: var(--success-soft); color: var(--success); }
+.count-badge.loading  { background: var(--bg-app); color: var(--text-dim); border: 1px solid var(--border); }
+
+.security-findings-section { display: flex; flex-direction: column; gap: 10px; }
+
+.findings-list { display: flex; flex-direction: column; gap: 5px; }
+
+.finding-item {
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 10px 12px;
+  border-left: 3px solid var(--border);
+}
+
+.finding-item.finding-critical { border-left-color: var(--danger);  }
+.finding-item.finding-warning  { border-left-color: var(--warning); }
+.finding-item.finding-info     { border-left-color: var(--accent);  }
+
+.finding-row {
+  display: flex; align-items: center; gap: 10px; font-size: 13px;
+}
+
+.finding-severity {
+  font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 4px;
+  letter-spacing: 0.05em; flex-shrink: 0;
+}
+
+.sev-critical { background: var(--danger-soft);  color: var(--danger);  }
+.sev-warning  { background: var(--warning-soft); color: var(--warning); }
+.sev-info     { background: var(--accent-soft);  color: var(--accent);  }
+
+.finding-scanner {
+  font-size: 11px; font-weight: 600; color: var(--text-muted);
+  background: var(--bg-app); border: 1px solid var(--border);
+  padding: 2px 7px; border-radius: 4px; flex-shrink: 0; white-space: nowrap;
+}
+
+.finding-title { flex: 1; color: var(--text-primary); line-height: 1.4; }
+
+.finding-count {
+  font-size: 11px; color: var(--text-dim); flex-shrink: 0; white-space: nowrap;
+}
+
+.finding-rule {
+  margin-top: 5px; font-size: 11px; color: var(--text-dim);
+  font-family: 'Consolas', monospace;
+}

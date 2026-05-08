@@ -13,6 +13,7 @@ function switchTab(tab) {
   currentTab = tab;
   if (tab === 'audit-log') loadAuditLog();
   if (tab === 'dashboard') loadDashboard();
+  if (tab === 'security')  loadSecurity();
 }
 
 document.querySelectorAll('.nav-item').forEach(btn => {
@@ -200,6 +201,82 @@ function setWaiting(agent, waiting) {
   document.getElementById('input-' + agent).disabled  = waiting;
   document.getElementById('send-' + agent).disabled   = waiting;
 }
+
+// ── Security dashboard ────────────────────────────────────────────────────────
+document.getElementById('refresh-security').addEventListener('click', loadSecurity);
+
+function loadSecurity() {
+  document.getElementById('security-findings-list').innerHTML = '<div class="loading-hint">Loading...</div>';
+  window.api.getSecurityReports();
+}
+
+function buildCountBadges(crit, warn, info) {
+  const parts = [];
+  if (crit > 0) parts.push('<span class="count-badge critical">' + crit + ' critical</span>');
+  if (warn > 0) parts.push('<span class="count-badge warning">'  + warn + ' warning</span>');
+  if (info > 0) parts.push('<span class="count-badge info">'     + info + ' info</span>');
+  if (parts.length === 0) return '<span class="count-badge ok">All clear</span>';
+  return parts.join('');
+}
+
+window.api.onSecurityReports((data) => {
+  function updateCard(id, report) {
+    const countsEl = document.getElementById('sec-' + id + '-counts');
+    const metaEl   = document.getElementById('sec-' + id + '-meta');
+    if (!report) {
+      countsEl.innerHTML  = '<span class="count-badge loading">No report</span>';
+      metaEl.textContent  = '';
+      return;
+    }
+    const s = report.summary || {};
+    countsEl.innerHTML = buildCountBadges(s.critical || 0, s.warning || 0, s.info || 0);
+    metaEl.textContent = report.timestamp
+      ? 'Last run: ' + new Date(report.timestamp).toLocaleString()
+      : '';
+  }
+
+  updateCard('ueba',  data.ueba);
+  updateCard('drift', data.drift);
+  updateCard('risky', data.riskyUsers);
+
+  // Collect and sort all findings across all scanners
+  const allFindings = [];
+  function collect(report, scanner) {
+    if (!report || !report.findings) return;
+    report.findings.forEach(f => allFindings.push(Object.assign({}, f, { scanner })));
+  }
+  collect(data.ueba,       'UEBA');
+  collect(data.drift,      'Drift');
+  collect(data.riskyUsers, 'Identity Protection');
+
+  const order = { critical: 0, warning: 1, info: 2 };
+  allFindings.sort((a, b) => (order[a.severity] ?? 3) - (order[b.severity] ?? 3));
+
+  const countEl = document.getElementById('security-findings-count');
+  const listEl  = document.getElementById('security-findings-list');
+
+  if (allFindings.length === 0) {
+    countEl.textContent = '';
+    listEl.innerHTML = '<div class="loading-hint">No findings across all scanners.</div>';
+    return;
+  }
+
+  countEl.textContent = allFindings.length + ' finding' + (allFindings.length !== 1 ? 's' : '');
+  listEl.innerHTML = allFindings.map(f => {
+    const evts   = f.events || f.items || [];
+    const noun   = evts.length !== 1 ? 's' : '';
+    const ruleId = f.ruleId || f.checkId || '';
+    return '<div class="finding-item finding-' + f.severity + '">' +
+      '<div class="finding-row">' +
+        '<span class="finding-severity sev-' + f.severity + '">' + f.severity.toUpperCase() + '</span>' +
+        '<span class="finding-scanner">' + escHtml(f.scanner) + '</span>' +
+        '<span class="finding-title">'   + escHtml(f.title)   + '</span>' +
+        '<span class="finding-count">'   + evts.length + ' event' + noun + '</span>' +
+      '</div>' +
+      (ruleId ? '<div class="finding-rule">' + escHtml(ruleId) + '</div>' : '') +
+    '</div>';
+  }).join('');
+});
 
 // ── Audit log ─────────────────────────────────────────────────────────────────
 document.getElementById('refresh-log').addEventListener('click', loadAuditLog);
