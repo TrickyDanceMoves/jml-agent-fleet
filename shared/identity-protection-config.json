@@ -1,0 +1,7 @@
+{
+    "_comment": "Identity Protection risky user scan configuration. Set autoRevokeSessionsOnHigh to true to automatically revoke sign-in sessions for high/confirmed-compromised accounts (requires User.RevokeSessions.All granted to Auditor via Grant-PIMPermissions.ps1).",
+    "notifyOnCritical": true,
+    "notifyOnWarning": false,
+    "autoRevokeSessionsOnHigh": false,
+    "excludeUpnPatterns": ["ClaudeAgent", "#EXT#"]
+}
