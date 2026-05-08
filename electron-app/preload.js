@@ -1,8 +1,10 @@
 'use strict';
 
 const { contextBridge, ipcRenderer } = require('electron');
+const os = require('os');
 
 contextBridge.exposeInMainWorld('api', {
+  currentUser: os.userInfo().username,
   sendMessage:      (agent, text)    => ipcRenderer.send('send-message', { agent, text }),
   setMode:          (whatif)         => ipcRenderer.send('set-mode', { whatif }),
   clearHistory:     (agent)          => ipcRenderer.send('clear-history', { agent }),
@@ -19,5 +21,11 @@ contextBridge.exposeInMainWorld('api', {
   onHistoryCleared: (cb) => ipcRenderer.on('history-cleared', (_, d) => cb(d)),
   onAuditLogData:    (cb) => ipcRenderer.on('audit-log-data',     (_, d) => cb(d)),
   onDashboardStats:  (cb) => ipcRenderer.on('dashboard-stats',    (_, d) => cb(d)),
-  onSecurityReports: (cb) => ipcRenderer.on('security-reports',   (_, d) => cb(d))
+  onSecurityReports: (cb) => ipcRenderer.on('security-reports',   (_, d) => cb(d)),
+
+  getExportsStatus:   ()   => ipcRenderer.send('get-exports-status'),
+  runBlobExport:      ()   => ipcRenderer.send('run-blob-export'),
+  runSentinelIngest:  ()   => ipcRenderer.send('run-sentinel-ingest'),
+  onExportsStatus:    (cb) => ipcRenderer.on('exports-status',      (_, d) => cb(d)),
+  onExportRunResult:  (cb) => ipcRenderer.on('export-run-result',   (_, d) => cb(d))
 });

@@ -386,6 +386,40 @@ ipcMain.on('get-security-reports', (event) => {
   });
 });
 
+// ── Exports tab ───────────────────────────────────────────────────────────────
+ipcMain.on('get-exports-status', (event) => {
+  function readStatus(file) {
+    try { return JSON.parse(fs.readFileSync(file, 'utf8')); } catch { return null; }
+  }
+  const base = path.join(REPORTS_DIR);
+  event.sender.send('exports-status', {
+    blob:     readStatus(path.join(base, 'blob-export-status.json')),
+    sentinel: readStatus(path.join(base, 'sentinel-status.json'))
+  });
+});
+
+ipcMain.on('run-blob-export', (event) => {
+  const script = path.join(AGENTS_DIR, 'auditor', 'Invoke-BlobExport.ps1');
+  try {
+    runPs(script);
+    const status = JSON.parse(fs.readFileSync(path.join(REPORTS_DIR, 'blob-export-status.json'), 'utf8'));
+    event.sender.send('export-run-result', { type: 'blob', ok: true, status });
+  } catch (err) {
+    event.sender.send('export-run-result', { type: 'blob', ok: false, error: err.message });
+  }
+});
+
+ipcMain.on('run-sentinel-ingest', (event) => {
+  const script = path.join(AGENTS_DIR, 'auditor', 'Invoke-SentinelIngest.ps1');
+  try {
+    runPs(script);
+    const status = JSON.parse(fs.readFileSync(path.join(REPORTS_DIR, 'sentinel-status.json'), 'utf8'));
+    event.sender.send('export-run-result', { type: 'sentinel', ok: true, status });
+  } catch (err) {
+    event.sender.send('export-run-result', { type: 'sentinel', ok: false, error: err.message });
+  }
+});
+
 ipcMain.on('window-minimize', () => { if (win) win.minimize(); });
 ipcMain.on('window-maximize', () => { if (win) { win.isMaximized() ? win.unmaximize() : win.maximize(); } });
 ipcMain.on('window-close',    () => { app.quit(); });
