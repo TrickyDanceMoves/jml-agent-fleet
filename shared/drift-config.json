@@ -1,0 +1,11 @@
+{
+    "_comment": "Drift detection thresholds. pimGroupIds and agentObjectIds are read at runtime from pim-config.json.",
+    "staleAccountDays": 90,
+    "orphanedDisabledDays": 30,
+    "notifyOnCritical": true,
+    "notifyOnWarning": false,
+    "excludeUpnPatterns": [
+        "ClaudeAgent",
+        "#EXT#"
+    ]
+}
