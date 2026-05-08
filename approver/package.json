@@ -1,0 +1,26 @@
+{
+    "main": "approver.js",
+    "bin": "approver.js",
+    "description": "JML Approver Agent",
+    "name": "jml-approver",
+    "version": "1.0.0",
+    "type": "commonjs",
+    "scripts": {
+        "start": "node approver.js",
+        "start:whatif": "node approver.js --whatif",
+        "build": "pkg . --target node18-win-x64 --output dist/JML-Approver.exe --compress GZip"
+    },
+    "pkg": {
+        "targets": ["node18-win-x64"],
+        "outputPath": "dist"
+    },
+    "dependencies": {
+        "@anthropic-ai/sdk": "^0.94.0",
+        "boxen": "^5.1.2",
+        "chalk": "^4.1.2",
+        "ora": "^5.4.1"
+    },
+    "devDependencies": {
+        "@yao-pkg/pkg": "^6.19.0"
+    }
+}

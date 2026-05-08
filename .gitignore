@@ -1,0 +1,34 @@
+# Dependencies
+node_modules/
+
+# Azure Functions local config (contains API key)
+api/local.settings.json
+
+# Worker config (contains storage connection string)
+worker/worker.config.json
+
+# Azurite local storage data
+.azurite/
+
+# Agent credentials and configs (contain secrets)
+*/config.json
+
+# Compiled binaries
+approver/dist/
+*/dist/
+
+# Agent log files and operational payloads (contain tenant UPNs / run data)
+*/logs/
+*/approver-payload.json
+
+# Audit log (sensitive operational data)
+audit.jsonl
+
+# Electron build output
+electron-app/out/
+electron-app/dist/
+
+# Misc
+*.tmp
+.DS_Store
+Thumbs.db

@@ -1,0 +1,25 @@
+{
+    "sensitiveLicenses": [
+        "AAD_PREMIUM_P2",
+        "ENTERPRISEPACK",
+        "SPE_E5",
+        "M365_F1"
+    ],
+    "sensitiveGroups": [
+        "Global Administrators",
+        "Domain Admins",
+        "IT Admins",
+        "Security Operations",
+        "Privileged Access"
+    ],
+    "requireDualApproval": ["submit_leaver_soft"],
+    "freezeWindows": [
+        {
+            "name": "Weekend Freeze",
+            "days": ["Saturday", "Sunday"],
+            "allDay": true,
+            "message": "Identity changes are not permitted on weekends. Submit a request for Monday."
+        }
+    ],
+    "note": "sensitiveLicenses and sensitiveGroups trigger a policy warning. freezeWindows block all write operations during the specified times."
+}

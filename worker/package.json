@@ -1,0 +1,14 @@
+{
+  "name": "jml-worker",
+  "version": "1.0.0",
+  "type": "commonjs",
+  "description": "JML queue worker — polls Azure Storage Queue and invokes PS1 agents",
+  "main": "src/worker.js",
+  "scripts": {
+    "start": "node src/worker.js"
+  },
+  "dependencies": {
+    "@azure/storage-queue": "^12.23.0",
+    "@azure/data-tables": "^13.3.0"
+  }
+}

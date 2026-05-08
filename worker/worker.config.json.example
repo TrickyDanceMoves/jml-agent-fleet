@@ -1,0 +1,8 @@
+{
+  "storageConnectionString": "DefaultEndpointsProtocol=https;AccountName=YOUR_ACCOUNT;AccountKey=YOUR_KEY;EndpointSuffix=core.windows.net",
+  "queueName": "jml-events",
+  "statusTable": "jmlstatus",
+  "pollIntervalMs": 5000,
+  "visibilityTimeoutSec": 300,
+  "maxRetries": 3
+}
