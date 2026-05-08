@@ -14,8 +14,8 @@
       1. Provisioner SP must have AccessReview.ReadWrite.All app permission.
          Run: provisioner\Grant-PIMPermissions.ps1 (includes this permission).
       2. shared/access-cert-config.json must be configured:
-         - userGroupCampaign.groups         — list of group object IDs to review
-         - agentPimCampaign.reviewerObjectId — your Entra admin user object ID
+         - userGroupCampaign.groups         -- list of group object IDs to review
+         - agentPimCampaign.reviewerObjectId -- your Entra admin user object ID
            (Get-MgUser -Filter "userPrincipalName eq 'you@domain.com'" | Select-Object Id)
       3. shared/pim-config.json must have group IDs populated (run New-PIMGroups.ps1).
 
@@ -67,7 +67,7 @@ function New-AccessReviewDefinition {
 
     $body = @{
         displayName             = $DisplayName
-        descriptionForAdmins    = "JML access certification — created by Invoke-CertificationCampaign.ps1"
+        descriptionForAdmins    = "JML access certification - created by Invoke-CertificationCampaign.ps1"
         descriptionForReviewers = "Review each principal's access. No decision = access removed after $DurationDays days."
         scope                   = $Scope
         reviewers               = $Reviewers
@@ -106,18 +106,18 @@ function New-AccessReviewDefinition {
 
 $results = [System.Collections.Generic.List[object]]::new()
 
-# ── User Group Campaign ────────────────────────────────────────────────────────
+# -- User Group Campaign -------------------------------------------------------
 if ($CampaignType -in @("all","user-groups")) {
     $ugCfg   = $certCfg.userGroupCampaign
     $adminId = $certCfg.agentPimCampaign.reviewerObjectId
 
     if (-not $ugCfg.groups -or $ugCfg.groups.Count -eq 0) {
-        Write-Host "`n[Certifier] userGroupCampaign.groups is empty — skipping user group campaign" -ForegroundColor Yellow
+        Write-Host "`n[Certifier] userGroupCampaign.groups is empty - skipping user group campaign" -ForegroundColor Yellow
         Write-Host "            Populate shared/access-cert-config.json to enable this campaign" -ForegroundColor Yellow
     } else {
-        Write-Host "`n[Certifier] User group campaign — $($ugCfg.groups.Count) group(s)..." -ForegroundColor Cyan
+        Write-Host "`n[Certifier] User group campaign - $($ugCfg.groups.Count) group(s)..." -ForegroundColor Cyan
         foreach ($groupId in $ugCfg.groups) {
-            $name = "$($ugCfg.displayNamePrefix) — $startDate — $groupId"
+            $name = "$($ugCfg.displayNamePrefix) - $startDate - $groupId"
 
             $scope = @{
                 "@odata.type"   = "#microsoft.graph.principalResourceMembershipsScope"
@@ -166,28 +166,27 @@ if ($CampaignType -in @("all","user-groups")) {
     }
 }
 
-# ── Agent PIM Campaign ─────────────────────────────────────────────────────────
+# -- Agent PIM Campaign --------------------------------------------------------
 if ($CampaignType -in @("all","agent-pim")) {
     $apCfg   = $certCfg.agentPimCampaign
     $adminId = $apCfg.reviewerObjectId
 
     if (-not $adminId) {
-        Write-Host "`n[Certifier] agentPimCampaign.reviewerObjectId not set — skipping agent PIM campaign" -ForegroundColor Yellow
-        Write-Host "            Set it in shared/access-cert-config.json:" -ForegroundColor Yellow
-        Write-Host "            Get-MgUser -Filter `"userPrincipalName eq 'you@domain.com'`" | Select-Object Id" -ForegroundColor Yellow
+        Write-Host "`n[Certifier] agentPimCampaign.reviewerObjectId not set - skipping agent PIM campaign" -ForegroundColor Yellow
+        Write-Host "            Set it in shared/access-cert-config.json" -ForegroundColor Yellow
     } else {
         $pimGroups = @($pimCfg.groups.PSObject.Properties)
-        Write-Host "`n[Certifier] Agent PIM campaign — $($pimGroups.Count) group(s)..." -ForegroundColor Cyan
+        Write-Host "`n[Certifier] Agent PIM campaign - $($pimGroups.Count) group(s)..." -ForegroundColor Cyan
 
         foreach ($prop in $pimGroups) {
             $groupName = $prop.Name
             $groupId   = $prop.Value.groupId
             if (-not $groupId) {
-                Write-Host "[Certifier]   Skipping $groupName — no groupId (run New-PIMGroups.ps1)" -ForegroundColor Yellow
+                Write-Host "[Certifier]   Skipping $groupName - no groupId (run New-PIMGroups.ps1)" -ForegroundColor Yellow
                 continue
             }
 
-            $name = "$($apCfg.displayNamePrefix) — $startDate — $groupName"
+            $name = "$($apCfg.displayNamePrefix) - $startDate - $groupName"
 
             $scope = @{
                 "@odata.type"   = "#microsoft.graph.principalResourceMembershipsScope"
@@ -235,5 +234,5 @@ if ($CampaignType -in @("all","agent-pim")) {
     }
 }
 
-Write-Host "`n[Certifier] Done$(if ($WhatIf) { ' (WHATIF — no changes made)' })." -ForegroundColor Cyan
+Write-Host "`n[Certifier] Done$(if ($WhatIf) { ' (WHATIF - no changes made)' })." -ForegroundColor Cyan
 $results | ConvertTo-Json -Depth 5

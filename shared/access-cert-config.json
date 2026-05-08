@@ -12,6 +12,6 @@
         "durationDays": 14,
         "defaultDecision": "Deny",
         "autoApply": true,
-        "reviewerObjectId": ""
+        "reviewerObjectId": "REVIEWER-OBJECT-ID-000000000001c"
     }
 }
