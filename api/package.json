@@ -1,0 +1,19 @@
+{
+  "name": "jml-api",
+  "version": "1.0.0",
+  "type": "commonjs",
+  "description": "JML REST API and webhook receiver (Azure Functions v4)",
+  "main": "src/functions/*.js",
+  "scripts": {
+    "start": "func start",
+    "start:local": "func start --port 7071"
+  },
+  "dependencies": {
+    "@azure/functions": "^4.5.0",
+    "@azure/storage-queue": "^12.23.0",
+    "@azure/data-tables": "^13.3.0",
+    "ajv": "^8.17.1",
+    "ajv-formats": "^3.0.1",
+    "uuid": "^11.1.0"
+  }
+}

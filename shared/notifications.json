@@ -1,0 +1,4 @@
+{
+    "teamsWebhookUrl": "",
+    "_comment": "Paste your Teams incoming webhook URL above to enable notifications on agent completions and failures."
+}

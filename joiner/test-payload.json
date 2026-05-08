@@ -1,0 +1,15 @@
+{
+    "jobTitle":  "Software Engineer",
+    "groups":  [
+
+               ],
+    "manager":  "UAT@contoso.onmicrosoft.com",
+    "surname":  "Joiner",
+    "userPrincipalName":  "test.joiner@contoso.onmicrosoft.com",
+    "givenName":  "Test",
+    "usageLocation":  "US",
+    "licenses":  [
+                     "Microsoft_Entra_Suite"
+                 ],
+    "department":  "Engineering"
+}

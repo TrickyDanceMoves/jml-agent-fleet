@@ -1,0 +1,31 @@
+{
+  "name": "jml-console",
+  "version": "1.0.0",
+  "description": "JML Identity Management Console",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder --win --x64"
+  },
+  "build": {
+    "appId": "com.jml.console",
+    "productName": "JML Console",
+    "win": {
+      "target": "portable",
+      "icon": "assets/icon.ico"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "renderer/**/*"
+    ],
+    "extraResources": []
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.94.0"
+  },
+  "devDependencies": {
+    "electron": "^42.0.0",
+    "electron-builder": "^26.8.1"
+  }
+}

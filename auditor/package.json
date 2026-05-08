@@ -1,0 +1,23 @@
+{
+  "name": "jml-auditor",
+  "version": "1.0.0",
+  "description": "JML Audit Agent",
+  "main": "auditor.js",
+  "bin": "auditor.js",
+  "scripts": {
+    "start": "node auditor.js",
+    "build": "pkg . --target node18-win-x64 --output dist/JML-Auditor.exe --compress GZip"
+  },
+  "pkg": {
+    "assets": [],
+    "targets": ["node18-win-x64"]
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.94.0",
+    "boxen": "^5.1.2",
+    "chalk": "^4.1.2"
+  },
+  "devDependencies": {
+    "@yao-pkg/pkg": "^6.19.0"
+  }
+}

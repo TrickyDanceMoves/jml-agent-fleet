@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; script-src 'self'">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+  <title>JML Console</title>
+</head>
+<body>
+  <div class="app">
+
+    <!-- Custom title bar -->
+    <div class="title-bar">
+      <div class="title-bar-drag">
+        <span class="app-logo">JML</span>
+        <span class="app-subtitle">Identity Management Console</span>
+      </div>
+      <div class="title-bar-controls">
+        <button class="win-btn help-btn" id="btn-help" title="Quick Reference">&#x3F;</button>
+        <button class="win-btn" id="btn-minimize" title="Minimize">&#x2212;</button>
+        <button class="win-btn" id="btn-maximize" title="Maximize">&#x25A1;</button>
+        <button class="win-btn close" id="btn-close" title="Close">&#x2715;</button>
+      </div>
+    </div>
+
+    <div class="layout">
+
+      <!-- Sidebar -->
+      <nav class="sidebar">
+        <div class="nav-items">
+          <button class="nav-item active" data-tab="dashboard">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+            <span>Dashboard</span>
+          </button>
+          <button class="nav-item" data-tab="approver">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 2L3 7v10l9 5 9-5V7L12 2z"/><path d="M9 12l2 2 4-4"/></svg>
+            <span>Approver</span>
+          </button>
+          <button class="nav-item" data-tab="auditor">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+            <span>Auditor</span>
+          </button>
+          <button class="nav-item" data-tab="audit-log">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><line x1="10" y1="9" x2="8" y2="9"/></svg>
+            <span>Audit Log</span>
+          </button>
+        </div>
+        <div class="sidebar-footer">
+          <div class="sidebar-tenant">contoso.onmicrosoft.com</div>
+        </div>
+      </nav>
+
+      <!-- Content area -->
+      <main class="content">
+
+        <!-- Dashboard -->
+        <div class="view active" id="view-dashboard">
+          <div class="view-header">
+            <h1>Dashboard</h1>
+            <span class="tenant-badge">contoso.onmicrosoft.com</span>
+          </div>
+          <div class="stats-grid" id="stats-grid">
+            <div class="stat-card" id="stat-users">
+              <div class="stat-label">Users</div>
+              <div class="stat-value" id="stat-users-total">--</div>
+              <div class="stat-detail" id="stat-users-detail">Loading...</div>
+            </div>
+            <div class="stat-card" id="stat-licenses">
+              <div class="stat-label">Licenses</div>
+              <div class="stat-value" id="stat-licenses-total">--</div>
+              <div class="stat-detail" id="stat-licenses-detail">Loading...</div>
+            </div>
+            <div class="stat-card" id="stat-activity">
+              <div class="stat-label">JML Operations</div>
+              <div class="stat-value" id="stat-activity-total">--</div>
+              <div class="stat-detail" id="stat-activity-detail">Loading...</div>
+            </div>
+          </div>
+          <div class="recent-activity">
+            <div class="section-header">
+              <div class="section-title">Recent Activity</div>
+            </div>
+            <div id="recent-activity-list" class="activity-list">
+              <div class="loading-hint">Loading activity...</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Approver -->
+        <div class="view" id="view-approver">
+          <div class="view-header">
+            <div class="view-header-left">
+              <h1>Approver Agent</h1>
+              <div class="mode-toggle" id="mode-toggle">
+                <button class="mode-btn active" data-mode="whatif">WhatIf</button>
+                <button class="mode-btn" data-mode="live">Live</button>
+              </div>
+            </div>
+            <button class="btn-ghost" id="clear-approver" title="Clear conversation">Clear</button>
+          </div>
+          <div class="mode-banner" id="mode-banner-whatif">
+            WhatIf mode -- no changes will be committed to the directory
+          </div>
+          <div class="mode-banner live hidden" id="mode-banner-live">
+            Live mode -- actions will modify the tenant directory
+          </div>
+          <div class="chat-container">
+            <div class="messages" id="messages-approver">
+              <div class="welcome-msg">
+                <div class="welcome-title">Approver Agent</div>
+                <div class="welcome-body">Describe the identity change you need. I'll gather the required information and submit it for you.</div>
+                <div class="welcome-examples">
+                  <span class="example-chip">Onboard a new hire</span>
+                  <span class="example-chip">Move someone to a new department</span>
+                  <span class="example-chip">Offboard a leaver</span>
+                </div>
+              </div>
+            </div>
+            <div class="input-row">
+              <input class="chat-input" id="input-approver" type="text" placeholder="Describe the identity change..." autocomplete="off">
+              <button class="send-btn" id="send-approver">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Auditor -->
+        <div class="view" id="view-auditor">
+          <div class="view-header">
+            <div class="view-header-left">
+              <h1>Audit Agent</h1>
+              <span class="badge readonly">Read Only</span>
+            </div>
+            <button class="btn-ghost" id="clear-auditor" title="Clear conversation">Clear</button>
+          </div>
+          <div class="chat-container">
+            <div class="messages" id="messages-auditor">
+              <div class="welcome-msg">
+                <div class="welcome-title">Audit Agent</div>
+                <div class="welcome-body">Ask anything about the tenant directory. I can query users, licenses, roles, groups, and JML activity.</div>
+                <div class="welcome-examples">
+                  <span class="example-chip">How many users are enabled?</span>
+                  <span class="example-chip">Show license utilization</span>
+                  <span class="example-chip">Who has admin roles?</span>
+                  <span class="example-chip">Recent joins this month</span>
+                </div>
+              </div>
+            </div>
+            <div class="input-row">
+              <input class="chat-input" id="input-auditor" type="text" placeholder="Ask about the tenant..." autocomplete="off">
+              <button class="send-btn" id="send-auditor">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Audit Log -->
+        <div class="view" id="view-audit-log">
+          <div class="view-header">
+            <div class="view-header-left">
+              <h1>Audit Log</h1>
+              <span class="view-header-meta" id="log-count"></span>
+            </div>
+            <button class="btn-ghost" id="refresh-log">Refresh</button>
+          </div>
+          <div class="table-wrapper">
+            <table class="data-table" id="log-table">
+              <thead>
+                <tr>
+                  <th>Timestamp</th>
+                  <th>Agent</th>
+                  <th>Subject</th>
+                  <th>Ticket</th>
+                  <th>Outcome</th>
+                  <th>Mode</th>
+                </tr>
+              </thead>
+              <tbody id="log-tbody">
+                <tr><td colspan="6" class="empty-row">Loading...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+      </main>
+    </div>
+  </div>
+
+  <!-- Help drawer -->
+  <div class="help-overlay" id="help-overlay"></div>
+  <aside class="help-drawer" id="help-drawer">
+    <div class="help-drawer-header">
+      <span class="help-drawer-title">Quick Reference</span>
+      <button class="win-btn" id="btn-help-close">&#x2715;</button>
+    </div>
+    <div class="help-drawer-body">
+
+      <div class="help-card">
+        <div class="help-card-title">JML Workflow</div>
+        <div class="help-card-body">
+          <div class="help-step"><span class="help-step-badge joiner">Joiner</span> Creates account, sets attributes</div>
+          <div class="help-step"><span class="help-step-badge enroller">Enroller</span> Licenses, groups, device inventory</div>
+          <div class="help-step"><span class="help-step-badge mover">Mover</span> Role / department / access changes</div>
+          <div class="help-step"><span class="help-step-badge leaver">Leaver</span> Soft → Hard offboarding</div>
+        </div>
+      </div>
+
+      <div class="help-card">
+        <div class="help-card-title">Required Fields</div>
+        <div class="help-card-body help-fields">
+          <div class="help-field-row"><span class="help-op">Joiner</span><span>First name, last name, department, job title, country (2-letter)</span></div>
+          <div class="help-field-row"><span class="help-op">Enroller</span><span>UPN only</span></div>
+          <div class="help-field-row"><span class="help-op">Mover</span><span>UPN + at least one change</span></div>
+          <div class="help-field-row"><span class="help-op">Leaver</span><span>UPN + ticket ref (e.g. INC-1234)</span></div>
+        </div>
+      </div>
+
+      <div class="help-card">
+        <div class="help-card-title">Leaver Stages</div>
+        <div class="help-card-body">
+          <div class="help-stage">
+            <span class="help-stage-label soft">Soft</span>
+            <span>Disables account, revokes all sessions. <strong>Reversible.</strong></span>
+          </div>
+          <div class="help-stage">
+            <span class="help-stage-label hard">Hard</span>
+            <span>Removes licenses and group memberships. <strong>Not auto-reversible.</strong></span>
+          </div>
+        </div>
+      </div>
+
+      <div class="help-card">
+        <div class="help-card-title">Execution Modes</div>
+        <div class="help-card-body">
+          <div class="help-stage">
+            <span class="badge-whatif">WhatIf</span>
+            <span>Full logic, zero directory changes. Use to preview.</span>
+          </div>
+          <div class="help-stage" style="margin-top:8px">
+            <span class="badge-live">Live</span>
+            <span>Real changes execute immediately against the tenant.</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="help-card">
+        <div class="help-card-title">Policies</div>
+        <div class="help-card-body help-policies">
+          <div class="help-policy-row"><span class="help-policy-label">Freeze</span> No changes on Saturday or Sunday</div>
+          <div class="help-policy-row"><span class="help-policy-label">Dual approval</span> Leaver Soft requires second operator</div>
+          <div class="help-policy-row"><span class="help-policy-label">Ticket ref</span> Required for Leavers, recommended for Movers</div>
+          <div class="help-policy-row"><span class="help-policy-label">UPN format</span> firstname.lastname@contoso.onmicrosoft.com</div>
+        </div>
+      </div>
+
+    </div>
+  </aside>
+
+  <script src="app.js"></script>
+</body>
+</html>
