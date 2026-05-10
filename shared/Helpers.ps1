@@ -35,6 +35,7 @@ function Write-AuditEntry {
             subject   = $Subject
             whatif    = $WhatIf
             outcome   = $Outcome
+            operator  = if ($env:JML_CONSOLE_OPERATOR) { $env:JML_CONSOLE_OPERATOR } else { $null }
             details   = $Details
             prevHash  = $prevHash
         }
