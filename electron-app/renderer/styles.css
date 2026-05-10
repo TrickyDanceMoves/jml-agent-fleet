@@ -1763,3 +1763,55 @@ body {
   border-radius: 6px; padding: 10px 12px;
   min-height: 120px; max-height: 60vh;
 }
+
+/* ── Role badges ────────────────────────────────────────────────────────────── */
+.sidebar-role-row {
+  padding: 0 12px 6px;
+}
+
+.role-badge {
+  display: inline-block;
+  font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 4px;
+  letter-spacing: 0.06em; text-transform: uppercase;
+}
+.role-badge.role-admin    { background: var(--accent-soft);                    color: var(--accent);    }
+.role-badge.role-helpdesk { background: var(--warning-soft);                   color: var(--warning);   }
+.role-badge.role-viewer   { background: rgba(107,115,153,0.15);                color: var(--text-muted); }
+
+/* ── Role access banner ─────────────────────────────────────────────────────── */
+.role-access-banner {
+  display: flex; align-items: center; gap: 8px;
+  padding: 7px 20px; font-size: 12px; color: var(--text-muted);
+  background: rgba(107,115,153,0.08); border-bottom: 1px solid var(--border);
+}
+.role-access-banner.hidden { display: none; }
+
+/* ── Role-based restrictions ─────────────────────────────────────────────────── */
+body.role-viewer .chat-input    { opacity: 0.45; pointer-events: none; cursor: not-allowed; }
+body.role-viewer .send-btn      { opacity: 0.3;  pointer-events: none; }
+body.role-viewer .btn-approve   { display: none; }
+body.role-viewer .btn-reject    { display: none; }
+body.role-viewer .btn-run-bulk  { display: none; }
+body.role-viewer .viewer-hide   { display: none; }
+
+/* ── Approval card rich detail ──────────────────────────────────────────────── */
+.approval-token {
+  font-size: 10px; font-weight: 600; color: var(--text-dim);
+  font-family: 'Consolas', monospace; letter-spacing: 0.04em; margin-left: auto;
+}
+
+.approval-detail-table {
+  width: 100%; border-collapse: collapse; margin-bottom: 10px; font-size: 12px;
+}
+.approval-detail-table td { padding: 2px 8px 2px 0; color: var(--text-muted); }
+.approval-detail-table td:first-child { color: var(--text-dim); white-space: nowrap; width: 100px; }
+
+.approval-risk { margin-bottom: 10px; }
+.risk-chip {
+  display: inline-block; font-size: 11px; padding: 3px 8px; border-radius: 4px;
+}
+.risk-chip.risk-high { background: var(--danger-soft);  color: var(--danger);  }
+.risk-chip.risk-low  { background: var(--success-soft); color: var(--success); }
+
+.approval-badge.joiner { background: var(--accent-soft); color: var(--accent); }
+.text-danger { color: var(--danger); }

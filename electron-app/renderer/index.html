@@ -97,6 +97,9 @@
             <span id="sidebar-operator-name"></span>
             <button class="btn-switch-operator" id="btn-switch-operator" title="Switch operator">⇄</button>
           </div>
+          <div class="sidebar-role-row">
+            <span id="sidebar-role-badge" class="role-badge role-admin">Admin</span>
+          </div>
           <div class="sidebar-tenant">contoso.onmicrosoft.com</div>
         </div>
       </nav>
@@ -155,6 +158,10 @@
           </div>
           <div class="mode-banner live hidden" id="mode-banner-live">
             Live mode — actions will modify the tenant directory
+          </div>
+          <div class="role-access-banner hidden" id="role-access-banner">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+            <span id="role-access-text"></span>
           </div>
           <div class="chat-container">
             <div class="messages" id="messages-approver">
