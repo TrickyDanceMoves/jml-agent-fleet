@@ -2,7 +2,7 @@
 
 ## Overview
 
-The leaver agent automatically submits a termination record to the Microsoft Purview HR Connector on every leaver run (Step 6). Purview Insider Risk Management ingests it within ~24h and opens a risk case if a matching IRM policy fires — enabling automated correlation of offboarding events with data exfiltration signals.
+The leaver agent automatically submits a termination record to the Microsoft Purview HR Connector on every leaver run (Step 6). Purview Insider Risk Management ingests it within ~24h and opens a risk case if a matching IRM policy fires, enabling automated correlation of offboarding events with data exfiltration signals.
 
 ## Sequence
 
@@ -44,7 +44,7 @@ user@domain.com,2026-05-07T00:00:00Z,2026-05-07T00:00:00Z
 
 ## Failure Behavior
 
-Non-fatal — a Purview submission failure logs `[WARN]` and the leaver process exits normally. Offboarding is never blocked by a Purview error.
+Non-fatal: a Purview submission failure logs `[WARN]` and the leaver process exits normally. Offboarding is never blocked by a Purview error.
 
 ## Setup
 

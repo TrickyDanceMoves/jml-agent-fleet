@@ -8,7 +8,7 @@
 | API | Microsoft Graph v1.0 + beta |
 | Graph SDK | Microsoft.Graph.Users PowerShell v2.36.1 |
 | Shell | PowerShell 5.1 (Windows) |
-| Auth | App-only client credentials — cert-first, DPAPI secret fallback |
+| Auth | App-only client credentials: cert-first, DPAPI secret fallback |
 
 ## AI Layer
 
@@ -31,7 +31,7 @@
 
 | Sink | Detail |
 |---|---|
-| Hash-chained audit log | `agents/audit.jsonl` — SHA256 prevHash chain |
+| Hash-chained audit log | `agents/audit.jsonl`: SHA256 prevHash chain |
 | Windows Event Log | Source: `JMLAgents`, EventIds 1001–1004 |
 | Teams webhook | MessageCard to configurable webhook URL |
 | Per-run logs | JSON + `.log` per agent run in each `logs/` directory |
@@ -40,7 +40,7 @@
 
 | Control | Technology |
 |---|---|
-| Insider risk | Microsoft Purview IRM — HR Connector |
+| Insider risk | Microsoft Purview IRM (HR Connector) |
 | HR data upload | `api.consumerdata.microsoft.com` client credentials |
 | Audit chain verification | `shared/Verify-AuditLog.ps1` |
 | Circuit breaker | Halts after 3 consecutive Graph failures |
