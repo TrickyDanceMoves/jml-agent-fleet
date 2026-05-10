@@ -2,6 +2,24 @@
 
 AI-powered identity lifecycle automation for Microsoft Entra ID. Seven Claude-backed agents handle the full Joiner/Mover/Leaver (JML) workflow with zero-trust architecture, UEBA, drift detection, AI-assisted provisioning, and end-to-end HRIS integration, replicating core capabilities of enterprise IGA platforms like SailPoint and Saviynt.
 
+## Screenshots
+
+| Operator Selector | Dashboard |
+|---|---|
+| ![Operator selector](docs/images/operator-select.png) | ![Dashboard](docs/images/dashboard.png) |
+
+| JML Fleet (Approver) | Auditor |
+|---|---|
+| ![JML Fleet](docs/images/approver.png) | ![Auditor](docs/images/auditor.png) |
+
+| Security | Exports |
+|---|---|
+| ![Security](docs/images/security.png) | ![Exports](docs/images/exports.png) |
+
+| Audit Log | Graph Runner |
+|---|---|
+| ![Audit Log](docs/images/audit-log.png) | ![Graph](docs/images/graph.png) |
+
 ## What It Does
 
 Automates identity provisioning and deprovisioning across a Microsoft 365 / Entra ID tenant, replacing manual IT processes with auditable, policy-gated agent workflows that run from a desktop operations console.

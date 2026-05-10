@@ -847,7 +847,46 @@ ipcMain.on('switch-operator', (event, { name, role }) => {
   if (win && !win.isDestroyed()) win.webContents.send('operator-switched', { name, role });
 });
 
+// ── Screenshot capture mode (npm start -- --capture) ─────────────────────────
+const CAPTURE_MODE = process.argv.includes('--capture');
+const CAPTURE_TABS = [
+  'dashboard', 'approver', 'auditor', 'security', 'exports',
+  'approvals', 'operations', 'certifications', 'settings', 'audit-log', 'users', 'graph'
+];
+const CAPTURE_OUT = path.join(__dirname, '..', 'docs', 'images');
+
+async function runCapture() {
+  currentOperator = 'admin';
+  process.env.JML_CONSOLE_OPERATOR = 'admin';
+
+  // Capture operator selector first
+  createOperatorWindow();
+  await new Promise(r => operatorWin.webContents.once('did-finish-load', r));
+  await new Promise(r => setTimeout(r, 800));
+  const selImg = await operatorWin.webContents.capturePage();
+  fs.writeFileSync(path.join(CAPTURE_OUT, 'operator-select.png'), selImg.toPNG());
+  console.log('Captured: operator-select');
+  operatorWin.close(); operatorWin = null;
+
+  // Capture all main window tabs
+  createMainWindow();
+  await new Promise(r => win.webContents.once('did-finish-load', r));
+  await new Promise(r => setTimeout(r, 1500));
+
+  for (const tab of CAPTURE_TABS) {
+    await win.webContents.executeJavaScript(
+      `document.querySelector('[data-tab="${tab}"]')?.click()`
+    );
+    await new Promise(r => setTimeout(r, 1200));
+    const img = await win.webContents.capturePage();
+    fs.writeFileSync(path.join(CAPTURE_OUT, tab + '.png'), img.toPNG());
+    console.log('Captured:', tab);
+  }
+  app.quit();
+}
+
 app.whenReady().then(() => {
+  if (CAPTURE_MODE) { runCapture(); return; }
   createOperatorWindow();
 
   setInterval(() => {
