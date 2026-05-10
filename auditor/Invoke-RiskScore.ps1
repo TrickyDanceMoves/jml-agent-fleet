@@ -40,8 +40,6 @@ param(
 $ErrorActionPreference = 'Stop'
 $agentsRoot = Split-Path $PSScriptRoot -Parent
 . (Join-Path $agentsRoot 'shared\Helpers.ps1')
-$config = Get-Content (Join-Path $PSScriptRoot 'config.json') | ConvertFrom-Json
-Connect-AgentGraph -Config $config 2>$null
 
 $sodPolicy  = Get-Content (Join-Path $agentsRoot 'shared\sod-policy.json')  | ConvertFrom-Json
 $policies   = Get-Content (Join-Path $agentsRoot 'approver\policies.json') | ConvertFrom-Json
@@ -92,6 +90,8 @@ foreach ($grp in $requestedGroups) {
 # ── 5. SoD conflict check (skip for new users who don't exist yet) ─────────────
 if ($requestedGroups.Count -gt 0 -and $UserPrincipalName -ne 'NEW_USER') {
     try {
+        $config = Get-Content (Join-Path $PSScriptRoot 'config.json') | ConvertFrom-Json
+        Connect-AgentGraph -Config $config 2>$null
         $existing = Invoke-MgGraphRequest -Method GET -Uri (
             "https://graph.microsoft.com/v1.0/users/$UserPrincipalName" +
             "/memberOf/microsoft.graph.group?`$select=displayName&`$top=100")

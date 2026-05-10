@@ -118,7 +118,7 @@ foreach ($prefix in @('ueba-','drift-','risky-users-')) {
                 severity   = $f.severity
                 title      = $f.title
                 ruleId     = $f.ruleId
-                eventCount = @($f.events ?? $f.items ?? @()).Count
+                eventCount = @(if ($f.events) { $f.events } elseif ($f.items) { $f.items } else { @() }).Count
             }
         }
     }

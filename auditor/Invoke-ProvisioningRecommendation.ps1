@@ -65,7 +65,7 @@ $licenseHits = @{}
 foreach ($user in $peers) {
     foreach ($lic in @($user.assignedLicenses)) {
         $id = $lic.skuId
-        if ($id) { $licenseHits[$id] = ($licenseHits[$id] ?? 0) + 1 }
+        if ($id) { if (-not $licenseHits.ContainsKey($id)) { $licenseHits[$id] = 0 }; $licenseHits[$id]++ }
     }
 }
 
@@ -95,7 +95,7 @@ $grpThreshold   = [Math]::Max(1, [Math]::Ceiling($sampleSize * 0.5))
 
 $recommendedLicenses = @($licenseHits.GetEnumerator() |
     Where-Object { $_.Value -ge $licThreshold } |
-    ForEach-Object { $skuMap[$_.Key] ?? $_.Key })
+    ForEach-Object { if ($skuMap[$_.Key]) { $skuMap[$_.Key] } else { $_.Key } })
 
 $recommendedGroups = @($groupHits.GetEnumerator() |
     Where-Object { $_.Value -ge $grpThreshold } |
