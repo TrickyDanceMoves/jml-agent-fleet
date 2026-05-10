@@ -22,9 +22,12 @@
     "extraResources": []
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.94.0"
+    "@anthropic-ai/sdk": "^0.94.0",
+    "@azure/data-tables": "^13.3.0",
+    "@azure/storage-queue": "^12.23.0"
   },
   "devDependencies": {
+    "@fontsource/inter": "^5.2.8",
     "electron": "^42.0.0",
     "electron-builder": "^26.8.1"
   }
