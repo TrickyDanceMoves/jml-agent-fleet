@@ -24,6 +24,9 @@ approver/dist/
 # Audit log (sensitive operational data)
 audit.jsonl
 
+# Auditor report outputs (contain tenant UPNs / security findings)
+auditor/reports/
+
 # Electron build output
 electron-app/out/
 electron-app/dist/
