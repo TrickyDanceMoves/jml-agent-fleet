@@ -538,11 +538,20 @@ ipcMain.on('approve-pending', (event, { id }) => {
   try {
     const file = path.join(PENDING_DIR, id + '.json');
     if (!fs.existsSync(file)) { event.sender.send('approve-result', { ok: false, error: 'Not found' }); return; }
-    const op = readJson(file);
-    const params = { UserPrincipalName: op.userPrincipalName, Stage: op.stage || 'Soft' };
-    if (op.ticketRef) params.TicketRef = op.ticketRef;
-    const script = path.join(AGENTS_DIR, 'leaver', 'Invoke-LeaverProcess.ps1');
-    const raw    = runPs(script, params);
+    const op   = readJson(file);
+    const inp  = op.input || op;
+    const tool = (op.tool || '').toLowerCase();
+    let raw;
+    if (tool === 'submit_joiner') {
+      const pf = writePayloadFile({ givenName: inp.givenName, surname: inp.surname, userPrincipalName: inp.userPrincipalName, department: inp.department, jobTitle: inp.jobTitle, usageLocation: inp.usageLocation });
+      try { raw = runPs(path.join(AGENTS_DIR, 'joiner', 'Invoke-JoinerProcess.ps1'), { PayloadPath: pf }); }
+      finally { try { fs.unlinkSync(pf); } catch {} }
+    } else {
+      const stage = inp.stage || (tool.includes('hard') ? 'Hard' : 'Soft');
+      const params = { UserPrincipalName: inp.userPrincipalName, Stage: stage };
+      if (inp.ticketRef) params.TicketRef = inp.ticketRef;
+      raw = runPs(path.join(AGENTS_DIR, 'leaver', 'Invoke-LeaverProcess.ps1'), params);
+    }
     const result = parsePs1Output(raw);
     fs.unlinkSync(file);
     event.sender.send('approve-result', { ok: true, result });
@@ -791,6 +800,7 @@ ipcMain.on('window-close',    () => { app.quit(); });
 let win;
 let operatorWin;
 let currentOperator = os.userInfo().username;
+let currentRole     = 'admin';
 
 function createMainWindow() {
   win = new BrowserWindow({
@@ -832,10 +842,16 @@ ipcMain.handle('get-operators-for-login', () => {
   } catch { return { operators: {} }; }
 });
 
-ipcMain.handle('get-current-operator', () => ({ name: currentOperator }));
+ipcMain.handle('get-current-operator', () => {
+  const ops = (() => { try { return readJson(OPERATORS_FILE).operators || {}; } catch { return {}; } })();
+  const role = ops[currentOperator] || 'viewer';
+  currentRole = role;
+  return { name: currentOperator, role };
+});
 
 ipcMain.on('select-operator', (event, { name, role }) => {
   currentOperator = name;
+  currentRole     = role || 'viewer';
   process.env.JML_CONSOLE_OPERATOR = name;
   if (operatorWin && !operatorWin.isDestroyed()) { operatorWin.close(); operatorWin = null; }
   if (!win) createMainWindow();
@@ -843,6 +859,7 @@ ipcMain.on('select-operator', (event, { name, role }) => {
 
 ipcMain.on('switch-operator', (event, { name, role }) => {
   currentOperator = name;
+  currentRole     = role || 'viewer';
   process.env.JML_CONSOLE_OPERATOR = name;
   if (win && !win.isDestroyed()) win.webContents.send('operator-switched', { name, role });
 });
@@ -965,8 +982,10 @@ const TAB_INJECT = {
       if(method) method.value = 'GET';
       const panel = document.getElementById('graph-response-panel');
       if(panel){ panel.style.display='block'; panel.style.visibility='visible'; }
+      const colorBtn = document.getElementById('btn-color-json');
+      if(colorBtn){ colorBtn.style.display='inline-flex'; colorBtn.classList.add('active'); colorBtn.textContent='Plain'; }
       const pre = document.getElementById('graph-response-pre');
-      if(pre) pre.textContent = JSON.stringify({
+      if(pre) pre.innerHTML = window.highlightJson ? window.highlightJson(JSON.stringify({
         "@odata.context":"https://graph.microsoft.com/v1.0/$metadata#users",
         "@odata.count":10,
         "value":[
@@ -976,7 +995,7 @@ const TAB_INJECT = {
           {"displayName":"David Kim","userPrincipalName":"david.kim@contoso.onmicrosoft.com","accountEnabled":true,"assignedLicenses":[{"skuId":"06ebc4ee-1bb5-47dd-8120-11324bc54e06"}]},
           {"displayName":"Robert Martinez","userPrincipalName":"robert.martinez@contoso.onmicrosoft.com","accountEnabled":false,"assignedLicenses":[]}
         ]
-      }, null, 2);
+      }, null, 2)) : pre.textContent;
       const dc = document.getElementById('graph-digest-card');
       if(dc){ dc.style.display='block'; dc.style.visibility='visible'; }
       const dt = document.getElementById('graph-digest-text');
@@ -1000,9 +1019,9 @@ async function runCapture() {
   console.log('Captured: operator-select');
   operatorWin.close(); operatorWin = null;
 
-  // ── Main window (larger for full-page shots) ───────────────────────────────
+  // ── Main window (tall for full-page shots) ────────────────────────────────
   win = new BrowserWindow({
-    width: 1440, height: 900,
+    width: 1440, height: 1800,
     frame: false,
     backgroundColor: '#0d0f14',
     webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, nodeIntegration: false, sandbox: false }
@@ -1017,14 +1036,32 @@ async function runCapture() {
   win.webContents.send('cert-expiry-data', MOCK_CERT_EXPIRY);
   await sleep(400);
 
+  // Remove overflow constraints so all content is visible in tall screenshots
+  const REMOVE_OVERFLOW = `
+    (function(){
+      const sel = [
+        '.security-content', '.approvals-content', '.ops-content',
+        '.certifications-content', '.exports-content', '.settings-content',
+        '.audit-log-content', '.content', '.layout'
+      ];
+      sel.forEach(s => {
+        document.querySelectorAll(s).forEach(el => {
+          el.style.overflow = 'visible';
+          el.style.maxHeight = 'none';
+          el.style.height = 'auto';
+        });
+      });
+    })();
+  `;
+
   const TABS = [
-    // [tabId, ipcTriggerJs, extraWaitMs]
+    // [tabId, ipcTriggerJs, extraWaitMs, outName]
     ['dashboard',      `window.api.getDashboardStats(); window.api.getAgentHealth();`, 2000],
     ['approver',       null, 600],
     ['auditor',        null, 600],
     ['security',       `window.api.getSecurityReports(); window.api.getAgentHealth();`, 2500],
     ['exports',        `window.api.getExportsStatus();`, 2000],
-    ['approvals',      `window.api.getPendingApprovals();`, 1800],
+    ['approvals',      `window.api.getPendingApprovals();`, 2000],
     ['operations',     `window.api.getScheduledOps();`, 1800],
     ['certifications', `window.api.getCertHistory();`, 1800],
     ['settings',       `window.api.getPolicy();`, 1800],
@@ -1033,13 +1070,23 @@ async function runCapture() {
     ['graph',          null, 600],
   ];
 
+  // Capture approver in default (input) state first
+  await win.webContents.executeJavaScript(`document.querySelector('[data-tab="approver"]')?.click()`);
+  await sleep(800);
+  {
+    const img = await win.webContents.capturePage();
+    fs.writeFileSync(path.join(CAPTURE_OUT, 'jml-fleet-input.png'), img.toPNG());
+    console.log('Captured: jml-fleet-input');
+  }
+
   for (const [tab, ipcJs, wait] of TABS) {
     await win.webContents.executeJavaScript(`document.querySelector('[data-tab="${tab}"]')?.click()`);
     await sleep(300);
     if (ipcJs) await win.webContents.executeJavaScript(ipcJs);
     await sleep(wait);
     if (TAB_INJECT[tab]) await win.webContents.executeJavaScript(TAB_INJECT[tab]);
-    await sleep(300);
+    await win.webContents.executeJavaScript(REMOVE_OVERFLOW);
+    await sleep(400);
     const img = await win.webContents.capturePage();
     fs.writeFileSync(path.join(CAPTURE_OUT, tab + '.png'), img.toPNG());
     console.log('Captured:', tab);

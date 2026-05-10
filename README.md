@@ -8,9 +8,13 @@ AI-powered identity lifecycle automation for Microsoft Entra ID. Seven Claude-ba
 |---|---|
 | ![Operator selector](docs/images/operator-select.png) | ![Dashboard](docs/images/dashboard.png) |
 
-| JML Fleet (Approver) | Auditor |
+| JML Fleet (Input) | JML Fleet (Conversation) |
 |---|---|
-| ![JML Fleet](docs/images/approver.png) | ![Auditor](docs/images/auditor.png) |
+| ![JML Fleet input](docs/images/jml-fleet-input.png) | ![JML Fleet](docs/images/approver.png) |
+
+| Auditor | Approvals |
+|---|---|
+| ![Auditor](docs/images/auditor.png) | ![Approvals](docs/images/approvals.png) |
 
 | Security | Exports |
 |---|---|

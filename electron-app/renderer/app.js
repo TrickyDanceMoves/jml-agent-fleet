@@ -697,27 +697,61 @@ window.api.onPendingApprovals((data) => {
     return;
   }
   listEl.innerHTML = items.map(op => {
-    const now     = new Date();
-    const expired = op.expiresAt && new Date(op.expiresAt) < now;
-    const expText = op.expiresAt
+    const inp       = op.input || op;
+    const token     = op.token || op.id || '';
+    const tool      = (op.tool || '').toLowerCase();
+    const now       = new Date();
+    const expired   = op.expiresAt && new Date(op.expiresAt) < now;
+    const expText   = op.expiresAt
       ? (expired ? 'Expired' : 'Expires ' + new Date(op.expiresAt).toLocaleString())
       : '';
-    const stageClass = (op.stage || '').toLowerCase() === 'hard' ? 'hard' : 'soft';
-    return `<div class="approval-card${expired ? ' expired' : ''}" data-id="${escHtml(op.id)}">
+
+    // Derive operation type and badge
+    let opLabel, badgeClass;
+    if (tool.includes('joiner'))      { opLabel = 'JOINER';    badgeClass = 'joiner'; }
+    else if (tool.includes('hard'))   { opLabel = 'HARD LEAVER'; badgeClass = 'hard'; }
+    else if (tool.includes('soft'))   { opLabel = 'SOFT LEAVER'; badgeClass = 'soft'; }
+    else if (tool.includes('mover'))  { opLabel = 'MOVER';     badgeClass = 'soft'; }
+    else                              { opLabel = 'PENDING';   badgeClass = 'soft'; }
+
+    // Build detail rows
+    const groups   = Array.isArray(inp.groups)   ? inp.groups.join(', ')   : '';
+    const licenses = Array.isArray(inp.licenses) ? inp.licenses.join(', ') : '';
+    const detailRows = [];
+    if (inp.givenName || inp.surname) detailRows.push(['Name', escHtml((inp.givenName || '') + ' ' + (inp.surname || '')).trim()]);
+    if (inp.department) detailRows.push(['Department', escHtml(inp.department)]);
+    if (inp.jobTitle)   detailRows.push(['Job Title',  escHtml(inp.jobTitle)]);
+    if (licenses)       detailRows.push(['Licenses',   escHtml(licenses)]);
+    if (groups)         detailRows.push(['Groups',     escHtml(groups)]);
+    if (inp.stage)      detailRows.push(['Stage',      escHtml(inp.stage)]);
+
+    const detailHtml = detailRows.length
+      ? '<table class="approval-detail-table">' +
+          detailRows.map(([k, v]) => `<tr><td class="dim-label">${k}</td><td>${v}</td></tr>`).join('') +
+        '</table>'
+      : '';
+
+    return `<div class="approval-card${expired ? ' expired' : ''}" data-id="${escHtml(token)}">
       <div class="approval-header">
-        <span class="approval-upn">${escHtml(op.userPrincipalName || '')}</span>
-        <span class="approval-badge ${stageClass}">${escHtml(op.stage || 'Soft')}</span>
-        ${expired ? '<span class="approval-badge expired-badge">Expired</span>' : ''}
+        <span class="approval-upn">${escHtml(inp.userPrincipalName || '')}</span>
+        <span class="approval-badge ${badgeClass}">${opLabel}</span>
+        <span class="approval-token">TOKEN: ${escHtml(token)}</span>
+        ${expired ? '<span class="approval-badge expired-badge">EXPIRED</span>' : ''}
       </div>
       <div class="approval-meta">
-        <span><span class="dim-label">Ticket</span> ${escHtml(op.ticketRef || '—')}</span>
+        <span><span class="dim-label">Ticket</span> ${escHtml(inp.ticketRef || '—')}</span>
         <span><span class="dim-label">Requested by</span> ${escHtml(op.requestedBy || '—')}</span>
-        <span><span class="dim-label">Requested</span> ${op.requestedAt ? new Date(op.requestedAt).toLocaleString() : '—'}</span>
-        ${expText ? '<span>' + escHtml(expText) + '</span>' : ''}
+        <span><span class="dim-label">Submitted</span> ${op.created ? new Date(op.created).toLocaleString() : '—'}</span>
+        ${expText ? '<span class="' + (expired ? 'text-danger' : '') + '">' + escHtml(expText) + '</span>' : ''}
+      </div>
+      ${detailHtml}
+      <div class="approval-risk">
+        ${badgeClass === 'hard' ? '<span class="risk-chip risk-high">High risk — dual approval required for license + group removal</span>' : ''}
+        ${badgeClass === 'joiner' ? '<span class="risk-chip risk-low">New hire provisioning — groups and licenses pre-assigned by Provisioner</span>' : ''}
       </div>
       <div class="approval-actions">
-        ${!expired ? '<button class="btn-run btn-approve" data-id="' + escHtml(op.id) + '">Approve</button>' : ''}
-        <button class="btn-danger btn-reject" data-id="${escHtml(op.id)}">Reject</button>
+        ${!expired ? '<button class="btn-run btn-approve" data-id="' + escHtml(token) + '">Approve</button>' : ''}
+        <button class="btn-danger btn-reject" data-id="${escHtml(token)}">Reject</button>
       </div>
     </div>`;
   }).join('');
@@ -1154,11 +1188,40 @@ window.api.onHrQueue((data) => {
   overlay.addEventListener('click', closeHelp);
 })();
 
+// ── Role-based UI ─────────────────────────────────────────────────────────────
+function applyRoleUI(role) {
+  const r = (role || 'viewer').toLowerCase();
+  document.body.classList.remove('role-admin', 'role-helpdesk', 'role-viewer');
+  document.body.classList.add('role-' + r);
+
+  const badge = document.getElementById('sidebar-role-badge');
+  if (badge) {
+    badge.textContent = r.charAt(0).toUpperCase() + r.slice(1);
+    badge.className   = 'role-badge role-' + r;
+  }
+
+  const banner = document.getElementById('role-access-banner');
+  const bannerText = document.getElementById('role-access-text');
+  if (banner) {
+    if (r === 'viewer') {
+      banner.classList.remove('hidden');
+      if (bannerText) bannerText.textContent = 'Read-only viewer — all write operations are disabled.';
+    } else if (r === 'helpdesk') {
+      banner.classList.remove('hidden');
+      if (bannerText) bannerText.textContent = 'Helpdesk role — restricted to joiner and enroller operations.';
+    } else {
+      banner.classList.add('hidden');
+    }
+  }
+}
+
 // ── Init ──────────────────────────────────────────────────────────────────────
 window.api.getCurrentOperator().then(d => {
   document.getElementById('sidebar-operator-name').textContent = d.name || window.api.currentUser;
+  applyRoleUI(d.role);
 }).catch(() => {
   document.getElementById('sidebar-operator-name').textContent = window.api.currentUser;
+  applyRoleUI('viewer');
 });
 
 // ── Operator switch modal ─────────────────────────────────────────────────────
@@ -1201,6 +1264,7 @@ window.api.getCurrentOperator().then(d => {
 
   window.api.onOperatorSwitched(d => {
     document.getElementById('sidebar-operator-name').textContent = d.name;
+    applyRoleUI(d.role);
   });
 })();
 
@@ -2075,7 +2139,8 @@ function renderTimeline(entries) {
   const btnColorJson = document.getElementById('btn-color-json');
   const digestCard   = document.getElementById('graph-digest-card');
   const digestText   = document.getElementById('graph-digest-text');
-  let _colorMode = false, _lastRespText = '', _lastMethod = 'GET', _lastUrl = '';
+  let _colorMode = true, _lastRespText = '', _lastMethod = 'GET', _lastUrl = '';
+  if (btnColorJson) { btnColorJson.textContent = 'Plain'; btnColorJson.classList.add('active'); }
 
   function loadRecent() {
     try { return JSON.parse(localStorage.getItem(RECENT_KEY) || '[]'); } catch { return []; }
@@ -2151,7 +2216,7 @@ function renderTimeline(entries) {
       _colorMode = !_colorMode;
       btnColorJson.classList.toggle('active', _colorMode);
       btnColorJson.textContent = _colorMode ? 'Plain' : 'Color';
-      if (respPre) {
+      if (respPre && _lastRespText) {
         if (_colorMode) { respPre.innerHTML = highlightJson(_lastRespText); }
         else            { respPre.textContent = _lastRespText; }
       }
