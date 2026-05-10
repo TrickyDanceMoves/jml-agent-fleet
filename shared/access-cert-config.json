@@ -5,7 +5,11 @@
         "durationDays": 14,
         "defaultDecision": "Deny",
         "autoApply": true,
-        "groups": []
+        "groups": [
+            "JML-USERADMIN-GROUP-ID-00000000001",
+            "JML-LICENSEADMIN-GROUP-ID-000000002",
+            "JML-CLOUDDEVICEADMIN-GROUP-ID-0003"
+        ]
     },
     "agentPimCampaign": {
         "displayNamePrefix": "JML Agent PIM Review",
