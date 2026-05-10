@@ -1,4 +1,4 @@
-'use strict';
+﻿'use strict';
 
 const { app, BrowserWindow, ipcMain } = require('electron');
 const { execFileSync }                 = require('child_process');
@@ -6,9 +6,25 @@ const path  = require('path');
 const fs    = require('fs');
 const os    = require('os');
 
-const AGENTS_DIR    = path.join(os.homedir(), '.claude', 'agents');
+const AGENTS_DIR    = path.join(__dirname, '..');
 const REPORTS_DIR   = path.join(__dirname, '..', 'auditor', 'reports');
 const TENANT_DOMAIN = 'contoso.onmicrosoft.com';
+
+// Stamp every child process with the console operator identity so Write-AuditEntry picks it up
+process.env.JML_CONSOLE_OPERATOR = os.userInfo().username;
+
+// BOM-safe JSON file reader — config files saved by PS/VS Code may have UTF-8 BOM
+function readJson(filePath) {
+  return JSON.parse(fs.readFileSync(filePath, 'utf8').split(String.fromCharCode(0xFEFF)).join(''));
+}
+
+const PENDING_DIR    = path.join(AGENTS_DIR, 'approver', 'pending');
+const SCHEDULED_FILE = path.join(AGENTS_DIR, 'approver', 'scheduled.json');
+const POLICIES_FILE  = path.join(AGENTS_DIR, 'approver', 'policies.json');
+const SOD_FILE       = path.join(AGENTS_DIR, 'shared', 'sod-policy.json');
+const OPERATORS_FILE = path.join(AGENTS_DIR, 'approver', 'operators.json');
+const CERT_SCRIPT    = path.join(AGENTS_DIR, 'certifier', 'Invoke-CertificationCampaign.ps1');
+const AGENT_DIRS     = ['joiner','mover','leaver','enroller','approver','provisioner','auditor'];
 
 // ── Agent state ───────────────────────────────────────────────────────────────
 const state = {
@@ -38,10 +54,10 @@ Rules:
 
 AI-ASSISTED PROVISIONING:
 
-For JOINER and MOVER requests — after collecting the user's department and job title,
-call suggest_provisioning to get peer-based recommendations. Present the output to the
-operator: "Based on X peers in [Department], I recommend licenses: [...] and groups: [...]
-— want to use these, or adjust?" Let them confirm or modify before proceeding.
+For JOINER and MOVER requests — only call suggest_provisioning if the operator explicitly
+asks for suggestions (e.g. "what should I assign?", "any recommendations?") or appears
+unsure about which licenses or groups to use. Do not call it automatically. If they
+already know what they want, proceed directly without suggesting.
 
 For ALL operations in LIVE mode — before calling any submit_* tool, call score_risk with
 the full operation details. Then:
@@ -215,6 +231,12 @@ const AUDITOR_TOOLS = [
 ];
 
 // ── PS1 dispatch ──────────────────────────────────────────────────────────────
+function writePayloadFile(payload) {
+  const p = path.join(os.tmpdir(), 'jml-payload-' + Date.now() + '.json');
+  fs.writeFileSync(p, JSON.stringify(payload), 'utf8');
+  return p;
+}
+
 function runPs(scriptPath, params = {}) {
   if (!fs.existsSync(scriptPath)) throw new Error('Script not found: ' + scriptPath);
   const args = ['-NonInteractive', '-File', scriptPath];
@@ -282,15 +304,18 @@ function executeTool(agent, toolName, input, whatif) {
       const jsonLine = raw.trim().split('\n').filter(l => l.trim().startsWith('{')).pop();
       return jsonLine ? JSON.parse(jsonLine) : { error: 'No output from risk score script' };
     }
-    case 'submit_joiner':
-      return parsePs1Output(runPs(path.join(AGENTS_DIR, 'joiner', 'Invoke-JoinerProcess.ps1'), {
-        GivenName: input.givenName, Surname: input.surname,
-        UserPrincipalName: input.userPrincipalName, Department: input.department,
-        JobTitle: input.jobTitle, UsageLocation: input.usageLocation,
-        Manager: input.manager, Licenses: input.licenses, Groups: input.groups,
-        MobilePhone: input.mobilePhone, OfficeLocation: input.officeLocation,
-        WhatIf: w
-      }));
+    case 'submit_joiner': {
+      const _pf = writePayloadFile({
+        givenName: input.givenName, surname: input.surname,
+        userPrincipalName: input.userPrincipalName, department: input.department,
+        jobTitle: input.jobTitle, usageLocation: input.usageLocation,
+        manager: input.manager, licenses: input.licenses, groups: input.groups,
+        mobilePhone: input.mobilePhone, officeLocation: input.officeLocation,
+        ticketRef: input.ticketRef
+      });
+      try { return parsePs1Output(runPs(path.join(AGENTS_DIR, 'joiner', 'Invoke-JoinerProcess.ps1'), { PayloadPath: _pf, WhatIf: w })); }
+      finally { try { fs.unlinkSync(_pf); } catch {} }
+    }
     case 'submit_enroller':
       return parsePs1Output(runPs(path.join(AGENTS_DIR, 'enroller', 'Invoke-EnrollerProcess.ps1'), {
         UserPrincipalName: input.userPrincipalName,
@@ -439,7 +464,7 @@ ipcMain.on('get-security-reports', (event) => {
       .filter(f => f.startsWith(prefix) && f.endsWith('.json'))
       .sort().reverse();
     if (!files.length) return null;
-    try { return JSON.parse(fs.readFileSync(path.join(REPORTS_DIR, files[0]), 'utf8')); }
+    try { return readJson(path.join(REPORTS_DIR, files[0])); }
     catch { return null; }
   }
   event.sender.send('security-reports', {
@@ -452,7 +477,7 @@ ipcMain.on('get-security-reports', (event) => {
 // ── Exports tab ───────────────────────────────────────────────────────────────
 ipcMain.on('get-exports-status', (event) => {
   function readStatus(file) {
-    try { return JSON.parse(fs.readFileSync(file, 'utf8')); } catch { return null; }
+    try { return readJson(file); } catch { return null; }
   }
   const base = path.join(REPORTS_DIR);
   event.sender.send('exports-status', {
@@ -465,7 +490,7 @@ ipcMain.on('run-blob-export', (event) => {
   const script = path.join(AGENTS_DIR, 'auditor', 'Invoke-BlobExport.ps1');
   try {
     runPs(script);
-    const status = JSON.parse(fs.readFileSync(path.join(REPORTS_DIR, 'blob-export-status.json'), 'utf8'));
+    const status = readJson(path.join(REPORTS_DIR, 'blob-export-status.json'));
     event.sender.send('export-run-result', { type: 'blob', ok: true, status });
   } catch (err) {
     event.sender.send('export-run-result', { type: 'blob', ok: false, error: err.message });
@@ -476,10 +501,285 @@ ipcMain.on('run-sentinel-ingest', (event) => {
   const script = path.join(AGENTS_DIR, 'auditor', 'Invoke-SentinelIngest.ps1');
   try {
     runPs(script);
-    const status = JSON.parse(fs.readFileSync(path.join(REPORTS_DIR, 'sentinel-status.json'), 'utf8'));
+    const status = readJson(path.join(REPORTS_DIR, 'sentinel-status.json'));
     event.sender.send('export-run-result', { type: 'sentinel', ok: true, status });
   } catch (err) {
     event.sender.send('export-run-result', { type: 'sentinel', ok: false, error: err.message });
+  }
+});
+
+// ── Scheduled ops helpers ─────────────────────────────────────────────────────
+function loadScheduled() {
+  if (!fs.existsSync(SCHEDULED_FILE)) return [];
+  try { return readJson(SCHEDULED_FILE); } catch { return []; }
+}
+
+function saveScheduled(ops) {
+  const dir = path.dirname(SCHEDULED_FILE);
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(SCHEDULED_FILE, JSON.stringify(ops, null, 2), 'utf8');
+}
+
+// ── Approvals tab ─────────────────────────────────────────────────────────────
+ipcMain.on('get-pending-approvals', (event) => {
+  try {
+    if (!fs.existsSync(PENDING_DIR)) { event.sender.send('pending-approvals', []); return; }
+    const files = fs.readdirSync(PENDING_DIR).filter(f => f.endsWith('.json'));
+    const approvals = files.map(f => {
+      try { return readJson(path.join(PENDING_DIR, f)); } catch { return null; }
+    }).filter(Boolean);
+    event.sender.send('pending-approvals', approvals);
+  } catch (err) {
+    event.sender.send('pending-approvals', { error: err.message });
+  }
+});
+
+ipcMain.on('approve-pending', (event, { id }) => {
+  try {
+    const file = path.join(PENDING_DIR, id + '.json');
+    if (!fs.existsSync(file)) { event.sender.send('approve-result', { ok: false, error: 'Not found' }); return; }
+    const op = readJson(file);
+    const params = { UserPrincipalName: op.userPrincipalName, Stage: op.stage || 'Soft' };
+    if (op.ticketRef) params.TicketRef = op.ticketRef;
+    const script = path.join(AGENTS_DIR, 'leaver', 'Invoke-LeaverProcess.ps1');
+    const raw    = runPs(script, params);
+    const result = parsePs1Output(raw);
+    fs.unlinkSync(file);
+    event.sender.send('approve-result', { ok: true, result });
+  } catch (err) {
+    event.sender.send('approve-result', { ok: false, error: err.message });
+  }
+});
+
+ipcMain.on('reject-pending', (event, { id }) => {
+  try {
+    const file = path.join(PENDING_DIR, id + '.json');
+    if (fs.existsSync(file)) fs.unlinkSync(file);
+    event.sender.send('reject-result', { ok: true });
+  } catch (err) {
+    event.sender.send('reject-result', { ok: false, error: err.message });
+  }
+});
+
+// ── Operations tab ────────────────────────────────────────────────────────────
+ipcMain.on('run-bulk-import', async (event, { rows, whatif }) => {
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i];
+    event.sender.send('bulk-import-progress', { index: i, status: 'running', upn: row.userPrincipalName });
+    try {
+      let raw;
+      const op = (row.operation || '').toLowerCase();
+      if (op === 'joiner') {
+        const _pf2 = writePayloadFile({
+          givenName: row.givenName, surname: row.surname,
+          userPrincipalName: row.userPrincipalName, department: row.department,
+          jobTitle: row.jobTitle, usageLocation: row.usageLocation
+        });
+        try { raw = runPs(path.join(AGENTS_DIR, 'joiner', 'Invoke-JoinerProcess.ps1'), { PayloadPath: _pf2, WhatIf: !!whatif }); }
+        finally { try { fs.unlinkSync(_pf2); } catch {} }
+      } else if (op === 'leaver') {
+        raw = runPs(path.join(AGENTS_DIR, 'leaver', 'Invoke-LeaverProcess.ps1'), {
+          UserPrincipalName: row.userPrincipalName, Stage: row.stage || 'Soft',
+          TicketRef: row.ticketRef, WhatIf: !!whatif
+        });
+      } else if (op === 'mover') {
+        raw = runPs(path.join(AGENTS_DIR, 'mover', 'Invoke-MoverProcess.ps1'), {
+          UserPrincipalName: row.userPrincipalName, Department: row.department,
+          JobTitle: row.jobTitle, WhatIf: !!whatif
+        });
+      } else {
+        throw new Error('Unknown operation: ' + row.operation);
+      }
+      const result = parsePs1Output(raw);
+      event.sender.send('bulk-import-progress', { index: i, status: 'done', upn: row.userPrincipalName, result });
+    } catch (err) {
+      event.sender.send('bulk-import-progress', { index: i, status: 'error', upn: row.userPrincipalName, error: err.message });
+    }
+  }
+  event.sender.send('bulk-import-complete', { total: rows.length });
+});
+
+ipcMain.on('get-scheduled-ops', (event) => {
+  event.sender.send('scheduled-ops', loadScheduled());
+});
+
+ipcMain.on('save-scheduled-op', (event, { op }) => {
+  const ops = loadScheduled();
+  const newOp = Object.assign({}, op, {
+    id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+    status: 'pending'
+  });
+  ops.push(newOp);
+  saveScheduled(ops);
+  event.sender.send('scheduled-ops', ops);
+});
+
+ipcMain.on('delete-scheduled-op', (event, { id }) => {
+  const ops = loadScheduled().filter(o => o.id !== id);
+  saveScheduled(ops);
+  event.sender.send('scheduled-ops', ops);
+});
+
+// ── Certifications tab ────────────────────────────────────────────────────────
+ipcMain.on('run-certification', (event, { campaignType, whatif }) => {
+  try {
+    const raw    = runPs(CERT_SCRIPT, { CampaignType: campaignType, WhatIf: !!whatif });
+    const lines  = raw.trim().split('\n')
+      .filter(l => /\[Certifier\]/.test(l))
+      .map(l => l.replace(/^\[\d{2}:\d{2}:\d{2}\] /, '').trim());
+    const jsonLine = raw.trim().split('\n').filter(l => l.trim().startsWith('[')).pop();
+    let campaigns = [];
+    try { if (jsonLine) campaigns = JSON.parse(jsonLine); } catch {}
+    event.sender.send('certification-result', { ok: true, campaigns, lines });
+  } catch (err) {
+    event.sender.send('certification-result', { ok: false, error: err.message, campaigns: [], lines: [] });
+  }
+});
+
+ipcMain.on('get-cert-history', (event) => {
+  const auditPath = path.join(AGENTS_DIR, 'audit.jsonl');
+  if (!fs.existsSync(auditPath)) { event.sender.send('cert-history', []); return; }
+  const lines   = fs.readFileSync(auditPath, 'utf8').trim().split('\n').filter(Boolean);
+  const entries = lines
+    .map(l => { try { return JSON.parse(l); } catch { return null; } })
+    .filter(e => e && e.agent === 'certifier');
+  event.sender.send('cert-history', entries.reverse());
+});
+
+// ── Settings tab ──────────────────────────────────────────────────────────────
+ipcMain.on('get-policy', (event) => {
+  try {
+    const policies = fs.existsSync(POLICIES_FILE) ? readJson(POLICIES_FILE) : {};
+    const sod      = fs.existsSync(SOD_FILE)       ? readJson(SOD_FILE) : {};
+    event.sender.send('policy-data', { policies, sod });
+  } catch (err) {
+    event.sender.send('policy-data', { error: err.message });
+  }
+});
+
+ipcMain.on('save-policy', (event, { policies, sod }) => {
+  try {
+    fs.writeFileSync(POLICIES_FILE, JSON.stringify(policies, null, 2), 'utf8');
+    fs.writeFileSync(SOD_FILE,      JSON.stringify(sod,      null, 2), 'utf8');
+    event.sender.send('policy-saved', { ok: true });
+  } catch (err) {
+    event.sender.send('policy-saved', { ok: false, error: err.message });
+  }
+});
+
+ipcMain.on('get-operators', (event) => {
+  try {
+    const data = fs.existsSync(OPERATORS_FILE) ? readJson(OPERATORS_FILE) : { operators: {}, roles: {} };
+    event.sender.send('operators-data', data);
+  } catch (err) {
+    event.sender.send('operators-data', { error: err.message });
+  }
+});
+
+ipcMain.on('save-operators', (event, { operators, roles }) => {
+  try {
+    const existing = fs.existsSync(OPERATORS_FILE) ? readJson(OPERATORS_FILE) : {};
+    const updated  = Object.assign({}, existing, { operators, roles });
+    fs.writeFileSync(OPERATORS_FILE, JSON.stringify(updated, null, 2), 'utf8');
+    event.sender.send('operators-saved', { ok: true });
+  } catch (err) {
+    event.sender.send('operators-saved', { ok: false, error: err.message });
+  }
+});
+
+// ── Agent health ──────────────────────────────────────────────────────────────
+ipcMain.on('get-agent-health', (event) => {
+  try {
+    const auditPath = path.join(AGENTS_DIR, 'audit.jsonl');
+    const lastActivity = {};
+    const lastOutcome  = {};
+    if (fs.existsSync(auditPath)) {
+      const lines = fs.readFileSync(auditPath, 'utf8').trim().split('\n').filter(Boolean);
+      for (const line of lines) {
+        try {
+          const e = JSON.parse(line);
+          if (e.agent) { lastActivity[e.agent] = e.timestamp; lastOutcome[e.agent] = e.outcome; }
+        } catch {}
+      }
+    }
+
+    const agents = AGENT_DIRS.map(name => {
+      const dir        = path.join(AGENTS_DIR, name);
+      const cfgPath    = path.join(dir, 'config.json');
+      if (!fs.existsSync(cfgPath)) {
+        return { name, dir, clientId: null, credentialType: 'unknown', expiry: null, daysUntilExpiry: null,
+          lastActivity: lastActivity[name] || null, lastOutcome: lastOutcome[name] || null, status: 'unconfigured' };
+      }
+      let cfg = {};
+      try { cfg = readJson(cfgPath); } catch {}
+      const clientId      = cfg.ClientId || null;
+      const credType      = cfg.CertThumbprint ? 'certificate' : cfg.SecretExpiry ? 'secret' : 'unknown';
+      const expiryStr     = credType === 'certificate' ? (cfg.CertExpiry || null) : (cfg.SecretExpiry || null);
+      let daysUntilExpiry = null;
+      if (expiryStr) {
+        const diff = new Date(expiryStr) - Date.now();
+        daysUntilExpiry = Math.floor(diff / 86400000);
+      }
+      const outcome = lastOutcome[name] || null;
+      let status;
+      if (!clientId) {
+        status = 'unconfigured';
+      } else if (daysUntilExpiry !== null && daysUntilExpiry < 0) {
+        status = 'critical';
+      } else if (outcome === 'failed') {
+        status = 'critical';
+      } else if (daysUntilExpiry !== null && daysUntilExpiry < 30) {
+        status = 'warning';
+      } else {
+        status = 'healthy';
+      }
+      return { name, dir, clientId, credentialType: credType, expiry: expiryStr,
+        daysUntilExpiry, lastActivity: lastActivity[name] || null, lastOutcome: outcome, status };
+    });
+    event.sender.send('agent-health', { agents });
+  } catch (err) {
+    event.sender.send('agent-health', { agents: [], error: err.message });
+  }
+});
+
+// ── HR Event Queue ────────────────────────────────────────────────────────────
+ipcMain.on('get-hr-queue', async (event) => {
+  try {
+    const { QueueServiceClient }  = require('@azure/storage-queue');
+    const { TableClient }         = require('@azure/data-tables');
+    const connStr = 'UseDevelopmentStorage=true';
+
+    const qClient   = QueueServiceClient.fromConnectionString(connStr);
+    const queueName = 'hr-events';
+    const queue     = qClient.getQueueClient(queueName);
+
+    let queueDepth = 0;
+    try {
+      const props = await queue.getProperties();
+      queueDepth = props.approximateMessagesCount || 0;
+    } catch {}
+
+    const tableClient = TableClient.fromConnectionString(connStr, 'HREvents');
+    const events = [];
+    try {
+      const iter = tableClient.listEntities({ queryOptions: { top: 50 } });
+      for await (const entity of iter) {
+        events.push({
+          partitionKey: entity.partitionKey,
+          rowKey:       entity.rowKey,
+          eventId:      entity.eventId   || entity.rowKey,
+          status:       entity.status    || '',
+          eventType:    entity.eventType || '',
+          upn:          entity.upn       || entity.UserPrincipalName || '',
+          timestamp:    entity.timestamp || entity.Timestamp || ''
+        });
+        if (events.length >= 50) break;
+      }
+    } catch {}
+
+    event.sender.send('hr-queue', { queueDepth, events });
+  } catch (err) {
+    event.sender.send('hr-queue', { queueDepth: 0, events: [], error: err.message });
   }
 });
 
@@ -489,8 +789,10 @@ ipcMain.on('window-close',    () => { app.quit(); });
 
 // ── Window ────────────────────────────────────────────────────────────────────
 let win;
+let operatorWin;
+let currentOperator = os.userInfo().username;
 
-function createWindow() {
+function createMainWindow() {
   win = new BrowserWindow({
     width: 1200, height: 780,
     minWidth: 900, minHeight: 600,
@@ -499,11 +801,483 @@ function createWindow() {
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
-      nodeIntegration: false
+      nodeIntegration: false,
+      sandbox: false
     }
   });
   win.loadFile(path.join(__dirname, 'renderer', 'index.html'));
 }
 
-app.whenReady().then(createWindow);
+function createOperatorWindow() {
+  operatorWin = new BrowserWindow({
+    width: 420, height: 440,
+    resizable: false,
+    frame: false,
+    center: true,
+    backgroundColor: '#0d0f14',
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.js'),
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: false
+    }
+  });
+  operatorWin.loadFile(path.join(__dirname, 'renderer', 'operator-select.html'));
+}
+
+ipcMain.handle('get-operators-for-login', () => {
+  try {
+    if (!fs.existsSync(OPERATORS_FILE)) return { operators: {} };
+    return { operators: readJson(OPERATORS_FILE).operators || {} };
+  } catch { return { operators: {} }; }
+});
+
+ipcMain.handle('get-current-operator', () => ({ name: currentOperator }));
+
+ipcMain.on('select-operator', (event, { name, role }) => {
+  currentOperator = name;
+  process.env.JML_CONSOLE_OPERATOR = name;
+  if (operatorWin && !operatorWin.isDestroyed()) { operatorWin.close(); operatorWin = null; }
+  if (!win) createMainWindow();
+});
+
+ipcMain.on('switch-operator', (event, { name, role }) => {
+  currentOperator = name;
+  process.env.JML_CONSOLE_OPERATOR = name;
+  if (win && !win.isDestroyed()) win.webContents.send('operator-switched', { name, role });
+});
+
+app.whenReady().then(() => {
+  createOperatorWindow();
+
+  setInterval(() => {
+    const ops  = loadScheduled();
+    const now  = new Date();
+    let changed = false;
+    for (const op of ops) {
+      if (op.status !== 'pending') continue;
+      if (new Date(op.scheduledFor) > now) continue;
+      try {
+        const payload = op.payload || {};
+        const w       = !!op.whatif;
+        let raw;
+        const opName  = (op.operation || '').toLowerCase();
+        if (opName === 'joiner') {
+          const _pf3 = writePayloadFile({
+            givenName: payload.givenName, surname: payload.surname,
+            userPrincipalName: payload.userPrincipalName, department: payload.department,
+            jobTitle: payload.jobTitle, usageLocation: payload.usageLocation
+          });
+          try { raw = runPs(path.join(AGENTS_DIR, 'joiner', 'Invoke-JoinerProcess.ps1'), { PayloadPath: _pf3, WhatIf: w }); }
+          finally { try { fs.unlinkSync(_pf3); } catch {} }
+        } else if (opName === 'leaver') {
+          raw = runPs(path.join(AGENTS_DIR, 'leaver', 'Invoke-LeaverProcess.ps1'), {
+            UserPrincipalName: payload.userPrincipalName, Stage: payload.stage || 'Soft',
+            TicketRef: payload.ticketRef, WhatIf: w
+          });
+        } else if (opName === 'mover') {
+          raw = runPs(path.join(AGENTS_DIR, 'mover', 'Invoke-MoverProcess.ps1'), {
+            UserPrincipalName: payload.userPrincipalName, Department: payload.department,
+            JobTitle: payload.jobTitle, WhatIf: w
+          });
+        }
+        op.status = 'executed';
+      } catch {
+        op.status = 'failed';
+      }
+      changed = true;
+      if (win) win.webContents.send('scheduled-op-fired', op);
+    }
+    if (changed) saveScheduled(ops);
+  }, 60000);
+});
+
 app.on('window-all-closed', () => app.quit());
+
+// ── Feature: User Lookup ──────────────────────────────────────────────────────
+ipcMain.on('search-users', (event, { query }) => {
+  try {
+    const cfgPath = path.join(AGENTS_DIR, 'auditor', 'config.json');
+    const cfg = readJson(cfgPath);
+    const ps = `
+$OutputEncoding = New-Object System.Text.UTF8Encoding $false
+[Console]::OutputEncoding = New-Object System.Text.UTF8Encoding $false
+Import-Module Microsoft.Graph.Authentication -ErrorAction SilentlyContinue
+$cfg = [System.IO.File]::ReadAllText('${cfgPath.replace(/'/g, "''")}') | ConvertFrom-Json
+$agentsRoot = '${AGENTS_DIR}'
+. (Join-Path $agentsRoot 'shared\\Helpers.ps1')
+Connect-AgentGraph -Config $cfg
+$q = '${query.replace(/'/g, "''")}'
+$uri = "https://graph.microsoft.com/v1.0/users?\`$search=\`"displayName:$q\`" OR \`"userPrincipalName:$q\`"&\`$select=id,displayName,userPrincipalName,accountEnabled&\`$top=25&\`$count=true"
+$resp = Invoke-MgGraphRequest -Method GET -Uri $uri -Headers @{'ConsistencyLevel'='eventual'} -ErrorAction Stop
+if ($resp.value -and @($resp.value).Count -gt 0) { @($resp.value) | ConvertTo-Json -Depth 2 -Compress } else { '[]' }
+`;
+    const raw = execFileSync('powershell', ['-NonInteractive', '-Command', ps], { encoding: 'utf8', timeout: 60000 }).split(String.fromCharCode(0xFEFF)).join('');
+    const jsonLine = raw.trim().split('\n').map(l => l.split(String.fromCharCode(0xFEFF)).join('')).filter(l => l.trim().startsWith('[') || l.trim().startsWith('{')).slice(-1)[0] || '[]';
+    let users = [];
+    try {
+      const parsed = JSON.parse(jsonLine);
+      users = Array.isArray(parsed) ? parsed : [parsed];
+    } catch {}
+    event.sender.send('user-search-results', { users });
+  } catch (err) {
+    event.sender.send('user-search-results', { users: [], error: err.message });
+  }
+});
+
+ipcMain.on('get-user-detail', (event, { userId }) => {
+  try {
+    const cfgPath = path.join(AGENTS_DIR, 'auditor', 'config.json');
+    const ps = `
+$OutputEncoding = New-Object System.Text.UTF8Encoding $false
+[Console]::OutputEncoding = New-Object System.Text.UTF8Encoding $false
+Import-Module Microsoft.Graph.Authentication -ErrorAction SilentlyContinue
+$cfg = [System.IO.File]::ReadAllText('${cfgPath.replace(/'/g, "''")}') | ConvertFrom-Json
+$agentsRoot = '${AGENTS_DIR}'
+. (Join-Path $agentsRoot 'shared\\Helpers.ps1')
+Connect-AgentGraph -Config $cfg
+$uid = '${userId.replace(/'/g, "''")}'
+$user = Invoke-GraphWithRetry -Method GET -Uri "https://graph.microsoft.com/v1.0/users/$uid\`?\`$select=id,displayName,userPrincipalName,accountEnabled,department,jobTitle,officeLocation,usageLocation,createdDateTime"
+$licensesRaw = Invoke-GraphWithRetry -Method GET -Uri "https://graph.microsoft.com/v1.0/users/$uid/licenseDetails?\`$select=skuPartNumber"
+$groupsRaw   = Invoke-GraphWithRetry -Method GET -Uri "https://graph.microsoft.com/v1.0/users/$uid/memberOf/microsoft.graph.group?\`$select=displayName&\`$top=20"
+$managerRaw  = $null
+try { $managerRaw = Invoke-GraphWithRetry -Method GET -Uri "https://graph.microsoft.com/v1.0/users/$uid/manager?\`$select=displayName,userPrincipalName" } catch {}
+$out = @{
+  user     = $user
+  licenses = @($licensesRaw.value | ForEach-Object { $_.skuPartNumber })
+  groups   = @($groupsRaw.value   | ForEach-Object { $_.displayName })
+  manager  = if ($managerRaw) { @{ displayName=$managerRaw.displayName; userPrincipalName=$managerRaw.userPrincipalName } } else { $null }
+}
+$out | ConvertTo-Json -Depth 4 -Compress
+`;
+    const raw = execFileSync('powershell', ['-NonInteractive', '-Command', ps], { encoding: 'utf8', timeout: 60000 }).split(String.fromCharCode(0xFEFF)).join('');
+    const jsonLine = raw.trim().split('\n').map(l => l.trim()).filter(l => l.startsWith('{') || l.startsWith('[')).slice(-1)[0] || '';
+    let detail = {};
+    try { if (jsonLine) detail = JSON.parse(jsonLine); } catch {}
+    event.sender.send('user-detail', detail);
+  } catch (err) {
+    event.sender.send('user-detail', { error: err.message });
+  }
+});
+
+// ── Feature: Quick Mover ──────────────────────────────────────────────────────
+ipcMain.on('run-quick-mover', (event, { upn, newDepartment, newJobTitle, newManager, whatif }) => {
+  const pf = writePayloadFile({
+    userPrincipalName: upn,
+    department: newDepartment || null,
+    jobTitle:   newJobTitle   || null,
+    manager:    newManager    || null
+  });
+  try {
+    const raw    = runPs(path.join(AGENTS_DIR, 'mover', 'Invoke-MoverProcess.ps1'), { PayloadPath: pf, WhatIf: !!whatif });
+    const result = parsePs1Output(raw);
+    event.sender.send('quick-op-result', { type: 'mover', lines: result.lines, data: result.data });
+  } catch (err) {
+    event.sender.send('quick-op-result', { type: 'mover', lines: [err.message], data: null, error: true });
+  } finally {
+    try { fs.unlinkSync(pf); } catch {}
+  }
+});
+
+// ── Feature: Quick Leaver ─────────────────────────────────────────────────────
+ipcMain.on('run-quick-leaver', (event, { upn, stage, reason, whatif }) => {
+  try {
+    const raw    = runPs(path.join(AGENTS_DIR, 'leaver', 'Invoke-LeaverProcess.ps1'), {
+      UserPrincipalName: upn, Stage: stage || 'Soft',
+      TicketRef: reason || '', WhatIf: !!whatif
+    });
+    const result = parsePs1Output(raw);
+    event.sender.send('quick-op-result', { type: 'leaver', lines: result.lines, data: result.data });
+  } catch (err) {
+    event.sender.send('quick-op-result', { type: 'leaver', lines: [err.message], data: null, error: true });
+  }
+});
+
+// ── Feature: Stale Accounts ───────────────────────────────────────────────────
+ipcMain.on('get-stale-accounts', (event, { days }) => {
+  try {
+    const script = path.join(AGENTS_DIR, 'auditor', 'Invoke-AuditorQuery.ps1');
+    if (!fs.existsSync(script)) { event.sender.send('stale-accounts', { accounts: [], error: 'Auditor not configured' }); return; }
+    const raw      = runPs(script, { QueryType: 'StaleAccounts', Days: days || 90, TopN: 100 });
+    const jsonLine = raw.trim().split('\n').filter(l => l.trim().startsWith('{')).pop();
+    let data = {};
+    try { if (jsonLine) data = JSON.parse(jsonLine); } catch {}
+    const accounts = (data.accounts || data.staleAccounts || []).map(a => ({
+      id:          a.id          || a.Id          || '',
+      displayName: a.displayName || a.DisplayName || '',
+      upn:         a.userPrincipalName || a.UPN   || '',
+      lastSignIn:  a.signInActivity ? (a.signInActivity.lastSignInDateTime || null) : (a.LastSignIn || null)
+    }));
+    event.sender.send('stale-accounts', { accounts });
+  } catch (err) {
+    event.sender.send('stale-accounts', { accounts: [], error: err.message });
+  }
+});
+
+ipcMain.on('disable-stale-accounts', (event, { userIds }) => {
+  try {
+    const cfgPath = path.join(AGENTS_DIR, 'joiner', 'config.json');
+    if (!fs.existsSync(cfgPath)) { event.sender.send('stale-disable-result', { ok: false, error: 'Joiner config not found' }); return; }
+    const cfg = readJson(cfgPath);
+    const idsJson = JSON.stringify(userIds);
+    const ps = `
+$OutputEncoding = New-Object System.Text.UTF8Encoding $false
+[Console]::OutputEncoding = New-Object System.Text.UTF8Encoding $false
+Import-Module Microsoft.Graph.Authentication -ErrorAction SilentlyContinue
+$cfg = [System.IO.File]::ReadAllText('${cfgPath.replace(/'/g, "''")}') | ConvertFrom-Json
+$agentsRoot = '${AGENTS_DIR}'
+. (Join-Path $agentsRoot 'shared\\Helpers.ps1')
+Connect-AgentGraph -Config $cfg
+$ids = '${idsJson.replace(/'/g, "''")}' | ConvertFrom-Json
+$disabled = 0
+foreach ($id in $ids) {
+  try {
+    Invoke-GraphWithRetry -Method PATCH -Uri "https://graph.microsoft.com/v1.0/users/$id" -Body @{ accountEnabled = $false } | Out-Null
+    $disabled++
+  } catch {}
+}
+@{ disabled = $disabled } | ConvertTo-Json
+`;
+    const raw = execFileSync('powershell', ['-NonInteractive', '-Command', ps], { encoding: 'utf8', timeout: 120000 });
+    const jsonLine = raw.trim().split('\n').filter(l => l.trim().startsWith('{')).pop();
+    let result = { disabled: 0 };
+    try { if (jsonLine) result = JSON.parse(jsonLine); } catch {}
+    event.sender.send('stale-disable-result', { ok: true, disabled: result.disabled });
+  } catch (err) {
+    event.sender.send('stale-disable-result', { ok: false, error: err.message });
+  }
+});
+
+// ── Feature: License Utilization ──────────────────────────────────────────────
+ipcMain.on('get-license-utilization', (event) => {
+  try {
+    const cfgPath = path.join(AGENTS_DIR, 'auditor', 'config.json');
+    const ps = `
+$OutputEncoding = New-Object System.Text.UTF8Encoding $false
+[Console]::OutputEncoding = New-Object System.Text.UTF8Encoding $false
+Import-Module Microsoft.Graph.Authentication -ErrorAction SilentlyContinue
+$cfg = [System.IO.File]::ReadAllText('${cfgPath.replace(/'/g, "''")}') | ConvertFrom-Json
+$agentsRoot = '${AGENTS_DIR}'
+. (Join-Path $agentsRoot 'shared\\Helpers.ps1')
+Connect-AgentGraph -Config $cfg
+$resp = Invoke-GraphWithRetry -Method GET -Uri "https://graph.microsoft.com/v1.0/subscribedSkus?\`$select=skuPartNumber,prepaidUnits,consumedUnits"
+$skus = $resp.value | ForEach-Object {
+  @{
+    sku      = $_.skuPartNumber
+    total    = $_.prepaidUnits.enabled
+    assigned = $_.consumedUnits
+    available= $_.prepaidUnits.enabled - $_.consumedUnits
+  }
+}
+@{ skus = @($skus) } | ConvertTo-Json -Depth 3 -Compress
+`;
+    const raw = execFileSync('powershell', ['-NonInteractive', '-Command', ps], { encoding: 'utf8', timeout: 60000 }).split(String.fromCharCode(0xFEFF)).join('');
+    const jsonLine = raw.trim().split('\n').map(l => l.trim()).filter(l => l.startsWith('{')).slice(-1)[0];
+    let data = { skus: [] };
+    try { if (jsonLine) data = JSON.parse(jsonLine); } catch {}
+    event.sender.send('license-utilization', { skus: data.skus || [] });
+  } catch (err) {
+    event.sender.send('license-utilization', { skus: [], error: err.message });
+  }
+});
+
+// ── Feature: Certificate Expiry ───────────────────────────────────────────────
+ipcMain.on('get-cert-expiry', (event) => {
+  try {
+    const results = [];
+    for (const agentName of AGENT_DIRS) {
+      const cfgPath = path.join(AGENTS_DIR, agentName, 'config.json');
+      if (!fs.existsSync(cfgPath)) continue;
+      let cfg = {};
+      try { cfg = readJson(cfgPath); } catch { continue; }
+      if (!cfg.CertThumbprint && !cfg.CertExpiry) continue;
+      const expiry = cfg.CertExpiry || null;
+      let daysRemaining = null;
+      if (expiry) {
+        const diff = new Date(expiry) - Date.now();
+        daysRemaining = Math.floor(diff / 86400000);
+      }
+      results.push({
+        agent:         agentName,
+        thumbprint:    cfg.CertThumbprint || '',
+        expiry:        expiry,
+        daysRemaining: daysRemaining
+      });
+    }
+    event.sender.send('cert-expiry', { certs: results });
+  } catch (err) {
+    event.sender.send('cert-expiry', { certs: [], error: err.message });
+  }
+});
+
+// ── Feature: SoD Conflict Tester ─────────────────────────────────────────────
+ipcMain.on('test-sod-conflict', (event, { groupA, groupB, upn }) => {
+  try {
+    const script = path.join(AGENTS_DIR, 'shared', 'Invoke-SoDCheck.ps1');
+    const cfgPath = path.join(AGENTS_DIR, 'auditor', 'config.json');
+    const ps = `
+$OutputEncoding = New-Object System.Text.UTF8Encoding $false
+[Console]::OutputEncoding = New-Object System.Text.UTF8Encoding $false
+Import-Module Microsoft.Graph.Authentication -ErrorAction SilentlyContinue
+$cfg = [System.IO.File]::ReadAllText('${cfgPath.replace(/'/g, "''")}') | ConvertFrom-Json
+$agentsRoot = '${AGENTS_DIR}'
+. (Join-Path $agentsRoot 'shared\\Helpers.ps1')
+Connect-AgentGraph -Config $cfg
+$result = & '${script.replace(/\\/g, '\\\\')}' -UserPrincipalName '${(upn || 'test@test.com').replace(/'/g, "''")}' -IncomingGroups @('${groupA.replace(/'/g, "''")}','${groupB.replace(/'/g, "''")}')
+$result | ConvertTo-Json -Depth 3 -Compress
+`;
+    const raw = execFileSync('powershell', ['-NonInteractive', '-Command', ps], { encoding: 'utf8', timeout: 60000 }).split(String.fromCharCode(0xFEFF)).join('');
+    const jsonLine = raw.trim().split('\n').map(l => l.trim()).filter(l => l.startsWith('{')).slice(-1)[0];
+    let result = {};
+    try { if (jsonLine) result = JSON.parse(jsonLine); } catch {}
+    event.sender.send('sod-result', result);
+  } catch (err) {
+    event.sender.send('sod-result', { error: err.message });
+  }
+});
+
+// ── Feature: Graph Query Runner ───────────────────────────────────────────────
+ipcMain.on('run-graph-query', (event, { method, url, body }) => {
+  try {
+    const cfgPath = path.join(AGENTS_DIR, 'auditor', 'config.json');
+    const safeUrl  = url.replace(/'/g, "''");
+    const safeBody = body ? JSON.stringify(body) : '';
+    const bodyBlock = (method === 'POST' || method === 'PATCH') && safeBody
+      ? `-Body ('${safeBody.replace(/'/g, "''")}' | ConvertFrom-Json)`
+      : '';
+    const ps = `
+$OutputEncoding = New-Object System.Text.UTF8Encoding $false
+[Console]::OutputEncoding = New-Object System.Text.UTF8Encoding $false
+Import-Module Microsoft.Graph.Authentication -ErrorAction SilentlyContinue
+$cfg = [System.IO.File]::ReadAllText('${cfgPath.replace(/'/g, "''")}') | ConvertFrom-Json
+$agentsRoot = '${AGENTS_DIR}'
+. (Join-Path $agentsRoot 'shared\\Helpers.ps1')
+Connect-AgentGraph -Config $cfg
+$resp = Invoke-GraphWithRetry -Method ${method} -Uri '${safeUrl}' ${bodyBlock}
+$resp | ConvertTo-Json -Depth 6 -Compress
+`;
+    const raw = execFileSync('powershell', ['-NonInteractive', '-Command', ps], { encoding: 'utf8', timeout: 60000 }).split(String.fromCharCode(0xFEFF)).join('');
+    const jsonLine = raw.trim().split('\n').map(l => l.trim()).filter(l => l.startsWith('{') || l.startsWith('[')).slice(-1)[0] || '';
+    let result = null;
+    try { result = jsonLine ? JSON.parse(jsonLine) : raw.trim(); } catch { result = raw.trim(); }
+    event.sender.send('graph-query-result', { ok: true, result });
+  } catch (err) {
+    event.sender.send('graph-query-result', { ok: false, error: err.message });
+  }
+});
+
+// ── Feature: Graph Query Digest ───────────────────────────────────────────────
+ipcMain.on('digest-graph-result', async (event, { method, url, responseText }) => {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) { event.sender.send('graph-digest', { ok: false }); return; }
+  try {
+    const Anthropic = require('@anthropic-ai/sdk');
+    const client = new Anthropic.default({ apiKey });
+    const truncated = responseText.length > 2500 ? responseText.slice(0, 2500) + '…' : responseText;
+    const msg = await client.messages.create({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 120,
+      messages: [{ role: 'user', content: `In 1-2 plain English sentences, describe what this Microsoft Graph API call does and what the response contains. No markdown.\nMethod: ${method}\nURL: ${url}\nResponse: ${truncated}` }]
+    });
+    event.sender.send('graph-digest', { ok: true, text: msg.content[0].text.trim() });
+  } catch { event.sender.send('graph-digest', { ok: false }); }
+});
+
+// ── Feature: Graph Query Suggest ──────────────────────────────────────────────
+ipcMain.on('suggest-graph-query', async (event, { description }) => {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) { event.sender.send('graph-query-suggestion', { ok: false, error: 'ANTHROPIC_API_KEY not set' }); return; }
+  try {
+    const Anthropic = require('@anthropic-ai/sdk');
+    const client = new Anthropic.default({ apiKey });
+    const msg = await client.messages.create({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 300,
+      messages: [{ role: 'user', content: `You are a Microsoft Graph API expert. Convert this request into a Graph API call.\nRespond with ONLY a raw JSON object (no markdown, no explanation):\n{"method":"GET","url":"https://graph.microsoft.com/v1.0/...","body":null}\n\nRequest: ${description}` }]
+    });
+    const text = msg.content[0].text.trim().replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '');
+    const suggestion = JSON.parse(text);
+    event.sender.send('graph-query-suggestion', { ok: true, ...suggestion });
+  } catch (err) {
+    event.sender.send('graph-query-suggestion', { ok: false, error: err.message });
+  }
+});
+
+// ── Feature: PIM Roles ────────────────────────────────────────────────────────
+ipcMain.on('get-pim-roles', (event) => {
+  try {
+    const cfgPath = path.join(AGENTS_DIR, 'auditor', 'config.json');
+    const ps = `
+$OutputEncoding = New-Object System.Text.UTF8Encoding $false
+[Console]::OutputEncoding = New-Object System.Text.UTF8Encoding $false
+Import-Module Microsoft.Graph.Authentication -ErrorAction SilentlyContinue
+$cfg = [System.IO.File]::ReadAllText('${cfgPath.replace(/'/g, "''")}') | ConvertFrom-Json
+$agentsRoot = '${AGENTS_DIR}'
+. (Join-Path $agentsRoot 'shared\\Helpers.ps1')
+Connect-AgentGraph -Config $cfg
+try {
+  $elig = Invoke-GraphWithRetry -Method GET -Uri "https://graph.microsoft.com/v1.0/roleManagement/directory/roleEligibilitySchedules?\`$expand=roleDefinition"
+  $active = Invoke-GraphWithRetry -Method GET -Uri "https://graph.microsoft.com/v1.0/roleManagement/directory/roleAssignmentSchedules?\`$expand=roleDefinition"
+  $roles = @()
+  foreach ($r in $elig.value) {
+    $roles += @{ roleDefinitionId=$r.roleDefinitionId; roleName=if($r.roleDefinition){$r.roleDefinition.displayName}else{$r.roleDefinitionId}; status="Eligible"; expiry=$null }
+  }
+  foreach ($r in $active.value) {
+    $exp = if($r.scheduleInfo -and $r.scheduleInfo.expiration){$r.scheduleInfo.expiration.endDateTime}else{$null}
+    $roles += @{ roleDefinitionId=$r.roleDefinitionId; roleName=if($r.roleDefinition){$r.roleDefinition.displayName}else{$r.roleDefinitionId}; status="Active"; expiry=$exp }
+  }
+  @{ ok=$true; roles=@($roles) } | ConvertTo-Json -Depth 4 -Compress
+} catch {
+  @{ ok=$false; error=$_.Exception.Message; roles=@() } | ConvertTo-Json -Depth 2 -Compress
+}
+`;
+    const raw = execFileSync('powershell', ['-NonInteractive', '-Command', ps], { encoding: 'utf8', timeout: 60000 }).split(String.fromCharCode(0xFEFF)).join('');
+    const jsonLine = raw.trim().split('\n').map(l => l.trim()).filter(l => l.startsWith('{')).slice(-1)[0];
+    let data = { ok: false, roles: [] };
+    try { if (jsonLine) data = JSON.parse(jsonLine); } catch {}
+    event.sender.send('pim-roles', data);
+  } catch (err) {
+    event.sender.send('pim-roles', { ok: false, roles: [], error: err.message });
+  }
+});
+
+ipcMain.on('activate-pim-role', (event, { roleDefinitionId, justification, durationHours }) => {
+  try {
+    const cfgPath = path.join(AGENTS_DIR, 'auditor', 'config.json');
+    const cfg = readJson(cfgPath);
+    const ps = `
+$OutputEncoding = New-Object System.Text.UTF8Encoding $false
+[Console]::OutputEncoding = New-Object System.Text.UTF8Encoding $false
+Import-Module Microsoft.Graph.Authentication -ErrorAction SilentlyContinue
+$cfg = [System.IO.File]::ReadAllText('${cfgPath.replace(/'/g, "''")}') | ConvertFrom-Json
+$agentsRoot = '${AGENTS_DIR}'
+. (Join-Path $agentsRoot 'shared\\Helpers.ps1')
+Connect-AgentGraph -Config $cfg
+try {
+  $me = Invoke-GraphWithRetry -Method GET -Uri "https://graph.microsoft.com/v1.0/me?\`$select=id"
+  $body = @{
+    action            = "selfActivate"
+    principalId       = $me.id
+    roleDefinitionId  = '${roleDefinitionId.replace(/'/g, "''")}'
+    directoryScopeId  = "/"
+    justification     = '${(justification || '').replace(/'/g, "''")}'
+    scheduleInfo      = @{
+      startDateTime = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
+      expiration    = @{ type = "AfterDuration"; duration = "PT${Math.max(1, Math.min(8, parseInt(durationHours) || 1))}H" }
+    }
+  }
+  $resp = Invoke-GraphWithRetry -Method POST -Uri "https://graph.microsoft.com/v1.0/roleManagement/directory/roleAssignmentScheduleRequests" -Body $body
+  @{ ok=$true; id=$resp.id } | ConvertTo-Json -Compress
+} catch {
+  @{ ok=$false; error=$_.Exception.Message } | ConvertTo-Json -Compress
+}
+`;
+    const raw = execFileSync('powershell', ['-NonInteractive', '-Command', ps], { encoding: 'utf8', timeout: 60000 }).split(String.fromCharCode(0xFEFF)).join('');
+    const jsonLine = raw.trim().split('\n').map(l => l.trim()).filter(l => l.startsWith('{')).slice(-1)[0];
+    let result = { ok: false };
+    try { if (jsonLine) result = JSON.parse(jsonLine); } catch {}
+    event.sender.send('pim-activate-result', result);
+  } catch (err) {
+    event.sender.send('pim-activate-result', { ok: false, error: err.message });
+  }
+});
