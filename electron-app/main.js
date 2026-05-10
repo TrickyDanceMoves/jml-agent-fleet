@@ -432,7 +432,7 @@ ipcMain.on('clear-history', (event, { agent }) => {
 });
 
 ipcMain.on('get-audit-log', (event) => {
-  const auditPath = path.join(AGENTS_DIR, 'shared', 'audit.jsonl');
+  const auditPath = path.join(AGENTS_DIR, 'audit.jsonl');
   if (!fs.existsSync(auditPath)) { event.sender.send('audit-log-data', []); return; }
   const lines   = fs.readFileSync(auditPath, 'utf8').trim().split('\n').filter(Boolean);
   const entries = lines.map(l => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean);
@@ -482,7 +482,7 @@ ipcMain.on('get-exports-status', (event) => {
   const base = path.join(REPORTS_DIR);
   event.sender.send('exports-status', {
     blob:     readStatus(path.join(base, 'blob-export-status.json')),
-    sentinel: readStatus(path.join(base, 'sentinel-status.json'))
+    sentinel: readStatus(path.join(base, 'sentinel-ingest-status.json')) || readStatus(path.join(base, 'sentinel-status.json'))
   });
 });
 
@@ -849,35 +849,197 @@ ipcMain.on('switch-operator', (event, { name, role }) => {
 
 // ── Screenshot capture mode (npm start -- --capture) ─────────────────────────
 const CAPTURE_MODE = process.argv.includes('--capture');
-const CAPTURE_TABS = [
-  'dashboard', 'approver', 'auditor', 'security', 'exports',
-  'approvals', 'operations', 'certifications', 'settings', 'audit-log', 'users', 'graph'
+const CAPTURE_OUT  = path.join(__dirname, '..', 'docs', 'images');
+
+// Mock data pushed directly to renderer for tabs that need Graph/PS connections
+const MOCK_DASHBOARD = {
+  users:    { total: 12, enabled: 10, disabled: 2, guests: 0 },
+  licenses: { licenses: [
+    { sku: 'Microsoft 365 E3',     total: 25, assigned: 10 },
+    { sku: 'Power BI Pro',         total: 5,  assigned: 2  },
+    { sku: 'Intune Device',        total: 10, assigned: 1  }
+  ]},
+  activity: { totalEntries: 28, recentEntries: [] }
+};
+const MOCK_AGENT_HEALTH = [
+  { name:'joiner',      status:'healthy',      credentialType:'certificate', daysUntilExpiry:312, lastActivity: new Date(Date.now()-86400000*2).toISOString(),  lastOutcome:'success' },
+  { name:'mover',       status:'healthy',      credentialType:'certificate', daysUntilExpiry:312, lastActivity: new Date(Date.now()-86400000*7).toISOString(),  lastOutcome:'success' },
+  { name:'leaver',      status:'healthy',      credentialType:'certificate', daysUntilExpiry:312, lastActivity: new Date(Date.now()-86400000*5).toISOString(),  lastOutcome:'success' },
+  { name:'enroller',    status:'warning',      credentialType:'certificate', daysUntilExpiry:312, lastActivity: new Date(Date.now()-86400000*6).toISOString(),  lastOutcome:'partial' },
+  { name:'approver',    status:'healthy',      credentialType:'certificate', daysUntilExpiry:312, lastActivity: new Date(Date.now()-86400000*1).toISOString(),  lastOutcome:'success' },
+  { name:'provisioner', status:'unconfigured', credentialType:'certificate', daysUntilExpiry:null, lastActivity: null, lastOutcome: null },
+  { name:'auditor',     status:'healthy',      credentialType:'certificate', daysUntilExpiry:312, lastActivity: new Date(Date.now()-86400000*0.5).toISOString(), lastOutcome:'success' }
 ];
-const CAPTURE_OUT = path.join(__dirname, '..', 'docs', 'images');
+const MOCK_CERT_EXPIRY = [
+  { agent:'joiner',      thumbprint:'A1B2C3D4E5F6',  expiry: new Date(Date.now()+86400000*312).toISOString(), daysLeft:312 },
+  { agent:'mover',       thumbprint:'B2C3D4E5F6A1',  expiry: new Date(Date.now()+86400000*312).toISOString(), daysLeft:312 },
+  { agent:'leaver',      thumbprint:'C3D4E5F6A1B2',  expiry: new Date(Date.now()+86400000*312).toISOString(), daysLeft:312 },
+  { agent:'enroller',    thumbprint:'D4E5F6A1B2C3',  expiry: new Date(Date.now()+86400000*312).toISOString(), daysLeft:312 },
+  { agent:'approver',    thumbprint:'E5F6A1B2C3D4',  expiry: new Date(Date.now()+86400000*47).toISOString(),  daysLeft:47  },
+  { agent:'provisioner', thumbprint:null,             expiry: null, daysLeft: null },
+  { agent:'auditor',     thumbprint:'F6A1B2C3D4E5',  expiry: new Date(Date.now()+86400000*312).toISOString(), daysLeft:312 }
+];
+
+// JS injected into renderer for tabs that show empty state by default
+const TAB_INJECT = {
+  approver: `
+    (function(){
+      const c = document.getElementById('messages-approver');
+      if (!c || c.querySelectorAll('.message').length > 1) return;
+      c.innerHTML = \`
+        <div class="message user"><div class="message-bubble">I need to offboard Robert Martinez — INC-1020. He was terminated yesterday.</div></div>
+        <div class="message assistant"><div class="message-avatar">AI</div><div class="message-body"><div class="message-text">
+          Before submitting in LIVE mode I'll run a risk score.<br><br>
+          <strong>Risk Score: 68 / 100 — HIGH</strong><br>
+          &bull; After-hours pattern flagged for this user by UEBA<br>
+          &bull; Sensitive license: Microsoft 365 E3<br>
+          &bull; No active freeze window<br><br>
+          Proceeding with Soft stage (disable + session revoke). Confirm to continue?
+        </div></div></div>
+        <div class="message user"><div class="message-bubble">Confirmed. Go ahead.</div></div>
+        <div class="message assistant"><div class="message-avatar">AI</div><div class="message-body"><div class="message-text">
+          ✅ <strong>Soft leaver complete — INC-1020</strong><br>
+          &bull; Account disabled<br>
+          &bull; All active sessions revoked<br>
+          &bull; Purview IRM termination record submitted<br>
+          &bull; Audit entry written and hash-chained<br><br>
+          Hard stage (license + group removal) requires dual approval. Token <strong>A3F9C1</strong> created — expires in 30 min.
+        </div></div></div>
+      \`;
+      c.scrollTop = c.scrollHeight;
+    })();
+  `,
+  auditor: `
+    (function(){
+      const c = document.getElementById('messages-auditor');
+      if (!c || c.querySelectorAll('.message').length > 1) return;
+      c.innerHTML = \`
+        <div class="message user"><div class="message-bubble">Show me all failed and partial operations in the last 7 days.</div></div>
+        <div class="message assistant"><div class="message-avatar">AI</div><div class="message-body"><div class="message-text">
+          Found <strong>3 failed/partial entries</strong> in the last 7 days:<br><br>
+          &bull; <code>enroller</code> &rarr; priya.patel@... &mdash; failed &times;2, partial &times;1 (INC-1011)<br>
+          &nbsp;&nbsp;Error: Device not found in Intune on first two attempts. Third attempt partial — serial unconfirmed.<br><br>
+          These triggered a <strong>UEBA warning</strong>: repeated-failures rule (3 events on same subject within 60 min).
+        </div></div></div>
+        <div class="message user"><div class="message-bubble">Any off-hours or suspicious access patterns?</div></div>
+        <div class="message assistant"><div class="message-avatar">AI</div><div class="message-body"><div class="message-text">
+          ⚠️ <strong>2 critical UEBA findings:</strong><br><br>
+          <strong>1. After-hours leaver</strong><br>
+          robert.martinez offboarded at 02:14 UTC, 5 days ago (INC-1020). Normal ops window is 08:00–18:00 UTC.<br><br>
+          <strong>2. Leaver-then-group-add</strong><br>
+          james.wilson offboarded at 09:04, then added to Contractors-External at 11:30 — 2h 26m later. This may indicate re-engagement without a formal ticket.<br><br>
+          Robert Martinez is also <strong>confirmedCompromised</strong> in Identity Protection. Sessions were auto-revoked.
+        </div></div></div>
+      \`;
+      c.scrollTop = c.scrollHeight;
+    })();
+  `,
+  users: `
+    (function(){
+      const inp = document.getElementById('user-search-input');
+      if (inp) inp.value = 'sarah.chen';
+      const panel = document.getElementById('user-detail-panel');
+      if (panel) { panel.style.display='block'; panel.style.visibility='visible'; }
+      const n = document.getElementById('udp-name');   if(n) n.textContent = 'Sarah Chen';
+      const u = document.getElementById('udp-upn');    if(u) u.textContent = 'sarah.chen@contoso.onmicrosoft.com';
+      const b = document.getElementById('udp-badge');  if(b){ b.textContent='Enabled'; b.className='status-chip chip-success'; }
+      const d = document.getElementById('udp-details');
+      if(d) d.innerHTML = '<table class="meta-table"><tr><td>Department</td><td>Engineering</td></tr><tr><td>Job Title</td><td>Engineering Manager</td></tr><tr><td>Office</td><td>Seattle, WA</td></tr><tr><td>Usage Location</td><td>US</td></tr><tr><td>Created</td><td>4/26/2026</td></tr></table>';
+      const lic = document.getElementById('udp-licenses');
+      if(lic) lic.innerHTML = '<span class="tag">Microsoft 365 E3</span><span class="tag">Power BI Standard</span>';
+      const grp = document.getElementById('udp-groups');
+      if(grp) grp.innerHTML = '<span class="tag">Engineering-All</span><span class="tag">M365-E3-Users</span><span class="tag">Dev-Team</span>';
+      const rl = document.getElementById('user-results-list');
+      if(rl) rl.innerHTML = \`
+        <div class="ac-item selected"><span class="ac-name">Sarah Chen</span><span class="ac-upn">sarah.chen@contoso.onmicrosoft.com</span></div>
+        <div class="ac-item"><span class="ac-name">Marcus Johnson</span><span class="ac-upn">marcus.johnson@contoso.onmicrosoft.com</span></div>
+        <div class="ac-item"><span class="ac-name">Sales Lead</span><span class="ac-upn">jennifer.lee@contoso.onmicrosoft.com</span></div>
+      \`;
+    })();
+  `,
+  graph: `
+    (function(){
+      const url = document.getElementById('graph-url');
+      if(url) url.value = 'https://graph.microsoft.com/v1.0/users?$select=displayName,userPrincipalName,accountEnabled,assignedLicenses&$top=5&$count=true';
+      const method = document.getElementById('graph-method');
+      if(method) method.value = 'GET';
+      const panel = document.getElementById('graph-response-panel');
+      if(panel){ panel.style.display='block'; panel.style.visibility='visible'; }
+      const pre = document.getElementById('graph-response-pre');
+      if(pre) pre.textContent = JSON.stringify({
+        "@odata.context":"https://graph.microsoft.com/v1.0/$metadata#users",
+        "@odata.count":10,
+        "value":[
+          {"displayName":"Sarah Chen","userPrincipalName":"sarah.chen@contoso.onmicrosoft.com","accountEnabled":true,"assignedLicenses":[{"skuId":"06ebc4ee-1bb5-47dd-8120-11324bc54e06"}]},
+          {"displayName":"Marcus Johnson","userPrincipalName":"marcus.johnson@contoso.onmicrosoft.com","accountEnabled":true,"assignedLicenses":[{"skuId":"06ebc4ee-1bb5-47dd-8120-11324bc54e06"}]},
+          {"displayName":"Emma Rodriguez","userPrincipalName":"emma.rodriguez@contoso.onmicrosoft.com","accountEnabled":true,"assignedLicenses":[{"skuId":"06ebc4ee-1bb5-47dd-8120-11324bc54e06"},{"skuId":"70d33638-9c74-4d01-bfd3-562de28bd4ba"}]},
+          {"displayName":"David Kim","userPrincipalName":"david.kim@contoso.onmicrosoft.com","accountEnabled":true,"assignedLicenses":[{"skuId":"06ebc4ee-1bb5-47dd-8120-11324bc54e06"}]},
+          {"displayName":"Robert Martinez","userPrincipalName":"robert.martinez@contoso.onmicrosoft.com","accountEnabled":false,"assignedLicenses":[]}
+        ]
+      }, null, 2);
+      const dc = document.getElementById('graph-digest-card');
+      if(dc){ dc.style.display='block'; dc.style.visibility='visible'; }
+      const dt = document.getElementById('graph-digest-text');
+      if(dt) dt.textContent = '10 users in tenant. 9 accounts enabled, 1 disabled (robert.martinez — offboarded via leaver agent, INC-1020). Active users all hold M365 E3 (ENTERPRISEPACK). Emma Rodriguez additionally has Power BI Standard. No guest accounts in this result set.';
+    })();
+  `
+};
+
+async function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
 async function runCapture() {
   currentOperator = 'admin';
   process.env.JML_CONSOLE_OPERATOR = 'admin';
 
-  // Capture operator selector first
+  // ── Operator selector ──────────────────────────────────────────────────────
   createOperatorWindow();
   await new Promise(r => operatorWin.webContents.once('did-finish-load', r));
-  await new Promise(r => setTimeout(r, 800));
+  await sleep(1000);
   const selImg = await operatorWin.webContents.capturePage();
   fs.writeFileSync(path.join(CAPTURE_OUT, 'operator-select.png'), selImg.toPNG());
   console.log('Captured: operator-select');
   operatorWin.close(); operatorWin = null;
 
-  // Capture all main window tabs
-  createMainWindow();
+  // ── Main window (larger for full-page shots) ───────────────────────────────
+  win = new BrowserWindow({
+    width: 1440, height: 900,
+    frame: false,
+    backgroundColor: '#0d0f14',
+    webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, nodeIntegration: false, sandbox: false }
+  });
+  win.loadFile(path.join(__dirname, 'renderer', 'index.html'));
   await new Promise(r => win.webContents.once('did-finish-load', r));
-  await new Promise(r => setTimeout(r, 1500));
+  await sleep(1200);
 
-  for (const tab of CAPTURE_TABS) {
-    await win.webContents.executeJavaScript(
-      `document.querySelector('[data-tab="${tab}"]')?.click()`
-    );
-    await new Promise(r => setTimeout(r, 1200));
+  // Pre-send mock data so dashboard/certs show content without Graph connection
+  win.webContents.send('dashboard-stats',  MOCK_DASHBOARD);
+  win.webContents.send('agent-health',     MOCK_AGENT_HEALTH);
+  win.webContents.send('cert-expiry-data', MOCK_CERT_EXPIRY);
+  await sleep(400);
+
+  const TABS = [
+    // [tabId, ipcTriggerJs, extraWaitMs]
+    ['dashboard',      `window.api.getDashboardStats(); window.api.getAgentHealth();`, 2000],
+    ['approver',       null, 600],
+    ['auditor',        null, 600],
+    ['security',       `window.api.getSecurityReports(); window.api.getAgentHealth();`, 2500],
+    ['exports',        `window.api.getExportsStatus();`, 2000],
+    ['approvals',      `window.api.getPendingApprovals();`, 1800],
+    ['operations',     `window.api.getScheduledOps();`, 1800],
+    ['certifications', `window.api.getCertHistory();`, 1800],
+    ['settings',       `window.api.getPolicy();`, 1800],
+    ['audit-log',      `window.api.getAuditLog();`, 2200],
+    ['users',          null, 600],
+    ['graph',          null, 600],
+  ];
+
+  for (const [tab, ipcJs, wait] of TABS) {
+    await win.webContents.executeJavaScript(`document.querySelector('[data-tab="${tab}"]')?.click()`);
+    await sleep(300);
+    if (ipcJs) await win.webContents.executeJavaScript(ipcJs);
+    await sleep(wait);
+    if (TAB_INJECT[tab]) await win.webContents.executeJavaScript(TAB_INJECT[tab]);
+    await sleep(300);
     const img = await win.webContents.capturePage();
     fs.writeFileSync(path.join(CAPTURE_OUT, tab + '.png'), img.toPNG());
     console.log('Captured:', tab);
