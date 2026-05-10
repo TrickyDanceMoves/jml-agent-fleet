@@ -43,5 +43,5 @@
 | Input validation | `Invoke-ValidateInputs.ps1` called pre-dispatch |
 | Dual approval for leaver | Pending token in `approver/pending/`, 30-min expiry |
 | Staged leaver | Soft (disable+revoke) then Hard (licenses+groups) with confirmation |
-| Operator RBAC | `approver/operators.json` — admin / helpdesk / viewer roles |
-| Policy guardrails | `approver/policies.json` — sensitive licenses/groups + freeze windows |
+| Operator RBAC | `approver/operators.json`: admin / helpdesk / viewer roles |
+| Policy guardrails | `approver/policies.json`: sensitive licenses/groups + freeze windows |

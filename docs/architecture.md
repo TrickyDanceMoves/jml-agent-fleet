@@ -55,7 +55,7 @@ graph TB
 
 ## Authentication Pattern
 
-All agents use **app-only client credentials** — no interactive sign-in, no delegated permissions.
+All agents use **app-only client credentials**: no interactive sign-in, no delegated permissions.
 
 ```
 cert-first  → Connect-MgGraph -CertificateThumbprint <thumbprint>

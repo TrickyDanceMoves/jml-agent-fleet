@@ -18,7 +18,7 @@
 | Policy guardrails | ✅ Active | Sensitive licenses + freeze windows in `policies.json` |
 | Credential expiry alerts | ✅ Active | 60-day warning via `Test-CredentialExpiry` |
 | Purview IRM integration | ✅ Active | Termination record on every leaver run |
-| Workload Identity CA policy | ⚠️ Gap | Requires Entra Workload Identities Premium (separate SKU, ~$3/SP/month — not included in Entra Suite). Risk accepted; mitigated by cert-only auth. |
+| Workload Identity CA policy | ⚠️ Gap | Requires Entra Workload Identities Premium (separate SKU, ~$3/SP/month, not included in Entra Suite). Risk accepted; mitigated by cert-only auth. |
 
 ## Audit Log Format
 
@@ -49,5 +49,5 @@ Secondary sinks: Windows Application Event Log (source `JMLAgents`, EventIds 100
 
 | Gap | Risk Level | Mitigation |
 |---|---|---|
-| No Workload Identity CA (IP restriction) | Low | Mitigated by cert-only auth and isolated app regs. CA policy script ready (`New-AgentConditionalAccess.ps1`) — requires Entra Workload Identities Premium (separate purchase, not in Entra Suite). |
-| No MFA on agent accounts | Low | App-only accounts have no password — cannot be phished or MFA-bypassed via interactive login. |
+| No Workload Identity CA (IP restriction) | Low | Mitigated by cert-only auth and isolated app regs. CA policy script ready (`New-AgentConditionalAccess.ps1`); requires Entra Workload Identities Premium (separate purchase, not in Entra Suite). |
+| No MFA on agent accounts | Low | App-only accounts have no password; cannot be phished or MFA-bypassed via interactive login. |
