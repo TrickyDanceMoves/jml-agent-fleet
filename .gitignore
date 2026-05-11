@@ -24,6 +24,15 @@ approver/dist/
 # Audit log (sensitive operational data)
 audit.jsonl
 
+# Operator PIN/Windows-auth hashes — must never be committed
+approver/operator-auth.json
+# Per-operator activity log (contains operator names + event types)
+approver/operator-activity.jsonl
+# Scheduled operations queue (runtime state)
+approver/scheduled.json
+# Notification routing rules — operator-specific, optional to commit
+approver/notification-rules.json
+
 # Auditor report outputs (contain tenant UPNs / security findings)
 auditor/reports/
 
