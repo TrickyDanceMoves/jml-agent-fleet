@@ -2,6 +2,7 @@
 
 // ── State ─────────────────────────────────────────────────────────────────────
 let currentTab     = 'dashboard';
+let currentRole    = null;
 let isWhatif       = true;
 let isWaiting      = { approver: false, auditor: false };
 let currentMsgEl   = { approver: null, auditor: null };
