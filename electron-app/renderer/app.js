@@ -17,19 +17,115 @@ const _submitBatch = {
   auditor:  {}
 };
 
-// ── Tab switching ─────────────────────────────────────────────────────────────
+// ── Agent avatars ─────────────────────────────────────────────────────────────
+const AGENT_AVATARS = {
+  approver: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/></svg>`,
+  auditor:  `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/></svg>`
+};
+
+// ── Tab switching + auto-refresh ──────────────────────────────────────────────
+let _tabRefreshTimers = {};
+
+const TAB_TITLES = {
+  dashboard: 'Dashboard',
+  approver: 'Approver Agent',
+  auditor: 'Audit Agent',
+  graph: 'Graph Runner',
+  approvals: 'Approvals',
+  operations: 'Operations',
+  certifications: 'Access Reviews',
+  integrations: 'Integrations',
+  security: 'Security',
+  'audit-log': 'Audit Log',
+  exports: 'Exports',
+  users: 'Users',
+  certs: 'Agent Certificates',
+  settings: 'Settings'
+};
+
+// Tabs where the Safe/Live mode pill is meaningful — anywhere you can issue
+// or approve a write operation. Read-only views hide the pill to reduce noise.
+const TABS_WITH_MODE = new Set(['approver', 'approvals', 'operations', 'users']);
+
 function switchTab(tab) {
   document.querySelectorAll('.nav-item').forEach(el => el.classList.toggle('active', el.dataset.tab === tab));
   document.querySelectorAll('.view').forEach(el => el.classList.toggle('active', el.id === 'view-' + tab));
   currentTab = tab;
+  // Update breadcrumb in topbar
+  const crumb = document.getElementById('crumb-cur');
+  if (crumb) crumb.textContent = TAB_TITLES[tab] || tab;
+  // Show mode pill only on tabs that can write to the directory
+  const modePill = document.getElementById('topbar-mode-pill');
+  if (modePill) modePill.style.display = TABS_WITH_MODE.has(tab) ? '' : 'none';
+  // Clear existing auto-refresh timers
+  Object.values(_tabRefreshTimers).forEach(clearInterval);
+  _tabRefreshTimers = {};
   if (tab === 'audit-log')     loadAuditLog();
   if (tab === 'dashboard')     loadDashboard();
   if (tab === 'security')      loadSecurity();
   if (tab === 'exports')       loadExports();
-  if (tab === 'approvals')     loadApprovals();
+  if (tab === 'approvals')     { loadApprovals();     _tabRefreshTimers.approvals     = setInterval(loadApprovals,     30000); }
   if (tab === 'operations')    loadOperations();
-  if (tab === 'certifications')loadCertifications();
+  if (tab === 'certifications'){ loadCertifications(); _tabRefreshTimers.certifications = setInterval(loadCertifications, 60000); }
   if (tab === 'settings')      loadSettings();
+  if (tab === 'integrations')  loadIntegrations();
+}
+
+// Lightweight loader for the new Integrations tab. Pulls live HR queue depth
+// from the existing IPC channel; everything else is static brochure data.
+function loadIntegrations() {
+  if (typeof window.api?.getHrQueue === 'function') {
+    try { window.api.getHrQueue(); } catch (_) { /* non-fatal */ }
+  }
+}
+
+// Subscribe to HR queue events for both the Exports view AND Integrations view.
+if (typeof window.api?.onHrQueue === 'function') {
+  window.api.onHrQueue(hr => {
+    const meta = document.getElementById('int-queue-meta');
+    const rows = document.getElementById('int-queue-rows');
+    // Error path — Azurite not running or queue not configured
+    if (hr && hr.error) {
+      if (meta) meta.innerHTML = '<span style="color:var(--coral)">offline</span>';
+      if (rows) rows.innerHTML = `<div class="q-row"><span style="grid-column:1 / -1;padding:18px 14px;color:var(--muted);text-align:center;line-height:1.55">
+        HR event queue is offline. <br>
+        <span style="font-family:var(--mono);font-size:11px">Start the dev stack: <code style="color:var(--cyan)">agents/dev-start.ps1</code></span><br>
+        <span style="font-size:11px;color:var(--dim);margin-top:6px;display:inline-block">${escHtml(hr.error)}</span>
+      </span></div>`;
+      return;
+    }
+    if (meta && hr) {
+      const q = hr.queueDepth ?? hr.queued ?? 0;
+      const p = hr.processing ?? 0;
+      const d = hr.dlq ?? hr.deadLetter ?? 0;
+      meta.innerHTML = `queued <b style="color:var(--text)">${q}</b> · processing <b style="color:var(--cyan)">${p}</b> · dlq <b style="color:var(--coral)">${d}</b>`;
+    }
+    // Feed dashboard Integrations widget
+    if (hr && !hr.error) {
+      const bb = document.getElementById('dash-int-bamboo');
+      if (bb) bb.textContent = `${(hr.events && hr.events.length) || 0} events`;
+      const cnt = document.getElementById('dash-int-cnt');
+      if (cnt) cnt.textContent = `· ${hr.queueDepth ?? 0} queued`;
+    }
+    if (rows && hr && Array.isArray(hr.events) && hr.events.length) {
+      rows.innerHTML = hr.events.slice(0, 10).map(e => {
+        const ts = (e.queuedAt || e.timestamp || '').slice(11, 19);
+        const status = (e.status || 'queued').toLowerCase();
+        const klass = status === 'processing' ? 'proc' : status === 'queued' ? 'q' : 'ok';
+        return `<div class="q-row">
+          <span>${escHtml(ts)}</span>
+          <span class="agent-tag t-${escHtml((e.agent || 'auditor').toLowerCase())}">${escHtml(e.source || 'hris')}</span>
+          <span class="event">${escHtml(e.type || '—')}</span>
+          <span>${escHtml(e.subject || '—')}</span>
+          <span class="stat ${klass}">${escHtml(status)}</span>
+        </div>`;
+      }).join('');
+    } else if (rows) {
+      rows.innerHTML = `<div class="q-row"><span style="grid-column:1 / -1;padding:18px 14px;color:var(--muted);text-align:center">
+        No queued events. New HR events from BambooHR will appear here in real time.
+      </span></div>`;
+    }
+  });
 }
 
 document.querySelectorAll('.nav-item').forEach(btn => {
@@ -42,16 +138,185 @@ document.getElementById('btn-maximize').addEventListener('click', () => window.a
 document.getElementById('btn-close').addEventListener('click',    () => window.api.windowClose());
 
 // ── Mode toggle (Approver) ────────────────────────────────────────────────────
+function updateTopbarModePill() {
+  const pill = document.getElementById('topbar-mode-pill');
+  if (pill) {
+    pill.classList.toggle('live', !isWhatif);
+    pill.innerHTML = isWhatif
+      ? '<span class="dot"></span> Safe · Safe'
+      : '<span class="dot"></span> LIVE · Committing';
+    // Respect current-tab visibility
+    if (typeof TABS_WITH_MODE !== 'undefined' && typeof currentTab !== 'undefined') {
+      pill.style.display = TABS_WITH_MODE.has(currentTab) ? '' : 'none';
+    } else {
+      pill.style.display = 'none';
+    }
+  }
+  // Sidebar mode tag (always visible — reflects global state)
+  const sideMode = document.getElementById('sidebar-mode-tag');
+  if (sideMode) {
+    sideMode.textContent = '· ' + (isWhatif ? 'Safe' : 'LIVE');
+    sideMode.classList.toggle('live', !isWhatif);
+  }
+}
+
+// Pre-load operator auth + operators map at startup so role-check + PIN gates
+// work without waiting for the Settings tab to be opened.
+loadOperatorAuth();
+try { window.api.getOperators(); } catch (_) {}
+
+// Global approvals poll — keeps the sidebar badge accurate from any tab.
+// Tab-local poll (in switchTab) stays at 30s for the active Approvals view;
+// this background poll runs at 60s so the global state never goes stale.
+setInterval(() => { try { window.api.getPendingApprovals(); } catch (_) {} }, 60000);
+// Kick once at startup so the badge is correct from the first paint
+setTimeout(() => { try { window.api.getPendingApprovals(); } catch (_) {} }, 1500);
+
+// ── Hard mode toggle (sticky session default) ──────────────────────────────
+const HARD_MODE_KEY = 'jml-hard-mode';
+let _hardMode = (function() {
+  try { const v = localStorage.getItem(HARD_MODE_KEY); return v === 'live' ? 'live' : 'whatif'; }
+  catch { return 'whatif'; }
+})();
+function setHardMode(target) {
+  _hardMode = target === 'live' ? 'live' : 'whatif';
+  try { localStorage.setItem(HARD_MODE_KEY, _hardMode); } catch (_) {}
+  document.querySelectorAll('.hard-mode-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.hard === _hardMode);
+    b.setAttribute('aria-selected', b.dataset.hard === _hardMode ? 'true' : 'false');
+  });
+}
+setHardMode(_hardMode);
+// Initialize soft mode to match hard mode at boot
+isWhatif = _hardMode === 'whatif';
+window.api.setMode(isWhatif);
+// Sync the soft toggle UI
+document.querySelectorAll('.mode-btn').forEach(b => {
+  b.classList.toggle('active', (b.dataset.mode === 'whatif') === isWhatif);
+});
+
+// Confirmation modal — returns true if user clicks OK, false otherwise
+function confirmModal({ title, body, danger, okLabel, cancelLabel }) {
+  return new Promise(resolve => {
+    const overlay = document.createElement('div');
+    overlay.className = 'pin-overlay';
+    overlay.innerHTML = `
+      <div class="pin-modal">
+        <div class="pin-header">
+          <div class="pin-title">${escHtml(title || 'Confirm')}</div>
+          ${body ? `<div class="pin-sub">${escHtml(body)}</div>` : ''}
+        </div>
+        <div class="pin-footer">
+          <button class="btn ghost confirm-cancel">${escHtml(cancelLabel || 'Cancel')}</button>
+          <button class="btn ${danger ? 'danger' : 'primary'} confirm-ok">${escHtml(okLabel || 'OK')}</button>
+        </div>
+      </div>`;
+    document.body.appendChild(overlay);
+    const done = (v) => { overlay.remove(); resolve(v); };
+    overlay.querySelector('.confirm-cancel').addEventListener('click', () => done(false));
+    overlay.querySelector('.confirm-ok').addEventListener('click', () => done(true));
+    overlay.addEventListener('click', e => { if (e.target === overlay) done(false); });
+    document.addEventListener('keydown', function esc(e) { if (e.key === 'Escape') { done(false); document.removeEventListener('keydown', esc); } });
+    setTimeout(() => overlay.querySelector('.confirm-ok').focus(), 50);
+  });
+}
+
+// Returns the current operator's role. Prefer the authoritative value set by
+// applyRoleUI (which comes from main.js get-current-operator IPC) — that's
+// available immediately after sign-in. The _operators map is a secondary check
+// keyed by operator NAME (not Windows username).
+function currentOperatorRole() {
+  if (currentRole) return String(currentRole).toLowerCase();
+  const opName = currentOperatorName || window.api.currentUser;
+  if (_operators && _operators[opName]) return String(_operators[opName]).toLowerCase();
+  return 'viewer';
+}
+function isViewer() { return currentOperatorRole() === 'viewer'; }
+
+// Visually hint that Live is restricted when the operator is a viewer, but
+// NEVER hard-disable the button — the click handler will show a helpful
+// toast/modal instead of silently swallowing the click. Disabling buttons led
+// to "I can't click Live" when role data was momentarily stale at boot.
+function applyViewerLock() {
+  const viewer = isViewer();
+  document.querySelectorAll('.hard-mode-btn[data-hard="live"], .mode-btn[data-mode="live"]').forEach(b => {
+    b.disabled = false;
+    b.style.opacity = viewer ? .6 : '';
+    b.style.cursor = '';
+    b.title = viewer ? 'Read-only role — clicking will explain why Live is restricted' : '';
+  });
+}
+
+// Wire the hard toggle buttons. Switching to LIVE requires PIN; switching to
+// Safe is free. Either change also auto-applies to the soft toggle so they
+// stay in sync until the user explicitly deviates per-chat.
+document.querySelectorAll('.hard-mode-btn').forEach(btn => {
+  btn.addEventListener('click', async () => {
+    const target = btn.dataset.hard;
+    if (target === _hardMode) return;
+    // Mode toggle is INTENT only — flip freely. PIN gate fires at actual write
+    // time (approval submit, Live mover/leaver). The one exception is viewers,
+    // who can't enter Live mode at all by policy.
+    if (target === 'live' && isViewer()) {
+      const switchNow = await confirmModal({
+        title: 'Viewer role — Live mode is disabled',
+        body: `"${currentOperatorName || window.api.currentUser}" is signed in as a read-only viewer. Switch to an admin or helpdesk operator to enable Live mode.`,
+        okLabel: 'Switch operator',
+        cancelLabel: 'Stay'
+      });
+      if (switchNow) document.getElementById('btn-switch-operator')?.click();
+      return;
+    }
+    setHardMode(target);
+    // Apply to soft state too
+    isWhatif = target === 'whatif';
+    window.api.setMode(isWhatif);
+    document.querySelectorAll('.mode-btn').forEach(b => b.classList.toggle('active', (b.dataset.mode === 'whatif') === isWhatif));
+    document.getElementById('mode-banner-whatif')?.classList.toggle('hidden', !isWhatif);
+    document.getElementById('mode-banner-live')?.classList.toggle('hidden', isWhatif);
+    updateTopbarModePill();
+    showToast(`Session set to ${target === 'live' ? 'LIVE' : 'Safe'} mode`, 'success');
+  });
+});
+
 document.querySelectorAll('.mode-btn').forEach(btn => {
-  btn.addEventListener('click', () => {
+  btn.addEventListener('click', async () => {
+    const targetWhatif = btn.dataset.mode === 'whatif';
+    const target = targetWhatif ? 'whatif' : 'live';
+    // Viewer can never enter Live mode
+    if (target === 'live' && isViewer()) {
+      const switchNow = await confirmModal({
+        title: 'Viewer role — Live mode is disabled',
+        body: `"${currentOperatorName || window.api.currentUser}" is signed in as a read-only viewer. Switch operators to enable Live mode.`,
+        okLabel: 'Switch operator',
+        cancelLabel: 'Stay'
+      });
+      if (switchNow) document.getElementById('btn-switch-operator')?.click();
+      return;
+    }
+    // Soft-mode is intent only. No PIN at toggle time — PIN gates the actual
+    // approval submit / Live mover / Live leaver. If toggling away from the
+    // hard session default, give a one-tap confirmation so accidental Live
+    // engagement still surfaces.
+    if (target !== _hardMode) {
+      const ok = await confirmModal({
+        title: 'Override session mode?',
+        body: `Session default is ${_hardMode === 'whatif' ? 'Safe' : 'LIVE'}. Switch this chat to ${target === 'whatif' ? 'Safe' : 'LIVE'}?`,
+        danger: target === 'live',
+        okLabel: 'Override',
+      });
+      if (!ok) return;
+    }
     document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
-    isWhatif = btn.dataset.mode === 'whatif';
+    isWhatif = targetWhatif;
     window.api.setMode(isWhatif);
     document.getElementById('mode-banner-whatif').classList.toggle('hidden', !isWhatif);
     document.getElementById('mode-banner-live').classList.toggle('hidden', isWhatif);
+    updateTopbarModePill();
   });
 });
+updateTopbarModePill();
 
 // ── Example chips (auto-send) ─────────────────────────────────────────────────
 document.querySelectorAll('.example-chip').forEach(chip => {
@@ -127,8 +392,9 @@ function appendAssistantPlaceholder(agent) {
   const msgs = document.getElementById('messages-' + agent);
   const el   = document.createElement('div');
   el.className = 'message assistant';
+  const avatarSvg = AGENT_AVATARS[agent] || 'AI';
   el.innerHTML = `
-    <div class="message-avatar">AI</div>
+    <div class="message-avatar avatar-${agent}">${avatarSvg}</div>
     <div class="message-body">
       <div class="message-text"></div>
       <div class="tool-indicators"></div>
@@ -261,11 +527,24 @@ function setWaiting(agent, waiting) {
 }
 
 // ── Security dashboard ────────────────────────────────────────────────────────
-document.getElementById('refresh-security').addEventListener('click', loadSecurity);
+// Visual cue while a security re-scan is in flight — every scan tile pulses
+// until onSecurityReports fires; the Re-scan button shows "Scanning…".
+function setSecurityScanning(on) {
+  ['sec-ueba', 'sec-drift', 'sec-risky'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.classList.toggle('scanning', on);
+  });
+  const btn = document.getElementById('refresh-security');
+  if (btn) { btn.disabled = on; btn.textContent = on ? 'Scanning…' : 'Re-scan'; }
+}
+document.getElementById('refresh-security').addEventListener('click', () => {
+  setSecurityScanning(true);
+  loadSecurity();
+  // Safety: clear scanning state after 30s even if no response
+  setTimeout(() => setSecurityScanning(false), 30000);
+});
 
 function loadSecurity() {
-  document.getElementById('security-findings-list').innerHTML = '<div class="loading-hint">Loading...</div>';
-  document.getElementById('agent-health-grid').innerHTML = '<div class="loading-hint">Loading...</div>';
   window.api.getSecurityReports();
   window.api.getAgentHealth();
 }
@@ -280,62 +559,181 @@ function buildCountBadges(crit, warn, info) {
 }
 
 window.api.onSecurityReports((data) => {
-  function updateCard(id, report) {
+  // Re-scan visual cue: data arrived → clear the pulsing state
+  setSecurityScanning(false);
+  // Open only the most-recent scan section by timestamp; collapse the others
+  const tstamps = {
+    ueba: data.ueba?.timestamp ? new Date(data.ueba.timestamp).getTime() : 0,
+    drift: data.drift?.timestamp ? new Date(data.drift.timestamp).getTime() : 0,
+    risky: data.riskyUsers?.timestamp ? new Date(data.riskyUsers.timestamp).getTime() : 0,
+  };
+  const newest = Object.entries(tstamps).sort((a, b) => b[1] - a[1])[0];
+  if (newest && newest[1] > 0) {
+    document.querySelectorAll('#sec-section-ueba, #sec-section-drift, #sec-section-risky').forEach(d => d.removeAttribute('open'));
+    const target = document.getElementById('sec-section-' + newest[0]);
+    if (target) target.setAttribute('open', '');
+  }
+  // Update summary strip tiles (scan-trio)
+  function updateTile(id, report) {
     const countsEl = document.getElementById('sec-' + id + '-counts');
     const metaEl   = document.getElementById('sec-' + id + '-meta');
-    if (!report) {
-      countsEl.innerHTML = '<span class="scanner-no-report">No report</span>';
-      metaEl.textContent = '';
-      return;
+    const runEl    = document.getElementById('sec-' + id + '-run');
+    const badgeEl  = document.getElementById('sec-' + id + '-badge');
+    const s = (report && report.summary) || {};
+    const cr = s.critical || 0;
+    const wn = s.warning || 0;
+    const inf = s.info || 0;
+    // If the counts element is the new scan-trio .nums layout, fill the three slots;
+    // otherwise fall back to badge chips.
+    if (countsEl) {
+      if (countsEl.classList.contains('nums')) {
+        countsEl.innerHTML = `
+          <div class="n cr"><b>${cr}</b><span>critical</span></div>
+          <div class="n wn"><b>${wn}</b><span>warning</span></div>
+          <div class="n in"><b>${inf}</b><span>info</span></div>`;
+      } else if (!report) {
+        countsEl.innerHTML = '<span class="scanner-no-report">No report</span>';
+      } else {
+        countsEl.innerHTML = buildCountBadges(cr, wn, inf);
+      }
     }
+    const ts = report && report.timestamp ? new Date(report.timestamp).toLocaleString() : '';
+    if (metaEl) metaEl.textContent = ts ? 'Last run: ' + ts : 'No report';
+    if (runEl)  runEl.textContent  = ts ? 'last run ' + ts : '';
+    const total = cr + wn + inf;
+    if (badgeEl) {
+      badgeEl.textContent = total ? total + ' finding' + (total !== 1 ? 's' : '') : 'All clear';
+      badgeEl.className = 'sec-section-badge ' + (cr ? 'badge-critical' : wn ? 'badge-warning' : 'badge-clear');
+    }
+  }
+  // Sidebar security badge — sum of all critical findings
+  const totalCrit = ((data.ueba?.summary?.critical) || 0) +
+                    ((data.drift?.summary?.critical) || 0) +
+                    ((data.riskyUsers?.summary?.critical) || 0);
+  const secNav = document.getElementById('nav-security-count');
+  if (secNav) {
+    secNav.textContent = totalCrit;
+    secNav.classList.toggle('empty', totalCrit === 0);
+    secNav.classList.toggle('warn', totalCrit > 0);
+  }
+
+  updateTile('ueba',  data.ueba);
+  updateTile('drift', data.drift);
+  updateTile('risky', data.riskyUsers);
+
+  // Update dashboard security at-a-glance strip
+  function updateDashTile(id, report) {
+    const el = document.getElementById('dash-' + id + '-counts');
+    if (!el) return;
+    if (!report) { el.innerHTML = '<span class="count-badge loading">—</span>'; return; }
     const s = report.summary || {};
-    countsEl.innerHTML = buildCountBadges(s.critical || 0, s.warning || 0, s.info || 0);
-    metaEl.textContent = report.timestamp
-      ? 'Last run: ' + new Date(report.timestamp).toLocaleString()
-      : '';
+    el.innerHTML = buildCountBadges(s.critical || 0, s.warning || 0, s.info || 0);
+  }
+  updateDashTile('ueba',  data.ueba);
+  updateDashTile('drift', data.drift);
+  updateDashTile('risky', data.riskyUsers);
+
+  // ── Render UEBA findings ───────────────────────────────────────────────────
+  const uebaList = document.getElementById('sec-ueba-list');
+  if (uebaList) {
+    const findings = (data.ueba && data.ueba.findings) ? data.ueba.findings : [];
+    if (!findings.length) {
+      uebaList.innerHTML = '<div class="sec-clear-state"><span class="count-badge ok">&#x2713; No behavioral anomalies detected</span></div>';
+    } else {
+      const order = { critical: 0, warning: 1, info: 2 };
+      findings.sort((a, b) => (order[a.severity] ?? 3) - (order[b.severity] ?? 3));
+      uebaList.innerHTML = findings.map(f => {
+        const subjects = [...new Set((f.events || []).map(e => e.subject).filter(Boolean))];
+        const agents   = [...new Set((f.events || []).map(e => e.agent).filter(Boolean))];
+        const latest   = (f.events || []).map(e => e.timestamp).filter(Boolean).sort().pop();
+        const latestStr = latest ? new Date(latest).toLocaleString() : '';
+        return '<div class="sec-finding-card sev-border-' + f.severity + '">'
+          + '<div class="sec-finding-top">'
+            + '<span class="sec-sev-chip sev-' + f.severity + '">' + f.severity.toUpperCase() + '</span>'
+            + '<code class="sec-rule-id">' + escHtml(f.ruleId || '') + '</code>'
+            + '<span class="sec-finding-title">' + escHtml(f.title) + '</span>'
+            + '<span class="sec-finding-count">' + (f.events || []).length + ' event' + ((f.events||[]).length !== 1 ? 's' : '') + '</span>'
+          + '</div>'
+          + (subjects.length ? '<div class="sec-finding-chips">'
+              + subjects.map(s => '<span class="sec-upn-chip">' + escHtml(s) + '</span>').join('')
+              + '</div>' : '')
+          + '<div class="sec-finding-footer">'
+            + (agents.length ? '<span class="sec-agent-tag">via ' + escHtml(agents.join(', ')) + '</span>' : '')
+            + (latestStr ? '<span class="sec-ts">' + latestStr + '</span>' : '')
+          + '</div>'
+        + '</div>';
+      }).join('');
+    }
   }
 
-  updateCard('ueba',  data.ueba);
-  updateCard('drift', data.drift);
-  updateCard('risky', data.riskyUsers);
-
-  // Collect and sort all findings across all scanners
-  const allFindings = [];
-  function collect(report, scanner) {
-    if (!report || !report.findings) return;
-    report.findings.forEach(f => allFindings.push(Object.assign({}, f, { scanner })));
+  // ── Render Drift findings ──────────────────────────────────────────────────
+  const driftList = document.getElementById('sec-drift-list');
+  if (driftList) {
+    const findings = (data.drift && data.drift.findings) ? data.drift.findings : [];
+    if (!findings.length) {
+      driftList.innerHTML = '<div class="sec-clear-state"><span class="count-badge ok">&#x2713; No configuration drift detected</span></div>';
+    } else {
+      const order = { critical: 0, warning: 1, info: 2 };
+      findings.sort((a, b) => (order[a.severity] ?? 3) - (order[b.severity] ?? 3));
+      driftList.innerHTML = findings.map(f => {
+        const items = f.items || [];
+        const names = items.map(i => i.displayName || i.userPrincipalName || i.agent || i.group || '').filter(Boolean);
+        return '<div class="sec-finding-card sev-border-' + f.severity + '">'
+          + '<div class="sec-finding-top">'
+            + '<span class="sec-sev-chip sev-' + f.severity + '">' + f.severity.toUpperCase() + '</span>'
+            + '<code class="sec-rule-id">' + escHtml(f.checkId || '') + '</code>'
+            + '<span class="sec-finding-title">' + escHtml(f.title) + '</span>'
+            + '<span class="sec-finding-count">' + items.length + ' item' + (items.length !== 1 ? 's' : '') + '</span>'
+          + '</div>'
+          + (names.length ? '<div class="sec-finding-chips">'
+              + names.map(n => '<span class="sec-upn-chip">' + escHtml(n) + '</span>').join('')
+              + '</div>' : '')
+          + (items[0] && items[0].note ? '<div class="sec-finding-note">' + escHtml(items[0].note) + '</div>' : '')
+        + '</div>';
+      }).join('');
+    }
   }
-  collect(data.ueba,       'UEBA');
-  collect(data.drift,      'Drift');
-  collect(data.riskyUsers, 'Identity Protection');
 
-  const order = { critical: 0, warning: 1, info: 2 };
-  allFindings.sort((a, b) => (order[a.severity] ?? 3) - (order[b.severity] ?? 3));
-
-  const countEl = document.getElementById('security-findings-count');
-  const listEl  = document.getElementById('security-findings-list');
-
-  if (allFindings.length === 0) {
-    countEl.textContent = '';
-    listEl.innerHTML = '<div class="loading-hint">No findings across all scanners.</div>';
-    return;
+  // ── Render Identity Protection findings ───────────────────────────────────
+  const riskyList = document.getElementById('sec-risky-list');
+  if (riskyList) {
+    const findings = (data.riskyUsers && data.riskyUsers.findings) ? data.riskyUsers.findings : [];
+    if (!findings.length) {
+      riskyList.innerHTML = '<div class="sec-clear-state"><span class="count-badge ok">&#x2713; No risky users detected</span></div>';
+    } else {
+      // Flatten to per-user cards
+      const userCards = [];
+      findings.forEach(f => {
+        (f.items || []).forEach(u => userCards.push({ sev: f.severity, title: f.title, user: u }));
+      });
+      riskyList.innerHTML = userCards.map(({ sev, title, user: u }) => {
+        const initials = (u.displayName || '?').split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
+        const riskStateLabel = {
+          confirmedCompromised: 'Confirmed Compromised',
+          atRisk:               'At Risk',
+          dismissed:            'Dismissed',
+          remediated:           'Remediated',
+        }[u.riskState] || u.riskState || '—';
+        const riskDetailLabel = (u.riskDetail || '').replace(/([A-Z])/g, ' $1').trim();
+        const lastUpdated = u.riskLastUpdated ? new Date(u.riskLastUpdated).toLocaleDateString() : '';
+        return '<div class="sec-risky-user-card sev-border-' + sev + '">'
+          + '<div class="sec-risky-avatar">' + escHtml(initials) + '</div>'
+          + '<div class="sec-risky-body">'
+            + '<div class="sec-risky-top">'
+              + '<span class="sec-risky-name">' + escHtml(u.displayName || u.userPrincipalName || '') + '</span>'
+              + '<span class="sec-sev-chip sev-' + sev + '">' + escHtml((u.riskLevel || sev).toUpperCase()) + '</span>'
+            + '</div>'
+            + '<div class="sec-risky-upn">' + escHtml(u.userPrincipalName || '') + '</div>'
+            + '<div class="sec-risky-meta">'
+              + '<span class="sec-risky-state sev-' + sev + '">' + escHtml(riskStateLabel) + '</span>'
+              + (riskDetailLabel ? '<span class="sec-risky-detail">' + escHtml(riskDetailLabel) + '</span>' : '')
+              + (lastUpdated ? '<span class="sec-ts">Updated ' + lastUpdated + '</span>' : '')
+            + '</div>'
+          + '</div>'
+        + '</div>';
+      }).join('');
+    }
   }
-
-  countEl.textContent = allFindings.length + ' finding' + (allFindings.length !== 1 ? 's' : '');
-  listEl.innerHTML = allFindings.map(f => {
-    const evts   = f.events || f.items || [];
-    const noun   = evts.length !== 1 ? 's' : '';
-    const ruleId = f.ruleId || f.checkId || '';
-    return '<div class="finding-item finding-' + f.severity + '">' +
-      '<div class="finding-row">' +
-        '<span class="finding-severity sev-' + f.severity + '">' + f.severity.toUpperCase() + '</span>' +
-        '<span class="finding-scanner">' + escHtml(f.scanner) + '</span>' +
-        '<span class="finding-title">'   + escHtml(f.title)   + '</span>' +
-        '<span class="finding-count">'   + evts.length + ' event' + noun + '</span>' +
-      '</div>' +
-      (ruleId ? '<div class="finding-rule">' + escHtml(ruleId) + '</div>' : '') +
-    '</div>';
-  }).join('');
 });
 
 // ── Exports tab ───────────────────────────────────────────────────────────────
@@ -397,6 +795,18 @@ window.api.onExportsStatus((data) => {
     document.getElementById('sentinel-events').textContent    = s.eventsIngested != null ? s.eventsIngested + ' events' : '—';
     if (!s.error) document.getElementById('sentinel-error').textContent = '';
   }
+
+  // Feed dashboard Exports widget
+  const blobOk = b && !b.error;
+  const sentOk = s && !s.error;
+  const blobDot = document.getElementById('dash-exp-blob-dot');
+  const sentDot = document.getElementById('dash-exp-sentinel-dot');
+  if (blobDot) blobDot.style.background = b ? (blobOk ? 'var(--emerald)' : 'var(--coral)') : 'var(--muted)';
+  if (sentDot) sentDot.style.background = s ? (sentOk ? 'var(--emerald)' : 'var(--coral)') : 'var(--muted)';
+  const blobMeta = document.getElementById('dash-exp-blob');
+  if (blobMeta) blobMeta.textContent = b ? (b.entriesExported != null ? b.entriesExported + ' entries' : (b.error ? 'error' : 'ready')) : 'unconfigured';
+  const sentMeta = document.getElementById('dash-exp-sentinel');
+  if (sentMeta) sentMeta.textContent = s ? (s.eventsIngested != null ? s.eventsIngested + ' events' : (s.error ? 'error' : 'ready')) : 'unconfigured';
 });
 
 function setRunning(type, running) {
@@ -431,11 +841,28 @@ window.api.onExportRunResult((result) => {
 document.getElementById('refresh-log').addEventListener('click', loadAuditLog);
 
 function loadAuditLog() {
-  document.getElementById('log-tbody').innerHTML = '<tr><td colspan="6" class="empty-row">Loading...</td></tr>';
+  document.getElementById('log-tbody').innerHTML = '<tr class="empty-row"><td colspan="7">Loading…</td></tr>';
   window.api.getAuditLog();
 }
 
 window.api.onAuditLogData((entries) => {
+  // Feed Operations kanban Completed-today column from audit log
+  renderOpsCompleted(entries || []);
+
+  // Feed dashboard Audit widget
+  if (Array.isArray(entries)) {
+    const total = entries.length;
+    const totalEl = document.getElementById('dash-audit-total');
+    if (totalEl) totalEl.textContent = total;
+    const cnt = document.getElementById('dash-audit-cnt');
+    if (cnt) cnt.textContent = `· ${total} entries`;
+    const last = entries[0];
+    const sealEl = document.getElementById('dash-audit-seal');
+    if (sealEl && last) sealEl.textContent = last.timestamp ? new Date(last.timestamp).toLocaleString() : '—';
+    const headEl = document.getElementById('dash-audit-head');
+    if (headEl && last && last.hash) headEl.textContent = String(last.hash).slice(0, 12) + '…';
+  }
+
   const tbody    = document.getElementById('log-tbody');
   const countEl  = document.getElementById('log-count');
   if (!entries.length) {
@@ -444,14 +871,16 @@ window.api.onAuditLogData((entries) => {
     return;
   }
   if (countEl) countEl.textContent = entries.length + ' entries';
+  // Stash for click handlers
+  window._lastAuditEntries = entries;
   tbody.innerHTML = entries.map(e => {
     const ts       = e.timestamp ? new Date(e.timestamp).toLocaleString() : '--';
     const outcome  = e.outcome || '--';
-    const mode     = e.whatif ? '<span class="badge-whatif">WhatIf</span>' : '<span class="badge-live">Live</span>';
+    const mode     = e.whatif ? '<span class="badge-whatif">Safe</span>' : '<span class="badge-live">Live</span>';
     const cls      = outcome === 'success' ? 'success' : outcome === 'partial' ? 'partial' : outcome === 'failed' ? 'failed' : '';
     const ticket   = (e.details && e.details.ticketRef) ? escHtml(e.details.ticketRef) : '<span class="dim">—</span>';
     const operator = e.operator ? escHtml(e.operator) : '<span class="dim">—</span>';
-    return `<tr>
+    return `<tr data-audit-idx="${escHtml(String(entries.indexOf(e)))}" style="cursor:pointer">
       <td class="mono">${ts}</td>
       <td>${escHtml(e.agent || '--')}</td>
       <td class="mono">${escHtml(e.subject || '--')}</td>
@@ -461,19 +890,49 @@ window.api.onAuditLogData((entries) => {
       <td>${mode}</td>
     </tr>`;
   }).join('');
+  // Click an audit row → show full detail popover
+  tbody.querySelectorAll('tr[data-audit-idx]').forEach(row => {
+    row.addEventListener('click', () => {
+      const e = entries[parseInt(row.dataset.auditIdx, 10)];
+      if (!e) return;
+      const kv = [
+        ['Timestamp',  e.timestamp ? new Date(e.timestamp).toLocaleString() : '—'],
+        ['Agent',      e.agent || '—'],
+        ['Action',     e.action || '—'],
+        ['Subject',    e.subject || '—'],
+        ['Outcome',    e.outcome || '—'],
+        ['Operator',   e.operator || '—'],
+        ['Mode',       e.whatif ? 'Safe' : 'Live'],
+        ['Ticket',     e.details?.ticketRef || '—'],
+        ['Hash',       e.hash ? String(e.hash).slice(0, 24) + '…' : '—'],
+        ['Prev hash',  e.prevHash ? String(e.prevHash).slice(0, 24) + '…' : '—'],
+      ];
+      showDetailPopover({
+        title: `${e.agent || 'event'} · ${e.subject || ''}`,
+        kv, raw: e.details && Object.keys(e.details).length ? e.details : null,
+        actions: [
+          { id: 'copyhash', label: 'Copy full hash', onClick: () => {
+            try { navigator.clipboard.writeText(e.hash || ''); showToast('Hash copied', 'success'); } catch (_) {}
+          }}
+        ]
+      });
+    });
+  });
 });
 
 // ── Dashboard ─────────────────────────────────────────────────────────────────
 function loadDashboard() {
   window.api.getDashboardStats();
+  window.api.getPendingApprovals();
+  window.api.getSecurityReports();
+  window.api.getAgentHealth();
 }
 
 window.api.onDashboardStats((data) => {
-  ['stat-users-total','stat-users-detail','stat-licenses-total','stat-licenses-detail','stat-activity-total','stat-activity-detail']
+  ['stat-users-total','stat-users-detail','stat-licenses-total','stat-activity-total','stat-activity-detail']
     .forEach(id => document.getElementById(id).classList.remove('loading'));
   if (data.error) {
     document.getElementById('stat-users-detail').textContent = data.error;
-    document.getElementById('stat-licenses-detail').textContent = '';
     document.getElementById('stat-activity-detail').textContent = '';
     return;
   }
@@ -489,8 +948,17 @@ window.api.onDashboardStats((data) => {
     const total    = real.reduce((s, l) => s + l.total, 0);
     const assigned = real.reduce((s, l) => s + l.assigned, 0);
     document.getElementById('stat-licenses-total').textContent = assigned + ' / ' + total;
-    document.getElementById('stat-licenses-detail').textContent =
-      real.map(l => l.sku + ': ' + l.assigned + '/' + l.total).join('  ·  ');
+    const barsEl = document.getElementById('dash-license-bars');
+    if (barsEl) {
+      barsEl.innerHTML = real.map(l => {
+        const pct = l.total > 0 ? Math.round((l.assigned / l.total) * 100) : 0;
+        const cls = pct >= 90 ? 'danger' : pct >= 75 ? 'warn' : 'ok';
+        return '<div class="dash-lic-row">'
+          + '<div class="dash-lic-label"><span class="dash-lic-sku">' + escHtml(l.sku) + '</span><span>' + l.assigned + '/' + l.total + '</span></div>'
+          + '<div class="dash-lic-track"><div class="dash-lic-fill ' + cls + '" style="width:' + pct + '%"></div></div>'
+          + '</div>';
+      }).join('');
+    }
   }
 
   if (data.activity) {
@@ -502,44 +970,115 @@ window.api.onDashboardStats((data) => {
     } else {
       document.getElementById('stat-activity-detail').textContent = 'total operations';
       list.innerHTML = recent.map(e => buildActivityItem(e)).join('');
-      list.querySelectorAll('.activity-item').forEach(el => {
-        el.addEventListener('click', () => el.classList.toggle('expanded'));
+      // Click an activity row to see the full entry details + jump-to-Audit option
+      list.querySelectorAll('.activity-item').forEach((el, i) => {
+        el.addEventListener('click', () => {
+          const entry = recent[i];
+          if (!entry) return;
+          const kv = [
+            ['Timestamp',  entry.timestamp ? new Date(entry.timestamp).toLocaleString() : '—'],
+            ['Agent',      entry.agent || '—'],
+            ['Action',     entry.action || '—'],
+            ['Subject',    entry.subject || '—'],
+            ['Outcome',    entry.outcome || '—'],
+            ['Operator',   entry.operator || '—'],
+            ['Mode',       entry.whatif ? 'Safe' : 'Live'],
+            ['Ticket',     entry.details?.ticketRef || '—'],
+          ];
+          showDetailPopover({
+            title: `${entry.agent || 'event'} · ${entry.subject || entry.action || ''}`,
+            kv, raw: entry.details && Object.keys(entry.details).length ? entry.details : null,
+            actions: [{
+              id: 'jump', label: 'Open in Audit Log', primary: true,
+              onClick: () => {
+                switchTab('audit-log');
+                const f = document.getElementById('log-filter-upn');
+                if (f && entry.subject) { f.value = entry.subject; document.getElementById('btn-log-filter-apply')?.click(); }
+              }
+            }]
+          });
+        });
       });
     }
   }
 });
 
-// ── Activity item builder ─────────────────────────────────────────────────────
-function buildActivityItem(e) {
-  const ts      = e.timestamp ? new Date(e.timestamp).toLocaleString() : '';
-  const details = e.details || {};
-  const pinned = [
-    ['ticket', details.ticketRef],
-    ['stage',  details.stage],
-    ['mode',   e.whatif ? 'WhatIf' : 'Live'],
-    ['time',   ts],
-  ].filter(([, v]) => v);
-
-  const extraKeys = Object.keys(details).filter(k => !['ticketRef','stage'].includes(k));
-  const extra = extraKeys.map(k => {
-    const v = typeof details[k] === 'object' ? JSON.stringify(details[k]) : String(details[k]);
-    return [k, v];
+// Generic detail-popover used by clickable rows that should reveal more data.
+// Pass an object with title + key/value pairs; renders a centered modal.
+function showDetailPopover({ title, kv, raw, actions }) {
+  const overlay = document.createElement('div');
+  overlay.className = 'pin-overlay';
+  const kvHtml = (kv || []).map(([k, v]) => `<div class="ap-row"><span class="k">${escHtml(k)}</span><span class="v">${escHtml(v)}</span></div>`).join('');
+  const rawHtml = raw ? `<pre style="margin:12px 0 0;padding:12px;background:var(--bg-2);border:1px solid var(--border);border-radius:6px;font-family:var(--mono);font-size:11.5px;color:var(--text-2);white-space:pre-wrap;word-break:break-all;max-height:300px;overflow-y:auto">${escHtml(typeof raw === 'string' ? raw : JSON.stringify(raw, null, 2))}</pre>` : '';
+  const actionsHtml = (actions || []).map(a => `<button class="btn ${a.danger ? 'danger' : a.primary ? 'primary' : 'ghost'}" data-act="${escHtml(a.id)}">${escHtml(a.label)}</button>`).join('');
+  overlay.innerHTML = `
+    <div class="pin-modal" style="width:520px;max-width:94vw">
+      <div class="pin-header">
+        <div class="pin-title">${escHtml(title || 'Details')}</div>
+      </div>
+      <div class="pin-body" style="max-height:60vh;overflow-y:auto">
+        <div style="display:flex;flex-direction:column;gap:6px;font-family:var(--mono);font-size:12px">${kvHtml}</div>
+        ${rawHtml}
+      </div>
+      <div class="pin-footer">
+        ${actionsHtml}
+        <button class="btn ghost dp-close">Close</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+  overlay.querySelector('.dp-close').addEventListener('click', () => overlay.remove());
+  overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+  overlay.querySelectorAll('[data-act]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const handler = (actions || []).find(a => a.id === btn.dataset.act);
+      if (handler && handler.onClick) handler.onClick();
+      overlay.remove();
+    });
   });
+}
 
-  const detailRows = [...pinned, ...extra]
-    .map(([k, v]) => `<div class="activity-detail-row"><span class="activity-detail-key">${escHtml(k)}</span><span class="activity-detail-val">${escHtml(v)}</span></div>`)
-    .join('');
-
-  return `<div class="activity-item">
-    <div class="activity-item-row">
-      <span class="activity-agent">${escHtml(e.agent || '')}</span>
-      <span class="activity-action">${escHtml(e.action || '')}</span>
-      <span class="activity-subject">${escHtml(e.subject || '')}</span>
-      <span class="activity-outcome ${e.outcome}">${escHtml(e.outcome || '')}</span>
-      <span class="activity-time">${ts}</span>
-      <span class="activity-expand-icon">&#x25B6;</span>
-    </div>
-    <div class="activity-detail">${detailRows}</div>
+// ── Activity item builder (revamp .evt row) ──────────────────────────────────
+function buildActivityItem(e) {
+  const ts = e.timestamp ? new Date(e.timestamp) : null;
+  // Compact ts: "MM/DD HH:MM" if older than today, else "HH:MM"
+  let tsLabel = '—';
+  if (ts) {
+    const now = new Date();
+    const sameDay = ts.toDateString() === now.toDateString();
+    const hh = String(ts.getHours()).padStart(2, '0');
+    const mm = String(ts.getMinutes()).padStart(2, '0');
+    tsLabel = sameDay ? `${hh}:${mm}` : `${ts.getMonth()+1}/${ts.getDate()} ${hh}:${mm}`;
+  }
+  const agent = (e.agent || 'unknown').toLowerCase();
+  // Normalize subject: handle UPN (user@domain), bare names ("tenant", group names),
+  // file paths ("audit.jsonl"), or empty values gracefully.
+  const subjFull = e.subject || '';
+  let subjMain = '—', subjEm = '';
+  if (subjFull) {
+    const at = subjFull.indexOf('@');
+    if (at > 0) {
+      // UPN — split user from domain
+      subjMain = subjFull.slice(0, at);
+      subjEm = subjFull.slice(at);
+    } else if (subjFull.includes('.') && /\.(jsonl?|csv|ps1)$/i.test(subjFull)) {
+      // File path — show as-is, italic
+      subjMain = subjFull;
+      subjEm = ' · file';
+    } else {
+      // Group name, tenant, scan id, etc. — show as-is, optional context tag
+      subjMain = subjFull;
+      const detail = (e.details && (e.details.stage || e.details.ticketRef || e.details.action)) || '';
+      if (detail) subjEm = ' · ' + detail;
+    }
+  } else if (e.action) {
+    subjMain = e.action;
+  }
+  const outcomeClass = (e.outcome || '').toLowerCase();
+  return `<div class="evt activity-item" data-agent="${escHtml(agent)}" title="${escHtml(subjFull || e.action || '')}">
+    <span class="ts">${escHtml(tsLabel)}</span>
+    <span class="agent-tag t-${escHtml(agent)}">${escHtml(agent)}</span>
+    <span class="subj">${escHtml(subjMain)}${subjEm ? `<em>${escHtml(subjEm)}</em>` : ''}</span>
+    <span class="outcome ${outcomeClass}">${escHtml(e.outcome || '—')}</span>
   </div>`;
 }
 
@@ -550,6 +1089,16 @@ function escHtml(s) {
 
 function formatToolName(n) {
   return n.replace(/^(submit|query)_/, '').replace(/_/g, ' ');
+}
+
+function _relativeTime(d) {
+  const now = new Date();
+  const diff = Math.floor((now - d) / 1000);
+  if (diff < 60) return 'just now';
+  if (diff < 3600) return Math.floor(diff / 60) + 'm ago';
+  if (diff < 86400) return Math.floor(diff / 3600) + 'h ago';
+  if (diff < 86400 * 30) return Math.floor(diff / 86400) + 'd ago';
+  return d.toLocaleDateString();
 }
 
 // ── User autocomplete shared state ───────────────────────────────────────────
@@ -668,11 +1217,92 @@ function highlightJson(text) {
 }
 
 function renderMarkdown(text) {
+  // Parse GFM-style markdown into styled HTML
+  const lines = text.split('\n');
+  const out = [];
+  let i = 0;
+
+  while (i < lines.length) {
+    const raw = lines[i];
+    const line = raw.trimEnd();
+
+    // Blank line
+    if (!line.trim()) { i++; continue; }
+
+    // Heading
+    const hm = line.match(/^(#{1,3})\s+(.+)/);
+    if (hm) {
+      const lvl = hm[1].length;
+      out.push('<div class="md-h' + lvl + '">' + inlineMarkdown(hm[2]) + '</div>');
+      i++; continue;
+    }
+
+    // Horizontal rule
+    if (/^---+$/.test(line.trim())) { out.push('<div class="md-hr"></div>'); i++; continue; }
+
+    // Pipe table — collect all consecutive pipe rows
+    if (line.trim().startsWith('|')) {
+      const tableLines = [];
+      while (i < lines.length && lines[i].trim().startsWith('|')) {
+        tableLines.push(lines[i]); i++;
+      }
+      // Skip separator rows (---|---)
+      const rows = tableLines.filter(l => !/^\s*\|[\s\-:|]+\|\s*$/.test(l));
+      if (rows.length) {
+        const parseRow = l => l.replace(/^\||\|$/g, '').split('|').map(c => c.trim());
+        const [header, ...body] = rows;
+        out.push('<div class="md-table-wrap"><table class="md-table">');
+        out.push('<thead><tr>' + parseRow(header).map(c => '<th>' + inlineMarkdown(c) + '</th>').join('') + '</tr></thead>');
+        if (body.length) {
+          out.push('<tbody>');
+          body.forEach(r => out.push('<tr>' + parseRow(r).map(c => '<td>' + inlineMarkdown(c) + '</td>').join('') + '</tr>'));
+          out.push('</tbody>');
+        }
+        out.push('</table></div>');
+      }
+      continue;
+    }
+
+    // Bullet list — collect consecutive items
+    if (/^\s*[-*]\s/.test(line)) {
+      out.push('<ul class="md-list">');
+      while (i < lines.length && /^\s*[-*]\s/.test(lines[i])) {
+        out.push('<li>' + inlineMarkdown(lines[i].replace(/^\s*[-*]\s+/, '')) + '</li>');
+        i++;
+      }
+      out.push('</ul>');
+      continue;
+    }
+
+    // Numbered list
+    if (/^\s*\d+\.\s/.test(line)) {
+      out.push('<ol class="md-list">');
+      while (i < lines.length && /^\s*\d+\.\s/.test(lines[i])) {
+        out.push('<li>' + inlineMarkdown(lines[i].replace(/^\s*\d+\.\s+/, '')) + '</li>');
+        i++;
+      }
+      out.push('</ol>');
+      continue;
+    }
+
+    // Paragraph
+    out.push('<p class="md-p">' + inlineMarkdown(line) + '</p>');
+    i++;
+  }
+
+  return out.join('');
+}
+
+function inlineMarkdown(text) {
   return escHtml(text)
-    .replace(/^#{1,6} (.+)$/gm, '$1')
-    .replace(/\*\*([^*\n]+)\*\*/g, '<strong>$1</strong>')
-    .replace(/`([^`\n]+)`/g, '<code>$1</code>')
-    .replace(/\n/g, '<br>');
+    .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*([^*]+)\*/g, '<em>$1</em>')
+    .replace(/`([^`]+)`/g, '<code class="md-code">$1</code>')
+    .replace(/&#x2705;/g, '<span class="md-check">&#x2705;</span>')
+    .replace(/&#x274C;/g, '<span class="md-cross">&#x274C;</span>')
+    .replace(/✅/g, '<span class="md-check">✅</span>')
+    .replace(/❌/g, '<span class="md-cross">❌</span>')
+    .replace(/⚠️/g, '<span class="md-warn">⚠️</span>');
 }
 
 // ── Approvals tab ─────────────────────────────────────────────────────────────
@@ -691,7 +1321,23 @@ window.api.onPendingApprovals((data) => {
     return;
   }
   const items = Array.isArray(data) ? data : [];
-  if (countEl) countEl.textContent = items.length ? items.length + ' pending' : '';
+  if (countEl) countEl.textContent = items.length;
+
+  // Sidebar approvals badge
+  const navBadge = document.getElementById('nav-approvals-count');
+  if (navBadge) {
+    navBadge.textContent = items.length;
+    navBadge.classList.toggle('empty', items.length === 0);
+    navBadge.classList.toggle('warn', items.length > 0);
+  }
+
+  // Update dashboard approvals stat card
+  const dashCnt = document.getElementById('stat-approvals-count');
+  const dashDet = document.getElementById('stat-approvals-detail');
+  if (dashCnt) { dashCnt.classList.remove('loading'); dashCnt.textContent = items.length || '0'; }
+  if (dashDet) dashDet.textContent = items.length
+    ? (items.length === 1 ? '1 action awaiting decision' : items.length + ' actions awaiting decision')
+    : 'No pending approvals';
   if (items.length === 0) {
     listEl.innerHTML = '<div class="loading-hint">No pending approvals.</div>';
     return;
@@ -702,64 +1348,109 @@ window.api.onPendingApprovals((data) => {
     const tool      = (op.tool || '').toLowerCase();
     const now       = new Date();
     const expired   = op.expiresAt && new Date(op.expiresAt) < now;
-    const expText   = op.expiresAt
-      ? (expired ? 'Expired' : 'Expires ' + new Date(op.expiresAt).toLocaleString())
+
+    // TTL countdown text (mm:ss)
+    let ttlText = '';
+    if (op.expiresAt && !expired) {
+      const ms = new Date(op.expiresAt) - now;
+      const min = Math.floor(ms / 60000);
+      const sec = Math.floor((ms % 60000) / 1000);
+      ttlText = `EXPIRES IN ${String(min).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
+    } else if (expired) {
+      ttlText = 'EXPIRED';
+    }
+    const ttlIsWarn = op.expiresAt && !expired && (new Date(op.expiresAt) - now) < 5 * 60 * 1000;
+
+    // Derive operation type, badge, severity
+    let opLabel, badgeClass, severity;
+    if (tool.includes('joiner'))      { opLabel = 'JOINER';      badgeClass = 'joiner'; severity = 'info'; }
+    else if (tool.includes('hard'))   { opLabel = 'HARD LEAVER'; badgeClass = 'hard';   severity = 'crit'; }
+    else if (tool.includes('soft'))   { opLabel = 'SOFT LEAVER'; badgeClass = 'soft';   severity = 'info'; }
+    else if (tool.includes('mover'))  { opLabel = 'MOVER';       badgeClass = 'mover';  severity = 'info'; }
+    else                              { opLabel = 'PENDING';     badgeClass = 'soft';   severity = 'info'; }
+
+    // KV details
+    const groups   = Array.isArray(inp.groups)   ? inp.groups   : [];
+    const licenses = Array.isArray(inp.licenses) ? inp.licenses : [];
+    const kvRows = [];
+    if (inp.ticketRef)   kvRows.push(['Ticket',       escHtml(inp.ticketRef)]);
+    if (op.requestedBy)  kvRows.push(['Requested by', escHtml(op.requestedBy)]);
+    if (op.created)      kvRows.push(['Submitted',    escHtml(new Date(op.created).toLocaleString())]);
+    if (inp.givenName || inp.surname) kvRows.push(['Name', escHtml(((inp.givenName || '') + ' ' + (inp.surname || '')).trim())]);
+    if (inp.department)  kvRows.push(['Department',   escHtml(inp.department) + (inp.jobTitle ? ' · ' + escHtml(inp.jobTitle) : '')]);
+    if (inp.stage)       kvRows.push(['Stage',        `<span class="chip">${escHtml(inp.stage)}</span>`]);
+    if (licenses.length) kvRows.push(['Licenses',     licenses.map(l => `<span class="chip">${escHtml(l)}</span>`).join('')]);
+    if (groups.length)   kvRows.push(['Groups',       groups.map(g => `<span class="chip">${escHtml(g)}</span>`).join('')]);
+    if (inp.manager)     kvRows.push(['Manager',      escHtml(inp.manager)]);
+
+    const kvHtml = kvRows.length
+      ? '<div class="kv">' + kvRows.map(([k, v]) => `<span class="k">${k}</span><span class="v">${v}</span>`).join('') + '</div>'
       : '';
 
-    // Derive operation type and badge
-    let opLabel, badgeClass;
-    if (tool.includes('joiner'))      { opLabel = 'JOINER';    badgeClass = 'joiner'; }
-    else if (tool.includes('hard'))   { opLabel = 'HARD LEAVER'; badgeClass = 'hard'; }
-    else if (tool.includes('soft'))   { opLabel = 'SOFT LEAVER'; badgeClass = 'soft'; }
-    else if (tool.includes('mover'))  { opLabel = 'MOVER';     badgeClass = 'soft'; }
-    else                              { opLabel = 'PENDING';   badgeClass = 'soft'; }
+    // Risk note based on operation type
+    let noteHtml = '';
+    if (severity === 'crit') {
+      noteHtml = `<div class="note crit"><div class="ttl">Risk Note</div><div class="reason">Hard-stage leaver — license + group removal requires dual approval. UEBA may flag this as a high-impact change.</div></div>`;
+    } else if (badgeClass === 'joiner') {
+      noteHtml = `<div class="note info"><div class="ttl">Provisioner Note</div><div class="reason">New hire provisioning. Groups and licenses pre-assigned. SoD precheck completed.</div></div>`;
+    } else if (badgeClass === 'mover') {
+      noteHtml = `<div class="note info"><div class="ttl">Mover Note</div><div class="reason">Department or role change. Will adjust group membership and license assignment per policy.</div></div>`;
+    } else {
+      noteHtml = `<div class="note"><div class="ttl">Notes</div><div class="reason">Standard operation. Review the details and approve, hold, or reject.</div></div>`;
+    }
 
-    // Build detail rows
-    const groups   = Array.isArray(inp.groups)   ? inp.groups.join(', ')   : '';
-    const licenses = Array.isArray(inp.licenses) ? inp.licenses.join(', ') : '';
-    const detailRows = [];
-    if (inp.givenName || inp.surname) detailRows.push(['Name', escHtml((inp.givenName || '') + ' ' + (inp.surname || '')).trim()]);
-    if (inp.department) detailRows.push(['Department', escHtml(inp.department)]);
-    if (inp.jobTitle)   detailRows.push(['Job Title',  escHtml(inp.jobTitle)]);
-    if (licenses)       detailRows.push(['Licenses',   escHtml(licenses)]);
-    if (groups)         detailRows.push(['Groups',     escHtml(groups)]);
-    if (inp.stage)      detailRows.push(['Stage',      escHtml(inp.stage)]);
+    // Dual approver row (severity=crit → 1 of 2)
+    const isDual = severity === 'crit';
+    const approverRow = isDual
+      ? `<span class="approver-line">Approvers
+           <span class="av"><span class="a" title="you"></span><span class="a pending" title="awaiting peer"></span></span>
+           <span style="margin-left:8px">1 of 2 required</span>
+         </span>`
+      : `<span class="approver-line">Approvers
+           <span class="av"><span class="a" title="you"></span></span>
+           <span style="margin-left:8px">1 of 1 required</span>
+         </span>`;
 
-    const detailHtml = detailRows.length
-      ? '<table class="approval-detail-table">' +
-          detailRows.map(([k, v]) => `<tr><td class="dim-label">${k}</td><td>${v}</td></tr>`).join('') +
-        '</table>'
-      : '';
-
-    return `<div class="approval-card${expired ? ' expired' : ''}" data-id="${escHtml(token)}">
-      <div class="approval-header">
-        <span class="approval-upn">${escHtml(inp.userPrincipalName || '')}</span>
-        <span class="approval-badge ${badgeClass}">${opLabel}</span>
-        <span class="approval-token">TOKEN: ${escHtml(token)}</span>
-        ${expired ? '<span class="approval-badge expired-badge">EXPIRED</span>' : ''}
+    return `<div class="approval-card card ${severity === 'crit' ? 'crit' : 'info'}${expired ? ' expired' : ''}" data-id="${escHtml(token)}">
+      <div class="card-h approval-header">
+        <span class="tag approval-badge ${badgeClass}">${opLabel}</span>
+        <span class="who-em approval-upn">${escHtml(inp.userPrincipalName || '—')}</span>
+        <div class="spacer"></div>
+        ${token ? `<span class="token approval-token">TOKEN <b>${escHtml(token.slice(0, 8).toUpperCase())}</b></span>` : ''}
+        ${ttlText ? `<span class="ttl-cnt${ttlIsWarn ? ' warn' : ''}"><span class="x"></span>${escHtml(ttlText)}</span>` : ''}
       </div>
-      <div class="approval-meta">
-        <span><span class="dim-label">Ticket</span> ${escHtml(inp.ticketRef || '—')}</span>
-        <span><span class="dim-label">Requested by</span> ${escHtml(op.requestedBy || '—')}</span>
-        <span><span class="dim-label">Submitted</span> ${op.created ? new Date(op.created).toLocaleString() : '—'}</span>
-        ${expText ? '<span class="' + (expired ? 'text-danger' : '') + '">' + escHtml(expText) + '</span>' : ''}
+      <div class="card-b">
+        ${kvHtml}
+        ${noteHtml}
       </div>
-      ${detailHtml}
-      <div class="approval-risk">
-        ${badgeClass === 'hard' ? '<span class="risk-chip risk-high">High risk — dual approval required for license + group removal</span>' : ''}
-        ${badgeClass === 'joiner' ? '<span class="risk-chip risk-low">New hire provisioning — groups and licenses pre-assigned by Provisioner</span>' : ''}
-      </div>
-      <div class="approval-actions">
-        ${!expired ? '<button class="btn-run btn-approve" data-id="' + escHtml(token) + '">Approve</button>' : ''}
-        <button class="btn-danger btn-reject" data-id="${escHtml(token)}">Reject</button>
+      <div class="card-f approval-actions">
+        ${approverRow}
+        <div class="spacer"></div>
+        ${!expired ? `<button class="btn danger btn-reject" data-id="${escHtml(token)}">Reject</button>` : ''}
+        ${!expired ? `<button class="btn btn-hold" data-id="${escHtml(token)}" disabled title="Hold not yet supported">Hold</button>` : ''}
+        ${!expired ? `<button class="btn primary btn-approve" data-id="${escHtml(token)}">Approve${isDual ? ' (1 of 2)' : ''}</button>` : ''}
       </div>
     </div>`;
   }).join('');
 
   listEl.querySelectorAll('.btn-approve').forEach(btn => {
-    btn.addEventListener('click', () => {
+    btn.addEventListener('click', async () => {
+      // If current effective mode deviates from hard session default, confirm
+      const effective = isWhatif ? 'whatif' : 'live';
+      if (effective !== _hardMode) {
+        const ok = await confirmModal({
+          title: 'Mode mismatch',
+          body: `Session default is ${_hardMode.toUpperCase()}, but approval will execute in ${effective.toUpperCase()}. Continue?`,
+          danger: effective === 'live',
+          okLabel: 'Continue',
+        });
+        if (!ok) return;
+      }
+      const tokenOrTrue = await requirePinIfNeeded('Confirm approval');
+      if (!tokenOrTrue) return;
+      const writeToken = typeof tokenOrTrue === 'string' ? tokenOrTrue : null;
       btn.disabled = true; btn.textContent = 'Running…';
-      window.api.approvePending(btn.dataset.id);
+      window.api.approvePending(btn.dataset.id, writeToken);
     });
   });
   listEl.querySelectorAll('.btn-reject').forEach(btn => {
@@ -773,9 +1464,128 @@ window.api.onPendingApprovals((data) => {
 window.api.onApproveResult((data) => { loadApprovals(); });
 window.api.onRejectResult((data)  => { loadApprovals(); });
 
+// Live TTL countdown on approval cards (1-second tick)
+setInterval(() => {
+  document.querySelectorAll('#approvals-list .ttl-cnt').forEach(el => {
+    const m = el.textContent.match(/(\d+):(\d+)/);
+    if (!m) return;
+    let s = parseInt(m[1], 10) * 60 + parseInt(m[2], 10) - 1;
+    if (s < 0) s = 0;
+    const mm = String(Math.floor(s / 60)).padStart(2, '0');
+    const ss = String(s % 60).padStart(2, '0');
+    el.innerHTML = el.innerHTML.replace(/\d+:\d+/, mm + ':' + ss);
+    if (s < 5 * 60 && !el.classList.contains('warn')) el.classList.add('warn');
+  });
+}, 1000);
+
 // ── Operations tab ────────────────────────────────────────────────────────────
 function loadOperations() {
   window.api.getScheduledOps();
+  // Also fetch audit log entries for the completed-today column
+  if (typeof window.api.getAuditLog === 'function') {
+    try { window.api.getAuditLog(); } catch (_) {}
+  }
+}
+
+// Render Operations kanban — derives Queued from scheduled-ops, Completed from audit log,
+// In Flight from the dynamic _inflightOps registry below.
+const _inflightOps = new Map();
+function renderOpsInflight() {
+  const body = document.getElementById('ops-inflight-body');
+  const count = document.getElementById('ops-inflight-count');
+  if (!body || !count) return;
+  const arr = [...(_inflightOps.values())];
+  count.textContent = arr.length;
+  if (!arr.length) { body.innerHTML = '<div class="loading-hint">No operations in flight.</div>'; return; }
+  body.innerHTML = arr.map(op => {
+    const elapsed = op.startedAt ? Math.floor((Date.now() - op.startedAt) / 1000) : 0;
+    return `<div class="op-card run">
+      <div class="op-top">
+        <span class="ag t-${escHtml(op.agent || 'auditor')}">${escHtml(op.agent || '—')}</span>
+        <span class="id">${escHtml(op.id || '')}</span>
+        <span class="meta">${elapsed < 60 ? elapsed + 's' : Math.floor(elapsed/60) + 'm'}</span>
+      </div>
+      <div style="font-size:12.5px;color:var(--text)">${escHtml(op.subject || '—')}</div>
+      <div class="op-progress"><i style="width:${op.progress || 50}%"></i></div>
+      <div class="op-foot"><span>${escHtml(op.step || 'running')}</span><span>${escHtml(op.operator || '—')}</span></div>
+    </div>`;
+  }).join('');
+}
+function renderOpsQueued(items) {
+  const body = document.getElementById('ops-queued-body');
+  const count = document.getElementById('ops-queued-count');
+  const next = document.getElementById('ops-queued-next');
+  if (!body || !count) return;
+  count.textContent = items.length;
+  if (!items.length) { body.innerHTML = '<div class="loading-hint">No queued operations.</div>'; if (next) next.textContent = ''; return; }
+  if (next && items[0].when) {
+    const t = new Date(items[0].when);
+    next.textContent = 'next ' + t.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'});
+  }
+  body.innerHTML = items.map(item => {
+    const ag = (item.op || '').toLowerCase().split('-')[0] || 'mover';
+    const when = item.when ? new Date(item.when) : null;
+    const tMeta = when ? when.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'}) : '—';
+    return `<div class="op-card">
+      <div class="op-top">
+        <span class="ag t-${escHtml(ag)}">${escHtml(item.op || '—')}</span>
+        <span class="id">${escHtml((item.id || '').toString().slice(0, 8))}</span>
+        <span class="meta">${escHtml(tMeta)}</span>
+      </div>
+      <div style="font-size:12.5px;color:var(--text)">${escHtml(item.upn || '—')}</div>
+      <div class="op-foot"><span>${item.whatif ? 'Safe' : 'Live'} · scheduled</span><span>${escHtml(item.status || 'pending')}</span></div>
+    </div>`;
+  }).join('');
+}
+function renderOpsCompleted(entries) {
+  const body = document.getElementById('ops-completed-body');
+  const count = document.getElementById('ops-completed-count');
+  const summary = document.getElementById('ops-completed-summary');
+  if (!body || !count) return;
+  const today = new Date(); today.setHours(0,0,0,0);
+  const todays = entries.filter(e => e.timestamp && new Date(e.timestamp) >= today).slice(0, 6);
+  count.textContent = todays.length;
+  if (summary) {
+    const ok = todays.filter(e => e.outcome === 'success').length;
+    const partial = todays.filter(e => e.outcome === 'partial').length;
+    summary.textContent = todays.length ? `${ok} ok · ${partial} partial` : '';
+  }
+  if (!todays.length) { body.innerHTML = '<div class="loading-hint">No completions today yet.</div>'; return; }
+  body.innerHTML = todays.map((e, i) => {
+    const ts = e.timestamp ? new Date(e.timestamp).toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'}) : '—';
+    const oc = (e.outcome || '').toLowerCase();
+    return `<div class="op-card" data-op-idx="${i}" style="cursor:pointer">
+      <div class="op-top">
+        <span class="ag t-${escHtml((e.agent || '').toLowerCase())}">${escHtml(e.agent || '—')}</span>
+        <span class="id">${escHtml((e.details?.ticketRef || e.id || '').toString().slice(0, 12))}</span>
+        <span class="meta">${escHtml(ts)}</span>
+      </div>
+      <div style="font-size:12.5px;color:var(--text)">${escHtml((e.subject || '').split('@')[0] || '—')}</div>
+      <div class="op-foot">
+        <span style="color:${oc === 'success' ? 'var(--emerald)' : oc === 'partial' ? 'var(--amber)' : oc === 'failed' ? 'var(--coral)' : 'var(--muted)'}">● ${escHtml(oc || 'unknown')}</span>
+        <span>${escHtml(e.operator || '—')}</span>
+      </div>
+    </div>`;
+  }).join('');
+  // Click a completed op card → show its full audit entry
+  body.querySelectorAll('[data-op-idx]').forEach(card => {
+    card.addEventListener('click', () => {
+      const e = todays[parseInt(card.dataset.opIdx, 10)];
+      if (!e) return;
+      showDetailPopover({
+        title: `${e.agent || 'op'} · ${e.subject || ''}`,
+        kv: [
+          ['Time',       e.timestamp ? new Date(e.timestamp).toLocaleString() : '—'],
+          ['Outcome',    e.outcome || '—'],
+          ['Operator',   e.operator || '—'],
+          ['Mode',       e.whatif ? 'Safe' : 'Live'],
+          ['Ticket',     e.details?.ticketRef || '—'],
+        ],
+        raw: e.details && Object.keys(e.details).length ? e.details : null,
+        actions: [{ id: 'jump', label: 'Open in Audit Log', primary: true, onClick: () => switchTab('audit-log') }]
+      });
+    });
+  });
 }
 
 const _csvInput = document.getElementById('bulk-csv-input');
@@ -847,6 +1657,16 @@ document.getElementById('btn-schedule').addEventListener('click', () => {
 });
 
 window.api.onScheduledOps((ops) => {
+  // Also feed the Operations kanban Queued column
+  const queuedItems = Array.isArray(ops)
+    ? ops.filter(o => o.status === 'pending' || !o.status).map(o => ({
+        id: o.id, op: o.operation, upn: (o.payload || {}).userPrincipalName,
+        when: o.scheduledFor, whatif: (o.payload || {}).whatif !== false, status: o.status || 'pending'
+      }))
+    : [];
+  renderOpsQueued(queuedItems);
+  renderOpsInflight();
+
   const el = document.getElementById('sched-list');
   if (!Array.isArray(ops) || !ops.length) {
     el.innerHTML = '<div class="loading-hint">No scheduled operations.</div>';
@@ -894,53 +1714,436 @@ document.getElementById('btn-cert-agent-pim').addEventListener('click',   () => 
 window.api.onCertificationResult((data) => {
   const resultEl = document.getElementById('cert-result');
   resultEl.style.display = 'flex';
-  document.getElementById('cert-result-lines').textContent = (data.lines || []).join('\n');
+
+  // Summary line replaces the raw console dump
+  const linesEl = document.getElementById('cert-result-lines');
+  if (!data.ok) {
+    linesEl.innerHTML = '<span style="color:var(--danger)">&#x2717; ' + escHtml(data.error || 'Campaign run failed') + '</span>';
+  } else {
+    const n = Array.isArray(data.campaigns) ? data.campaigns.length : 0;
+    linesEl.innerHTML = '<span style="color:var(--success)">&#x2713; Campaign scan complete</span>'
+      + (n ? ' <span style="color:var(--text-dim)">&#xB7; ' + n + ' campaign' + (n !== 1 ? 's' : '') + ' found</span>' : '');
+  }
 
   const wrap = document.getElementById('cert-result-table-wrap');
-  if (!data.ok) {
-    wrap.innerHTML = '<div style="color:var(--danger);font-size:13px">' + escHtml(data.error || 'Error') + '</div>';
-    return;
-  }
+  if (!data.ok) { wrap.innerHTML = ''; return; }
+
   const camps = Array.isArray(data.campaigns) ? data.campaigns : [];
-  if (!camps.length) { wrap.innerHTML = ''; return; }
-  wrap.innerHTML = '<table class="cert-result-table"><thead><tr><th>Campaign</th><th>Type</th><th>Status</th><th>Created</th></tr></thead><tbody>'
-    + camps.map(c => `<tr>
-      <td>${escHtml(c.displayName || c.id || '')}</td>
-      <td>${escHtml(c.type || '')}</td>
-      <td>${escHtml(c.status || '')}</td>
-      <td>${c.createdAt ? new Date(c.createdAt).toLocaleString() : '—'}</td>
-    </tr>`).join('')
-    + '</tbody></table>';
+  if (!camps.length) { wrap.innerHTML = '<div class="loading-hint">No campaigns returned.</div>'; return; }
+
+  const STATUS_META = {
+    active:    { cls: 'cert-status-active',    label: 'Active'    },
+    completed: { cls: 'cert-status-completed',  label: 'Completed' },
+    error:     { cls: 'cert-status-error',      label: 'Error'     },
+  };
+  const TYPE_ICONS = {
+    'user-groups': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>',
+    'agent-pim':   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>',
+  };
+  const defaultIcon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>';
+
+  wrap.innerHTML = camps.map(c => {
+    const statusKey = (c.status || '').toLowerCase();
+    const sm = STATUS_META[statusKey] || { cls: 'cert-status-pending', label: c.status || 'Pending' };
+    const typeKey = (c.type || '').toLowerCase();
+    const typeIcon = TYPE_ICONS[typeKey] || defaultIcon;
+    const created = c.createdDateTime
+      ? new Date(c.createdDateTime).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+      : (c.createdAt ? new Date(c.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—');
+    const decisions = c.completedCount !== undefined
+      ? c.completedCount + ' / ' + (c.totalCount || '?') + ' reviewed'
+      : '';
+    // Stacked decision bar: approved (emerald) / revoked (coral) / pending (amber)
+    const total = c.totalCount || 0;
+    const approved = c.approvedCount || 0;
+    const revoked  = c.revokedCount  || 0;
+    const pending  = total - approved - revoked;
+    const pct = (n) => total ? Math.max(0, Math.min(100, (n / total) * 100)) : 0;
+    const barHtml = total
+      ? `<div class="bar" style="margin-top:14px;height:6px;background:oklch(0.24 0.018 252);border-radius:99px;overflow:hidden;display:flex">
+          <i class="approved" style="height:100%;display:block;width:${pct(approved)}%"></i>
+          <i class="revoked"  style="height:100%;display:block;width:${pct(revoked)}%"></i>
+          <i class="pending"  style="height:100%;display:block;width:${pct(pending)}%"></i>
+        </div>
+        <div style="display:flex;gap:14px;margin-top:8px;font-family:var(--mono);font-size:11px;color:var(--text-2)">
+          <span><span style="color:var(--emerald)">●</span> approved ${approved}</span>
+          <span><span style="color:var(--coral)">●</span> revoked ${revoked}</span>
+          <span><span style="color:var(--amber)">●</span> pending ${pending}</span>
+        </div>`
+      : '';
+    return '<div class="cert-campaign-card camp">'
+      + '<div class="c-info">'
+        + '<div class="cert-campaign-header ttl">'
+          + '<div class="cert-campaign-type-icon">' + typeIcon + '</div>'
+          + '<div class="cert-campaign-name">' + escHtml(c.displayName || c.id || 'Unnamed Campaign') + '</div>'
+          + '<span class="cert-status-badge ' + sm.cls + '">' + sm.label + '</span>'
+        + '</div>'
+        + '<div class="cert-campaign-meta">'
+          + '<span class="cert-meta-item"><span class="dim-label">Type</span> ' + escHtml(c.type || '—') + '</span>'
+          + '<span class="cert-meta-item"><span class="dim-label">Created</span> ' + created + '</span>'
+          + (decisions ? '<span class="cert-meta-item"><span class="dim-label">Progress</span> ' + escHtml(decisions) + '</span>' : '')
+        + '</div>'
+        + barHtml
+      + '</div>'
+    + '</div>';
+  }).join('');
 });
 
 window.api.onCertHistory((entries) => {
   const el = document.getElementById('cert-history-body');
-  if (!entries.length) { el.innerHTML = '<div class="loading-hint">No history.</div>'; return; }
-  el.innerHTML = '<table class="data-table"><thead><tr><th>Timestamp</th><th>Subject</th><th>Outcome</th><th>Mode</th></tr></thead><tbody>'
-    + entries.map(e => {
-      const ts  = e.timestamp ? new Date(e.timestamp).toLocaleString() : '—';
-      const cls = e.outcome === 'success' ? 'success' : e.outcome === 'failed' ? 'failed' : '';
-      const mode = e.whatif ? '<span class="badge-whatif">WhatIf</span>' : '<span class="badge-live">Live</span>';
-      return `<tr>
-        <td class="mono">${escHtml(ts)}</td>
-        <td class="mono">${escHtml(e.subject || '')}</td>
-        <td><span class="outcome ${cls}">${escHtml(e.outcome || '')}</span></td>
-        <td>${mode}</td>
-      </tr>`;
-    }).join('')
-    + '</tbody></table>';
+  if (!entries || !entries.length) { el.innerHTML = '<div class="loading-hint">No history.</div>'; return; }
+  el.innerHTML = entries.slice(0, 20).map(e => {
+    const ts    = e.timestamp ? new Date(e.timestamp).toLocaleString() : '—';
+    const ok    = e.outcome === 'success';
+    const fail  = e.outcome === 'failed';
+    const icon  = ok ? '&#x2713;' : fail ? '&#x2717;' : '&#x25CF;';
+    const cls   = ok ? 'cert-hist-ok' : fail ? 'cert-hist-fail' : 'cert-hist-neutral';
+    const mode  = e.whatif ? '<span class="badge-whatif">Safe</span>' : '<span class="badge-live">Live</span>';
+    const subj  = e.subject ? escHtml(e.subject) : '<span class="text-dim">—</span>';
+    return '<div class="cert-hist-entry">'
+      + '<div class="cert-hist-icon ' + cls + '">' + icon + '</div>'
+      + '<div class="cert-hist-body">'
+        + '<div class="cert-hist-top">'
+          + '<span class="cert-hist-subject">' + subj + '</span>'
+          + mode
+        + '</div>'
+        + '<div class="cert-hist-ts">' + escHtml(ts) + '</div>'
+      + '</div>'
+    + '</div>';
+  }).join('');
 });
 
 // ── Settings tab ──────────────────────────────────────────────────────────────
 let _policies = {};
 let _sod      = {};
 let _operators = {};
+let _operatorAuth = {};  // { user: { mode: 'pin'|'windows'|'none', set: bool } }
+
+async function loadOperatorAuth() {
+  try { _operatorAuth = await window.api.getOperatorAuth() || {}; }
+  catch { _operatorAuth = {}; }
+  if (typeof renderOperators === 'function') renderOperators();
+}
+function saveOperatorAuth() { /* writes happen server-side via setOperatorAuthPin/Windows */ }
+
+async function promptSetPin(user) {
+  const result = await showPinModal({
+    title: `Set PIN for ${user}`,
+    body: 'Choose a 4–8 digit PIN. This PIN will be required before Live writes and approvals.',
+    confirm: true
+  });
+  if (!result || !result.pin) return;
+  const resp = await window.api.setOperatorAuthPin(user, result.pin);
+  if (resp && resp.ok) {
+    showToast('PIN set for ' + user, 'success');
+    await loadOperatorAuth();
+  } else {
+    showToast('Failed to set PIN: ' + (resp && resp.error || 'unknown'), 'error');
+  }
+}
+
+// Returns { pin } on confirm, null on cancel
+function showPinModal(opts) {
+  return new Promise(resolve => {
+    const overlay = document.createElement('div');
+    overlay.className = 'pin-overlay';
+    overlay.innerHTML = `
+      <div class="pin-modal">
+        <div class="pin-header">
+          <div class="pin-title">${escHtml(opts.title || 'Enter PIN')}</div>
+          <div class="pin-sub">${escHtml(opts.body || '')}</div>
+        </div>
+        <div class="pin-body">
+          <input type="password" class="pin-input" inputmode="numeric" pattern="[0-9]*" autocomplete="off" autofocus maxlength="12" placeholder="PIN" />
+          ${opts.confirm ? '<input type="password" class="pin-confirm" inputmode="numeric" pattern="[0-9]*" autocomplete="off" maxlength="12" placeholder="Confirm PIN" />' : ''}
+          <div class="pin-error" style="display:none;color:var(--coral);font-size:11.5px;font-family:var(--mono)"></div>
+        </div>
+        <div class="pin-footer">
+          <button class="btn ghost pin-cancel">Cancel</button>
+          <button class="btn primary pin-ok">OK</button>
+        </div>
+      </div>`;
+    document.body.appendChild(overlay);
+    const pinInput = overlay.querySelector('.pin-input');
+    const confirmInput = overlay.querySelector('.pin-confirm');
+    const errorEl = overlay.querySelector('.pin-error');
+    const cleanup = (val) => { overlay.remove(); resolve(val); };
+    overlay.querySelector('.pin-cancel').addEventListener('click', () => cleanup(null));
+    overlay.addEventListener('click', e => { if (e.target === overlay) cleanup(null); });
+    const submit = () => {
+      const pin = (pinInput.value || '').trim();
+      if (pin.length < 4) { errorEl.textContent = 'PIN must be at least 4 characters'; errorEl.style.display = ''; return; }
+      if (confirmInput && pin !== confirmInput.value) { errorEl.textContent = 'PINs do not match'; errorEl.style.display = ''; return; }
+      cleanup({ pin });
+    };
+    overlay.querySelector('.pin-ok').addEventListener('click', submit);
+    pinInput.addEventListener('keydown', e => { if (e.key === 'Enter') (confirmInput ? confirmInput.focus() : submit()); else if (e.key === 'Escape') cleanup(null); });
+    if (confirmInput) confirmInput.addEventListener('keydown', e => { if (e.key === 'Enter') submit(); else if (e.key === 'Escape') cleanup(null); });
+    setTimeout(() => pinInput.focus(), 50);
+  });
+}
+
+// Gate: if operator has write access + PIN/Windows mode, prompt for verification.
+// Returns a short-TTL write token on success, null on denial/cancellation. The
+// token must be attached to the next write-IPC call; main.js enforces this.
+// Viewer/guest skip the gate and return `true` (no token needed since they
+// can't reach Live mode anyway).
+async function requirePinIfNeeded(reason) {
+  // operator-auth.json is keyed by OPERATOR NAME (chosen at sign-in), not the
+  // Windows username. Use currentOperatorName which was set by setSidebarOperator
+  // — falls back to Windows username only if no operator is selected.
+  const opName = currentOperatorName || window.api.currentUser;
+  const role = currentOperatorRole();
+  const writeAccess = role === 'admin' || role === 'helpdesk';
+  if (!writeAccess) return true;
+  await loadOperatorAuth();
+  let a = _operatorAuth[opName];
+  if (!a || a.mode === 'none' || !a.set) {
+    // No PIN configured — offer to set one up RIGHT NOW so the user isn't dead-ended.
+    const want = await confirmModal({
+      title: `Set up authentication for "${opName}"`,
+      body: 'Your operator account has write access but no PIN is configured. Set a PIN now to continue.',
+      okLabel: 'Set PIN',
+      cancelLabel: 'Not now',
+    });
+    if (!want) return null;
+    const setup = await showPinModal({
+      title: `Choose a PIN for ${opName}`,
+      body: '4–8 digits. Required for Live writes and approvals.',
+      confirm: true,
+    });
+    if (!setup) return null;
+    const resp = await window.api.setOperatorAuthPin(opName, setup.pin);
+    if (!(resp && resp.ok)) {
+      showToast('Failed to set PIN: ' + (resp && resp.error || 'unknown'), 'error');
+      return null;
+    }
+    showToast('PIN set — verify to continue', 'success');
+    await loadOperatorAuth();
+    a = _operatorAuth[opName];
+    if (!a) return null;
+  }
+  const result = await showPinModal({
+    title: reason || 'Confirm with PIN',
+    body: a.mode === 'windows' ? 'Windows-authenticated session — confirm with your PIN to proceed.' : `Enter PIN for ${opName} to proceed.`
+  });
+  if (!result) return null;
+  const resp = await window.api.verifyOperatorPin(opName, result.pin);
+  if (!(resp && resp.ok)) {
+    showToast('PIN incorrect', 'error');
+    return null;
+  }
+  // Return the short-TTL write token; renderer attaches it to mutating IPC.
+  return resp.writeToken || true;
+}
 let _roles     = {};
 
 function loadSettings() {
   window.api.getPolicy();
   window.api.getOperators();
+  loadOperatorAuth();
+  loadOperatorActivity();
 }
+
+async function loadOperatorActivity() {
+  const body = document.getElementById('op-activity-body');
+  if (!body || typeof window.api?.getOperatorActivity !== 'function') return;
+  try {
+    const resp = await window.api.getOperatorActivity(50);
+    const entries = (resp && resp.entries) || [];
+    if (!entries.length) { body.innerHTML = '<div class="loading-hint" style="padding:14px">No activity recorded yet.</div>'; return; }
+    body.innerHTML = entries.map(e => {
+      const ts = e.timestamp ? new Date(e.timestamp) : null;
+      const tsLabel = ts ? `${ts.getMonth()+1}/${ts.getDate()} ${String(ts.getHours()).padStart(2,'0')}:${String(ts.getMinutes()).padStart(2,'0')}` : '—';
+      const evt = e.event || '';
+      const evtColor = evt.includes('fail') ? 'var(--coral)' : evt.includes('verify.ok') ? 'var(--emerald)' : evt.startsWith('tenant') ? 'var(--amber)' : 'var(--cyan)';
+      const target = e.details && (e.details.target || e.details.tenantId);
+      return `<div style="display:grid;grid-template-columns:80px 1fr 130px;gap:10px;padding:6px 0;border-top:1px solid var(--border)">
+        <span style="color:var(--muted)">${escHtml(tsLabel)}</span>
+        <span><span style="color:${evtColor}">${escHtml(evt)}</span>${target ? ` · ${escHtml(target)}` : ''}</span>
+        <span style="text-align:right;color:var(--text-2)">${escHtml(e.operator || '—')} · <span style="color:var(--muted)">${escHtml(e.role || '')}</span></span>
+      </div>`;
+    }).join('');
+  } catch (e) {
+    body.innerHTML = '<div class="loading-hint" style="padding:14px;color:var(--coral)">Error: ' + escHtml(e.message) + '</div>';
+  }
+}
+document.getElementById('btn-refresh-op-activity')?.addEventListener('click', loadOperatorActivity);
+
+// ── Notification routing rules ──────────────────────────────────────────────
+let _notifRules = [];
+async function loadNotificationRules() {
+  if (typeof window.api?.getNotificationRules !== 'function') return;
+  try {
+    const resp = await window.api.getNotificationRules();
+    _notifRules = (resp && resp.rules) || [];
+    renderNotificationRules();
+  } catch (_) { /* non-fatal */ }
+}
+function renderNotificationRules() {
+  const tbody = document.getElementById('notif-rules-tbody');
+  if (!tbody) return;
+  if (!_notifRules.length) {
+    tbody.innerHTML = '<tr><td colspan="4" style="padding:18px;text-align:center;color:var(--muted);font-size:12px">No rules configured. Add one below.</td></tr>';
+    return;
+  }
+  const sevColor = { info: 'var(--cyan)', warning: 'var(--amber)', critical: 'var(--coral)' };
+  tbody.innerHTML = _notifRules.map((r, idx) => `
+    <tr style="display:grid;grid-template-columns:1fr 110px 1fr auto;gap:12px;padding:10px 18px;border-top:1px solid var(--border);align-items:center;font-family:var(--mono);font-size:12px">
+      <td style="color:var(--text)">${escHtml(r.event)}</td>
+      <td><span class="role-badge" style="color:${sevColor[r.severity] || 'var(--muted)'};border-color:${sevColor[r.severity] || 'var(--border)'};background:transparent">${escHtml(r.severity)}</span></td>
+      <td style="display:flex;flex-wrap:wrap;gap:4px">${(r.channels || []).map(c => `<span class="policy-tag" style="padding:2px 8px;font-size:10.5px">${escHtml(c)}</span>`).join('')}</td>
+      <td><button class="btn-del-sod" data-notif-idx="${idx}">Remove</button></td>
+    </tr>
+  `).join('');
+  tbody.querySelectorAll('[data-notif-idx]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      _notifRules.splice(parseInt(btn.dataset.notifIdx, 10), 1);
+      renderNotificationRules();
+    });
+  });
+}
+document.getElementById('btn-notif-add')?.addEventListener('click', () => {
+  const evt = document.getElementById('notif-add-event').value;
+  const severity = document.getElementById('notif-add-severity').value;
+  const channels = [...document.querySelectorAll('.notif-add-ch:checked')].map(c => c.value);
+  if (!channels.length) { showToast('Pick at least one channel', 'warning'); return; }
+  // Replace existing rule for same event, or add new
+  const existing = _notifRules.findIndex(r => r.event === evt);
+  const rule = { id: 'rule-' + Date.now().toString(36), event: evt, severity, channels };
+  if (existing >= 0) _notifRules[existing] = rule;
+  else _notifRules.push(rule);
+  renderNotificationRules();
+});
+// ── Tenant onboarding wizard ────────────────────────────────────────────────
+(function() {
+  const overlay = document.getElementById('wizard-overlay');
+  const stepLabel = document.getElementById('wizard-step-label');
+  if (!overlay || !document.getElementById('btn-tenant-wizard')) return;
+
+  let _wizState = { step: 1, tenantId: '', account: '', createdApps: [] };
+  let _signinPoll = null;
+
+  function showStep(n) {
+    _wizState.step = n;
+    document.querySelectorAll('.wiz-step').forEach(s => s.style.display = (+s.dataset.step === n) ? '' : 'none');
+    if (stepLabel) stepLabel.textContent = `Step ${n} of 3 · ` + (n === 1 ? 'Sign in' : n === 2 ? 'Create app registrations' : 'Consent & save');
+    document.getElementById('wizard-next').style.display = (n === 1 && _wizState.tenantId) || n === 2 && _wizState.createdApps.length ? '' : 'none';
+    document.getElementById('wizard-finish').style.display = n === 3 ? '' : 'none';
+  }
+  function openWizard() {
+    _wizState = { step: 1, tenantId: '', account: '', createdApps: [] };
+    overlay.style.display = 'flex';
+    document.getElementById('wizard-signin-pending').style.display = 'none';
+    document.getElementById('wizard-signin-success').style.display = 'none';
+    document.getElementById('wizard-signin-error').style.display = 'none';
+    showStep(1);
+  }
+  function closeWizard() {
+    if (_signinPoll) { clearInterval(_signinPoll); _signinPoll = null; }
+    overlay.style.display = 'none';
+  }
+
+  document.getElementById('btn-tenant-wizard').addEventListener('click', openWizard);
+  document.getElementById('wizard-cancel').addEventListener('click', closeWizard);
+
+  // Step 1 — start device-code sign-in
+  document.getElementById('wizard-start-signin').addEventListener('click', async () => {
+    const errEl = document.getElementById('wizard-signin-error');
+    errEl.style.display = 'none';
+    const resp = await window.api.startDeviceCodeSignin();
+    if (!resp || !resp.ok) {
+      errEl.textContent = (resp && resp.error) || 'Failed to start sign-in';
+      errEl.style.display = '';
+      return;
+    }
+    document.getElementById('wizard-signin-pending').style.display = '';
+    if (_signinPoll) clearInterval(_signinPoll);
+    _signinPoll = setInterval(async () => {
+      const s = await window.api.checkDeviceCodeStatus();
+      if (s.deviceCode) document.getElementById('wizard-device-code').textContent = s.deviceCode;
+      if (s.verificationUrl) document.getElementById('wizard-verify-url').textContent = s.verificationUrl;
+      if (s.status === 'success') {
+        clearInterval(_signinPoll); _signinPoll = null;
+        _wizState.tenantId = s.tenantId; _wizState.account = s.account;
+        document.getElementById('wizard-signin-pending').style.display = 'none';
+        document.getElementById('wizard-tenant-id').textContent = s.tenantId;
+        document.getElementById('wizard-account').textContent = s.account;
+        document.getElementById('wizard-signin-success').style.display = '';
+        document.getElementById('wizard-next').style.display = '';
+      } else if (s.status === 'error') {
+        clearInterval(_signinPoll); _signinPoll = null;
+        errEl.textContent = s.error || 'Sign-in failed';
+        errEl.style.display = '';
+        document.getElementById('wizard-signin-pending').style.display = 'none';
+      }
+    }, 2000);
+  });
+
+  // Step 2 — create app regs
+  document.getElementById('wizard-create-appregs').addEventListener('click', async () => {
+    const list = document.getElementById('wizard-appreg-list');
+    const agents = ['joiner', 'mover', 'leaver', 'enroller', 'certifier', 'approver', 'provisioner', 'auditor'];
+    list.innerHTML = agents.map(a => `<div data-app="${a}" style="display:grid;grid-template-columns:120px 1fr;gap:10px;padding:6px 0;border-bottom:1px solid var(--border)"><span style="color:var(--text)">${a}</span><span class="status" style="color:var(--muted)">waiting…</span></div>`).join('');
+    const resp = await window.api.createAgentAppRegistrations(agents);
+    if (!resp || !resp.ok) { showToast(resp?.error || 'create failed', 'error'); return; }
+    _wizState.createdApps = resp.created || [];
+    // Update statuses
+    agents.forEach(a => {
+      const row = list.querySelector(`[data-app="${a}"] .status`);
+      const created = (resp.created || []).find(c => c.agent === a);
+      const err = (resp.errors || []).find(e => e.agent === a);
+      if (created) { row.style.color = 'var(--emerald)'; row.innerHTML = `✓ <span style="font-size:11px">${created.appId.slice(0, 8)}…</span>`; }
+      else if (err) { row.style.color = 'var(--coral)'; row.textContent = '✗ ' + err.error.slice(0, 40); }
+      else { row.style.color = 'var(--muted)'; row.textContent = 'skipped'; }
+    });
+    document.getElementById('wizard-next').style.display = '';
+  });
+
+  // Step navigation
+  document.getElementById('wizard-next').addEventListener('click', () => {
+    if (_wizState.step === 1) showStep(2);
+    else if (_wizState.step === 2) {
+      // Populate consent links
+      const list = document.getElementById('wizard-consent-list');
+      list.innerHTML = _wizState.createdApps.map(c => {
+        const url = `https://login.microsoftonline.com/${_wizState.tenantId}/adminconsent?client_id=${c.appId}`;
+        return `<div style="display:grid;grid-template-columns:120px 1fr auto;gap:10px;padding:6px 0;border-bottom:1px solid var(--border);align-items:center">
+          <span style="color:var(--text)">${escHtml(c.agent)}</span>
+          <span style="color:var(--muted);font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(c.appId)}</span>
+          <a href="${url}" target="_blank" rel="noopener" class="btn-text-link" style="font-family:var(--mono);font-size:11px">Grant consent →</a>
+        </div>`;
+      }).join('');
+      showStep(3);
+    }
+  });
+
+  // Finish — push tenant id + client ids into the existing tenant config form, save
+  document.getElementById('wizard-finish').addEventListener('click', async () => {
+    document.getElementById('set-tenant-id-input').value = _wizState.tenantId;
+    _wizState.createdApps.forEach(c => {
+      const input = document.querySelector(`.set-clientid[data-agent="${c.agent}"]`);
+      if (input) input.value = c.appId;
+    });
+    closeWizard();
+    showToast('Wizard complete — review changes and Save & Sync', 'success');
+    // Auto-trigger the existing save flow (with diff preview)
+    document.getElementById('btn-tenant-save')?.click();
+  });
+})();
+
+document.getElementById('btn-save-notifications')?.addEventListener('click', async () => {
+  const status = document.getElementById('notif-rules-status');
+  if (status) status.textContent = 'Saving…';
+  const resp = await window.api.saveNotificationRules(_notifRules);
+  if (resp && resp.ok) {
+    if (status) status.textContent = `Saved ${_notifRules.length} rule(s)`;
+    showToast('Notification rules saved', 'success');
+  } else {
+    if (status) status.textContent = 'Error: ' + (resp && resp.error || 'unknown');
+    showToast('Save failed', 'error');
+  }
+});
 
 window.api.onPolicyData((data) => {
   if (data.error) return;
@@ -1080,14 +2283,41 @@ window.api.onPolicySaved((data) => {
 
 function renderOperators() {
   const tbody = document.getElementById('op-tbody');
-  tbody.innerHTML = Object.entries(_operators).map(([user, role]) => `<tr>
-    <td class="mono">${escHtml(user)}</td>
-    <td>${escHtml(role)}</td>
-    <td><button class="btn-danger btn-del-op" data-user="${escHtml(user)}" style="padding:3px 8px;font-size:11px">Remove</button></td>
-  </tr>`).join('') || '<tr><td colspan="3" class="empty-row">No operators configured.</td></tr>';
+  const auth = _operatorAuth || {};
+  tbody.innerHTML = Object.entries(_operators).map(([user, role]) => {
+    const writeRole = role === 'admin' || role === 'helpdesk';
+    const a = auth[user] || (writeRole ? { mode: 'pin', set: false } : { mode: 'none' });
+    let authBadge;
+    if (!writeRole) authBadge = '<span class="role-badge role-viewer">N/A · viewer</span>';
+    else if (a.mode === 'windows') authBadge = '<span class="role-badge role-helpdesk">Windows</span>';
+    else if (a.mode === 'pin' && a.set) authBadge = '<span class="role-badge role-admin">PIN set</span>';
+    else authBadge = '<span class="role-badge" style="color:var(--coral);border-color:oklch(0.45 0.16 24 / .45);background:oklch(0.45 0.16 24 / .08)">PIN required</span>';
+    const actions = writeRole
+      ? `<button class="btn btn-set-pin" data-user="${escHtml(user)}" style="padding:3px 9px;font-size:11px">${a.set ? 'Change PIN' : 'Set PIN'}</button>
+         <button class="btn btn-set-windows" data-user="${escHtml(user)}" style="padding:3px 9px;font-size:11px" title="Use Windows authentication">Use Windows</button>
+         <button class="btn-del-op" data-user="${escHtml(user)}">Remove</button>`
+      : `<button class="btn-del-op" data-user="${escHtml(user)}">Remove</button>`;
+    return `<tr>
+      <td class="mono">${escHtml(user)}</td>
+      <td><span class="role-badge role-${escHtml(role)}">${escHtml(role)}</span></td>
+      <td>${authBadge}</td>
+      <td style="display:flex;gap:6px;justify-content:flex-end">${actions}</td>
+    </tr>`;
+  }).join('') || '<tr><td colspan="4" class="empty-row">No operators configured.</td></tr>';
   tbody.querySelectorAll('.btn-del-op').forEach(btn => {
     btn.addEventListener('click', () => {
       delete _operators[btn.dataset.user];
+      renderOperators();
+    });
+  });
+  tbody.querySelectorAll('.btn-set-pin').forEach(btn => {
+    btn.addEventListener('click', () => promptSetPin(btn.dataset.user));
+  });
+  tbody.querySelectorAll('.btn-set-windows').forEach(btn => {
+    btn.addEventListener('click', () => {
+      _operatorAuth = _operatorAuth || {};
+      _operatorAuth[btn.dataset.user] = { mode: 'windows', set: true };
+      saveOperatorAuth();
       renderOperators();
     });
   });
@@ -1114,6 +2344,99 @@ window.api.onOperatorsSaved((data) => {
 
 // ── Agent Health ──────────────────────────────────────────────────────────────
 window.api.onAgentHealth((data) => {
+  // Dashboard agent fleet panel: update each .agent tile in place
+  const dashAgents = data.agents || [];
+  dashAgents.forEach(a => {
+    const key = (a.name || '').toLowerCase().replace(/^claudeagent/, '').replace(/agent$/, '').trim();
+    const tile = document.querySelector(`.agent[data-agent="${key}"]`);
+    if (!tile) return;
+    // Map agent health status → meter state
+    let st = 'idle';
+    if (a.status === 'critical') st = 'degraded';
+    else if (a.status === 'warn') st = 'waiting';
+    else if (a.lastOutcome === 'partial' || a.lastOutcome === 'failed') st = 'degraded';
+    else if (key === 'auditor') st = 'active';
+    else if (key === 'approver') st = 'waiting';
+    else if (key === 'provisioner') st = 'standby';
+    tile.dataset.st = st;
+    const stext = tile.querySelector('.status-text');
+    if (stext) {
+      const last = a.lastActivity ? ' · ' + new Date(a.lastActivity).toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'}) : '';
+      stext.textContent = st + last;
+    }
+    const certLine = tile.querySelector('.cert-line');
+    if (certLine && a.daysUntilExpiry != null) {
+      certLine.textContent = a.daysUntilExpiry < 0 ? 'expired' : 'cert ' + a.daysUntilExpiry + 'd';
+    }
+  });
+  // Dashboard fleet count
+  const fleetCount = document.getElementById('dash-fleet-count');
+  if (fleetCount && dashAgents.length) {
+    const healthy = dashAgents.filter(a => a.status === 'ok' || a.status === 'healthy').length;
+    fleetCount.textContent = `· ${healthy}/${dashAgents.length} healthy`;
+  }
+  // Inject details popover into each agent tile (hover + click reveal)
+  dashAgents.forEach(a => {
+    const key = (a.name || '').toLowerCase().replace(/^claudeagent/, '').replace(/agent$/, '').trim();
+    const tile = document.querySelector(`.agent[data-agent="${key}"]`);
+    if (!tile) return;
+    const status = a.status || 'ok';
+    const lastAct = a.lastActivity ? new Date(a.lastActivity).toLocaleString() : '—';
+    const expiry = a.expiry ? new Date(a.expiry).toLocaleDateString() : '—';
+    const daysLeft = a.daysUntilExpiry != null
+      ? (a.daysUntilExpiry < 0 ? `${Math.abs(a.daysUntilExpiry)}d expired` : `${a.daysUntilExpiry}d remaining`)
+      : '—';
+    const cred = a.credentialType === 'certificate' ? 'Certificate' : a.credentialType === 'secret' ? 'Secret' : 'Unknown';
+    const outcome = a.lastOutcome ? a.lastOutcome.toUpperCase() : '—';
+    const purpose = AGENT_PURPOSE[key] || '';
+    const popHtml = `<div class="agent-pop">
+      <div class="ap-h">${escHtml(a.name || key)} <span class="ap-status ${status === 'critical' ? 'critical' : status === 'warn' ? 'warn' : 'ok'}">${escHtml(status)}</span></div>
+      ${purpose ? `<div class="ap-desc">${escHtml(purpose)}</div>` : ''}
+      <div class="ap-row">
+        <span class="k">Last run</span><span class="v">${escHtml(lastAct)}</span>
+        <span class="k">Outcome</span><span class="v">${escHtml(outcome)}</span>
+        <span class="k">Credential</span><span class="v">${escHtml(cred)}</span>
+        <span class="k">Cert expires</span><span class="v">${escHtml(expiry)} (${escHtml(daysLeft)})</span>
+        ${a.lastError ? `<span class="k">Last error</span><span class="v" style="color:var(--coral)">${escHtml(a.lastError)}</span>` : ''}
+      </div>
+    </div>`;
+    // Remove old pop, inject new
+    const oldPop = tile.querySelector('.agent-pop');
+    if (oldPop) oldPop.remove();
+    tile.insertAdjacentHTML('beforeend', popHtml);
+  });
+  // Static fallback: ensure every tile has at least a description popover
+  // (in case the health IPC fails or has no data for some agents yet).
+  document.querySelectorAll('.agent[data-agent]').forEach(tile => {
+    if (tile.querySelector('.agent-pop')) return;
+    const key = tile.dataset.agent;
+    const purpose = AGENT_PURPOSE[key];
+    if (!purpose) return;
+    tile.insertAdjacentHTML('beforeend',
+      `<div class="agent-pop">
+        <div class="ap-h">${escHtml(key)} <span class="ap-status ok">ready</span></div>
+        <div class="ap-desc">${escHtml(purpose)}</div>
+        <div class="ap-row"><span class="k">Status</span><span class="v">awaiting health data</span></div>
+      </div>`);
+  });
+  // Wire click toggle (in addition to hover)
+  document.querySelectorAll('.agent').forEach(tile => {
+    if (tile.dataset.popWired) return;
+    tile.dataset.popWired = '1';
+    tile.addEventListener('click', () => {
+      document.querySelectorAll('.agent.popped').forEach(t => { if (t !== tile) t.classList.remove('popped'); });
+      tile.classList.toggle('popped');
+    });
+  });
+  // Dashboard headline subtitle
+  const sub = document.getElementById('dash-headline-sub');
+  if (sub && dashAgents.length) {
+    const now = new Date();
+    const hh = String(now.getHours()).padStart(2, '0');
+    const mm = String(now.getMinutes()).padStart(2, '0');
+    sub.textContent = `${dashAgents.length} agents · ${now.getMonth()+1}/${now.getDate()}/${now.getFullYear()} ${hh}:${mm}`;
+  }
+
   const grid = document.getElementById('agent-health-grid');
   if (!grid) return;
   if (!data.agents || !data.agents.length) {
@@ -1193,6 +2516,18 @@ function applyRoleUI(role) {
   const r = (role || 'viewer').toLowerCase();
   document.body.classList.remove('role-admin', 'role-helpdesk', 'role-viewer');
   document.body.classList.add('role-' + r);
+  currentRole = r;
+  // Force Safe if a viewer signed in while LIVE was active
+  if (r === 'viewer' && !isWhatif) {
+    isWhatif = true;
+    window.api.setMode(true);
+    setHardMode('whatif');
+    document.querySelectorAll('.mode-btn').forEach(b => b.classList.toggle('active', b.dataset.mode === 'whatif'));
+    document.getElementById('mode-banner-whatif')?.classList.toggle('hidden', false);
+    document.getElementById('mode-banner-live')?.classList.toggle('hidden', true);
+    updateTopbarModePill();
+  }
+  if (typeof applyViewerLock === 'function') applyViewerLock();
 
   const badge = document.getElementById('sidebar-role-badge');
   if (badge) {
@@ -1215,12 +2550,83 @@ function applyRoleUI(role) {
   }
 }
 
+// Authoritative current operator name (selected at sign-in, may differ from Windows username)
+let currentOperatorName = null;
+
+// Sidebar operator name + avatar (initials or uploaded image)
+function setSidebarOperator(name) {
+  currentOperatorName = name || null;
+  const nameEl = document.getElementById('sidebar-operator-name');
+  if (nameEl) nameEl.textContent = name || '—';
+  const av = document.getElementById('sidebar-operator-avatar');
+  if (av) {
+    const base = name || '?';
+    const initials = base.split(/[.\s_@-]+/).filter(Boolean).map(s => s[0]).join('').slice(0, 2).toUpperCase() || base.slice(0, 2).toUpperCase();
+    av.textContent = initials;
+    av.title = base + ' — click to change avatar';
+    av.dataset.user = base;
+    // Render saved image if any
+    const saved = (function() {
+      try { return localStorage.getItem('jml-avatar-' + base); } catch { return null; }
+    })();
+    if (saved) {
+      // Use a CSS variable so the rule with !important can pick it up cleanly
+      // and beat the default linear-gradient on .who-avatar.
+      av.style.setProperty('--avatar-image', `url("${saved}")`);
+      av.classList.add('has-image');
+    } else {
+      av.style.removeProperty('--avatar-image');
+      av.classList.remove('has-image');
+    }
+  }
+}
+
+// Click avatar → file picker → resize to 128px → save as data URL → re-render
+(function wireAvatarPicker() {
+  const av = document.getElementById('sidebar-operator-avatar');
+  if (!av) return;
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = 'image/png,image/jpeg,image/gif,image/webp';
+  input.style.display = 'none';
+  document.body.appendChild(input);
+  av.addEventListener('click', () => input.click());
+  input.addEventListener('change', () => {
+    const file = input.files && input.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const img = new Image();
+      img.onload = () => {
+        // Square-crop centered, resize to 128px
+        const size = 128;
+        const canvas = document.createElement('canvas');
+        canvas.width = size; canvas.height = size;
+        const ctx = canvas.getContext('2d');
+        const min = Math.min(img.naturalWidth, img.naturalHeight);
+        const sx = (img.naturalWidth - min) / 2;
+        const sy = (img.naturalHeight - min) / 2;
+        ctx.drawImage(img, sx, sy, min, min, 0, 0, size, size);
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+        const user = av.dataset.user;
+        try { localStorage.setItem('jml-avatar-' + user, dataUrl); } catch (e) { showToast('Image too large', 'error'); return; }
+        setSidebarOperator(user);
+        showToast('Avatar updated', 'success');
+      };
+      img.onerror = () => showToast('Failed to load image', 'error');
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+    input.value = '';
+  });
+})();
+
 // ── Init ──────────────────────────────────────────────────────────────────────
 window.api.getCurrentOperator().then(d => {
-  document.getElementById('sidebar-operator-name').textContent = d.name || window.api.currentUser;
+  setSidebarOperator(d.name || window.api.currentUser);
   applyRoleUI(d.role);
 }).catch(() => {
-  document.getElementById('sidebar-operator-name').textContent = window.api.currentUser;
+  setSidebarOperator(window.api.currentUser);
   applyRoleUI('viewer');
 });
 
@@ -1240,15 +2646,48 @@ window.api.getCurrentOperator().then(d => {
         if (!entries.length) {
           list.innerHTML = '<div style="font-size:12px;color:var(--text-dim);text-align:center;padding:10px">No operators configured</div>';
         } else {
-          list.innerHTML = entries.map(([name, role]) =>
-            `<button class="op-switch-btn${name === current ? ' active' : ''}" data-name="${escHtml(name)}" data-role="${escHtml(role || '')}">
-              <span>${escHtml(name)}</span>
-              <span class="op-switch-role">${escHtml(role || 'user')}</span>
-            </button>`
-          ).join('');
+          list.innerHTML = entries.map(([name, role]) => {
+            const r = (role || 'viewer').toLowerCase();
+            const initials = name.split(/[.\s_-]+/).map(s => s[0]).join('').slice(0, 2).toUpperCase() || name.slice(0, 2).toUpperCase();
+            return `<button class="op-switch-btn${name === current ? ' active' : ''}" data-name="${escHtml(name)}" data-role="${escHtml(role || '')}">
+              <span class="av">${escHtml(initials)}</span>
+              <span class="nm-block">
+                <span class="nm">${escHtml(name)}</span>
+                <span class="up">${escHtml(role || 'user')}</span>
+              </span>
+              <span class="role-badge role-${escHtml(r)}">${escHtml((role || 'user').toUpperCase())}</span>
+            </button>`;
+          }).join('');
           list.querySelectorAll('.op-switch-btn').forEach(btn => {
-            btn.addEventListener('click', () => {
-              window.api.switchOperator(btn.dataset.name, btn.dataset.role);
+            btn.addEventListener('click', async () => {
+              const name = btn.dataset.name;
+              const role = (btn.dataset.role || 'viewer').toLowerCase();
+              const writeAccess = role === 'admin' || role === 'helpdesk';
+              if (writeAccess) {
+                // Always require PIN/Windows verification mid-session
+                const auth = await window.api.getOperatorAuth();
+                const entry = auth && auth[name];
+                if (!entry || !entry.set) {
+                  // Force setup first
+                  const choice = await confirmModal({
+                    title: 'Set up authentication first',
+                    body: `${name} is a write-access operator and has no PIN configured. Use PIN setup or Windows auth?`,
+                    danger: true,
+                    okLabel: 'Open Settings',
+                    cancelLabel: 'Cancel switch'
+                  });
+                  if (choice) switchTab('settings');
+                  return;
+                }
+                const result = await showPinModal({
+                  title: entry.mode === 'windows' ? `Confirm Windows session for ${name}` : `PIN for ${name}`,
+                  body: 'Verifying before switching operator.'
+                });
+                if (!result) return;
+                const verify = await window.api.verifyOperatorPin(name, result.pin);
+                if (!(verify && verify.ok)) { showToast('PIN incorrect', 'error'); return; }
+              }
+              window.api.switchOperator(name, role);
               overlay.style.display = 'none';
             });
           });
@@ -1263,13 +2702,601 @@ window.api.getCurrentOperator().then(d => {
   overlay.addEventListener('click', e => { if (e.target === overlay) overlay.style.display = 'none'; });
 
   window.api.onOperatorSwitched(d => {
-    document.getElementById('sidebar-operator-name').textContent = d.name;
+    setSidebarOperator(d.name);
     applyRoleUI(d.role);
+    switchTab('dashboard');
   });
 })();
 
 const _viewAllBtn = document.getElementById('btn-view-all-activity');
 if (_viewAllBtn) _viewAllBtn.addEventListener('click', () => switchTab('audit-log'));
+const _viewFleetBtn = document.getElementById('dash-open-fleet');
+if (_viewFleetBtn) _viewFleetBtn.addEventListener('click', () => switchTab('security'));
+
+// Universal "OPEN →" links on dashboard widgets — any [data-jump-tab] navigates
+document.querySelectorAll('[data-jump-tab]').forEach(el => {
+  el.addEventListener('click', () => switchTab(el.dataset.jumpTab));
+  el.style.cursor = 'pointer';
+});
+
+// Lightweight populators for dashboard mini-widgets. Hook into existing IPC
+// streams + fetched data so the widgets stay alive when shown.
+function refreshDashWidgets() {
+  // Integrations — pull HR queue stats
+  if (typeof window.api?.getHrQueue === 'function') { try { window.api.getHrQueue(); } catch (_) {} }
+  // Audit Log — use existing audit data
+  if (typeof window.api?.getAuditLog === 'function') { try { window.api.getAuditLog(); } catch (_) {} }
+  // Exports — exports status
+  if (typeof window.api?.getExportsStatus === 'function') { try { window.api.getExportsStatus(); } catch (_) {} }
+  // Graph runner — recent queries from localStorage
+  try {
+    const recent = JSON.parse(localStorage.getItem('jml-graph-recent') || '[]');
+    const el = document.getElementById('dash-graph-recent');
+    if (el) el.textContent = recent.length ? `${recent.length} saved` : 'none';
+  } catch (_) {}
+}
+// Run once at boot and then every 2 minutes
+setTimeout(refreshDashWidgets, 2000);
+setInterval(refreshDashWidgets, 120000);
+
+// KPI cards on dashboard navigate to relevant tabs
+const KPI_NAV = {
+  'stat-users':     'users',
+  'stat-licenses':  'exports',
+  'stat-activity':  'audit-log',
+  'stat-approvals': 'approvals',
+};
+Object.entries(KPI_NAV).forEach(([id, tab]) => {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.style.cursor = 'pointer';
+  el.title = 'Open ' + (TAB_TITLES[tab] || tab);
+  el.addEventListener('click', () => switchTab(tab));
+});
+
+// ── Certs tiles → detail popover with thumbprint, agent name, status ──────
+(function wireCertTileClicks() {
+  document.querySelectorAll('#view-certs .cert-tile').forEach(tile => {
+    tile.style.cursor = 'pointer';
+    tile.addEventListener('click', () => {
+      const name = tile.querySelector('.name')?.firstChild?.textContent?.trim() || tile.querySelector('.name')?.textContent?.trim() || 'Agent';
+      const sub = tile.querySelector('.sub')?.textContent?.trim() || '';
+      const status = tile.querySelector('.status')?.textContent?.trim() || '—';
+      const expiry = tile.querySelector('.exp b')?.textContent?.trim() || '—';
+      const thumb = tile.querySelector('.thumb b')?.textContent?.trim() || '—';
+      showDetailPopover({
+        title: `${name} certificate`,
+        kv: [
+          ['App registration', sub],
+          ['Status',           status],
+          ['Expires in',       expiry],
+          ['SHA-1 thumbprint', thumb],
+        ],
+        actions: [{
+          id: 'docs', label: 'Provisioning script reference', onClick: () => {
+            showToast('See ~/.claude/agents/provisioner/New-AgentCertificates.ps1', 'success');
+          }
+        }]
+      });
+    });
+  });
+})();
+
+// ── Integrations queue rows → event payload popover ───────────────────────
+function wireIntegrationsQueueClicks() {
+  document.querySelectorAll('#int-queue-rows .q-row').forEach((row, i) => {
+    row.style.cursor = 'pointer';
+    row.addEventListener('click', () => {
+      const ts = row.children[0]?.textContent?.trim() || '—';
+      const source = row.children[1]?.textContent?.trim() || '—';
+      const event = row.children[2]?.textContent?.trim() || '—';
+      const subject = row.children[3]?.textContent?.trim() || '—';
+      const status = row.children[4]?.textContent?.trim() || '—';
+      showDetailPopover({
+        title: `Event · ${event}`,
+        kv: [
+          ['Queued at', ts],
+          ['Source',    source],
+          ['Subject',   subject],
+          ['Status',    status],
+        ],
+        actions: []
+      });
+    });
+  });
+}
+
+// ── Access Reviews campaign cards → click to view campaign meta ─────────────
+function wireAccessReviewClicks() {
+  document.querySelectorAll('#cert-result-table-wrap .cert-campaign-card, #cert-result-table-wrap .camp').forEach((card, i) => {
+    card.style.cursor = 'pointer';
+    card.addEventListener('click', () => {
+      const name = card.querySelector('.cert-campaign-name, .ttl')?.textContent?.trim() || 'Campaign';
+      const meta = [...card.querySelectorAll('.cert-meta-item')].map(m => m.textContent.trim());
+      showDetailPopover({
+        title: name,
+        kv: meta.map(m => {
+          const idx = m.indexOf(' ');
+          return idx > 0 ? [m.slice(0, idx), m.slice(idx + 1)] : ['Meta', m];
+        }),
+        actions: [{ id: 'jump', label: 'Open Access Reviews', primary: true, onClick: () => switchTab('certifications') }]
+      });
+    });
+  });
+}
+
+// Re-wire queue + review handlers whenever their content rerenders
+const _origLoadInt = typeof loadIntegrations === 'function' ? loadIntegrations : null;
+setTimeout(() => {
+  // Initial wire after first render
+  wireIntegrationsQueueClicks();
+  wireAccessReviewClicks();
+}, 2000);
+// Also re-wire when integrations tab is shown
+if (typeof window.api?.onHrQueue === 'function') {
+  // Run once after onHrQueue fires to attach to fresh rows
+  let _wired = false;
+  const obs = new MutationObserver(() => { wireIntegrationsQueueClicks(); });
+  setTimeout(() => {
+    const target = document.getElementById('int-queue-rows');
+    if (target && !_wired) { obs.observe(target, { childList: true }); _wired = true; }
+  }, 3000);
+}
+
+// ── Collapsible sidebar ────────────────────────────────────────────────────
+(function() {
+  const layout = document.querySelector('.layout');
+  const btn = document.getElementById('btn-sidebar-collapse');
+  if (!layout || !btn) return;
+  const KEY = 'jml-sidebar-collapsed';
+  const restore = (() => { try { return localStorage.getItem(KEY) === '1'; } catch { return false; } })();
+  if (restore) layout.classList.add('sidebar-collapsed');
+  // Seed data-label on every nav-item so the collapsed-state tooltip works
+  document.querySelectorAll('.nav-item').forEach(item => {
+    const lbl = item.querySelector('span:not(.count)');
+    if (lbl && !item.dataset.label) item.dataset.label = lbl.textContent.trim();
+  });
+  btn.addEventListener('click', () => {
+    layout.classList.toggle('sidebar-collapsed');
+    try { localStorage.setItem(KEY, layout.classList.contains('sidebar-collapsed') ? '1' : '0'); } catch (_) {}
+  });
+})();
+
+// ── Settings left-rail sub-tab navigation ───────────────────────────────────
+(function() {
+  const items = document.querySelectorAll('#view-settings .s-item[data-sub]');
+  if (!items.length) return;
+  items.forEach(item => {
+    item.addEventListener('click', () => {
+      const sub = item.dataset.sub;
+      items.forEach(i => i.classList.remove('active'));
+      item.classList.add('active');
+      document.querySelectorAll('#view-settings .set-sub').forEach(card => {
+        card.style.display = card.dataset.sub === sub ? '' : 'none';
+      });
+      if (sub === 'tenant') loadTenantConfig();
+      if (sub === 'notifications') loadNotificationRules();
+    });
+  });
+  // Initial preload of notification rules
+  loadNotificationRules();
+})();
+
+// ── Tenant onboarding: read/write Tenant ID + Client IDs across all agents ──
+async function loadTenantConfig() {
+  if (typeof window.api?.getTenantConfig !== 'function') return;
+  try {
+    const cfg = await window.api.getTenantConfig();
+    document.getElementById('set-tenant-id-input').value = cfg.tenantId || '';
+    document.getElementById('set-primary-domain-input').value = cfg.primaryDomain || '';
+    document.getElementById('set-region-input').value = cfg.region || '';
+    const wrap = document.getElementById('set-clientids-wrap');
+    if (wrap) {
+      const agents = cfg.agents || [];
+      wrap.innerHTML = agents.map(a => {
+        const cid = (cfg.clientIds || {})[a.agent] || '';
+        const cred = a.hasCert ? '<span style="color:var(--emerald);font-size:10px">CERT</span>' : a.hasSecret ? '<span style="color:var(--amber);font-size:10px">SECRET</span>' : '<span style="color:var(--coral);font-size:10px">NO AUTH</span>';
+        const exists = a.exists ? cred : '<span style="color:var(--muted);font-size:10px">MISSING</span>';
+        return `<div style="display:grid;grid-template-columns:110px 1fr 80px;gap:10px;align-items:center">
+          <span class="dim-label">${escHtml(a.agent)}</span>
+          <input class="set-clientid" data-agent="${escHtml(a.agent)}" type="text" placeholder="Client ID (Application ID)" value="${escHtml(cid)}" style="font-family:var(--mono);font-size:11.5px">
+          <span style="text-align:right">${exists}</span>
+        </div>`;
+      }).join('');
+    }
+    const pip = document.getElementById('tenant-health-pip');
+    if (pip) {
+      const ready = cfg.tenantId && (cfg.agents || []).some(a => a.exists && (a.hasCert || a.hasSecret));
+      pip.innerHTML = ready ? '<span class="d"></span>HEALTHY' : '<span class="d" style="background:var(--amber)"></span>SETUP NEEDED';
+      pip.classList.toggle('warn', !ready);
+    }
+  } catch (e) {
+    showToast('Failed to load tenant config: ' + e.message, 'error');
+  }
+}
+
+document.getElementById('btn-tenant-reload')?.addEventListener('click', loadTenantConfig);
+document.getElementById('btn-tenant-save')?.addEventListener('click', async () => {
+  const tenantId = document.getElementById('set-tenant-id-input').value.trim();
+  const primaryDomain = document.getElementById('set-primary-domain-input').value.trim();
+  const region = document.getElementById('set-region-input').value;
+  const clientIds = {};
+  document.querySelectorAll('.set-clientid').forEach(i => {
+    const v = i.value.trim();
+    if (v) clientIds[i.dataset.agent] = v;
+  });
+  const status = document.getElementById('tenant-save-status');
+  if (!tenantId) { if (status) status.textContent = 'Tenant ID required'; return; }
+
+  // Dry-run: ask main to compute the diff, render it, then ask for confirmation.
+  const preview = await window.api.previewTenantConfig({ tenantId, primaryDomain, region, clientIds });
+  const changes = (preview && preview.changes) || [];
+  const hasChanges = changes.some(c => c.diff && Object.keys(c.diff).length > 0);
+  if (!hasChanges) {
+    showToast('No changes to apply', 'success');
+    if (status) status.textContent = 'No changes.';
+    return;
+  }
+
+  // Build a readable diff in a modal. Each agent shows which fields change with from/to.
+  const diffHtml = changes.map(c => {
+    if (!c.exists) return `<div class="diff-row"><span class="diff-agent">${escHtml(c.agent)}</span><span class="diff-skip">config missing — skipped</span></div>`;
+    if (c.error)  return `<div class="diff-row"><span class="diff-agent">${escHtml(c.agent)}</span><span class="diff-err">error: ${escHtml(c.error)}</span></div>`;
+    const keys = Object.keys(c.diff || {});
+    if (!keys.length) return `<div class="diff-row diff-nochg"><span class="diff-agent">${escHtml(c.agent)}</span><span class="diff-skip">no change</span></div>`;
+    return `<div class="diff-row"><span class="diff-agent">${escHtml(c.agent)}</span><div class="diff-fields">${keys.map(k => {
+      const v = c.diff[k];
+      const from = v.from ? escHtml(String(v.from).slice(0, 32)) : '<span class="diff-empty">(unset)</span>';
+      return `<div class="diff-field"><span class="diff-key">${escHtml(k)}</span><span class="diff-arrow">→</span><span class="diff-to">${escHtml(String(v.to).slice(0, 32))}</span><span class="diff-from">was ${from}</span></div>`;
+    }).join('')}</div></div>`;
+  }).join('');
+
+  const ok = await richConfirmModal({
+    title: 'Review tenant changes',
+    body: `${changes.filter(c => c.diff && Object.keys(c.diff).length).length} of ${changes.length} agent configs will be rewritten.`,
+    html: `<div class="diff-list">${diffHtml}</div>`,
+    danger: true,
+    okLabel: 'Apply changes',
+  });
+  if (!ok) return;
+  if (status) status.textContent = 'Saving…';
+  const resp = await window.api.saveTenantConfig({ tenantId, primaryDomain, region, clientIds });
+  if (resp && resp.ok) {
+    if (status) status.textContent = `Updated ${resp.updated.length} agents${resp.skipped.length ? ` · skipped ${resp.skipped.length}` : ''}${resp.errors.length ? ` · ${resp.errors.length} errors` : ''}`;
+    showToast('Tenant config saved', 'success');
+    loadTenantConfig();
+  } else {
+    if (status) status.textContent = 'Error: ' + (resp && resp.error || 'unknown');
+    showToast('Save failed', 'error');
+  }
+});
+
+// Richer confirm modal that can show arbitrary HTML body (used for tenant diff).
+function richConfirmModal({ title, body, html, danger, okLabel, cancelLabel }) {
+  return new Promise(resolve => {
+    const overlay = document.createElement('div');
+    overlay.className = 'pin-overlay';
+    overlay.innerHTML = `
+      <div class="pin-modal" style="width:560px;max-width:92vw">
+        <div class="pin-header">
+          <div class="pin-title">${escHtml(title || 'Confirm')}</div>
+          ${body ? `<div class="pin-sub">${escHtml(body)}</div>` : ''}
+        </div>
+        <div class="pin-body" style="max-height:60vh;overflow-y:auto">
+          ${html || ''}
+        </div>
+        <div class="pin-footer">
+          <button class="btn ghost rcm-cancel">${escHtml(cancelLabel || 'Cancel')}</button>
+          <button class="btn ${danger ? 'danger' : 'primary'} rcm-ok">${escHtml(okLabel || 'OK')}</button>
+        </div>
+      </div>`;
+    document.body.appendChild(overlay);
+    const done = v => { overlay.remove(); resolve(v); };
+    overlay.querySelector('.rcm-cancel').addEventListener('click', () => done(false));
+    overlay.querySelector('.rcm-ok').addEventListener('click', () => done(true));
+    overlay.addEventListener('click', e => { if (e.target === overlay) done(false); });
+  });
+}
+
+// One-line purpose for each fleet agent — shown in the hover popover (module scope so static seed + health update both use it).
+const AGENT_PURPOSE = {
+  joiner:      'Creates new identities · assigns initial groups + licenses',
+  mover:       'Applies dept/title/manager changes · reconciles group membership',
+  leaver:      'Soft: disable + revoke sessions · Hard: remove licenses + groups',
+  enroller:    'Registers devices into Intune · manages MFA enrollment',
+  certifier:   'Drives access review campaigns + PIM eligibility reviews',
+  approver:    'Issues approval tokens · runs risk scoring · gates dual approval',
+  provisioner: 'Creates app registrations + grants Graph permissions',
+  auditor:     'Hash-chained logging · UEBA · drift detection · risky users',
+};
+
+// Seed static descriptions immediately so hover shows purpose even before health IPC fires
+(function seedAgentDescriptions() {
+  document.querySelectorAll('.agent[data-agent]').forEach(tile => {
+    const key = tile.dataset.agent;
+    const purpose = AGENT_PURPOSE[key];
+    if (!purpose) return;
+    if (tile.querySelector('.agent-pop')) return;
+    tile.insertAdjacentHTML('beforeend',
+      `<div class="agent-pop">
+        <div class="ap-h">${key} <span class="ap-status ok">ready</span></div>
+        <div class="ap-desc">${purpose}</div>
+        <div class="ap-row"><span class="k">Status</span><span class="v">awaiting data</span></div>
+      </div>`);
+  });
+  // Click toggle wiring (hover already shown via CSS, click for sticky)
+  document.querySelectorAll('.agent').forEach(tile => {
+    if (tile.dataset.popWired) return;
+    tile.dataset.popWired = '1';
+    tile.addEventListener('click', () => {
+      document.querySelectorAll('.agent.popped').forEach(t => { if (t !== tile) t.classList.remove('popped'); });
+      tile.classList.toggle('popped');
+    });
+  });
+})();
+
+// ── Dashboard customize popover ─────────────────────────────────────────────
+(function() {
+  const btn = document.getElementById('btn-customize-dashboard');
+  const pop = document.getElementById('dash-customize');
+  const closeBtn = document.getElementById('dash-customize-close');
+  if (!btn || !pop) return;
+
+  const VIS_KEY = 'jml-dash-section-visible';
+  const loadVis = () => { try { return JSON.parse(localStorage.getItem(VIS_KEY) || '{}'); } catch { return {}; } };
+  const saveVis = (v) => { try { localStorage.setItem(VIS_KEY, JSON.stringify(v)); } catch (_) {} };
+
+  // Restore saved visibility on boot
+  const initial = loadVis();
+  Object.entries(initial).forEach(([key, on]) => {
+    const sec = document.querySelector(`.dash-section[data-section="${key}"]`);
+    if (sec) sec.classList.toggle('dash-hidden', on === false);
+    const cb = pop.querySelector(`[data-toggle-section="${key}"]`);
+    if (cb) cb.checked = on !== false;
+  });
+
+  btn.addEventListener('click', e => {
+    e.stopPropagation();
+    pop.style.display = pop.style.display === 'none' ? '' : 'none';
+  });
+  closeBtn?.addEventListener('click', () => { pop.style.display = 'none'; });
+  // Click outside to close
+  document.addEventListener('click', e => {
+    if (pop.style.display === 'none') return;
+    if (pop.contains(e.target) || btn.contains(e.target)) return;
+    pop.style.display = 'none';
+  });
+
+  // Section toggles
+  pop.querySelectorAll('[data-toggle-section]').forEach(cb => {
+    cb.addEventListener('change', () => {
+      const key = cb.dataset.toggleSection;
+      const sec = document.querySelector(`.dash-section[data-section="${key}"]`);
+      if (sec) sec.classList.toggle('dash-hidden', !cb.checked);
+      const vis = loadVis();
+      vis[key] = cb.checked;
+      saveVis(vis);
+    });
+  });
+
+  // Reset to default order + show all + default spans
+  document.getElementById('dash-reset-layout')?.addEventListener('click', () => {
+    try {
+      localStorage.removeItem('jml-dash-section-order');
+      localStorage.removeItem(VIS_KEY);
+      localStorage.removeItem('jml-dash-section-spans');
+    } catch (_) {}
+    location.reload();
+  });
+})();
+
+// ── Dashboard section stretch toggle (span-1 ⇄ span-2) ─────────────────────
+// Each section gets a small right-edge handle. Click toggles between half-width
+// and full-width in the 2-col grid. Persisted to localStorage. Grid uses
+// grid-auto-flow:dense, so the surviving siblings reflow to fill gaps.
+(function() {
+  const container = document.getElementById('dash-sections');
+  if (!container) return;
+  const WIDTH_KEY = 'jml-dash-section-spans';
+  const loadSpans = () => { try { return JSON.parse(localStorage.getItem(WIDTH_KEY) || '{}'); } catch { return {}; } };
+  const saveSpans = (m) => { try { localStorage.setItem(WIDTH_KEY, JSON.stringify(m)); } catch (_) {} };
+
+  // Restore saved span widths
+  const saved = loadSpans();
+  Object.entries(saved).forEach(([key, span]) => {
+    const sec = container.querySelector(`.dash-section[data-section="${key}"]`);
+    if (!sec || (span !== 1 && span !== 2)) return;
+    sec.classList.remove('span-1', 'span-2');
+    sec.classList.add('span-' + span);
+  });
+
+  // Inject toggle handles
+  container.querySelectorAll(':scope > .dash-section[data-section]').forEach(sec => {
+    if (sec.querySelector('.span-toggle')) return;
+    const handle = document.createElement('button');
+    handle.className = 'span-toggle';
+    handle.title = 'Toggle width';
+    handle.addEventListener('click', e => {
+      e.stopPropagation();
+      const next = sec.classList.contains('span-2') ? 1 : 2;
+      sec.classList.remove('span-1', 'span-2');
+      sec.classList.add('span-' + next);
+      const spans = loadSpans();
+      spans[sec.dataset.section] = next;
+      saveSpans(spans);
+    });
+    sec.appendChild(handle);
+  });
+})();
+
+// ── Dashboard section drag-reorder ──────────────────────────────────────────
+(function() {
+  const container = document.getElementById('dash-sections');
+  if (!container) return;
+  const STORAGE_KEY = 'jml-dash-section-order';
+
+  // Restore saved order
+  try {
+    const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+    if (Array.isArray(saved) && saved.length) {
+      const byKey = new Map();
+      container.querySelectorAll(':scope > .dash-section[data-section]').forEach(el => {
+        byKey.set(el.dataset.section, el);
+      });
+      saved.forEach(key => {
+        const el = byKey.get(key);
+        if (el) container.appendChild(el);
+      });
+      // Append any sections not in saved order
+      byKey.forEach((el, key) => {
+        if (!saved.includes(key)) container.appendChild(el);
+      });
+    }
+  } catch (_) { /* ignore corrupt state */ }
+
+  let dragged = null;
+  container.querySelectorAll(':scope > .dash-section[data-section]').forEach(sec => {
+    sec.setAttribute('draggable', 'true');
+    sec.addEventListener('dragstart', e => {
+      dragged = sec;
+      sec.classList.add('dragging');
+      try { e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', sec.dataset.section); } catch (_) {}
+    });
+    sec.addEventListener('dragend', () => {
+      sec.classList.remove('dragging');
+      container.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
+      dragged = null;
+      // Persist order
+      const order = [...container.querySelectorAll(':scope > .dash-section[data-section]')].map(el => el.dataset.section);
+      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(order)); } catch (_) {}
+    });
+    sec.addEventListener('dragover', e => {
+      if (!dragged || dragged === sec) return;
+      e.preventDefault();
+      sec.classList.add('drag-over');
+    });
+    sec.addEventListener('dragleave', () => sec.classList.remove('drag-over'));
+    sec.addEventListener('drop', e => {
+      e.preventDefault();
+      sec.classList.remove('drag-over');
+      if (!dragged || dragged === sec) return;
+      const rect = sec.getBoundingClientRect();
+      const after = (e.clientY - rect.top) > rect.height / 2;
+      if (after) sec.after(dragged);
+      else sec.before(dragged);
+    });
+  });
+})();
+
+// ── JML Fleet assist bar + slash commands ─────────────────────────────────────
+const SLASH_COMMANDS = [
+  { cmd: '/joiner',      label: 'New Joiner',    desc: 'Onboard a new hire to the tenant',                          prompt: 'Onboard a new hire' },
+  { cmd: '/mover',       label: 'Move User',     desc: 'Transfer a user to a new department or role',               prompt: 'Move a user to a new department' },
+  { cmd: '/soft-leaver', label: 'Soft Offboard', desc: 'Disable account and revoke active sessions',                prompt: 'Soft offboard a user — disable their account and revoke sessions' },
+  { cmd: '/hard-leaver', label: 'Hard Offboard', desc: 'Remove all licenses, groups, and delete the account',       prompt: 'Hard offboard a user — remove all access, licenses, and memberships' },
+  { cmd: '/enroll',      label: 'Enroll MFA',    desc: 'Register a user for multi-factor authentication',           prompt: 'Enroll a user in MFA' },
+  { cmd: '/check',       label: 'Check User',    desc: 'Retrieve current status and attributes for a user',         prompt: 'What is the current status of user ' },
+  { cmd: '/whatif',      label: 'Safe',        desc: 'Simulate an operation without committing any changes',      prompt: 'Safe — what would happen if I ' },
+  { cmd: '/bulk',        label: 'Bulk Import',   desc: 'Import multiple identities from a CSV payload',             prompt: 'I need to bulk onboard a group of new hires' },
+];
+
+const _slashDrop  = document.getElementById('slash-dropdown');
+const _approverIn = document.getElementById('input-approver');
+let _slashIdx = -1;
+
+function _renderSlash(cmds) {
+  _slashDrop.innerHTML = cmds.map(c =>
+    `<button class="slash-item" data-prompt="${escHtml(c.prompt)}">` +
+      `<span class="slash-cmd">${escHtml(c.cmd)}</span>` +
+      `<span class="slash-label">${escHtml(c.label)}</span>` +
+      `<span class="slash-desc">${escHtml(c.desc)}</span>` +
+    `</button>`
+  ).join('');
+  _slashDrop.querySelectorAll('.slash-item').forEach(item => {
+    item.addEventListener('mousedown', e => {
+      e.preventDefault();
+      _approverIn.value = item.dataset.prompt + ' ';
+      _approverIn.focus();
+      _slashDrop.classList.add('hidden');
+      _slashIdx = -1;
+    });
+  });
+}
+
+function _slashItems() { return _slashDrop.querySelectorAll('.slash-item'); }
+function _slashSetActive(idx) {
+  _slashItems().forEach((el, i) => el.classList.toggle('active', i === idx));
+}
+
+if (_approverIn) {
+  _approverIn.addEventListener('input', function () {
+    const val = this.value;
+    if (val.startsWith('/')) {
+      const q = val.slice(1).toLowerCase();
+      const matches = SLASH_COMMANDS.filter(c =>
+        c.cmd.slice(1).startsWith(q) || c.label.toLowerCase().includes(q) || c.desc.toLowerCase().includes(q)
+      );
+      if (matches.length) {
+        _renderSlash(matches);
+        _slashDrop.classList.remove('hidden');
+      } else {
+        _slashDrop.classList.add('hidden');
+      }
+      _slashIdx = -1;
+    } else {
+      _slashDrop.classList.add('hidden');
+    }
+  });
+
+  _approverIn.addEventListener('keydown', function (e) {
+    if (_slashDrop.classList.contains('hidden')) return;
+    const items = _slashItems();
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      _slashIdx = Math.min(_slashIdx + 1, items.length - 1);
+      _slashSetActive(_slashIdx);
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      _slashIdx = Math.max(_slashIdx - 1, 0);
+      _slashSetActive(_slashIdx);
+    } else if ((e.key === 'Enter' || e.key === 'Tab') && _slashIdx >= 0) {
+      e.preventDefault();
+      items[_slashIdx].dispatchEvent(new MouseEvent('mousedown'));
+    } else if (e.key === 'Escape') {
+      _slashDrop.classList.add('hidden');
+      _slashIdx = -1;
+    }
+  });
+}
+
+document.addEventListener('click', e => {
+  if (!e.target.closest('#slash-dropdown') && !e.target.closest('#input-approver')) {
+    if (_slashDrop) _slashDrop.classList.add('hidden');
+  }
+});
+
+// Assist bar chips
+document.querySelectorAll('#approver-assist-bar .assist-chip').forEach(chip => {
+  chip.addEventListener('click', () => {
+    if (!_approverIn) return;
+    _approverIn.value = chip.dataset.prompt;
+    _approverIn.focus();
+  });
+});
+
+// ── Dashboard quick actions ────────────────────────────────────────────────────
+function _dashQuickAction(agent, prompt) {
+  switchTab(agent);
+  const input = document.getElementById('input-' + agent);
+  if (input) { input.value = prompt; sendMessage(agent); }
+}
+document.getElementById('dash-action-joiner').addEventListener('click', () => _dashQuickAction('approver', 'Onboard a new hire'));
+document.getElementById('dash-action-mover').addEventListener('click',  () => _dashQuickAction('approver', 'Move a user to a new department'));
+document.getElementById('dash-action-leaver').addEventListener('click', () => _dashQuickAction('approver', 'Offboard a leaver'));
+document.getElementById('dash-action-audit').addEventListener('click',  () => { switchTab('auditor'); document.getElementById('input-auditor').focus(); });
+document.getElementById('dash-open-security').addEventListener('click', () => switchTab('security'));
+document.querySelectorAll('.dash-sec-tile').forEach(btn => btn.addEventListener('click', () => switchTab('security')));
+
 loadDashboard();
 
 // ── Notification Centre ───────────────────────────────────────────────────────
@@ -1432,7 +3459,7 @@ function renderAuditTable(entries) {
   tbody.innerHTML = entries.map(e => {
     const ts       = e.timestamp ? new Date(e.timestamp).toLocaleString() : '--';
     const outcome  = e.outcome || '--';
-    const mode     = e.whatif ? '<span class="badge-whatif">WhatIf</span>' : '<span class="badge-live">Live</span>';
+    const mode     = e.whatif ? '<span class="badge-whatif">Safe</span>' : '<span class="badge-live">Live</span>';
     const cls      = outcome === 'success' ? 'success' : outcome === 'partial' ? 'partial' : outcome === 'failed' ? 'failed' : '';
     const ticket   = (e.details && e.details.ticketRef) ? escHtml(e.details.ticketRef) : '<span class="dim">—</span>';
     const operator = e.operator ? escHtml(e.operator) : '<span class="dim">—</span>';
@@ -1557,15 +3584,54 @@ function renderTimeline(entries) {
       listEl.innerHTML = '<div class="loading-hint">No users found.</div>';
       return;
     }
-    listEl.innerHTML = users.map(u =>
-      '<div class="user-result-item" data-id="' + escHtml(u.id) + '" data-upn="' + escHtml(u.userPrincipalName || '') + '">' +
-        '<span class="user-result-badge ' + (u.accountEnabled ? 'enabled' : 'disabled') + '">' +
-          (u.accountEnabled ? 'Enabled' : 'Disabled') +
-        '</span>' +
-        '<div class="user-result-name">' + escHtml(u.displayName || u.userPrincipalName || '') + '</div>' +
-        '<div class="user-result-upn">'  + escHtml(u.userPrincipalName || '') + '</div>' +
-      '</div>'
-    ).join('');
+    // Render revamp's .utable-r rows (avatar + name + dept + status + licenses + risk meter)
+    const initials = (name, upn) => {
+      const base = name || upn || '?';
+      return base.split(/[.\s_@-]+/).filter(Boolean).map(s => s[0]).join('').slice(0, 2).toUpperCase() || base.slice(0, 2).toUpperCase();
+    };
+    const avBg = (seedIdx) => {
+      const hues = [195, 280, 35, 130, 60, 320, 250, 100, 24, 155];
+      const h = hues[seedIdx % hues.length];
+      return `background: linear-gradient(135deg, oklch(0.55 0.14 ${h}), oklch(0.40 0.12 ${(h+45)%360}))`;
+    };
+    listEl.innerHTML = users.map((u, i) => {
+      const lic = (u.assignedLicenses || []).slice(0, 3).map(l =>
+        `<span class="pip">${escHtml((l.skuPartNumber || l.skuId || '').toString().split('_')[0].slice(0, 6) || 'LIC')}</span>`
+      ).join('');
+      const statClass = u.accountEnabled ? 'enabled' : 'disabled';
+      const statLabel = u.accountEnabled ? 'enabled' : 'disabled';
+      const lastSign = u.signInActivity?.lastSignInDateTime ? new Date(u.signInActivity.lastSignInDateTime) : null;
+      const lastSignText = lastSign ? _relativeTime(lastSign) : '—';
+      const risk = typeof u.riskScore === 'number' ? u.riskScore : (u.riskLevel === 'high' ? 80 : u.riskLevel === 'medium' ? 50 : u.riskLevel === 'low' ? 20 : 12);
+      return `<div class="utable-r user-result-item" data-id="${escHtml(u.id)}" data-upn="${escHtml(u.userPrincipalName || '')}">
+        <span class="chk"></span>
+        <span class="person">
+          <span class="av" style="${avBg(i)}">${escHtml(initials(u.displayName, u.userPrincipalName))}</span>
+          <span class="nm">
+            <span class="n user-result-name">${escHtml(u.displayName || u.userPrincipalName || '—')}</span>
+            <span class="u user-result-upn">${escHtml(u.userPrincipalName || '')}</span>
+          </span>
+        </span>
+        <span class="dept">${escHtml(u.department || '—')}</span>
+        <span class="stat user-result-badge ${statClass}">${statLabel}</span>
+        <span class="lic">${lic || '—'}</span>
+        <span class="ago">${escHtml(lastSignText)}</span>
+        <span class="rmeter"><span class="bar"><i style="width:${risk}%"></i></span>${risk}</span>
+        <span class="more">⋯</span>
+      </div>`;
+    }).join('');
+    // Add a header row matching the data row grid
+    const tableEl = listEl.parentElement;
+    let header = tableEl.querySelector('.utable-h-full');
+    if (!header) {
+      header = document.createElement('div');
+      header.className = 'utable-h-full utable-h';
+      header.innerHTML = '<span></span><span>USER</span><span>DEPARTMENT</span><span>STATUS</span><span>LICENSES</span><span>LAST SIGN-IN</span><span>RISK</span><span></span>';
+      // Replace the placeholder header if any
+      const oldHdr = tableEl.querySelector('.utable-h:not(.utable-h-full)');
+      if (oldHdr) oldHdr.replaceWith(header);
+      else tableEl.insertBefore(header, listEl);
+    }
 
     listEl.querySelectorAll('.user-result-item').forEach(item => {
       item.addEventListener('click', () => {
@@ -1689,31 +3755,44 @@ function renderTimeline(entries) {
   const btnLeaver = document.getElementById('btn-run-quick-leaver');
 
   if (btnMover) {
-    btnMover.addEventListener('click', () => {
+    btnMover.addEventListener('click', async () => {
       const upn     = (document.getElementById('qm-upn')     || {}).value || '';
       const dept    = (document.getElementById('qm-dept')    || {}).value || '';
       const title   = (document.getElementById('qm-title')   || {}).value || '';
       const manager = (document.getElementById('qm-manager') || {}).value || '';
       const whatif  = (document.getElementById('qm-whatif')  || {}).checked !== false;
       if (!upn.trim()) { showToast('UPN is required', 'warning'); return; }
+      // Live run requires a fresh write token; Safe is free
+      let writeToken = null;
+      if (!whatif) {
+        const t = await requirePinIfNeeded('Confirm Live mover');
+        if (!t) return;
+        writeToken = typeof t === 'string' ? t : null;
+      }
       const resultEl = document.getElementById('qm-result');
       if (resultEl) { resultEl.style.display = 'block'; resultEl.innerHTML = '<span style="color:var(--text-dim)">Running…</span>'; }
       btnMover.disabled = true; btnMover.textContent = 'Running…';
-      window.api.runQuickMover({ upn, newDepartment: dept, newJobTitle: title, newManager: manager, whatif });
+      window.api.runQuickMover({ upn, newDepartment: dept, newJobTitle: title, newManager: manager, whatif, writeToken });
     });
   }
 
   if (btnLeaver) {
-    btnLeaver.addEventListener('click', () => {
+    btnLeaver.addEventListener('click', async () => {
       const upn    = (document.getElementById('ql-upn')    || {}).value || '';
       const stage  = (document.querySelector('input[name="ql-stage"]:checked') || {}).value || 'Soft';
       const reason = (document.getElementById('ql-reason') || {}).value || '';
       const whatif = (document.getElementById('ql-whatif') || {}).checked !== false;
       if (!upn.trim()) { showToast('UPN is required', 'warning'); return; }
+      let writeToken = null;
+      if (!whatif) {
+        const t = await requirePinIfNeeded(`Confirm Live ${stage.toLowerCase()} leaver`);
+        if (!t) return;
+        writeToken = typeof t === 'string' ? t : null;
+      }
       const resultEl = document.getElementById('ql-result');
       if (resultEl) { resultEl.style.display = 'block'; resultEl.innerHTML = '<span style="color:var(--text-dim)">Running…</span>'; }
       btnLeaver.disabled = true; btnLeaver.textContent = 'Running…';
-      window.api.runQuickLeaver({ upn, stage, reason, whatif });
+      window.api.runQuickLeaver({ upn, stage, reason, whatif, writeToken });
     });
   }
 
@@ -2140,7 +4219,7 @@ function renderTimeline(entries) {
   const digestCard   = document.getElementById('graph-digest-card');
   const digestText   = document.getElementById('graph-digest-text');
   let _colorMode = true, _lastRespText = '', _lastMethod = 'GET', _lastUrl = '';
-  if (btnColorJson) { btnColorJson.textContent = 'Plain'; btnColorJson.classList.add('active'); }
+  if (btnColorJson) { btnColorJson.textContent = 'Color: ON'; btnColorJson.classList.add('active'); }
 
   function loadRecent() {
     try { return JSON.parse(localStorage.getItem(RECENT_KEY) || '[]'); } catch { return []; }
@@ -2215,7 +4294,7 @@ function renderTimeline(entries) {
     btnColorJson.addEventListener('click', () => {
       _colorMode = !_colorMode;
       btnColorJson.classList.toggle('active', _colorMode);
-      btnColorJson.textContent = _colorMode ? 'Plain' : 'Color';
+      btnColorJson.textContent = _colorMode ? 'Color: ON' : 'Color: OFF';
       if (respPre && _lastRespText) {
         if (_colorMode) { respPre.innerHTML = highlightJson(_lastRespText); }
         else            { respPre.textContent = _lastRespText; }

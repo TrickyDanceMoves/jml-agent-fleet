@@ -1,7 +1,7 @@
 ﻿'use strict';
 
 const { app, BrowserWindow, ipcMain } = require('electron');
-const { execFileSync }                 = require('child_process');
+const { execFileSync, spawnSync }      = require('child_process');
 const path  = require('path');
 const fs    = require('fs');
 const os    = require('os');
@@ -23,6 +23,8 @@ const SCHEDULED_FILE = path.join(AGENTS_DIR, 'approver', 'scheduled.json');
 const POLICIES_FILE  = path.join(AGENTS_DIR, 'approver', 'policies.json');
 const SOD_FILE       = path.join(AGENTS_DIR, 'shared', 'sod-policy.json');
 const OPERATORS_FILE = path.join(AGENTS_DIR, 'approver', 'operators.json');
+const OPERATOR_AUTH_FILE = path.join(AGENTS_DIR, 'approver', 'operator-auth.json');
+const OPERATOR_ACTIVITY_FILE = path.join(AGENTS_DIR, 'approver', 'operator-activity.jsonl');
 const CERT_SCRIPT    = path.join(AGENTS_DIR, 'certifier', 'Invoke-CertificationCampaign.ps1');
 const AGENT_DIRS     = ['joiner','mover','leaver','enroller','approver','provisioner','auditor'];
 
@@ -68,6 +70,11 @@ the full operation details. Then:
 - dualApproval=true: inform the operator that a second approval token is required.
 
 In WHATIF mode score_risk is informational — show it but don't gate on it.
+
+FORMATTING RULES (always follow):
+- Always write UPNs in full (e.g. sarah.chen@${TENANT_DOMAIN}). Never abbreviate to "..." or truncate the domain.
+- Do not use # or ## markdown headings in responses. Use **bold** labels or plain prose instead.
+- Keep responses concise. Lead with the result, add context below.
 `.trim();
 
 const AUDITOR_SYSTEM = `
@@ -110,6 +117,12 @@ You have two roles:
    DUAL APPROVAL: Leaver Soft requires a second operator to approve via --approve=<TOKEN> before execution.
 
    FREEZE WINDOWS: Identity changes are blocked on weekends (Saturday and Sunday, all day).
+
+FORMATTING RULES (always follow):
+- Always write UPNs in full (e.g. sarah.chen@${TENANT_DOMAIN}). Never abbreviate to "..." or truncate the domain.
+- Do not use # or ## markdown headings. Use **bold** labels or plain prose to organize information.
+- Tables are fine. Bullets are fine. Headings are not needed for data responses.
+- Keep responses concise and direct. Lead with the answer, details below.
 `.trim();
 
 // ── Tool definitions ──────────────────────────────────────────────────────────
@@ -534,7 +547,33 @@ ipcMain.on('get-pending-approvals', (event) => {
   }
 });
 
-ipcMain.on('approve-pending', (event, { id }) => {
+// Helper: enforce write-token presence for any IPC that mutates the directory.
+// Viewer/guest operators are always blocked. Helpdesk/admin must supply a fresh
+// token minted by verify-operator-pin. WhatIf operations don't need a token.
+function requireWriteToken(event, payload, eventName) {
+  const role = (currentRole || 'viewer').toLowerCase();
+  if (role === 'viewer' || role === 'guest') {
+    event.sender.send(eventName, { ok: false, error: 'Read-only role — write operations blocked' });
+    return false;
+  }
+  // WhatIf flows are non-destructive — skip the token requirement
+  if (payload && (payload.whatif === true || payload.preview === true)) return true;
+  const token = payload && payload.writeToken;
+  if (!token) {
+    event.sender.send(eventName, { ok: false, error: 'PIN verification required before Live write' });
+    return false;
+  }
+  const check = consumeWriteToken(token, currentOperator);
+  if (!check.ok) {
+    event.sender.send(eventName, { ok: false, error: 'Invalid write token: ' + check.reason });
+    return false;
+  }
+  return true;
+}
+
+ipcMain.on('approve-pending', (event, payload) => {
+  if (!requireWriteToken(event, payload, 'approve-result')) return;
+  const { id } = payload || {};
   try {
     const file = path.join(PENDING_DIR, id + '.json');
     if (!fs.existsSync(file)) { event.sender.send('approve-result', { ok: false, error: 'Not found' }); return; }
@@ -807,7 +846,7 @@ function createMainWindow() {
     width: 1200, height: 780,
     minWidth: 900, minHeight: 600,
     frame: false,
-    backgroundColor: '#0d0f14',
+    backgroundColor: '#11131a',
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -820,11 +859,11 @@ function createMainWindow() {
 
 function createOperatorWindow() {
   operatorWin = new BrowserWindow({
-    width: 420, height: 440,
+    width: 460, height: 680,
     resizable: false,
     frame: false,
     center: true,
-    backgroundColor: '#0d0f14',
+    backgroundColor: '#11131a',
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -862,6 +901,339 @@ ipcMain.on('switch-operator', (event, { name, role }) => {
   currentRole     = role || 'viewer';
   process.env.JML_CONSOLE_OPERATOR = name;
   if (win && !win.isDestroyed()) win.webContents.send('operator-switched', { name, role });
+});
+
+// ── Operator authentication (PIN / Windows) — gates write-mode operations ────
+const crypto = require('crypto');
+function readOperatorAuth() {
+  try { return readJson(OPERATOR_AUTH_FILE) || {}; } catch { return {}; }
+}
+function writeOperatorAuth(data) {
+  fs.writeFileSync(OPERATOR_AUTH_FILE, JSON.stringify(data, null, 2), 'utf8');
+}
+function hashPin(pin, salt) {
+  return crypto.scryptSync(String(pin), Buffer.from(salt, 'base64'), 32).toString('base64');
+}
+
+ipcMain.handle('get-operator-auth', () => {
+  const data = readOperatorAuth();
+  // Strip hash/salt before returning to renderer
+  const out = {};
+  for (const [u, v] of Object.entries(data)) {
+    out[u] = { mode: v.mode || 'none', set: !!(v.pinHash || v.mode === 'windows') };
+  }
+  return out;
+});
+
+ipcMain.handle('set-operator-auth-pin', (event, { user, pin }) => {
+  if (!user || !pin || String(pin).length < 4) return { ok: false, error: 'PIN must be at least 4 characters' };
+  const data = readOperatorAuth();
+  const salt = crypto.randomBytes(16).toString('base64');
+  const pinHash = hashPin(pin, salt);
+  const wasSet = !!(data[user] && data[user].pinHash);
+  data[user] = { mode: 'pin', salt, pinHash, updatedAt: new Date().toISOString() };
+  writeOperatorAuth(data);
+  logOperatorActivity(wasSet ? 'pin.changed' : 'pin.set', { target: user });
+  return { ok: true };
+});
+
+ipcMain.handle('set-operator-auth-windows', (event, { user }) => {
+  if (!user) return { ok: false, error: 'user required' };
+  const data = readOperatorAuth();
+  data[user] = { mode: 'windows', updatedAt: new Date().toISOString() };
+  writeOperatorAuth(data);
+  logOperatorActivity('auth.windows.set', { target: user });
+  return { ok: true };
+});
+
+// ── Tenant onboarding: read/write each agent's config.json TenantId ──────────
+ipcMain.handle('get-tenant-config', () => {
+  // Read first available config.json to surface tenant settings
+  const out = { tenantId: '', primaryDomain: '', region: '', clientIds: {}, agents: [] };
+  for (const agent of AGENT_DIRS) {
+    const cfgPath = path.join(AGENTS_DIR, agent, 'config.json');
+    if (!fs.existsSync(cfgPath)) { out.agents.push({ agent, exists: false }); continue; }
+    try {
+      const cfg = readJson(cfgPath);
+      if (!out.tenantId && cfg.TenantId) out.tenantId = cfg.TenantId;
+      if (!out.primaryDomain && cfg.PrimaryDomain) out.primaryDomain = cfg.PrimaryDomain;
+      if (!out.region && cfg.Region) out.region = cfg.Region;
+      out.clientIds[agent] = cfg.ClientId || '';
+      out.agents.push({ agent, exists: true, hasCert: !!cfg.CertThumbprint, hasSecret: !!cfg.EncryptedSecret });
+    } catch (e) {
+      out.agents.push({ agent, exists: true, error: e.message });
+    }
+  }
+  return out;
+});
+
+// Compute a diff of what save-tenant-config would change, without writing.
+ipcMain.handle('preview-tenant-config', (event, { tenantId, primaryDomain, region, clientIds }) => {
+  const changes = [];
+  for (const agent of AGENT_DIRS) {
+    const cfgPath = path.join(AGENTS_DIR, agent, 'config.json');
+    if (!fs.existsSync(cfgPath)) { changes.push({ agent, exists: false }); continue; }
+    try {
+      const cfg = readJson(cfgPath);
+      const diff = {};
+      if (tenantId && cfg.TenantId !== tenantId) diff.TenantId = { from: cfg.TenantId || '', to: tenantId };
+      if (primaryDomain && cfg.PrimaryDomain !== primaryDomain) diff.PrimaryDomain = { from: cfg.PrimaryDomain || '', to: primaryDomain };
+      if (region && cfg.Region !== region) diff.Region = { from: cfg.Region || '', to: region };
+      if (clientIds && clientIds[agent] && cfg.ClientId !== clientIds[agent]) diff.ClientId = { from: cfg.ClientId || '', to: clientIds[agent] };
+      changes.push({ agent, exists: true, diff });
+    } catch (e) {
+      changes.push({ agent, exists: true, error: e.message });
+    }
+  }
+  return { changes };
+});
+
+ipcMain.handle('save-tenant-config', (event, { tenantId, primaryDomain, region, clientIds }) => {
+  if (!tenantId || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(tenantId)) {
+    return { ok: false, error: 'Tenant ID must be a GUID' };
+  }
+  const updated = []; const skipped = []; const errors = [];
+  for (const agent of AGENT_DIRS) {
+    const cfgPath = path.join(AGENTS_DIR, agent, 'config.json');
+    if (!fs.existsSync(cfgPath)) { skipped.push(agent); continue; }
+    try {
+      const cfg = readJson(cfgPath);
+      cfg.TenantId = tenantId;
+      if (primaryDomain) cfg.PrimaryDomain = primaryDomain;
+      if (region) cfg.Region = region;
+      if (clientIds && clientIds[agent]) cfg.ClientId = clientIds[agent];
+      // Strip BOM-safe write with UTF-8 (no BOM) — match what readJson handles
+      fs.writeFileSync(cfgPath, JSON.stringify(cfg, null, 2) + '\n', 'utf8');
+      updated.push(agent);
+    } catch (e) {
+      errors.push({ agent, error: e.message });
+    }
+  }
+  logOperatorActivity('tenant.config.saved', { tenantId, primaryDomain, region, updated, errors: errors.length });
+  return { ok: true, updated, skipped, errors };
+});
+
+// Read recent operator activity (most recent first). Used by Settings → Operators audit view.
+ipcMain.handle('get-operator-activity', (event, { limit }) => {
+  try {
+    if (!fs.existsSync(OPERATOR_ACTIVITY_FILE)) return { entries: [] };
+    const raw = fs.readFileSync(OPERATOR_ACTIVITY_FILE, 'utf8').replace(/^﻿/, '');
+    const lines = raw.split(/\r?\n/).filter(Boolean);
+    const max = Math.max(1, Math.min(500, limit || 50));
+    const entries = lines.slice(-max).map(l => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean).reverse();
+    return { entries };
+  } catch (e) { return { entries: [], error: e.message }; }
+});
+
+// ── Tenant onboarding wizard (device-code sign-in + app reg creation) ──────
+// Track an in-flight Connect-MgGraph process. Sign-in is long-running so it
+// runs in the background and the renderer polls for status.
+let _signinProc = null;
+let _signinState = { status: 'idle', deviceCode: '', verificationUrl: '', tenantId: '', account: '', error: '' };
+
+function spawnSigninProcess() {
+  const { spawn } = require('child_process');
+  _signinState = { status: 'pending', deviceCode: '', verificationUrl: '', tenantId: '', account: '', error: '' };
+  const script = `
+    $ErrorActionPreference = 'Stop'
+    try {
+      Import-Module Microsoft.Graph.Authentication -ErrorAction Stop
+      Connect-MgGraph -Scopes "Application.ReadWrite.All","User.Read.All","Directory.ReadWrite.All" -UseDeviceAuthentication -NoWelcome | Out-Null
+      $ctx = Get-MgContext
+      @{ status='success'; tenantId=$ctx.TenantId; account=$ctx.Account } | ConvertTo-Json -Compress
+    } catch {
+      @{ status='error'; error=$_.Exception.Message } | ConvertTo-Json -Compress
+    }
+  `;
+  const p = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', script]);
+  let buf = '';
+  p.stdout.on('data', d => {
+    buf += d.toString();
+    // Device-code message arrives early; extract URL + code from it.
+    const m = buf.match(/(https:\/\/microsoft\.com\/devicelogin)[^]*?code\s+([A-Z0-9]+)/i);
+    if (m && !_signinState.deviceCode) {
+      _signinState.verificationUrl = m[1];
+      _signinState.deviceCode = m[2];
+    }
+    // Final JSON line marks completion
+    const finalLine = buf.split(/\r?\n/).reverse().find(l => l.trim().startsWith('{'));
+    if (finalLine) {
+      try {
+        const j = JSON.parse(finalLine);
+        if (j.status === 'success') {
+          _signinState.status = 'success'; _signinState.tenantId = j.tenantId; _signinState.account = j.account;
+        } else if (j.status === 'error') {
+          _signinState.status = 'error'; _signinState.error = j.error;
+        }
+      } catch (_) { /* not yet complete */ }
+    }
+  });
+  p.stderr.on('data', d => { buf += d.toString(); });
+  p.on('close', () => {
+    if (_signinState.status === 'pending') _signinState.status = 'error', _signinState.error = 'signin terminated without result';
+    _signinProc = null;
+  });
+  _signinProc = p;
+}
+
+ipcMain.handle('start-device-code-signin', () => {
+  if ((currentRole || 'viewer') !== 'admin') return { ok: false, error: 'admin required' };
+  if (_signinProc) { try { _signinProc.kill(); } catch (_) {} _signinProc = null; }
+  spawnSigninProcess();
+  logOperatorActivity('tenant.wizard.signin.start', {});
+  return { ok: true };
+});
+
+ipcMain.handle('check-device-code-status', () => {
+  return _signinState;
+});
+
+ipcMain.handle('create-agent-app-registrations', (event, { agentNames }) => {
+  if ((currentRole || 'viewer') !== 'admin') return { ok: false, error: 'admin required' };
+  if (_signinState.status !== 'success') return { ok: false, error: 'sign in to the target tenant first' };
+  const names = Array.isArray(agentNames) && agentNames.length ? agentNames : AGENT_DIRS;
+  const created = []; const errors = [];
+  for (const agent of names) {
+    try {
+      const script = `
+        $ErrorActionPreference = 'Stop'
+        Import-Module Microsoft.Graph.Applications -ErrorAction Stop
+        $app = New-MgApplication -DisplayName "jml-fleet-${agent}"
+        $sp = New-MgServicePrincipal -AppId $app.AppId
+        @{ agent='${agent}'; appId=$app.AppId; objectId=$app.Id; spId=$sp.Id } | ConvertTo-Json -Compress
+      `;
+      const r = spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', script], { encoding: 'utf8', timeout: 30000 });
+      const out = (r.stdout || '').trim().split(/\r?\n/).reverse().find(l => l.trim().startsWith('{'));
+      if (!out) throw new Error(r.stderr || 'no output from New-MgApplication');
+      created.push(JSON.parse(out));
+    } catch (e) {
+      errors.push({ agent, error: e.message });
+    }
+  }
+  logOperatorActivity('tenant.wizard.appregs.created', { created: created.length, errors: errors.length });
+  return { ok: true, created, errors, tenantId: _signinState.tenantId };
+});
+
+// ── Notification routing rules ──────────────────────────────────────────────
+const NOTIFICATION_RULES_FILE = path.join(AGENTS_DIR, 'approver', 'notification-rules.json');
+ipcMain.handle('get-notification-rules', () => {
+  try {
+    if (!fs.existsSync(NOTIFICATION_RULES_FILE)) return { rules: [] };
+    return readJson(NOTIFICATION_RULES_FILE) || { rules: [] };
+  } catch (e) { return { rules: [], error: e.message }; }
+});
+ipcMain.handle('save-notification-rules', (event, { rules }) => {
+  if (!Array.isArray(rules)) return { ok: false, error: 'rules must be an array' };
+  // Basic validation
+  for (const r of rules) {
+    if (!r.event || !Array.isArray(r.channels) || !r.severity) {
+      return { ok: false, error: 'each rule needs event, channels[], severity' };
+    }
+  }
+  try {
+    fs.writeFileSync(NOTIFICATION_RULES_FILE, JSON.stringify({ rules }, null, 2) + '\n', 'utf8');
+    logOperatorActivity('notification.rules.saved', { count: rules.length });
+    return { ok: true };
+  } catch (e) { return { ok: false, error: e.message }; }
+});
+
+// Append a JSONL entry to operator-activity.jsonl. Best-effort, non-blocking.
+function logOperatorActivity(event, details) {
+  try {
+    const entry = {
+      timestamp: new Date().toISOString(),
+      operator: currentOperator || process.env.JML_CONSOLE_OPERATOR || 'unknown',
+      role: currentRole || 'viewer',
+      event,
+      details: details || {}
+    };
+    fs.appendFileSync(OPERATOR_ACTIVITY_FILE, JSON.stringify(entry) + '\n', 'utf8');
+  } catch (_) { /* non-fatal */ }
+}
+
+// In-memory write-token registry. Each successful PIN verification mints a
+// short-TTL single-use token; write-IPC handlers require it. This closes the
+// devtools-bypass gap — the renderer alone can't fake a verified state.
+const writeTokens = new Map(); // token → { user, expires, used }
+const WRITE_TOKEN_TTL_MS = 60 * 1000; // 60 seconds
+function mintWriteToken(user) {
+  const token = crypto.randomBytes(24).toString('base64url');
+  const expires = Date.now() + WRITE_TOKEN_TTL_MS;
+  writeTokens.set(token, { user, expires, used: false });
+  // Lazy cleanup: drop expired tokens whenever a new one is minted
+  for (const [t, v] of writeTokens) if (v.expires < Date.now()) writeTokens.delete(t);
+  return token;
+}
+function consumeWriteToken(token, expectedUser) {
+  const entry = writeTokens.get(token);
+  if (!entry) return { ok: false, reason: 'token-missing' };
+  if (entry.used) return { ok: false, reason: 'token-already-used' };
+  if (entry.expires < Date.now()) { writeTokens.delete(token); return { ok: false, reason: 'token-expired' }; }
+  if (expectedUser && entry.user !== expectedUser) return { ok: false, reason: 'token-user-mismatch' };
+  entry.used = true;
+  writeTokens.delete(token); // single-use
+  return { ok: true };
+}
+
+// Validate a Windows credential by invoking PowerShell's
+// System.DirectoryServices.AccountManagement.PrincipalContext.ValidateCredentials.
+// Credentials are passed via stdin as JSON — they never appear on the command line
+// or in process listings. Returns boolean; any error / timeout → false.
+function verifyWindowsCredential(username, password) {
+  if (!username || !password) return false;
+  const script = [
+    "Add-Type -AssemblyName System.DirectoryServices.AccountManagement",
+    "$payload = [Console]::In.ReadToEnd() | ConvertFrom-Json",
+    "$ctx = New-Object System.DirectoryServices.AccountManagement.PrincipalContext('Machine')",
+    "$ok = $ctx.ValidateCredentials($payload.username, $payload.password)",
+    "@{ok=$ok} | ConvertTo-Json -Compress"
+  ].join('; ');
+  try {
+    const result = spawnSync(
+      'powershell.exe',
+      ['-NoProfile', '-NonInteractive', '-Command', script],
+      {
+        input: JSON.stringify({ username, password }),
+        timeout: 5000,
+        encoding: 'utf8',
+        windowsHide: true
+      }
+    );
+    if (result.error || result.status !== 0) return false;
+    const out = (result.stdout || '').trim();
+    if (!out) return false;
+    const parsed = JSON.parse(out);
+    return parsed && parsed.ok === true;
+  } catch (_e) {
+    return false;
+  }
+}
+
+ipcMain.handle('verify-operator-pin', (event, { user, pin }) => {
+  const data = readOperatorAuth();
+  const entry = data[user];
+  if (!entry) return { ok: false, error: 'no PIN set for this operator' };
+  let verified = false;
+  if (entry.mode === 'windows') {
+    // Windows-auth flow: validate the entered value against the current Windows
+    // user's password via PrincipalContext.ValidateCredentials (machine context).
+    // Uses the OS username — the operator name in operator-auth.json may differ.
+    verified = verifyWindowsCredential(os.userInfo().username, pin);
+  } else if (entry.mode === 'pin') {
+    if (!entry.pinHash || !entry.salt) return { ok: false, error: 'corrupt PIN entry' };
+    const candidate = hashPin(pin, entry.salt);
+    verified = crypto.timingSafeEqual(Buffer.from(candidate, 'base64'), Buffer.from(entry.pinHash, 'base64'));
+  } else {
+    return { ok: false, error: 'unknown auth mode' };
+  }
+  if (!verified) {
+    logOperatorActivity('pin.verify.fail', { target: user });
+    return { ok: false };
+  }
+  logOperatorActivity('pin.verify.ok', { target: user, mode: entry.mode });
+  // Mint a write token the renderer can attach to subsequent write IPC calls
+  const token = mintWriteToken(user);
+  return { ok: true, writeToken: token, ttlMs: WRITE_TOKEN_TTL_MS };
 });
 
 // ── Screenshot capture mode (npm start -- --capture) ─────────────────────────
@@ -905,7 +1277,7 @@ const TAB_INJECT = {
       if (!c || c.querySelectorAll('.message').length > 1) return;
       c.innerHTML = \`
         <div class="message user"><div class="message-bubble">I need to offboard Robert Martinez — INC-1020. He was terminated yesterday.</div></div>
-        <div class="message assistant"><div class="message-avatar">AI</div><div class="message-body"><div class="message-text">
+        <div class="message assistant"><div class="message-avatar avatar-approver"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/></svg></div><div class="message-body"><div class="message-text">
           Before submitting in LIVE mode I'll run a risk score.<br><br>
           <strong>Risk Score: 68 / 100 — HIGH</strong><br>
           &bull; After-hours pattern flagged for this user by UEBA<br>
@@ -914,7 +1286,7 @@ const TAB_INJECT = {
           Proceeding with Soft stage (disable + session revoke). Confirm to continue?
         </div></div></div>
         <div class="message user"><div class="message-bubble">Confirmed. Go ahead.</div></div>
-        <div class="message assistant"><div class="message-avatar">AI</div><div class="message-body"><div class="message-text">
+        <div class="message assistant"><div class="message-avatar avatar-approver"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/></svg></div><div class="message-body"><div class="message-text">
           ✅ <strong>Soft leaver complete — INC-1020</strong><br>
           &bull; Account disabled<br>
           &bull; All active sessions revoked<br>
@@ -932,14 +1304,14 @@ const TAB_INJECT = {
       if (!c || c.querySelectorAll('.message').length > 1) return;
       c.innerHTML = \`
         <div class="message user"><div class="message-bubble">Show me all failed and partial operations in the last 7 days.</div></div>
-        <div class="message assistant"><div class="message-avatar">AI</div><div class="message-body"><div class="message-text">
+        <div class="message assistant"><div class="message-avatar avatar-auditor"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/></svg></div><div class="message-body"><div class="message-text">
           Found <strong>3 failed/partial entries</strong> in the last 7 days:<br><br>
           &bull; <code>enroller</code> &rarr; priya.patel@... &mdash; failed &times;2, partial &times;1 (INC-1011)<br>
           &nbsp;&nbsp;Error: Device not found in Intune on first two attempts. Third attempt partial — serial unconfirmed.<br><br>
           These triggered a <strong>UEBA warning</strong>: repeated-failures rule (3 events on same subject within 60 min).
         </div></div></div>
         <div class="message user"><div class="message-bubble">Any off-hours or suspicious access patterns?</div></div>
-        <div class="message assistant"><div class="message-avatar">AI</div><div class="message-body"><div class="message-text">
+        <div class="message assistant"><div class="message-avatar avatar-auditor"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/></svg></div><div class="message-body"><div class="message-text">
           ⚠️ <strong>2 critical UEBA findings:</strong><br><br>
           <strong>1. After-hours leaver</strong><br>
           robert.martinez offboarded at 02:14 UTC, 5 days ago (INC-1020). Normal ops window is 08:00–18:00 UTC.<br><br>
@@ -1023,7 +1395,7 @@ async function runCapture() {
   win = new BrowserWindow({
     width: 1440, height: 1800,
     frame: false,
-    backgroundColor: '#0d0f14',
+    backgroundColor: '#11131a',
     webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, nodeIntegration: false, sandbox: false }
   });
   win.loadFile(path.join(__dirname, 'renderer', 'index.html'));
@@ -1209,7 +1581,9 @@ $out | ConvertTo-Json -Depth 4 -Compress
 });
 
 // ── Feature: Quick Mover ──────────────────────────────────────────────────────
-ipcMain.on('run-quick-mover', (event, { upn, newDepartment, newJobTitle, newManager, whatif }) => {
+ipcMain.on('run-quick-mover', (event, payload) => {
+  if (!requireWriteToken(event, payload, 'quick-op-result')) return;
+  const { upn, newDepartment, newJobTitle, newManager, whatif } = payload || {};
   const pf = writePayloadFile({
     userPrincipalName: upn,
     department: newDepartment || null,
@@ -1228,7 +1602,9 @@ ipcMain.on('run-quick-mover', (event, { upn, newDepartment, newJobTitle, newMana
 });
 
 // ── Feature: Quick Leaver ─────────────────────────────────────────────────────
-ipcMain.on('run-quick-leaver', (event, { upn, stage, reason, whatif }) => {
+ipcMain.on('run-quick-leaver', (event, payload) => {
+  if (!requireWriteToken(event, payload, 'quick-op-result')) return;
+  const { upn, stage, reason, whatif } = payload || {};
   try {
     const raw    = runPs(path.join(AGENTS_DIR, 'leaver', 'Invoke-LeaverProcess.ps1'), {
       UserPrincipalName: upn, Stage: stage || 'Soft',

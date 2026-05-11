@@ -29,9 +29,9 @@ contextBridge.exposeInMainWorld('api', {
   onExportsStatus:    (cb) => ipcRenderer.on('exports-status',      (_, d) => cb(d)),
   onExportRunResult:  (cb) => ipcRenderer.on('export-run-result',   (_, d) => cb(d)),
 
-  getPendingApprovals: ()       => ipcRenderer.send('get-pending-approvals'),
-  approvePending:      (id)     => ipcRenderer.send('approve-pending', { id }),
-  rejectPending:       (id)     => ipcRenderer.send('reject-pending',  { id }),
+  getPendingApprovals: ()                  => ipcRenderer.send('get-pending-approvals'),
+  approvePending:      (id, writeToken)    => ipcRenderer.send('approve-pending', { id, writeToken }),
+  rejectPending:       (id)                => ipcRenderer.send('reject-pending',  { id }),
   onPendingApprovals:  (cb)     => ipcRenderer.on('pending-approvals', (_, d) => cb(d)),
   onApproveResult:     (cb)     => ipcRenderer.on('approve-result',    (_, d) => cb(d)),
   onRejectResult:      (cb)     => ipcRenderer.on('reject-result',     (_, d) => cb(d)),
@@ -113,5 +113,28 @@ contextBridge.exposeInMainWorld('api', {
   getCurrentOperator:   ()             => ipcRenderer.invoke('get-current-operator'),
   selectOperator:       (name, role)   => ipcRenderer.send('select-operator', { name, role }),
   switchOperator:       (name, role)   => ipcRenderer.send('switch-operator',  { name, role }),
-  onOperatorSwitched:   (cb)           => ipcRenderer.on('operator-switched',  (_, d) => cb(d))
+  onOperatorSwitched:   (cb)           => ipcRenderer.on('operator-switched',  (_, d) => cb(d)),
+
+  // Operator authentication (PIN / Windows) — for write-access gating
+  getOperatorAuth:        ()                  => ipcRenderer.invoke('get-operator-auth'),
+  setOperatorAuthPin:     (user, pin)         => ipcRenderer.invoke('set-operator-auth-pin', { user, pin }),
+  setOperatorAuthWindows: (user)              => ipcRenderer.invoke('set-operator-auth-windows', { user }),
+  verifyOperatorPin:      (user, pin)         => ipcRenderer.invoke('verify-operator-pin', { user, pin }),
+
+  // Tenant onboarding (read/write agent config.json TenantId across the fleet)
+  getTenantConfig:        ()                  => ipcRenderer.invoke('get-tenant-config'),
+  previewTenantConfig:    (payload)           => ipcRenderer.invoke('preview-tenant-config', payload),
+  saveTenantConfig:       (payload)           => ipcRenderer.invoke('save-tenant-config', payload),
+
+  // Operator activity log
+  getOperatorActivity:    (limit)             => ipcRenderer.invoke('get-operator-activity', { limit }),
+
+  // Notification routing rules
+  getNotificationRules:   ()                  => ipcRenderer.invoke('get-notification-rules'),
+  saveNotificationRules:  (rules)             => ipcRenderer.invoke('save-notification-rules', { rules }),
+
+  // Tenant onboarding wizard
+  startDeviceCodeSignin:        ()              => ipcRenderer.invoke('start-device-code-signin'),
+  checkDeviceCodeStatus:        ()              => ipcRenderer.invoke('check-device-code-status'),
+  createAgentAppRegistrations:  (names)         => ipcRenderer.invoke('create-agent-app-registrations', { agentNames: names })
 });
