@@ -262,14 +262,29 @@ a { color: var(--cyan); text-decoration: none; }
   background: var(--bg-2);
 }
 .hard-mode-btn {
-  padding: 5px 0; font-family: var(--mono); font-size: 10.5px;
+  padding: 6px 0; font-family: var(--mono); font-size: 10.5px;
   letter-spacing: .06em; text-transform: uppercase;
   border-radius: 6px; color: var(--muted); cursor: pointer;
   border: 0; background: transparent;
+  transition: background .18s ease, color .18s ease, box-shadow .18s ease;
 }
+.hard-mode-btn:hover:not(.active) { color: var(--text-2); }
 .hard-mode-btn.active { color: var(--text); background: var(--elev); }
-.hard-mode-btn[data-hard="whatif"].active { color: var(--violet); }
-.hard-mode-btn[data-hard="live"].active   { color: var(--coral); }
+.hard-mode-btn[data-hard="whatif"].active {
+  color: oklch(0.92 0.08 280);
+  background: oklch(0.30 0.10 280 / .35);
+  box-shadow: 0 0 0 1px oklch(0.55 0.13 280 / .55), 0 0 12px oklch(0.55 0.13 280 / .25) inset;
+}
+.hard-mode-btn[data-hard="live"].active {
+  color: oklch(0.92 0.14 24);
+  background: oklch(0.30 0.10 24 / .4);
+  box-shadow: 0 0 0 1px oklch(0.55 0.16 24 / .65), 0 0 14px oklch(0.55 0.16 24 / .3) inset;
+  animation: liveflash .35s ease-out;
+}
+@keyframes liveflash {
+  0%   { box-shadow: 0 0 0 1px oklch(0.55 0.16 24 / 1), 0 0 24px oklch(0.55 0.16 24 / .8) inset; }
+  100% { box-shadow: 0 0 0 1px oklch(0.55 0.16 24 / .65), 0 0 14px oklch(0.55 0.16 24 / .3) inset; }
+}
 
 /* Sidebar footer / operator ("who" block) — revamp layout: avatar + name/role + swap */
 .sidebar-footer, .who {
