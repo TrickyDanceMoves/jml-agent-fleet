@@ -1,0 +1,1046 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; script-src 'self'">
+  <link rel="stylesheet" href="styles.css">
+  <title>JML Console</title>
+</head>
+<body>
+  <div class="app">
+
+    <!-- Custom title bar -->
+    <div class="title-bar">
+      <div class="title-bar-drag">
+        <span class="app-logo">JML</span>
+        <span class="app-subtitle">Identity Management Console</span>
+      </div>
+      <div class="title-bar-controls">
+        <button class="win-btn help-btn" id="btn-help" title="Quick Reference">&#x3F;</button>
+        <div class="notif-bell-wrap" id="notif-bell-wrap">
+          <button class="win-btn notif-bell-btn" id="btn-notif-bell" title="Notifications">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="14" height="14"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+            <span class="notif-badge" id="notif-badge" style="display:none">0</span>
+          </button>
+          <div class="notif-dropdown" id="notif-dropdown" style="display:none">
+            <div class="notif-dropdown-header">
+              <span class="notif-dropdown-title">Notifications</span>
+              <button class="btn-text-link" id="btn-notif-clear-all">Clear all</button>
+            </div>
+            <div class="notif-list" id="notif-list"><div class="loading-hint">No notifications.</div></div>
+          </div>
+        </div>
+        <button class="win-btn" id="btn-minimize" title="Minimize">&#x2212;</button>
+        <button class="win-btn" id="btn-maximize" title="Maximize">&#x25A1;</button>
+        <button class="win-btn close" id="btn-close" title="Close">&#x2715;</button>
+      </div>
+    </div>
+
+    <div class="layout">
+
+      <!-- Sidebar -->
+      <nav class="sidebar">
+        <div class="nav-items">
+          <!-- Manual / operator-driven -->
+          <button class="nav-item active" data-tab="dashboard">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+            <span>Dashboard</span>
+          </button>
+          <button class="nav-item" data-tab="approver">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 2L3 7v10l9 5 9-5V7L12 2z"/><path d="M9 12l2 2 4-4"/></svg>
+            <span>JML Fleet</span>
+          </button>
+          <button class="nav-item" data-tab="auditor">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+            <span>Auditor</span>
+          </button>
+          <button class="nav-item" data-tab="users">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+            <span>Users</span>
+          </button>
+          <button class="nav-item" data-tab="operations">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14"/></svg>
+            <span>Operations</span>
+          </button>
+          <button class="nav-item" data-tab="graph">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+            <span>Graph</span>
+          </button>
+
+          <!-- Automated / system-driven -->
+          <div class="nav-divider"></div>
+          <button class="nav-item" data-tab="security">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+            <span>Security</span>
+          </button>
+          <button class="nav-item" data-tab="approvals">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+            <span>Approvals</span>
+          </button>
+          <button class="nav-item" data-tab="certifications">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/></svg>
+            <span>Certs</span>
+          </button>
+          <button class="nav-item" data-tab="exports">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+            <span>Exports</span>
+          </button>
+          <button class="nav-item" data-tab="audit-log">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><line x1="10" y1="9" x2="8" y2="9"/></svg>
+            <span>Audit Log</span>
+          </button>
+          <button class="nav-item" data-tab="settings">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+            <span>Settings</span>
+          </button>
+        </div>
+        <div class="sidebar-footer">
+          <div class="sidebar-operator">
+            <span class="operator-dot"></span>
+            <span id="sidebar-operator-name"></span>
+            <button class="btn-switch-operator" id="btn-switch-operator" title="Switch operator">⇄</button>
+          </div>
+          <div class="sidebar-role-row">
+            <span id="sidebar-role-badge" class="role-badge role-admin">Admin</span>
+          </div>
+          <div class="sidebar-tenant">contoso.onmicrosoft.com</div>
+        </div>
+      </nav>
+
+      <!-- Content area -->
+      <main class="content">
+
+        <!-- Dashboard -->
+        <div class="view active" id="view-dashboard">
+          <div class="view-header">
+            <h1>Dashboard</h1>
+            <span class="tenant-badge">contoso.onmicrosoft.com</span>
+          </div>
+          <div class="dashboard-body">
+
+            <!-- Stat cards -->
+            <div class="stats-grid" id="stats-grid">
+              <div class="stat-card" id="stat-users">
+                <div class="stat-label">Users</div>
+                <div class="stat-value loading" id="stat-users-total">—</div>
+                <div class="stat-detail loading" id="stat-users-detail">Loading…</div>
+              </div>
+              <div class="stat-card" id="stat-licenses">
+                <div class="stat-label">Licenses</div>
+                <div class="stat-value loading" id="stat-licenses-total">—</div>
+                <div class="dash-license-bars" id="dash-license-bars"></div>
+              </div>
+              <div class="stat-card" id="stat-activity">
+                <div class="stat-label">JML Operations</div>
+                <div class="stat-value loading" id="stat-activity-total">—</div>
+                <div class="stat-detail loading" id="stat-activity-detail">Loading…</div>
+              </div>
+              <div class="stat-card" id="stat-approvals">
+                <div class="stat-label">Pending Approvals</div>
+                <div class="stat-value loading" id="stat-approvals-count">—</div>
+                <div class="stat-detail" id="stat-approvals-detail">Loading…</div>
+              </div>
+            </div>
+
+            <!-- Security at a Glance -->
+            <div class="dash-section">
+              <div class="dash-section-hdr">
+                <span class="dash-section-title">Security at a Glance</span>
+                <button class="btn-text-link" id="dash-open-security">Open Security →</button>
+              </div>
+              <div class="dash-sec-strip">
+                <button class="dash-sec-tile dash-sec-ueba" id="dash-tile-ueba">
+                  <div class="dash-sec-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M8 11h8M12 7v8"/></svg>
+                  </div>
+                  <div class="dash-sec-label">Behavioral · UEBA</div>
+                  <div class="dash-sec-counts" id="dash-ueba-counts"><span class="count-badge loading">—</span></div>
+                </button>
+                <button class="dash-sec-tile dash-sec-drift" id="dash-tile-drift">
+                  <div class="dash-sec-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+                  </div>
+                  <div class="dash-sec-label">Configuration · Drift</div>
+                  <div class="dash-sec-counts" id="dash-drift-counts"><span class="count-badge loading">—</span></div>
+                </button>
+                <button class="dash-sec-tile dash-sec-risky" id="dash-tile-risky">
+                  <div class="dash-sec-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/><line x1="18" y1="8" x2="23" y2="13"/><line x1="23" y1="8" x2="18" y2="13"/></svg>
+                  </div>
+                  <div class="dash-sec-label">Compromised · Identity</div>
+                  <div class="dash-sec-counts" id="dash-risky-counts"><span class="count-badge loading">—</span></div>
+                </button>
+              </div>
+            </div>
+
+            <!-- Quick Actions -->
+            <div class="dash-section">
+              <div class="dash-section-hdr">
+                <span class="dash-section-title">Quick Actions</span>
+              </div>
+              <div class="dash-quick-actions">
+                <button class="dash-action-btn joiner" id="dash-action-joiner">
+                  <div class="dash-action-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/></svg>
+                  </div>
+                  <span class="dash-action-label">New Joiner</span>
+                </button>
+                <button class="dash-action-btn mover" id="dash-action-mover">
+                  <div class="dash-action-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+                  </div>
+                  <span class="dash-action-label">Move User</span>
+                </button>
+                <button class="dash-action-btn leaver" id="dash-action-leaver">
+                  <div class="dash-action-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="18" y1="8" x2="23" y2="13"/><line x1="23" y1="8" x2="18" y2="13"/></svg>
+                  </div>
+                  <span class="dash-action-label">Offboard User</span>
+                </button>
+                <button class="dash-action-btn audit" id="dash-action-audit">
+                  <div class="dash-action-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+                  </div>
+                  <span class="dash-action-label">Run Audit Query</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- Recent Activity -->
+            <div class="dash-section dash-activity-section">
+              <div class="section-header">
+                <div class="section-title">Recent Activity</div>
+                <button class="btn-text-link" id="btn-view-all-activity">View all →</button>
+              </div>
+              <div id="recent-activity-list" class="activity-list">
+                <div class="loading-hint">Loading activity...</div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- Approver -->
+        <div class="view" id="view-approver">
+          <div class="view-header">
+            <div class="view-header-left">
+              <h1>Approver Agent</h1>
+              <div class="mode-toggle" id="mode-toggle">
+                <button class="mode-btn active" data-mode="whatif">WhatIf</button>
+                <button class="mode-btn" data-mode="live">Live</button>
+              </div>
+            </div>
+            <button class="btn-ghost" id="clear-approver" title="Clear conversation">Clear</button>
+          </div>
+          <div class="mode-banner" id="mode-banner-whatif">
+            WhatIf mode — no changes will be committed to the directory
+          </div>
+          <div class="mode-banner live hidden" id="mode-banner-live">
+            Live mode — actions will modify the tenant directory
+          </div>
+          <div class="role-access-banner hidden" id="role-access-banner">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+            <span id="role-access-text"></span>
+          </div>
+          <div class="chat-container">
+            <div class="messages" id="messages-approver">
+              <div class="welcome-msg">
+                <div class="welcome-title">Approver Agent</div>
+                <div class="welcome-body">Describe the identity change you need. I'll gather the required information and submit it for you.</div>
+                <div class="welcome-examples">
+                  <span class="example-chip">Onboard a new hire</span>
+                  <span class="example-chip">Move someone to a new department</span>
+                  <span class="example-chip">Offboard a leaver</span>
+                </div>
+              </div>
+            </div>
+            <div class="assist-bar" id="approver-assist-bar">
+              <button class="assist-chip" data-prompt="Onboard a new hire">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/></svg>
+                New Joiner
+              </button>
+              <button class="assist-chip" data-prompt="Move a user to a new department">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+                Move User
+              </button>
+              <button class="assist-chip" data-prompt="Soft offboard a user — disable their account and revoke sessions">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><circle cx="12" cy="12" r="10"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+                Soft Leave
+              </button>
+              <button class="assist-chip" data-prompt="Hard offboard a user — remove all licenses, group memberships, and delete the account">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="18" y1="8" x2="23" y2="13"/><line x1="23" y1="8" x2="18" y2="13"/></svg>
+                Hard Leave
+              </button>
+              <button class="assist-chip" data-prompt="Enroll a user in MFA">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M12 16v-2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
+                Enroll MFA
+              </button>
+              <button class="assist-chip" data-prompt="What is the current status of user ">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+                Check User
+              </button>
+            </div>
+            <div class="input-row">
+              <div class="slash-dropdown hidden" id="slash-dropdown"></div>
+              <input class="chat-input" id="input-approver" type="text" placeholder="Describe the identity change or type / for commands..." autocomplete="off">
+              <button class="send-btn" id="send-approver">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Auditor -->
+        <div class="view" id="view-auditor">
+          <div class="view-header">
+            <div class="view-header-left">
+              <h1>Audit Agent</h1>
+              <span class="badge readonly">Read Only</span>
+            </div>
+            <button class="btn-ghost" id="clear-auditor" title="Clear conversation">Clear</button>
+          </div>
+          <div class="chat-container">
+            <div class="messages" id="messages-auditor">
+              <div class="welcome-msg">
+                <div class="welcome-title">Audit Agent</div>
+                <div class="welcome-body">Ask anything about the tenant directory. I can query users, licenses, roles, groups, and JML activity.</div>
+                <div class="welcome-examples">
+                  <span class="example-chip">How many users are enabled?</span>
+                  <span class="example-chip">Show license utilization</span>
+                  <span class="example-chip">Who has admin roles?</span>
+                  <span class="example-chip">Recent joins this month</span>
+                </div>
+              </div>
+            </div>
+            <div class="input-row">
+              <input class="chat-input" id="input-auditor" type="text" placeholder="Ask about the tenant..." autocomplete="off">
+              <button class="send-btn" id="send-auditor">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Security -->
+        <div class="view" id="view-security">
+          <div class="view-header">
+            <div class="view-header-left">
+              <h1>Security</h1>
+              <span class="view-header-meta" id="security-last-updated"></span>
+            </div>
+            <button class="btn-ghost" id="refresh-security">Refresh</button>
+          </div>
+          <div class="security-content">
+
+            <!-- Summary strip -->
+            <div class="sec-summary-strip">
+              <button class="sec-summary-tile sec-tile-ueba" id="sec-ueba" onclick="document.getElementById('sec-section-ueba').scrollIntoView({behavior:'smooth'})">
+                <div class="sec-tile-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M8 11h8M12 7v8"/></svg>
+                </div>
+                <div class="sec-tile-body">
+                  <div class="sec-tile-label">Behavioral · UEBA</div>
+                  <div class="sec-tile-counts" id="sec-ueba-counts"><span class="count-badge loading">—</span></div>
+                  <div class="sec-tile-meta" id="sec-ueba-meta">No report</div>
+                </div>
+              </button>
+              <button class="sec-summary-tile sec-tile-drift" id="sec-drift" onclick="document.getElementById('sec-section-drift').scrollIntoView({behavior:'smooth'})">
+                <div class="sec-tile-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+                </div>
+                <div class="sec-tile-body">
+                  <div class="sec-tile-label">Configuration · Drift</div>
+                  <div class="sec-tile-counts" id="sec-drift-counts"><span class="count-badge loading">—</span></div>
+                  <div class="sec-tile-meta" id="sec-drift-meta">No report</div>
+                </div>
+              </button>
+              <button class="sec-summary-tile sec-tile-risky" id="sec-risky" onclick="document.getElementById('sec-section-risky').scrollIntoView({behavior:'smooth'})">
+                <div class="sec-tile-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/><line x1="18" y1="8" x2="23" y2="13"/><line x1="23" y1="8" x2="18" y2="13"/></svg>
+                </div>
+                <div class="sec-tile-body">
+                  <div class="sec-tile-label">Compromised · Identity Protection</div>
+                  <div class="sec-tile-counts" id="sec-risky-counts"><span class="count-badge loading">—</span></div>
+                  <div class="sec-tile-meta" id="sec-risky-meta">No report</div>
+                </div>
+              </button>
+            </div>
+
+            <!-- UEBA section -->
+            <details class="sec-section sec-section-ueba" id="sec-section-ueba" open>
+              <summary class="sec-section-hdr">
+                <div class="sec-section-icon-wrap ueba-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M8 11h8M12 7v8"/></svg>
+                </div>
+                <div class="sec-section-title-group">
+                  <div class="sec-section-title">Behavioral Anomalies</div>
+                  <div class="sec-section-sub">UEBA · 30-day rolling window · <span id="sec-ueba-run"></span></div>
+                </div>
+                <span class="sec-section-badge" id="sec-ueba-badge"></span>
+                <span class="sec-section-chevron">▲</span>
+              </summary>
+              <div class="sec-section-body" id="sec-ueba-list"><div class="loading-hint">Loading…</div></div>
+            </details>
+
+            <!-- Drift section -->
+            <details class="sec-section sec-section-drift" id="sec-section-drift" open>
+              <summary class="sec-section-hdr">
+                <div class="sec-section-icon-wrap drift-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+                </div>
+                <div class="sec-section-title-group">
+                  <div class="sec-section-title">Configuration Drift</div>
+                  <div class="sec-section-sub">Drift Detection · baseline comparison · <span id="sec-drift-run"></span></div>
+                </div>
+                <span class="sec-section-badge" id="sec-drift-badge"></span>
+                <span class="sec-section-chevron">▲</span>
+              </summary>
+              <div class="sec-section-body" id="sec-drift-list"><div class="loading-hint">Loading…</div></div>
+            </details>
+
+            <!-- Identity Protection section -->
+            <details class="sec-section sec-section-risky" id="sec-section-risky" open>
+              <summary class="sec-section-hdr">
+                <div class="sec-section-icon-wrap risky-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/><line x1="18" y1="8" x2="23" y2="13"/><line x1="23" y1="8" x2="18" y2="13"/></svg>
+                </div>
+                <div class="sec-section-title-group">
+                  <div class="sec-section-title">Compromised Identities</div>
+                  <div class="sec-section-sub">Identity Protection · Microsoft risk signals · <span id="sec-risky-run"></span></div>
+                </div>
+                <span class="sec-section-badge" id="sec-risky-badge"></span>
+                <span class="sec-section-chevron">▲</span>
+              </summary>
+              <div class="sec-section-body" id="sec-risky-list"><div class="loading-hint">Loading…</div></div>
+            </details>
+
+            <div class="agent-health-section">
+              <div class="section-header">
+                <div class="section-title">Agent Health</div>
+              </div>
+              <div id="agent-health-grid" class="agent-health-grid">
+                <div class="loading-hint">Loading...</div>
+              </div>
+            </div>
+
+            <details class="sec-collapsible" id="sec-stale">
+              <summary class="sec-collapsible-summary">Stale Account Manager</summary>
+              <div class="stale-panel">
+                <div class="stale-controls">
+                  <label class="settings-label" style="align-self:center">Days inactive:</label>
+                  <input class="chat-input" id="stale-days" type="number" value="90" min="1" max="365" style="width:80px">
+                  <button class="btn-run" id="btn-scan-stale">Scan</button>
+                  <button class="btn-danger" id="btn-disable-stale" style="display:none">Disable Selected</button>
+                </div>
+                <div id="stale-results" class="stale-results"></div>
+              </div>
+            </details>
+
+            <details class="sec-collapsible" id="sec-cert-expiry">
+              <summary class="sec-collapsible-summary">Certificate Expiry</summary>
+              <div id="cert-expiry-body" class="loading-hint">Loading...</div>
+            </details>
+
+            <details class="sec-collapsible" id="sec-sod-tester">
+              <summary class="sec-collapsible-summary">SoD Conflict Tester</summary>
+              <div class="sod-tester-form">
+                <input class="chat-input" id="sod-test-group-a" type="text" placeholder="Group A display name">
+                <input class="chat-input" id="sod-test-group-b" type="text" placeholder="Group B display name">
+                <input class="chat-input" id="sod-test-upn"     type="text" placeholder="UPN (optional)">
+                <button class="btn-run" id="btn-test-sod">Test</button>
+              </div>
+              <div class="sod-tester-result" id="sod-tester-result" style="display:none"></div>
+            </details>
+
+            <details class="sec-collapsible" id="sec-pim">
+              <summary class="sec-collapsible-summary">PIM Role Activations</summary>
+              <div id="pim-body">
+                <button class="btn-ghost" id="btn-load-pim" style="margin-bottom:10px">Load PIM Roles</button>
+                <div id="pim-roles-list"></div>
+              </div>
+            </details>
+
+          </div>
+        </div>
+
+        <!-- Exports -->
+        <div class="view" id="view-exports">
+          <div class="view-header">
+            <div class="view-header-left">
+              <h1>Exports</h1>
+              <span class="view-header-meta" id="exports-last-updated"></span>
+            </div>
+            <button class="btn-ghost" id="refresh-exports">Refresh</button>
+          </div>
+          <div class="exports-content">
+
+            <!-- Azure Blob -->
+            <div class="export-card" id="export-card-blob">
+              <div class="export-card-header">
+                <div class="export-card-title-row">
+                  <svg class="export-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
+                  <span class="export-card-name">Azure Blob Storage</span>
+                  <span class="export-status-chip" id="blob-status-chip">—</span>
+                </div>
+                <button class="btn-run" id="btn-run-blob">Export Now</button>
+              </div>
+              <div class="export-card-body">
+                <div class="export-meta-row">
+                  <span class="export-meta-label">Last export</span>
+                  <span class="export-meta-val" id="blob-last-run">—</span>
+                </div>
+                <div class="export-meta-row">
+                  <span class="export-meta-label">Container</span>
+                  <span class="export-meta-val mono" id="blob-container">—</span>
+                </div>
+                <div class="export-meta-row">
+                  <span class="export-meta-label">Entries</span>
+                  <span class="export-meta-val" id="blob-entries">—</span>
+                </div>
+                <div class="export-error" id="blob-error"></div>
+              </div>
+              <div class="export-card-footer">
+                Config: <span class="export-config-path">auditor/blob-export.config.json</span>
+                &nbsp;·&nbsp; <span class="export-config-hint">copy blob-export.config.json.example to configure</span>
+              </div>
+            </div>
+
+            <!-- Microsoft Sentinel -->
+            <div class="export-card" id="export-card-sentinel">
+              <div class="export-card-header">
+                <div class="export-card-title-row">
+                  <svg class="export-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></svg>
+                  <span class="export-card-name">Microsoft Sentinel</span>
+                  <span class="export-status-chip" id="sentinel-status-chip">—</span>
+                </div>
+                <button class="btn-run" id="btn-run-sentinel">Ingest Now</button>
+              </div>
+              <div class="export-card-body">
+                <div class="export-meta-row">
+                  <span class="export-meta-label">Last ingest</span>
+                  <span class="export-meta-val" id="sentinel-last-run">—</span>
+                </div>
+                <div class="export-meta-row">
+                  <span class="export-meta-label">Workspace</span>
+                  <span class="export-meta-val mono" id="sentinel-workspace">—</span>
+                </div>
+                <div class="export-meta-row">
+                  <span class="export-meta-label">Events sent</span>
+                  <span class="export-meta-val" id="sentinel-events">—</span>
+                </div>
+                <div class="export-error" id="sentinel-error"></div>
+              </div>
+              <div class="export-card-footer">
+                Config: <span class="export-config-path">auditor/sentinel.config.json</span>
+                &nbsp;·&nbsp; <span class="export-config-hint">copy sentinel.config.json.example to configure</span>
+              </div>
+            </div>
+
+            <details class="export-collapsible" id="export-siem">
+              <summary class="export-collapsible-summary">SIEM Integrations</summary>
+              <div class="siem-grid">
+                <div class="siem-card">
+                  <div class="siem-card-header">
+                    <span class="siem-name">Splunk</span>
+                    <span class="siem-status chip-unconfigured">Not configured</span>
+                  </div>
+                  <div class="siem-card-body">HTTP Event Collector — sends JML audit events to your Splunk deployment in real time.</div>
+                  <div class="siem-card-footer">Config: <span class="export-config-path">auditor/splunk.config.json</span></div>
+                </div>
+                <div class="siem-card">
+                  <div class="siem-card-header">
+                    <span class="siem-name">Elastic SIEM</span>
+                    <span class="siem-status chip-unconfigured">Not configured</span>
+                  </div>
+                  <div class="siem-card-body">Elastic Agent / Logstash — forwards identity events to your Elastic stack index.</div>
+                  <div class="siem-card-footer">Config: <span class="export-config-path">auditor/elastic.config.json</span></div>
+                </div>
+                <div class="siem-card">
+                  <div class="siem-card-header">
+                    <span class="siem-name">Sumo Logic</span>
+                    <span class="siem-status chip-unconfigured">Not configured</span>
+                  </div>
+                  <div class="siem-card-body">HTTP Source — pushes JML events to your Sumo Logic hosted collector endpoint.</div>
+                  <div class="siem-card-footer">Config: <span class="export-config-path">auditor/sumologic.config.json</span></div>
+                </div>
+                <div class="siem-card">
+                  <div class="siem-card-header">
+                    <span class="siem-name">IBM QRadar</span>
+                    <span class="siem-status chip-unconfigured">Not configured</span>
+                  </div>
+                  <div class="siem-card-body">Syslog / LEEF — emits identity lifecycle events to a QRadar DSM log source.</div>
+                  <div class="siem-card-footer">Config: <span class="export-config-path">auditor/qradar.config.json</span></div>
+                </div>
+              </div>
+            </details>
+
+            <details class="export-collapsible" id="export-license-util">
+              <summary class="export-collapsible-summary">License Utilization</summary>
+              <div class="license-util-panel">
+                <button class="btn-ghost" id="btn-load-license-util" style="margin-bottom:10px">Refresh</button>
+                <div id="license-util-body" class="loading-hint">Click Refresh to load.</div>
+              </div>
+            </details>
+
+            <div class="hr-queue-section" id="hr-queue-section">
+              <div class="section-header">
+                <div class="section-title">HR Event Queue</div>
+                <span id="hr-azurite-chip" class="export-status-chip chip-unknown">Checking…</span>
+              </div>
+              <div id="hr-queue-body">
+                <div class="loading-hint">Loading…</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Approvals -->
+        <div class="view" id="view-approvals">
+          <div class="view-header">
+            <div class="view-header-left">
+              <h1>Approvals</h1>
+              <span class="view-header-meta" id="approvals-count"></span>
+            </div>
+            <button class="btn-ghost" id="refresh-approvals">Refresh</button>
+          </div>
+          <div class="approvals-content" id="approvals-list">
+            <div class="loading-hint">Loading…</div>
+          </div>
+        </div>
+
+        <!-- Operations -->
+        <div class="view" id="view-operations">
+          <div class="view-header">
+            <h1>Operations</h1>
+          </div>
+          <div class="ops-content">
+            <details class="ops-collapsible" id="ops-quick-mover">
+              <summary class="ops-collapsible-summary">Quick Mover</summary>
+              <div class="quick-op-form" id="quick-mover-form">
+                <input class="chat-input" id="qm-upn"     type="text" placeholder="userPrincipalName">
+                <input class="chat-input" id="qm-dept"    type="text" placeholder="New Department (optional)">
+                <input class="chat-input" id="qm-title"   type="text" placeholder="New Job Title (optional)">
+                <input class="chat-input" id="qm-manager" type="text" placeholder="New Manager UPN (optional)">
+                <div class="quick-op-controls">
+                  <label class="toggle-label"><input type="checkbox" id="qm-whatif" checked> WhatIf</label>
+                  <button class="btn-run" id="btn-run-quick-mover">Run Mover</button>
+                </div>
+                <div class="quick-op-result" id="qm-result" style="display:none"></div>
+              </div>
+            </details>
+            <details class="ops-collapsible" id="ops-quick-leaver">
+              <summary class="ops-collapsible-summary">Quick Leaver</summary>
+              <div class="quick-op-form" id="quick-leaver-form">
+                <input class="chat-input" id="ql-upn"    type="text" placeholder="userPrincipalName">
+                <div class="quick-op-radios">
+                  <label class="toggle-label" title="Soft Leave: disables account and revokes all active sessions. Reversible."><input type="radio" name="ql-stage" value="Soft" checked> Soft</label>
+                  <label class="toggle-label" title="Hard Leave: removes all licenses and group memberships. Not automatically reversible."><input type="radio" name="ql-stage" value="Hard"> Hard</label>
+                </div>
+                <input class="chat-input" id="ql-reason" type="text" placeholder="Reason / Ticket Ref (optional)">
+                <div class="quick-op-controls">
+                  <label class="toggle-label"><input type="checkbox" id="ql-whatif" checked> WhatIf</label>
+                  <button class="btn-run" id="btn-run-quick-leaver">Run Leaver</button>
+                </div>
+                <div class="quick-op-result" id="ql-result" style="display:none"></div>
+              </div>
+            </details>
+            <div class="ops-section">
+              <div class="section-header"><div class="section-title">Bulk Import</div></div>
+              <div class="bulk-import-panel">
+                <div class="bulk-csv-hint">Columns: <span class="mono-small">operation, userPrincipalName, givenName, surname, department, jobTitle, usageLocation, ticketRef, stage</span></div>
+                <textarea class="bulk-csv-area" id="bulk-csv-input" placeholder="Paste CSV rows here (no header row)…" rows="6"></textarea>
+                <div class="bulk-controls-row">
+                  <span id="bulk-preview-count" class="view-header-meta"></span>
+                  <label class="toggle-label"><input type="checkbox" id="bulk-whatif" checked> WhatIf</label>
+                  <button class="btn-run" id="btn-run-bulk">Run Import</button>
+                </div>
+                <div class="bulk-progress-list" id="bulk-progress-list"></div>
+              </div>
+            </div>
+            <div class="ops-section">
+              <div class="section-header"><div class="section-title">Scheduled Operations</div></div>
+              <div class="sched-form" id="sched-form">
+                <select class="form-select" id="sched-op">
+                  <option value="joiner">Joiner</option>
+                  <option value="leaver">Leaver</option>
+                  <option value="mover">Mover</option>
+                </select>
+                <input class="chat-input" id="sched-upn" type="text" placeholder="userPrincipalName">
+                <input class="chat-input" id="sched-when" type="datetime-local">
+                <label class="toggle-label"><input type="checkbox" id="sched-whatif" checked> WhatIf</label>
+                <button class="btn-run" id="btn-schedule">Schedule</button>
+              </div>
+              <div class="sched-list" id="sched-list">
+                <div class="loading-hint">No scheduled operations.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Certifications -->
+        <div class="view" id="view-certifications">
+          <div class="view-header">
+            <h1>Certifications</h1>
+            <button class="btn-ghost" id="btn-refresh-certs" style="margin-left:auto">Refresh</button>
+          </div>
+          <div class="cert-content">
+            <div class="cert-controls-row">
+              <div class="cert-actions">
+                <button class="btn-run" id="btn-cert-all">All Campaigns</button>
+                <button class="btn-ghost" id="btn-cert-user-groups">User Groups</button>
+                <button class="btn-ghost" id="btn-cert-agent-pim">Agent PIM</button>
+              </div>
+              <label class="toggle-label"><input type="checkbox" id="cert-whatif" checked> WhatIf</label>
+            </div>
+            <div id="cert-result" class="cert-result-section" style="display:none">
+              <div class="section-header"><div class="section-title">Result</div></div>
+              <div id="cert-result-lines" class="cert-lines"></div>
+              <div id="cert-result-table-wrap"></div>
+            </div>
+            <div class="cert-history-section">
+              <div class="section-header"><div class="section-title">History</div></div>
+              <div id="cert-history-body">
+                <div class="loading-hint">Loading…</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Settings -->
+        <div class="view" id="view-settings">
+          <div class="view-header">
+            <h1>Settings</h1>
+          </div>
+          <div class="settings-scroll">
+
+            <div class="settings-section">
+              <div class="settings-section-title">Identity Policies</div>
+              <div class="settings-row">
+                <label class="settings-label">Sensitive Licenses</label>
+                <div class="policy-tags" id="policy-sensitive-licenses"></div>
+                <div class="policy-add-row">
+                  <input class="chat-input" id="input-add-license" type="text" placeholder="Add license SKU…">
+                  <button class="btn-ghost" id="btn-add-license">Add</button>
+                </div>
+              </div>
+              <div class="settings-row">
+                <label class="settings-label">Sensitive Groups</label>
+                <div class="policy-tags" id="policy-sensitive-groups"></div>
+                <div class="policy-add-row">
+                  <input class="chat-input" id="input-add-group" type="text" placeholder="Add group name…">
+                  <button class="btn-ghost" id="btn-add-group">Add</button>
+                </div>
+              </div>
+              <div class="settings-row">
+                <label class="settings-label">Freeze Windows</label>
+                <table class="freeze-table" id="freeze-table">
+                  <thead><tr><th>Name</th><th>Days</th><th>All Day</th><th></th></tr></thead>
+                  <tbody id="freeze-tbody"></tbody>
+                </table>
+                <button class="btn-ghost" id="btn-add-freeze" style="margin-top:6px">Add Window</button>
+              </div>
+              <div class="settings-actions-row">
+                <button class="btn-run" id="btn-save-policies">Save Policies</button>
+                <span id="policies-save-status" class="save-status"></span>
+              </div>
+            </div>
+
+            <div class="settings-section">
+              <div class="settings-section-title">SoD Rules</div>
+              <table class="sod-table" id="sod-table">
+                <thead><tr><th>ID</th><th>Description</th><th>Action</th><th>Conflict A</th><th>Conflict B</th><th></th></tr></thead>
+                <tbody id="sod-tbody"></tbody>
+              </table>
+              <div class="sod-add-form" id="sod-add-form">
+                <input class="chat-input" id="sod-id"    type="text" placeholder="Rule ID">
+                <input class="chat-input" id="sod-desc"  type="text" placeholder="Description">
+                <select class="form-select" id="sod-action">
+                  <option value="block">block</option>
+                  <option value="warn">warn</option>
+                  <option value="require-approval">require-approval</option>
+                </select>
+                <input class="chat-input" id="sod-a-type" type="text" placeholder="A type">
+                <input class="chat-input" id="sod-a-name" type="text" placeholder="A display name">
+                <input class="chat-input" id="sod-b-type" type="text" placeholder="B type">
+                <input class="chat-input" id="sod-b-name" type="text" placeholder="B display name">
+                <button class="btn-ghost" id="btn-add-sod-rule">Add Rule</button>
+              </div>
+              <div class="settings-actions-row">
+                <button class="btn-run" id="btn-save-sod">Save SoD</button>
+                <span id="sod-save-status" class="save-status"></span>
+              </div>
+            </div>
+
+            <div class="settings-section">
+              <div class="settings-section-title">Operators</div>
+              <table class="op-table" id="op-table">
+                <thead><tr><th>Username</th><th>Role</th><th></th></tr></thead>
+                <tbody id="op-tbody"></tbody>
+              </table>
+              <div class="op-add-row">
+                <input class="chat-input" id="input-add-op-user" type="text" placeholder="Username">
+                <select class="form-select" id="input-add-op-role">
+                  <option value="admin">admin</option>
+                  <option value="helpdesk">helpdesk</option>
+                  <option value="viewer">viewer</option>
+                </select>
+                <button class="btn-ghost" id="btn-add-operator">Add</button>
+              </div>
+              <div class="settings-actions-row">
+                <button class="btn-run" id="btn-save-operators">Save Operators</button>
+                <span id="operators-save-status" class="save-status"></span>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- Audit Log -->
+        <div class="view" id="view-audit-log">
+          <div class="view-header">
+            <div class="view-header-left">
+              <h1>Audit Log</h1>
+              <span class="view-header-meta" id="log-count"></span>
+            </div>
+            <div style="display:flex;gap:8px;align-items:center">
+              <button class="btn-ghost" id="btn-toggle-timeline">Timeline</button>
+              <button class="btn-ghost" id="refresh-log">Refresh</button>
+            </div>
+          </div>
+          <div class="log-filter-bar" id="log-filter-bar">
+            <select class="form-select" id="log-filter-agent" style="min-width:90px">
+              <option value="">All agents</option>
+            </select>
+            <select class="form-select" id="log-filter-outcome">
+              <option value="">All outcomes</option>
+              <option value="success">success</option>
+              <option value="partial">partial</option>
+              <option value="failed">failed</option>
+              <option value="whatif">whatif</option>
+            </select>
+            <input class="chat-input" id="log-filter-upn"       type="text"  placeholder="UPN filter…" style="min-width:140px">
+            <input class="chat-input" id="log-filter-date-from" type="date"  title="From date">
+            <input class="chat-input" id="log-filter-date-to"   type="date"  title="To date">
+            <button class="btn-run"   id="btn-log-filter-apply">Apply</button>
+            <button class="btn-ghost" id="btn-log-filter-clear">Clear</button>
+          </div>
+          <div id="log-table-wrap" style="flex:1;overflow:auto;padding:16px 24px">
+            <table class="data-table" id="log-table">
+              <thead>
+                <tr>
+                  <th>Timestamp</th>
+                  <th>Agent</th>
+                  <th>Subject</th>
+                  <th>Operator</th>
+                  <th>Ticket</th>
+                  <th>Outcome</th>
+                  <th>Mode</th>
+                </tr>
+              </thead>
+              <tbody id="log-tbody">
+                <tr><td colspan="7" class="empty-row">Loading...</td></tr>
+              </tbody>
+            </table>
+            <div id="log-timeline" style="display:none;padding:8px 0"></div>
+          </div>
+        </div>
+
+        <!-- User Lookup -->
+        <div class="view" id="view-users">
+          <div class="view-header">
+            <div class="view-header-left">
+              <h1>Users</h1>
+              <span class="view-header-meta" id="user-search-count"></span>
+            </div>
+          </div>
+          <div class="users-content">
+            <div class="user-search-bar">
+              <input class="chat-input" id="user-search-input" type="text" placeholder="Search by name or UPN…" autocomplete="off">
+              <button class="btn-run" id="btn-user-search">Search</button>
+            </div>
+            <div class="users-layout">
+              <div class="user-results-list" id="user-results-list">
+                <div class="loading-hint">Enter a search term above.</div>
+              </div>
+              <div class="user-detail-panel" id="user-detail-panel" style="display:none">
+                <div class="user-detail-header">
+                  <div class="user-detail-name" id="udp-name"></div>
+                  <div class="user-detail-upn"  id="udp-upn"></div>
+                  <span class="user-detail-badge" id="udp-badge"></span>
+                </div>
+                <div class="user-detail-body">
+                  <div class="user-detail-section">
+                    <div class="section-title">Details</div>
+                    <div class="user-detail-rows" id="udp-details"></div>
+                  </div>
+                  <div class="user-detail-section">
+                    <div class="section-title">Licenses</div>
+                    <div id="udp-licenses" class="user-tag-list"></div>
+                  </div>
+                  <div class="user-detail-section">
+                    <div class="section-title">Groups (top 20)</div>
+                    <div id="udp-groups" class="user-tag-list"></div>
+                  </div>
+                  <div class="user-detail-section">
+                    <div class="section-title">Manager</div>
+                    <div id="udp-manager"></div>
+                  </div>
+                  <div class="user-detail-actions">
+                    <button class="btn-ghost" id="udp-btn-mover">Initiate Mover</button>
+                    <button class="btn-ghost" id="udp-btn-leaver-soft" title="Soft Leave: disables account and revokes all active sessions. Reversible.">Leaver (Soft)</button>
+                    <button class="btn-danger" id="udp-btn-leaver-hard" title="Hard Leave: removes all licenses and group memberships. Not automatically reversible.">Leaver (Hard)</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Graph Query Runner -->
+        <div class="view" id="view-graph">
+          <div class="view-header">
+            <h1>Graph Query Runner</h1>
+          </div>
+          <div class="graph-content">
+            <div class="graph-query-form">
+              <div class="graph-assist-section">
+                <div class="graph-assist-row">
+                  <input class="chat-input" id="graph-assist-input" type="text" placeholder="Describe what you want… e.g. 'list all disabled users'" autocomplete="off">
+                  <button class="btn-ghost graph-assist-btn" id="btn-graph-assist">✦ Suggest</button>
+                </div>
+                <div class="graph-common-queries">
+                  <span class="graph-cq-label">Quick:</span>
+                  <button class="graph-cq-chip" data-method="GET" data-url="https://graph.microsoft.com/v1.0/users?$select=id,displayName,userPrincipalName,accountEnabled&$top=50">All Users</button>
+                  <button class="graph-cq-chip" data-method="GET" data-url="https://graph.microsoft.com/v1.0/users?$filter=accountEnabled eq false&$select=id,displayName,userPrincipalName&$top=50">Disabled Users</button>
+                  <button class="graph-cq-chip" data-method="GET" data-url="https://graph.microsoft.com/v1.0/subscribedSkus?$select=skuPartNumber,consumedUnits,prepaidUnits">Licenses</button>
+                  <button class="graph-cq-chip" data-method="GET" data-url="https://graph.microsoft.com/v1.0/groups?$select=id,displayName,groupTypes&$top=50">Groups</button>
+                  <button class="graph-cq-chip" data-method="GET" data-url="https://graph.microsoft.com/v1.0/directoryRoles?$select=id,displayName">Directory Roles</button>
+                  <button class="graph-cq-chip" data-method="GET" data-url="https://graph.microsoft.com/v1.0/identity/conditionalAccess/policies?$select=id,displayName,state">CA Policies</button>
+                  <button class="graph-cq-chip" data-method="GET" data-url="https://graph.microsoft.com/v1.0/auditLogs/signIns?$top=10&$orderby=createdDateTime desc">Sign-Ins</button>
+                  <button class="graph-cq-chip" data-method="GET" data-url="https://graph.microsoft.com/v1.0/identityGovernance/accessReviews/definitions?$select=id,displayName,status">Access Reviews</button>
+                </div>
+              </div>
+              <div class="graph-form-row">
+                <select class="form-select" id="graph-method" style="width:100px">
+                  <option value="GET">GET</option>
+                  <option value="POST">POST</option>
+                  <option value="PATCH">PATCH</option>
+                  <option value="DELETE">DELETE</option>
+                </select>
+                <input class="chat-input" id="graph-url" type="text" placeholder="https://graph.microsoft.com/v1.0/…" autocomplete="off">
+                <button class="btn-run" id="btn-run-graph">Run</button>
+                <button class="btn-ghost" id="btn-copy-graph-resp" style="display:none">Copy</button>
+              </div>
+              <textarea class="bulk-csv-area" id="graph-body" rows="3" placeholder="Request body (JSON) — POST/PATCH only" style="display:none"></textarea>
+              <div class="graph-recent-wrap" id="graph-recent-wrap" style="display:none">
+                <div class="section-title" style="margin-bottom:6px">Recent Queries</div>
+                <div class="graph-recent-list" id="graph-recent-list"></div>
+              </div>
+            </div>
+            <div class="graph-response-panel" id="graph-response-panel" style="display:none">
+              <div class="section-header">
+                <div class="section-title">Response</div>
+                <div style="display:flex;gap:8px;align-items:center">
+                  <span class="view-header-meta" id="graph-resp-meta"></span>
+                  <button class="btn-ghost graph-color-btn" id="btn-color-json" style="display:none">Color</button>
+                </div>
+              </div>
+              <div class="graph-digest-card" id="graph-digest-card" style="display:none">
+                <span class="graph-digest-icon">✦</span>
+                <span class="graph-digest-text" id="graph-digest-text"></span>
+              </div>
+              <pre class="graph-response-pre" id="graph-response-pre"></pre>
+            </div>
+          </div>
+        </div>
+
+      </main>
+    </div>
+  </div>
+
+  <!-- Operator switch modal -->
+  <div class="op-switch-overlay" id="op-switch-overlay" style="display:none">
+    <div class="op-switch-card">
+      <div class="op-switch-title">Switch Operator</div>
+      <div class="op-switch-list" id="op-switch-list"></div>
+      <button class="op-switch-cancel" id="op-switch-cancel">Cancel</button>
+    </div>
+  </div>
+
+  <!-- Toast container -->
+  <div class="toast-container" id="toast-container"></div>
+
+  <!-- Help drawer -->
+  <div class="help-overlay" id="help-overlay"></div>
+  <aside class="help-drawer" id="help-drawer">
+    <div class="help-drawer-header">
+      <span class="help-drawer-title">Quick Reference</span>
+      <button class="win-btn" id="btn-help-close">&#x2715;</button>
+    </div>
+    <div class="help-drawer-body">
+
+      <div class="help-card">
+        <div class="help-card-title">JML Workflow</div>
+        <div class="help-card-body">
+          <div class="help-step"><span class="help-step-badge joiner">Joiner</span> Creates account, sets attributes</div>
+          <div class="help-step"><span class="help-step-badge enroller">Enroller</span> Licenses, groups, device inventory</div>
+          <div class="help-step"><span class="help-step-badge mover">Mover</span> Role / department / access changes</div>
+          <div class="help-step"><span class="help-step-badge leaver">Leaver</span> Soft → Hard offboarding</div>
+        </div>
+      </div>
+
+      <div class="help-card">
+        <div class="help-card-title">Required Fields</div>
+        <div class="help-card-body help-fields">
+          <div class="help-field-row"><span class="help-op">Joiner</span><span>First name, last name, department, job title, country (2-letter)</span></div>
+          <div class="help-field-row"><span class="help-op">Enroller</span><span>UPN only</span></div>
+          <div class="help-field-row"><span class="help-op">Mover</span><span>UPN + at least one change</span></div>
+          <div class="help-field-row"><span class="help-op">Leaver</span><span>UPN + ticket ref (e.g. INC-1234)</span></div>
+        </div>
+      </div>
+
+      <div class="help-card">
+        <div class="help-card-title">Leaver Stages</div>
+        <div class="help-card-body">
+          <div class="help-stage">
+            <span class="help-stage-label soft">Soft</span>
+            <span>Disables account, revokes all sessions. <strong>Reversible.</strong></span>
+          </div>
+          <div class="help-stage">
+            <span class="help-stage-label hard">Hard</span>
+            <span>Removes licenses and group memberships. <strong>Not auto-reversible.</strong></span>
+          </div>
+        </div>
+      </div>
+
+      <div class="help-card">
+        <div class="help-card-title">Execution Modes</div>
+        <div class="help-card-body">
+          <div class="help-stage">
+            <span class="badge-whatif">WhatIf</span>
+            <span>Full logic, zero directory changes. Use to preview.</span>
+          </div>
+          <div class="help-stage" style="margin-top:8px">
+            <span class="badge-live">Live</span>
+            <span>Real changes execute immediately against the tenant.</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="help-card">
+        <div class="help-card-title">Policies</div>
+        <div class="help-card-body help-policies">
+          <div class="help-policy-row"><span class="help-policy-label">Freeze</span> No changes on Saturday or Sunday</div>
+          <div class="help-policy-row"><span class="help-policy-label">Dual approval</span> Leaver Soft requires second operator</div>
+          <div class="help-policy-row"><span class="help-policy-label">Ticket ref</span> Required for Leavers, recommended for Movers</div>
+          <div class="help-policy-row"><span class="help-policy-label">UPN format</span> firstname.lastname@contoso.onmicrosoft.com</div>
+        </div>
+      </div>
+
+    </div>
+  </aside>
+
+  <script src="app.js"></script>
+</body>
+</html>
