@@ -244,7 +244,7 @@ $driftReport = [ordered]@{
             title    = 'Agent role assignment changed since last baseline'
             count    = 1
             items    = @(
-                @{ agent='ClaudeAgentJoiner'; objectId='JOINER-USER-OBJECT-ID-0000000001b'; role='User Administrator'; assignmentId='drift-detected'; note='Assignment scope changed to tenant-wide' }
+                @{ agent='ClaudeAgentJoiner'; objectId='<JOINER-USER-OBJECT-ID>'; role='User Administrator'; assignmentId='drift-detected'; note='Assignment scope changed to tenant-wide' }
             )
         }
         [ordered]@{
@@ -253,7 +253,7 @@ $driftReport = [ordered]@{
             title    = 'PIM eligible assignment approaching expiry'
             count    = 1
             items    = @(
-                @{ id='pim-001'; appId='JOINER-APP-CLIENT-ID-00000000001'; group='Engineering-All'; note='Eligible assignment expires in 14 days' }
+                @{ id='pim-001'; appId='<JOINER-APP-CLIENT-ID>'; group='Engineering-All'; note='Eligible assignment expires in 14 days' }
             )
         }
     )
@@ -310,7 +310,7 @@ Write-Host "  Written: blob-export-status.json" -ForegroundColor Green
     eventsIngested = 28
     auditEntries   = 22
     secFindings    = 6
-    workspaceId    = 'WORKSPACE-ID-0000000000000000001d'
+    workspaceId    = '<WORKSPACE-ID>'
 } | ConvertTo-Json -Compress |
     Set-Content (Join-Path $reportsDir 'sentinel-ingest-status.json') -Encoding UTF8
 Write-Host "  Written: sentinel-ingest-status.json" -ForegroundColor Green
@@ -402,8 +402,8 @@ $scheduledPath = Join-Path $agentsRoot 'approver\scheduled.json'
         requestedBy = 'admin'
         ticketRef   = 'INC-1032'
         payload     = @{
-            givenName         = 'Fatima'
-            surname           = 'Al-Rashid'
+            givenName         = 'Jamie'
+            surname           = 'Smith'
             userPrincipalName = "jamie.smith@$domain"
             department        = 'Marketing'
             jobTitle          = 'Digital Marketing Specialist'

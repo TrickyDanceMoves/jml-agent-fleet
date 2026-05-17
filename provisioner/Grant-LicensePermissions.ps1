@@ -8,13 +8,13 @@ function Write-Log {
 }
 
 $agentsRoot       = Split-Path $PSScriptRoot -Parent
-$provisionerObjId = "PROVISIONER-SP-OBJECT-ID-0000005a"
+$provisionerObjId = "<PROVISIONER-SP-OBJECT-ID>"
 
 $targetApps = @(
-    @{ Name = "Claude IAM Agent Joiner";   ClientId = "JOINER-APP-CLIENT-ID-00000000001" },
-    @{ Name = "Claude IAM Agent Enroller"; ClientId = "ENROLLER-APP-CLIENT-ID-00000000004" },
-    @{ Name = "Claude IAM Agent Mover";    ClientId = "MOVER-APP-CLIENT-ID-000000000002" },
-    @{ Name = "Claude IAM Agent Leaver";   ClientId = "LEAVER-APP-CLIENT-ID-000000000003" }
+    @{ Name = "Claude IAM Agent Joiner";   ClientId = "<JOINER-APP-CLIENT-ID>" },
+    @{ Name = "Claude IAM Agent Enroller"; ClientId = "<ENROLLER-APP-CLIENT-ID>" },
+    @{ Name = "Claude IAM Agent Mover";    ClientId = "<MOVER-APP-CLIENT-ID>" },
+    @{ Name = "Claude IAM Agent Leaver";   ClientId = "<LEAVER-APP-CLIENT-ID>" }
 )
 
 $permissionsNeeded = @("LicenseAssignment.ReadWrite.All")

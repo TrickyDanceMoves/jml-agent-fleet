@@ -108,7 +108,7 @@ POST-INSTALL STEPS (run on new PC after Import-JMLFleet.ps1)
          .\agents\provisioner\New-AgentConditionalAccess.ps1 -AllowedCidr "x.x.x.x/32" -ReportOnly
          (or configure manually in Entra Admin Center -> Conditional Access -> Workload identities)
 
-TENANT ID:  YOUR-TENANT-ID-PLACEHOLDER-0000
+TENANT ID:  <YOUR-TENANT-ID>
 "@ | Set-Content $notesPath -Encoding UTF8
 
 # --- Zip it ---

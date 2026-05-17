@@ -1,4 +1,4 @@
-﻿'use strict';
+'use strict';
 
 const { app, BrowserWindow, ipcMain } = require('electron');
 const { execFileSync, spawnSync }      = require('child_process');

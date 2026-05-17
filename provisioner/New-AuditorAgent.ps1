@@ -8,8 +8,8 @@ function Write-Log {
 }
 
 $agentsRoot       = Split-Path $PSScriptRoot -Parent
-$provisionerObjId = "PROVISIONER-SP-OBJECT-ID-0000005a"
-$tenantId         = "YOUR-TENANT-ID-PLACEHOLDER-0000"
+$provisionerObjId = "<PROVISIONER-SP-OBJECT-ID>"
+$tenantId         = "<YOUR-TENANT-ID>"
 $appName          = "Claude IAM Agent Auditor"
 
 $permissionsNeeded = @(

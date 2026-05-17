@@ -1,9 +1,9 @@
-﻿{
+{
     "_comment":  "PIM for Groups configuration. groupId values populated by New-PIMGroups.ps1. activationDurationHours controls how long role elevation lasts per operation.",
     "activationDurationHours":  1,
     "groups":  {
                    "JML-UserAdmin":  {
-                                         "groupId":  "JML-USERADMIN-GROUP-ID-00000000001",
+                                         "groupId":  "<JML-USERADMIN-GROUP-ID>",
                                          "roleDisplayName":  "User Administrator",
                                          "assignedAgents":  [
                                                                 "joiner",
@@ -12,7 +12,7 @@
                                                             ]
                                      },
                    "JML-LicenseAdmin":  {
-                                            "groupId":  "JML-LICENSEADMIN-GROUP-ID-000000002",
+                                            "groupId":  "<JML-LICENSEADMIN-GROUP-ID>",
                                             "roleDisplayName":  "License Administrator",
                                             "assignedAgents":  [
                                                                    "joiner",
@@ -22,7 +22,7 @@
                                                                ]
                                         },
                    "JML-CloudDeviceAdmin":  {
-                                                "groupId":  "JML-CLOUDDEVICEADMIN-GROUP-ID-0003",
+                                                "groupId":  "<JML-CLOUDDEVICEADMIN-GROUP-ID>",
                                                 "roleDisplayName":  "Cloud Device Administrator",
                                                 "assignedAgents":  [
                                                                        "enroller"
@@ -31,28 +31,28 @@
                },
     "agents":  {
                    "joiner":  {
-                                  "objectId":  "JOINER-SP-OBJECT-ID-000000000001a",
+                                  "objectId":  "<JOINER-SP-OBJECT-ID>",
                                   "requiredGroups":  [
                                                          "JML-UserAdmin",
                                                          "JML-LicenseAdmin"
                                                      ]
                               },
                    "mover":  {
-                                 "objectId":  "MOVER-SP-OBJECT-ID-0000000000002a",
+                                 "objectId":  "<MOVER-SP-OBJECT-ID>",
                                  "requiredGroups":  [
                                                         "JML-UserAdmin",
                                                         "JML-LicenseAdmin"
                                                     ]
                              },
                    "leaver":  {
-                                  "objectId":  "LEAVER-SP-OBJECT-ID-0000000000003a",
+                                  "objectId":  "<LEAVER-SP-OBJECT-ID>",
                                   "requiredGroups":  [
                                                          "JML-UserAdmin",
                                                          "JML-LicenseAdmin"
                                                      ]
                               },
                    "enroller":  {
-                                    "objectId":  "ENROLLER-SP-OBJECT-ID-00000000004a",
+                                    "objectId":  "<ENROLLER-SP-OBJECT-ID>",
                                     "requiredGroups":  [
                                                            "JML-LicenseAdmin",
                                                            "JML-CloudDeviceAdmin"

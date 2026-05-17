@@ -118,10 +118,10 @@ Grant-AppPermission $provisionerSpId "Provisioner" "PrivilegedAccess.ReadWrite.A
 Grant-AppPermission $provisionerSpId "Provisioner" "Group.ReadWrite.All"
 
 $agents = @{
-    Joiner   = "JOINER-SP-OBJECT-ID-000000000001a"
-    Mover    = "MOVER-SP-OBJECT-ID-0000000000002a"
-    Leaver   = "LEAVER-SP-OBJECT-ID-0000000000003a"
-    Enroller = "ENROLLER-SP-OBJECT-ID-00000000004a"
+    Joiner   = "<JOINER-SP-OBJECT-ID>"
+    Mover    = "<MOVER-SP-OBJECT-ID>"
+    Leaver   = "<LEAVER-SP-OBJECT-ID>"
+    Enroller = "<ENROLLER-SP-OBJECT-ID>"
 }
 foreach ($a in $agents.GetEnumerator()) {
     Write-Host "`n[Setup] Granting PIM self-activation to $($a.Key)..."
