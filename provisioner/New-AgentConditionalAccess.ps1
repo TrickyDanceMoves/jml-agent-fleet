@@ -22,12 +22,12 @@ $agentsRoot = Split-Path $PSScriptRoot -Parent
 
 # ── Agent client IDs to protect ───────────────────────────────────────────────
 $agentClientIds = @(
-    "JOINER-APP-CLIENT-ID-00000000001",  # Joiner
-    "MOVER-APP-CLIENT-ID-000000000002",  # Mover
-    "LEAVER-APP-CLIENT-ID-000000000003",  # Leaver
-    "ENROLLER-APP-CLIENT-ID-00000000004",  # Enroller
-    "APPROVER-APP-CLIENT-ID-00000000005",  # Approver
-    "PROVISIONER-APP-CLIENT-ID-0000006"   # Provisioner
+    "<JOINER-APP-CLIENT-ID>",  # Joiner
+    "<MOVER-APP-CLIENT-ID>",  # Mover
+    "<LEAVER-APP-CLIENT-ID>",  # Leaver
+    "<ENROLLER-APP-CLIENT-ID>",  # Enroller
+    "<APPROVER-APP-CLIENT-ID>",  # Approver
+    "<PROVISIONER-APP-CLIENT-ID>"   # Provisioner
 )
 
 # Read Auditor client ID if configured

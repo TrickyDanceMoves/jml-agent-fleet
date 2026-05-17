@@ -1,4 +1,4 @@
-﻿<#
+<#
 .SYNOPSIS
     Grants the Graph API permissions needed for PIM for Groups setup,
     agent self-activation, and access certification campaigns.
@@ -73,10 +73,10 @@ Grant-AppPermission -SpObjectId $auditorSpId -AppName "Auditor" -Permission "Ide
 
 # Agents - PIM self-activation only
 $agents = @{
-    Joiner   = "JOINER-SP-OBJECT-ID-000000000001a"
-    Mover    = "MOVER-SP-OBJECT-ID-0000000000002a"
-    Leaver   = "LEAVER-SP-OBJECT-ID-0000000000003a"
-    Enroller = "ENROLLER-SP-OBJECT-ID-00000000004a"
+    Joiner   = "<JOINER-SP-OBJECT-ID>"
+    Mover    = "<MOVER-SP-OBJECT-ID>"
+    Leaver   = "<LEAVER-SP-OBJECT-ID>"
+    Enroller = "<ENROLLER-SP-OBJECT-ID>"
 }
 foreach ($a in $agents.GetEnumerator()) {
     Write-Host "`n[Permissions] $($a.Key)..."

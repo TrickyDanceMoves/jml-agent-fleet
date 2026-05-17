@@ -4,14 +4,14 @@
 
 | Agent | Client ID | Config |
 |---|---|---|
-| ClaudeAgentJoiner | `JOINER-APP-CLIENT-ID-00000000001` | `agents/joiner/config.json` |
-| ClaudeAgentMover | `MOVER-APP-CLIENT-ID-000000000002` | `agents/mover/config.json` |
-| ClaudeAgentLeaver | `LEAVER-APP-CLIENT-ID-000000000003` | `agents/leaver/config.json` |
-| ClaudeAgentEnroller | `ENROLLER-APP-CLIENT-ID-00000000004` | `agents/enroller/config.json` |
-| AgentApprover | `APPROVER-APP-CLIENT-ID-00000000005` | `agents/approver/config.json` |
-| ClaudeAgentProvisioner | `PROVISIONER-APP-CLIENT-ID-0000006` | `agents/provisioner/config.json` |
+| ClaudeAgentJoiner | `<JOINER-APP-CLIENT-ID>` | `agents/joiner/config.json` |
+| ClaudeAgentMover | `<MOVER-APP-CLIENT-ID>` | `agents/mover/config.json` |
+| ClaudeAgentLeaver | `<LEAVER-APP-CLIENT-ID>` | `agents/leaver/config.json` |
+| ClaudeAgentEnroller | `<ENROLLER-APP-CLIENT-ID>` | `agents/enroller/config.json` |
+| AgentApprover | `<APPROVER-APP-CLIENT-ID>` | `agents/approver/config.json` |
+| ClaudeAgentProvisioner | `<PROVISIONER-APP-CLIENT-ID>` | `agents/provisioner/config.json` |
 | Claude IAM Agent Auditor | see config | `agents/auditor/config.json` |
-| JML-PurviewHRConnector | `PURVIEW-APP-CLIENT-ID-00000000008` | `agents/purview/config.json` |
+| JML-PurviewHRConnector | `<PURVIEW-APP-CLIENT-ID>` | `agents/purview/config.json` |
 
 ## Entra Role Assignments (Least Privilege)
 

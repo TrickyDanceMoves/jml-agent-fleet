@@ -12,27 +12,27 @@ $agentsRoot = Split-Path $PSScriptRoot -Parent
 
 # Expected permission manifest
 $manifest = @{
-    "JOINER-APP-CLIENT-ID-00000000001" = @{
+    "<JOINER-APP-CLIENT-ID>" = @{
         Name = "Claude IAM Agent Joiner"
         Permissions = @("User.ReadWrite.All","Group.Read.All","GroupMember.ReadWrite.All","LicenseAssignment.ReadWrite.All")
     }
-    "MOVER-APP-CLIENT-ID-000000000002" = @{
+    "<MOVER-APP-CLIENT-ID>" = @{
         Name = "Claude IAM Agent Mover"
         Permissions = @("User.ReadWrite.All","Group.Read.All","GroupMember.ReadWrite.All","LicenseAssignment.ReadWrite.All")
     }
-    "LEAVER-APP-CLIENT-ID-000000000003" = @{
+    "<LEAVER-APP-CLIENT-ID>" = @{
         Name = "Claude IAM Agent Leaver"
         Permissions = @("User.ReadWrite.All","LicenseAssignment.ReadWrite.All","GroupMember.ReadWrite.All")
     }
-    "ENROLLER-APP-CLIENT-ID-00000000004" = @{
+    "<ENROLLER-APP-CLIENT-ID>" = @{
         Name = "Claude IAM Agent Enroller"
         Permissions = @("User.ReadWrite.All","Group.Read.All","GroupMember.ReadWrite.All","LicenseAssignment.ReadWrite.All")
     }
-    "APPROVER-APP-CLIENT-ID-00000000005" = @{
+    "<APPROVER-APP-CLIENT-ID>" = @{
         Name = "Claude IAM Agent Approver"
         Permissions = @("User.Read.All","Group.Read.All")
     }
-    "PROVISIONER-APP-CLIENT-ID-0000006" = @{
+    "<PROVISIONER-APP-CLIENT-ID>" = @{
         Name = "Claude IAM Agent Provisioner"
         Permissions = @("Application.ReadWrite.All","AppRoleAssignment.ReadWrite.All")
     }
@@ -60,7 +60,7 @@ $leaverConfig = Get-Content (Join-Path $agentsRoot "leaver\config.json") | Conve
 $leaverSecret  = ConvertTo-SecureString $leaverConfig.EncryptedSecret
 $leaverCred    = New-Object System.Management.Automation.PSCredential($leaverConfig.ClientId, $leaverSecret)
 Connect-MgGraph -TenantId $leaverConfig.TenantId -ClientSecretCredential $leaverCred -NoWelcome
-Update-MgUser -UserId "PROVISIONER-SP-OBJECT-ID-0000005a" -AccountEnabled:$true -ErrorAction Stop
+Update-MgUser -UserId "<PROVISIONER-SP-OBJECT-ID>" -AccountEnabled:$true -ErrorAction Stop
 Disconnect-MgGraph | Out-Null
 
 Connect-MgGraph -TenantId $provConfig.TenantId -ClientSecretCredential $provCred -NoWelcome
@@ -126,7 +126,7 @@ Disconnect-MgGraph | Out-Null
 
 # Disable Provisioner
 Connect-MgGraph -TenantId $leaverConfig.TenantId -ClientSecretCredential $leaverCred -NoWelcome
-Update-MgUser -UserId "PROVISIONER-SP-OBJECT-ID-0000005a" -AccountEnabled:$false -ErrorAction Stop
+Update-MgUser -UserId "<PROVISIONER-SP-OBJECT-ID>" -AccountEnabled:$false -ErrorAction Stop
 Disconnect-MgGraph | Out-Null
 
 Write-Log ""

@@ -184,6 +184,6 @@ Each agent reads `~/.claude/agents/{agent}/config.json`. See `agents/provisioner
 
 | Property | Value |
 |---|---|
-| Tenant ID | `YOUR-TENANT-ID-PLACEHOLDER-0000` |
+| Tenant ID | `<YOUR-TENANT-ID>` |
 | Domain | `contoso.onmicrosoft.com` |
 | Agent department tag | `AI Agents` |

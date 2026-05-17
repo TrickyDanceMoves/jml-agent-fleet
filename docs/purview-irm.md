@@ -30,7 +30,7 @@ sequenceDiagram
 | Property | Value |
 |---|---|
 | Connector app | JML-PurviewHRConnector |
-| Client ID | `PURVIEW-APP-CLIENT-ID-00000000008` |
+| Client ID | `<PURVIEW-APP-CLIENT-ID>` |
 | Job ID | `afd520bd-c2ce-4087-915c-8b6ba6757b54` |
 | Config file | `agents/purview/config.json` |
 | Token scope | `https://api.consumerdata.microsoft.com/.default` |
