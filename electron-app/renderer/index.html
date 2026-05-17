@@ -1381,6 +1381,8 @@
               <div class="s-sec">Govern</div>
               <div class="s-item" data-sub="sod">SoD Rules</div>
               <div class="s-item" data-sub="notifications">Notification Routing</div>
+              <div class="s-sec">Appearance</div>
+              <div class="s-item" data-sub="appearance">Theme</div>
             </aside>
 
             <div class="settings-main">
@@ -1620,6 +1622,31 @@
                 <div style="padding:12px 18px;display:flex;align-items:center;justify-content:space-between;border-top:1px solid var(--border)">
                   <span id="notif-rules-status" style="font-family:var(--mono);font-size:11px;color:var(--muted)"></span>
                   <button class="btn primary" id="btn-save-notifications">Save Rules</button>
+                </div>
+              </div>
+
+              <!-- Appearance · Theme (side-by-side comparison toggle) -->
+              <div class="set-card set-sub" data-sub="appearance" style="display:none">
+                <div class="h">
+                  <div><div class="ttl">Theme</div><div class="sub">Switch the console palette. Both themes use the same layout — only color tokens differ. Survives reload.</div></div>
+                </div>
+                <div class="set-row">
+                  <div>
+                    <div class="lbl">Color Palette</div>
+                    <div class="desc">Warm (oklch) is the validated production aesthetic. Preview (purple/blue) is the latest design iteration — use to A/B compare before committing.</div>
+                  </div>
+                  <div class="val right-ctrl" style="display:flex;gap:8px;flex-wrap:wrap">
+                    <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px">
+                      <input type="radio" name="theme-pick" value="warm"> Warm <span style="color:var(--muted);font-family:var(--mono);font-size:11px">(oklch)</span>
+                    </label>
+                    <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px">
+                      <input type="radio" name="theme-pick" value="preview"> Preview <span style="color:var(--muted);font-family:var(--mono);font-size:11px">(purple/blue)</span>
+                    </label>
+                  </div>
+                </div>
+                <div style="padding:12px 18px;border-top:1px solid var(--border);background:var(--bg-2);font-family:var(--mono);font-size:11px;color:var(--text-2);line-height:1.7">
+                  <div style="color:var(--muted);text-transform:uppercase;letter-spacing:.1em;font-size:9.5px;margin-bottom:6px">Live preview</div>
+                  <div>Switching is instant — no reload required. The choice is stored in <code>localStorage.jmlTheme</code> and applied on next launch.</div>
                 </div>
               </div>
 

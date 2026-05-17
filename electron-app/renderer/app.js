@@ -2883,6 +2883,29 @@ if (typeof window.api?.onHrQueue === 'function') {
   loadNotificationRules();
 })();
 
+// ── Theme switcher (warm oklch ↔ preview purple/blue) ───────────────────────
+(function() {
+  const THEME_KEY = 'jmlTheme';
+  const VALID = new Set(['warm', 'preview']);
+  function applyTheme(name) {
+    if (!VALID.has(name)) name = 'warm';
+    if (name === 'preview') document.documentElement.dataset.theme = 'preview';
+    else delete document.documentElement.dataset.theme;
+  }
+  let saved = 'warm';
+  try { const s = localStorage.getItem(THEME_KEY); if (VALID.has(s)) saved = s; } catch (_) {}
+  applyTheme(saved);
+
+  const radios = document.querySelectorAll('input[name="theme-pick"]');
+  if (!radios.length) return;
+  radios.forEach(r => { r.checked = (r.value === saved); });
+  radios.forEach(r => r.addEventListener('change', () => {
+    if (!r.checked) return;
+    applyTheme(r.value);
+    try { localStorage.setItem(THEME_KEY, r.value); } catch (_) {}
+  }));
+})();
+
 // ── Tenant onboarding: read/write Tenant ID + Client IDs across all agents ──
 async function loadTenantConfig() {
   if (typeof window.api?.getTenantConfig !== 'function') return;
