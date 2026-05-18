@@ -24,6 +24,14 @@ AI-powered identity lifecycle automation for Microsoft Entra ID. Seven Claude-ba
 |---|---|
 | ![Audit Log](docs/images/audit-log.png) | ![Graph](docs/images/graph.png) |
 
+| Access Reviews | Integrations |
+|---|---|
+| ![Access Reviews](docs/images/access-reviews.png) | ![Integrations](docs/images/integrations.png) |
+
+| Auth Selection (PIN / Windows) | |
+|---|---|
+| ![Auth selection](docs/images/auth-select.png) | |
+
 ## What It Does
 
 Automates identity provisioning and deprovisioning across a Microsoft 365 / Entra ID tenant, replacing manual IT processes with auditable, policy-gated agent workflows that run from a desktop operations console.
@@ -90,6 +98,8 @@ Desktop app (`agents/electron-app/`) with a frameless operator selector at start
 | Exports | Blob Storage and Sentinel export status + Run Now buttons |
 | Approvals | Pending dual-approval leaver tokens |
 | Operations | Direct operation dispatch |
+| Access Reviews | Recurring entitlement attestation campaigns; reviewers attest in-product, revocations route through Approver |
+| Integrations | HRIS, notification, and SIEM connector status; durable event queue with replay and canonical schema viewer |
 | Certs | Certificate status per agent app registration |
 | Settings | App configuration |
 | Audit Log | Searchable 7-column audit log (Timestamp · Agent · Subject · Operator · Ticket · Outcome · Mode) |
