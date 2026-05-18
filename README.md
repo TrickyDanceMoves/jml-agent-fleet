@@ -4,33 +4,33 @@ AI-powered identity lifecycle automation for Microsoft Entra ID. Seven Claude-ba
 
 ## Screenshots
 
-| Operator Selector | Dashboard |
+| Operator Selector | Auth Selection (PIN / Windows) |
 |---|---|
-| ![Operator selector](docs/images/operator-select.png) | ![Dashboard](docs/images/dashboard.png) |
+| ![Operator selector](docs/images/operator-select.png) | ![Auth selection](docs/images/auth-select.png) |
+
+| Dashboard | |
+|---|---|
+| ![Dashboard](docs/images/dashboard.png) | |
 
 | JML Fleet (Input) | JML Fleet (Conversation) |
 |---|---|
 | ![JML Fleet input](docs/images/jml-fleet-input.png) | ![JML Fleet](docs/images/approver.png) |
 
-| Auditor | Approvals |
+| Auditor | Graph Runner |
 |---|---|
-| ![Auditor](docs/images/auditor.png) | ![Approvals](docs/images/approvals.png) |
+| ![Auditor](docs/images/auditor.png) | ![Graph](docs/images/graph.png) |
 
-| Security | Exports |
+| Approvals | Access Reviews |
 |---|---|
-| ![Security](docs/images/security.png) | ![Exports](docs/images/exports.png) |
+| ![Approvals](docs/images/approvals.png) | ![Access Reviews](docs/images/access-reviews.png) |
 
-| Audit Log | Graph Runner |
+| Integrations | Security |
 |---|---|
-| ![Audit Log](docs/images/audit-log.png) | ![Graph](docs/images/graph.png) |
+| ![Integrations](docs/images/integrations.png) | ![Security](docs/images/security.png) |
 
-| Access Reviews | Integrations |
+| Audit Log | Exports |
 |---|---|
-| ![Access Reviews](docs/images/access-reviews.png) | ![Integrations](docs/images/integrations.png) |
-
-| Auth Selection (PIN / Windows) | |
-|---|---|
-| ![Auth selection](docs/images/auth-select.png) | |
+| ![Audit Log](docs/images/audit-log.png) | ![Exports](docs/images/exports.png) |
 
 ## What It Does
 
