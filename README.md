@@ -32,6 +32,14 @@ AI-powered identity lifecycle automation for Microsoft Entra ID. Seven Claude-ba
 |---|---|
 | ![Audit Log](docs/images/audit-log.png) | ![Exports](docs/images/exports.png) |
 
+| Users | Certs |
+|---|---|
+| ![Users](docs/images/users.png) | ![Certs](docs/images/certs.png) |
+
+| Settings | |
+|---|---|
+| ![Settings](docs/images/settings.png) | |
+
 ## What It Does
 
 Automates identity provisioning and deprovisioning across a Microsoft 365 / Entra ID tenant, replacing manual IT processes with auditable, policy-gated agent workflows that run from a desktop operations console.
