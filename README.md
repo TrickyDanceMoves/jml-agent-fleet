@@ -2,6 +2,8 @@
 
 AI-powered identity lifecycle automation for Microsoft Entra ID. Seven Claude-backed agents handle the full Joiner/Mover/Leaver (JML) workflow with zero-trust architecture, UEBA, drift detection, AI-assisted provisioning, and end-to-end HRIS integration, replicating core capabilities of enterprise IGA platforms like SailPoint and Saviynt.
 
+**[Interactive Case Study](https://trickydancemoves.github.io/jml-agent-fleet/docs/case-study.html)** — walkthrough of the architecture, agent design, and live operation flows.
+
 ## Screenshots
 
 | Operator Selector | Auth Selection (PIN / Windows) |
@@ -39,6 +41,18 @@ AI-powered identity lifecycle automation for Microsoft Entra ID. Seven Claude-ba
 | Settings | |
 |---|---|
 | ![Settings](docs/images/settings.png) | |
+
+| Auth Selector | Access Reviews |
+|---|---|
+| ![Auth selector](docs/images/authselect.png) | ![Access reviews](docs/images/accessreviews.png) |
+
+| Operations | Integrations |
+|---|---|
+| ![Operations](docs/images/operations.png) | ![Integrations](docs/images/integrations.png) |
+
+| Settings | Users |
+|---|---|
+| ![Settings](docs/images/settings2.png) | ![Users](docs/images/users2.png) |
 
 ## What It Does
 
@@ -109,7 +123,7 @@ Desktop app (`agents/electron-app/`) with a frameless operator selector at start
 | Access Reviews | Recurring entitlement attestation campaigns; reviewers attest in-product, revocations route through Approver |
 | Integrations | HRIS, notification, and SIEM connector status; durable event queue with replay and canonical schema viewer |
 | Certs | Certificate status per agent app registration |
-| Settings | App configuration |
+| Settings | Tenant setup wizard, operator RBAC, freeze windows, SoD rules, notification routing, theme |
 | Audit Log | Searchable 7-column audit log (Timestamp · Agent · Subject · Operator · Ticket · Outcome · Mode) |
 | Users | User search with UPN autocomplete (cache-first) |
 | Graph | Graph Query Runner with AI-suggested queries, 8 quick-pick chips, and AI digest |
@@ -122,6 +136,8 @@ Desktop app (`agents/electron-app/`) with a frameless operator selector at start
 - `Test-AgentPermissions.ps1` detects and optionally repairs permission drift
 
 ## Architecture
+
+![JML AI Agent Architecture](docs/images/JML%20AI%20Agent%20Architecture.png)
 
 ```
 HRIS (BambooHR)
@@ -173,7 +189,18 @@ agents/auditor/                 Scheduled intelligence
 | Scripting | PowerShell 5.1 |
 | Local dev | Azurite (Azure Storage emulator) |
 
-## Running Locally
+## Installation
+
+Run `dist/JML Console Setup 1.0.0.exe`. No admin rights required; it installs per-user to `%LOCALAPPDATA%\Programs\JML Console\`.
+
+**Prerequisite:** Microsoft Graph PowerShell SDK
+```powershell
+Install-Module Microsoft.Graph -Scope CurrentUser
+```
+
+After installing, open the app and go to **Settings > Tenant Binding** to run the Setup Wizard. It handles device-code sign-in, creates all eight app registrations in your tenant, and generates admin-consent links for each one.
+
+## Local Development
 
 ### Prerequisites
 - Windows with PowerShell 5.1
@@ -194,9 +221,6 @@ npm start
 cd agents
 .\dev-start.ps1   # opens 3 windows: Azurite → worker → func start
 ```
-
-### Agent Credentials
-Each agent reads `~/.claude/agents/{agent}/config.json`. See `agents/provisioner/` for provisioning scripts that create app registrations and generate credentials.
 
 ## Tenant
 

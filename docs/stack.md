@@ -16,8 +16,7 @@
 |---|---|
 | AI model | Anthropic Claude (claude-sonnet-4-6) |
 | SDK | @anthropic-ai/sdk ^0.94.0 |
-| Approver runtime | Node.js 18, packaged via @yao-pkg/pkg |
-| Approver binary | `JML-Approver.exe` (42.6 MB, node18-win-x64) |
+| Agent runtime | Node.js (embedded in Electron via IPC) |
 
 ## Frontend
 
