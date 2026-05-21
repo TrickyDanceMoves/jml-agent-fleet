@@ -24,6 +24,18 @@ AI-powered identity lifecycle automation for Microsoft Entra ID. Seven Claude-ba
 |---|---|
 | ![Audit Log](docs/images/audit-log.png) | ![Graph](docs/images/graph.png) |
 
+| Auth Selector | Access Reviews |
+|---|---|
+| ![Auth selector](docs/images/authselect.png) | ![Access reviews](docs/images/accessreviews.png) |
+
+| Operations | Integrations |
+|---|---|
+| ![Operations](docs/images/operations.png) | ![Integrations](docs/images/integrations.png) |
+
+| Settings | Users |
+|---|---|
+| ![Settings](docs/images/settings2.png) | ![Users](docs/images/users2.png) |
+
 ## What It Does
 
 Automates identity provisioning and deprovisioning across a Microsoft 365 / Entra ID tenant, replacing manual IT processes with auditable, policy-gated agent workflows that run from a desktop operations console.
@@ -91,7 +103,7 @@ Desktop app (`agents/electron-app/`) with a frameless operator selector at start
 | Approvals | Pending dual-approval leaver tokens |
 | Operations | Direct operation dispatch |
 | Certs | Certificate status per agent app registration |
-| Settings | App configuration |
+| Settings | Tenant setup wizard, operator RBAC, freeze windows, SoD rules, notification routing, theme |
 | Audit Log | Searchable 7-column audit log (Timestamp · Agent · Subject · Operator · Ticket · Outcome · Mode) |
 | Users | User search with UPN autocomplete (cache-first) |
 | Graph | Graph Query Runner with AI-suggested queries, 8 quick-pick chips, and AI digest |
@@ -155,7 +167,18 @@ agents/auditor/                 Scheduled intelligence
 | Scripting | PowerShell 5.1 |
 | Local dev | Azurite (Azure Storage emulator) |
 
-## Running Locally
+## Installation
+
+Run `dist/JML Console Setup 1.0.0.exe`. No admin rights required; it installs per-user to `%LOCALAPPDATA%\Programs\JML Console\`.
+
+**Prerequisite:** Microsoft Graph PowerShell SDK
+```powershell
+Install-Module Microsoft.Graph -Scope CurrentUser
+```
+
+After installing, open the app and go to **Settings > Tenant Binding** to run the Setup Wizard. It handles device-code sign-in, creates all eight app registrations in your tenant, and generates admin-consent links for each one.
+
+## Local Development
 
 ### Prerequisites
 - Windows with PowerShell 5.1
@@ -176,9 +199,6 @@ npm start
 cd agents
 .\dev-start.ps1   # opens 3 windows: Azurite → worker → func start
 ```
-
-### Agent Credentials
-Each agent reads `~/.claude/agents/{agent}/config.json`. See `agents/provisioner/` for provisioning scripts that create app registrations and generate credentials.
 
 ## Tenant
 
