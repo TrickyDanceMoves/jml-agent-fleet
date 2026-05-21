@@ -117,6 +117,8 @@ Desktop app (`agents/electron-app/`) with a frameless operator selector at start
 
 ## Architecture
 
+![JML AI Agent Architecture](docs/images/JML%20AI%20Agent%20Architecture.png)
+
 ```
 HRIS (BambooHR)
     │  webhook
