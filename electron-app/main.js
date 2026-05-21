@@ -6,7 +6,9 @@ const path  = require('path');
 const fs    = require('fs');
 const os    = require('os');
 
-const AGENTS_DIR    = path.join(__dirname, '..');
+const AGENTS_DIR    = app.isPackaged
+  ? path.join(process.resourcesPath, 'agents')
+  : path.join(__dirname, '..');
 const REPORTS_DIR   = path.join(__dirname, '..', 'auditor', 'reports');
 const TENANT_DOMAIN = 'contoso.onmicrosoft.com';
 
@@ -1466,8 +1468,25 @@ async function runCapture() {
   app.quit();
 }
 
+function ensureDataDirs() {
+  const dirs = [
+    path.join(AGENTS_DIR, 'approver', 'pending'),
+    path.join(AGENTS_DIR, 'approver', 'logs'),
+    path.join(AGENTS_DIR, 'auditor', 'reports'),
+    path.join(AGENTS_DIR, 'auditor', 'logs'),
+    path.join(AGENTS_DIR, 'joiner', 'logs'),
+    path.join(AGENTS_DIR, 'mover', 'logs'),
+    path.join(AGENTS_DIR, 'leaver', 'logs'),
+    path.join(AGENTS_DIR, 'enroller', 'logs'),
+  ];
+  for (const d of dirs) {
+    if (!fs.existsSync(d)) fs.mkdirSync(d, { recursive: true });
+  }
+}
+
 app.whenReady().then(() => {
   if (CAPTURE_MODE) { runCapture(); return; }
+  ensureDataDirs();
   createOperatorWindow();
 
   setInterval(() => {

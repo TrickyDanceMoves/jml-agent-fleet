@@ -6,7 +6,6 @@
 graph TB
     subgraph Local["Local Machine"]
         EL[Electron GUI\nJML Console]
-        APEXE[JML-Approver.exe]
         PS[PowerShell Agent Scripts]
         SHARED[shared/Helpers.ps1\nAuth · Audit · Retry · Circuit Breaker]
         AUDIT[audit.jsonl\nSHA256 hash-chained]
@@ -29,7 +28,7 @@ graph TB
         PURVIEW[Purview IRM\nHR Connector]
     end
 
-    EL --> APEXE --> PS
+    EL --> PS
     PS --> SHARED
     SHARED --> GRAPH
     GRAPH --> J & M & L & E & AP & AU & PR
@@ -47,8 +46,8 @@ graph TB
 | `Invoke-MoverProcess.ps1` | `agents/mover/` | Updates attributes on role change |
 | `Invoke-LeaverProcess.ps1` | `agents/leaver/` | Full offboarding pipeline + Purview IRM |
 | `Invoke-EnrollerProcess.ps1` | `agents/enroller/` | Device/compliance group enrollment |
-| `approver.js` + `JML-Approver.exe` | `agents/approver/` | Approval agent with RBAC + dual-approval |
-| `auditor.js` + `JML-Auditor.exe` | `agents/auditor/` | Audit log query interface |
+| `approver.js` | `agents/approver/` | Approval agent with RBAC + dual-approval |
+| `auditor.js` | `agents/auditor/` | Audit log query interface |
 | `shared/Helpers.ps1` | `agents/shared/` | Auth, audit, retry, circuit breaker, Teams |
 | `electron-app/` | `agents/electron-app/` | Electron desktop console |
 | `purview/config.json` | `agents/purview/` | Purview HR Connector credentials |
