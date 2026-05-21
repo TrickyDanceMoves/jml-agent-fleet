@@ -12,15 +12,31 @@
     "appId": "com.jml.console",
     "productName": "JML Console",
     "win": {
-      "target": "portable",
-      "icon": "assets/icon.ico"
+      "target": "nsis"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
     },
     "files": [
       "main.js",
       "preload.js",
       "renderer/**/*"
     ],
-    "extraResources": []
+    "extraResources": [
+      { "from": "../joiner",      "to": "agents/joiner",      "filter": ["**/*.ps1"] },
+      { "from": "../mover",       "to": "agents/mover",       "filter": ["**/*.ps1"] },
+      { "from": "../leaver",      "to": "agents/leaver",      "filter": ["**/*.ps1"] },
+      { "from": "../enroller",    "to": "agents/enroller",    "filter": ["**/*.ps1"] },
+      { "from": "../approver",    "to": "agents/approver",    "filter": ["**/*.ps1"] },
+      { "from": "../auditor",     "to": "agents/auditor",     "filter": ["**/*.ps1"] },
+      { "from": "../certifier",   "to": "agents/certifier",   "filter": ["**/*.ps1"] },
+      { "from": "../provisioner", "to": "agents/provisioner", "filter": ["**/*.ps1"] },
+      { "from": "../shared",      "to": "agents/shared",      "filter": ["**/*.ps1", "*.json"] }
+    ]
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.94.0",
