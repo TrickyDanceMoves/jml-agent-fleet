@@ -12,7 +12,8 @@
     "appId": "com.jml.console",
     "productName": "JML Console",
     "win": {
-      "target": "nsis"
+      "target": "nsis",
+      "icon": "assets/icon.ico"
     },
     "nsis": {
       "oneClick": false,
