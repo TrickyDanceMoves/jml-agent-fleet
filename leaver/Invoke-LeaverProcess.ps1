@@ -4,6 +4,7 @@ param(
     [ValidateSet("Both", "Soft", "Hard")]
     [string]$Stage = "Both",
     [string]$TicketRef = "",
+    [string]$OperatorRole = "admin",
     [switch]$WhatIf
 )
 
@@ -52,7 +53,13 @@ $memberOf       = Invoke-GraphWithRetry -Method GET -Uri ("https://graph.microso
 $directoryRoles = @($memberOf.value | Where-Object { $_."@odata.type" -eq "#microsoft.graph.directoryRole" })
 if ($directoryRoles.Count -gt 0) {
     $roleRefs = ($directoryRoles | ForEach-Object { if ($_["roleTemplateId"]) { $_["roleTemplateId"] } else { $_["id"] } }) -join ", "
-    Write-Log ("User holds " + $directoryRoles.Count + " directory role(s) [" + $roleRefs + "] - disable may require elevated admin action") "WARN"
+    Write-Log ("User holds " + $directoryRoles.Count + " directory role(s) [" + $roleRefs + "]") "WARN"
+    if ($OperatorRole -ne "admin") {
+        $roleNames = ($directoryRoles | ForEach-Object { $_.displayName }) -join ", "
+        Write-Log ("BLOCKED: Operator role '" + $OperatorRole + "' cannot offboard a directory role holder (" + $roleNames + "). Escalate to an admin operator.") "ERROR"
+        Write-AuditEntry -Agent "leaver" -Action "LeaverBlocked" -Subject $UserPrincipalName -WhatIf $WhatIf.IsPresent -Outcome "blocked" -Details @{ reason = "Non-admin operator attempted offboard of directory role holder"; roles = $roleNames; operatorRole = $OperatorRole }
+        exit 1
+    }
 }
 
 $results = [ordered]@{
