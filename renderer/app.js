@@ -2714,7 +2714,7 @@ function setSidebarOperator(name) {
   }
 }
 
-// Click avatar → Electron native file dialog → resize to 96px → save as data URL → re-render
+// Click avatar → Electron native dialog → crop+resize done in main process → store data URL
 (function wireAvatarPicker() {
   const av = document.getElementById('sidebar-operator-avatar');
   if (!av) return;
@@ -2723,26 +2723,12 @@ function setSidebarOperator(name) {
     let dataUrl;
     try { dataUrl = await window.api.pickImageFile(); } catch { return; }
     if (!dataUrl) return;
-    const img = new Image();
-    img.onload = () => {
-      const size = 96;
-      const canvas = document.createElement('canvas');
-      canvas.width = size; canvas.height = size;
-      const ctx = canvas.getContext('2d');
-      const min = Math.min(img.naturalWidth, img.naturalHeight);
-      const sx = (img.naturalWidth  - min) / 2;
-      const sy = (img.naturalHeight - min) / 2;
-      ctx.drawImage(img, sx, sy, min, min, 0, 0, size, size);
-      const resized = canvas.toDataURL('image/jpeg', 0.85);
-      const user = av.dataset.user;
-      if (!user) { showToast('No operator signed in', 'warning'); return; }
-      try { localStorage.setItem('jml-avatar-' + user, resized); }
-      catch { showToast('Image too large to store — try a smaller file', 'error'); return; }
-      setSidebarOperator(user);
-      showToast('Avatar updated', 'success');
-    };
-    img.onerror = () => showToast('Failed to load image', 'error');
-    img.src = dataUrl;
+    const user = av.dataset.user;
+    if (!user) { showToast('No operator signed in', 'warning'); return; }
+    try { localStorage.setItem('jml-avatar-' + user, dataUrl); }
+    catch { showToast('Image too large to store — try a smaller file', 'error'); return; }
+    setSidebarOperator(user);
+    showToast('Avatar updated', 'success');
   });
 })();
 

@@ -1140,10 +1140,17 @@ ipcMain.handle('pick-image-file', async () => {
   });
   if (canceled || !filePaths.length) return null;
   try {
-    const data = fs.readFileSync(filePaths[0]);
-    const ext  = path.extname(filePaths[0]).slice(1).toLowerCase();
-    const mime = (ext === 'jpg' || ext === 'jpeg') ? 'image/jpeg' : 'image/' + ext;
-    return 'data:' + mime + ';base64,' + data.toString('base64');
+    const { nativeImage } = require('electron');
+    const img     = nativeImage.createFromPath(filePaths[0]);
+    if (img.isEmpty()) return null;
+    const size    = img.getSize();
+    const min     = Math.min(size.width, size.height);
+    const cropped = img.crop({
+      x: Math.floor((size.width  - min) / 2),
+      y: Math.floor((size.height - min) / 2),
+      width: min, height: min
+    });
+    return cropped.resize({ width: 96, height: 96 }).toDataURL();
   } catch { return null; }
 });
 
