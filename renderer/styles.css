@@ -515,10 +515,10 @@ a { color: var(--cyan); text-decoration: none; }
   box-shadow: 0 1px 0 color-mix(in oklch, var(--text) 30%, transparent) inset, 0 6px 18px color-mix(in oklch, var(--cyan-dim) 25%, transparent);
 }
 .btn.primary:hover { filter: brightness(1.05); }
-.btn.danger { color: var(--coral); border-color: color-mix(in oklch, var(--coral) 45%, transparent); }
-.btn.danger:hover { background: var(--danger-soft); }
-.btn.danger-outline { color: var(--coral); background: transparent; border-color: color-mix(in oklch, var(--coral) 35%, transparent); }
-.btn.danger-outline:hover { background: var(--danger-soft); border-color: color-mix(in oklch, var(--coral) 55%, transparent); }
+.btn.danger { color: #fff; background: var(--coral-dim); border-color: var(--coral-dim); font-weight: 600; }
+.btn.danger:hover { background: var(--coral); border-color: var(--coral); }
+.btn.danger-outline { color: var(--coral); background: transparent; border-color: color-mix(in oklch, var(--coral) 50%, transparent); }
+.btn.danger-outline:hover { background: var(--danger-soft); border-color: var(--coral); }
 .btn.ghost { color: var(--text-2); border-color: var(--border); }
 .btn[disabled] { opacity: .5; cursor: not-allowed; }
 .btn-text-link {

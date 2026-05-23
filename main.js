@@ -1,6 +1,6 @@
 'use strict';
 
-const { app, BrowserWindow, ipcMain, dialog, nativeImage, Tray, Menu, Notification } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, nativeImage, Tray, Menu, Notification, globalShortcut, screen } = require('electron');
 const { execFileSync, execFile, spawnSync } = require('child_process');
 const path  = require('path');
 const fs    = require('fs');
@@ -299,17 +299,95 @@ function runPsAsync(scriptPath, params = {}) {
 }
 
 // ── System tray + toast notifications ────────────────────────────────────────
-let tray     = null;
-let quitting = false;
+let tray       = null;
+let dockedWin  = null;
+let paletteWin = null;
+let quitting   = false;
+
+// ── Panel/palette preload path ────────────────────────────────────────────────
+const PANEL_PRELOAD = path.join(__dirname, 'preload-panel.js');
+
+// ── Push live data to docked panel ───────────────────────────────────────────
+function pushPanelUpdate(partial) {
+  if (dockedWin && !dockedWin.isDestroyed()) {
+    dockedWin.webContents.send('panel-update', partial);
+  }
+}
+
+// ── Cert expiry polling ───────────────────────────────────────────────────────
+const _certAlerted = new Set();
+function pollCertExpiry() {
+  try {
+    const agents = ['joiner','mover','leaver','enroller','approver','auditor'];
+    const certs  = agents.map(ag => {
+      try {
+        const cfg = readJson(path.join(AGENTS_DIR, ag, 'config.json'));
+        const exp = cfg.CertExpiry || cfg.certExpiry;
+        const days = exp ? Math.ceil((new Date(exp) - Date.now()) / 86400000) : null;
+        return { agent: ag, daysLeft: days };
+      } catch { return { agent: ag, daysLeft: null }; }
+    });
+    // Send to docked panel
+    pushPanelUpdate({ certs });
+    // Toast when a cert is within 30 days and we haven't alerted yet
+    certs.forEach(c => {
+      if (c.daysLeft != null && c.daysLeft <= 30 && !_certAlerted.has(c.agent)) {
+        _certAlerted.add(c.agent);
+        sendToast(
+          'Cert Expiring — ' + c.agent,
+          `The ${c.agent} agent certificate expires in ${c.daysLeft} day${c.daysLeft !== 1 ? 's' : ''}. Renew via Agent Certs.`
+        );
+      }
+    });
+  } catch {}
+}
+
+// ── Last-event polling ────────────────────────────────────────────────────────
+let _lastEventTs = null;
+function pollLastEvent() {
+  try {
+    const logDirs = ['joiner','mover','leaver','enroller','approver','auditor'].map(ag =>
+      path.join(AGENTS_DIR, ag, 'logs')
+    );
+    let newest = null;
+    for (const dir of logDirs) {
+      if (!fs.existsSync(dir)) continue;
+      const files = fs.readdirSync(dir).filter(f => f.endsWith('.jsonl')).sort().reverse();
+      if (!files.length) continue;
+      const lines = fs.readFileSync(path.join(dir, files[0]), 'utf8').trim().split('\n').filter(Boolean);
+      for (let i = lines.length - 1; i >= 0; i--) {
+        try {
+          const e = JSON.parse(lines[i]);
+          if (!newest || new Date(e.timestamp) > new Date(newest.timestamp)) newest = e;
+          break;
+        } catch {}
+      }
+    }
+    if (newest && newest.timestamp !== _lastEventTs) {
+      _lastEventTs = newest.timestamp;
+      pushPanelUpdate({ lastEvent: newest });
+    }
+  } catch {}
+}
 
 function showMainWindow() {
   if (win && !win.isDestroyed()) { win.show(); win.focus(); }
 }
 
 function buildTrayMenu() {
+  const pendingCount = fs.existsSync(PENDING_DIR)
+    ? fs.readdirSync(PENDING_DIR).filter(f => f.endsWith('.json')).length : 0;
   return Menu.buildFromTemplate([
     { label: 'Show Console',  click: showMainWindow },
-    { label: 'Hide',          click: () => { if (win && !win.isDestroyed()) win.hide(); } },
+    { label: pendingCount > 0 ? `Approvals — ${pendingCount} pending` : 'Approvals', click: () => { showMainWindow(); } },
+    { type: 'separator' },
+    { label: dockedWin && !dockedWin.isDestroyed() ? 'Hide Docked Panel' : 'Show Docked Panel',
+      click: () => {
+        if (dockedWin && !dockedWin.isDestroyed()) {
+          dockedWin.isVisible() ? dockedWin.hide() : dockedWin.show();
+        } else { createDockedPanel(); }
+      }
+    },
     { type: 'separator' },
     { label: 'Quit JML Console', click: () => {
       const choice = dialog.showMessageBoxSync({
@@ -328,7 +406,55 @@ function createTray() {
   tray = new Tray(TRAY_ICON);
   tray.setToolTip('JML Fleet Console');
   tray.setContextMenu(buildTrayMenu());
+  tray.on('click', () => { tray.setContextMenu(buildTrayMenu()); });
   tray.on('double-click', showMainWindow);
+}
+
+function createDockedPanel() {
+  if (dockedWin && !dockedWin.isDestroyed()) { dockedWin.show(); dockedWin.focus(); return; }
+  const { x: wa_x, y: wa_y, width: wa_w, height: wa_h } = screen.getPrimaryDisplay().workArea;
+  const W = 280, H = Math.min(600, wa_h - 40);
+  dockedWin = new BrowserWindow({
+    width: W, height: H,
+    x: wa_x + wa_w - W - 8, y: wa_y + Math.round((wa_h - H) / 2),
+    frame: false, resizable: false,
+    alwaysOnTop: true, skipTaskbar: true,
+    transparent: false,
+    icon: APP_ICON,
+    backgroundColor: '#1b1d24',
+    webPreferences: { preload: PANEL_PRELOAD, contextIsolation: true, nodeIntegration: false, sandbox: false }
+  });
+  dockedWin.loadFile(path.join(__dirname, 'renderer', 'docked.html'));
+  dockedWin.on('closed', () => { dockedWin = null; });
+  // Push initial data once loaded
+  dockedWin.webContents.once('did-finish-load', () => {
+    const count = fs.existsSync(PENDING_DIR)
+      ? fs.readdirSync(PENDING_DIR).filter(f => f.endsWith('.json')).length : 0;
+    pushPanelUpdate({ approvals: count });
+    pollCertExpiry();
+    pollLastEvent();
+  });
+}
+
+function createPaletteWindow() {
+  if (paletteWin && !paletteWin.isDestroyed()) {
+    paletteWin.show(); paletteWin.focus(); return;
+  }
+  const { x: pw_x, y: pw_y, width: pw_w, height: pw_h } = screen.getPrimaryDisplay().workArea;
+  const W = 600, H = 460;
+  paletteWin = new BrowserWindow({
+    width: W, height: H,
+    x: pw_x + Math.round((pw_w - W) / 2), y: pw_y + Math.round(pw_h * 0.18),
+    frame: false, resizable: false,
+    alwaysOnTop: true, skipTaskbar: true,
+    transparent: true,
+    icon: APP_ICON,
+    backgroundColor: '#00000000',
+    webPreferences: { preload: PANEL_PRELOAD, contextIsolation: true, nodeIntegration: false, sandbox: false }
+  });
+  paletteWin.loadFile(path.join(__dirname, 'renderer', 'palette.html'));
+  paletteWin.on('blur', () => { if (paletteWin && !paletteWin.isDestroyed()) paletteWin.close(); });
+  paletteWin.on('closed', () => { paletteWin = null; });
 }
 
 function sendToast(title, body) {
@@ -353,6 +479,7 @@ function pollTrayApprovals() {
     }
     _lastApprovalCount = count;
     tray && tray.setToolTip('JML Fleet Console' + (count ? ' · ' + count + ' pending' : ''));
+    pushPanelUpdate({ approvals: count });
   } catch {}
 }
 
@@ -661,6 +788,66 @@ function saveScheduled(ops) {
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
   fs.writeFileSync(SCHEDULED_FILE, JSON.stringify(ops, null, 2), 'utf8');
 }
+
+// ── Docked panel / palette IPC ────────────────────────────────────────────────
+ipcMain.on('panel-open-console', (event, tab) => {
+  showMainWindow();
+  if (win && !win.isDestroyed() && tab) {
+    win.webContents.executeJavaScript(`
+      if (typeof switchTab === 'function') switchTab(${JSON.stringify(tab)});
+    `).catch(() => {});
+  }
+});
+
+ipcMain.on('palette-dismiss', () => {
+  if (paletteWin && !paletteWin.isDestroyed()) paletteWin.close();
+  if (dockedWin  && !dockedWin.isDestroyed())  dockedWin.hide();
+});
+
+ipcMain.on('panel-run-action', (event, { type, upn }) => {
+  showMainWindow();
+  if (!win || win.isDestroyed()) return;
+  const tab  = 'operations';
+  const stage = type === 'hard-leave' ? 'Hard' : type === 'soft-leave' ? 'Soft' : null;
+  win.webContents.executeJavaScript(`
+    if (typeof switchTab === 'function') switchTab('${tab}');
+    setTimeout(() => {
+      const det = document.getElementById('ops-quick-leaver');
+      if (det) det.setAttribute('open','');
+      const upnEl = document.getElementById('ql-upn');
+      if (upnEl) upnEl.value = ${JSON.stringify(upn || '')};
+      ${stage ? `const r = document.querySelector('input[name="ql-stage"][value="${stage}"]'); if (r) r.checked = true;` : ''}
+    }, 200);
+  `).catch(() => {});
+});
+
+ipcMain.handle('search-users', async (event, query) => {
+  // Search through recent audit entries for matching subjects
+  try {
+    const entries = [];
+    const logDirs = ['joiner','mover','leaver','enroller'].map(ag => path.join(AGENTS_DIR, ag, 'logs'));
+    const seen = new Set();
+    for (const dir of logDirs) {
+      if (!fs.existsSync(dir)) continue;
+      const files = fs.readdirSync(dir).filter(f => f.endsWith('.jsonl')).sort().reverse().slice(0, 2);
+      for (const f of files) {
+        const lines = fs.readFileSync(path.join(dir, f), 'utf8').trim().split('\n').filter(Boolean);
+        for (const line of lines) {
+          try {
+            const e = JSON.parse(line);
+            const upn = e.subject || e.userPrincipalName || '';
+            if (!upn || seen.has(upn)) continue;
+            if (upn.toLowerCase().includes(query.toLowerCase())) {
+              seen.add(upn);
+              entries.push({ upn, displayName: e.displayName || upn.split('@')[0] });
+            }
+          } catch {}
+        }
+      }
+    }
+    return entries.slice(0, 8);
+  } catch { return []; }
+});
 
 // ── Approvals tab ─────────────────────────────────────────────────────────────
 ipcMain.on('get-pending-approvals', (event) => {
@@ -1830,8 +2017,25 @@ app.whenReady().then(() => {
   createTray();
   ensureDataDirs();
   if (isFirstRun()) { createSetupWindow(); } else { createOperatorWindow(); }
+
+  // Docked panel — launch on startup
+  createDockedPanel();
+
+  // Global hotkey — Ctrl+Shift+J summons palette
+  globalShortcut.register('CommandOrControl+Shift+J', () => {
+    if (paletteWin && !paletteWin.isDestroyed()) {
+      paletteWin.close();
+    } else {
+      createPaletteWindow();
+    }
+  });
+
   setInterval(pollTrayApprovals, 30000);
+  setInterval(pollCertExpiry,    60000 * 5);  // every 5 min
+  setInterval(pollLastEvent,     30000);
   pollTrayApprovals();
+  pollCertExpiry();
+  pollLastEvent();
 
   setInterval(() => {
     const ops  = loadScheduled();
@@ -1876,6 +2080,7 @@ app.whenReady().then(() => {
 });
 
 app.on('window-all-closed', () => { if (quitting) app.quit(); });
+app.on('will-quit', () => { globalShortcut.unregisterAll(); });
 
 // ── Feature: User Lookup ──────────────────────────────────────────────────────
 ipcMain.on('search-users', (event, { query }) => {
