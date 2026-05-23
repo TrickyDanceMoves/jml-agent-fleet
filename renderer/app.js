@@ -70,6 +70,7 @@ function switchTab(tab) {
   if (tab === 'certifications'){ loadCertifications(); _tabRefreshTimers.certifications = setInterval(loadCertifications, 60000); }
   if (tab === 'settings')      loadSettings();
   if (tab === 'integrations')  loadIntegrations();
+  if (tab === 'users')         loadRecentUsers();
 }
 
 // ── Integrations tab loader ────────────────────────────────────────────────────
@@ -737,6 +738,26 @@ window.api.onSecurityReports((data) => {
   updateTile('ueba',  data.ueba);
   updateTile('drift', data.drift);
   updateTile('risky', data.riskyUsers);
+
+  // Update collapse <summary> preview chips
+  function updateSummaryPreview(key, report) {
+    const el = document.getElementById('sec-' + key + '-summary-preview');
+    if (!el) return;
+    if (!report) { el.textContent = ''; el.className = 'collapse-summary-preview'; return; }
+    const s = report.summary || {};
+    const cr = s.critical || 0, wn = s.warning || 0, inf = s.info || 0;
+    const total = cr + wn + inf;
+    if (!total) { el.textContent = 'All clear'; el.className = 'collapse-summary-preview all-clear'; return; }
+    const parts = [];
+    if (cr) parts.push(cr + ' critical');
+    if (wn) parts.push(wn + ' warning');
+    if (inf) parts.push(inf + ' info');
+    el.textContent = parts.join(' · ');
+    el.className = 'collapse-summary-preview ' + (cr ? 'has-crit' : wn ? 'has-warn' : '');
+  }
+  updateSummaryPreview('ueba',  data.ueba);
+  updateSummaryPreview('drift', data.drift);
+  updateSummaryPreview('risky', data.riskyUsers);
 
   // Update dashboard security at-a-glance strip
   function updateDashTile(id, report) {
@@ -1463,7 +1484,13 @@ window.api.onPendingApprovals((data) => {
     ? (items.length === 1 ? '1 action awaiting decision' : items.length + ' actions awaiting decision')
     : 'No pending approvals';
   if (items.length === 0) {
-    listEl.innerHTML = '<div class="loading-hint">No pending approvals.</div>';
+    listEl.innerHTML = `<div class="empty-state">
+      <div class="empty-state-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+      </div>
+      <div class="empty-state-title">All clear</div>
+      <div class="empty-state-body">No pending approvals. Operations requiring sign-off will appear here with a TTL countdown.</div>
+    </div>`;
     return;
   }
   listEl.innerHTML = items.map(op => {
@@ -1620,7 +1647,16 @@ function renderOpsInflight() {
   if (!body || !count) return;
   const arr = [...(_inflightOps.values())];
   count.textContent = arr.length;
-  if (!arr.length) { body.innerHTML = '<div class="loading-hint">No operations in flight.</div>'; return; }
+  if (!arr.length) {
+    body.innerHTML = `<div class="empty-state sm">
+      <div class="empty-state-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14"/></svg>
+      </div>
+      <div class="empty-state-title">No active runs</div>
+      <div class="empty-state-body">Live operations will stream here as they execute.</div>
+    </div>`;
+    return;
+  }
   body.innerHTML = arr.map(op => {
     const elapsed = op.startedAt ? Math.floor((Date.now() - op.startedAt) / 1000) : 0;
     return `<div class="op-card run">
@@ -1641,7 +1677,16 @@ function renderOpsQueued(items) {
   const next = document.getElementById('ops-queued-next');
   if (!body || !count) return;
   count.textContent = items.length;
-  if (!items.length) { body.innerHTML = '<div class="loading-hint">No queued operations.</div>'; if (next) next.textContent = ''; return; }
+  if (!items.length) {
+    body.innerHTML = `<div class="empty-state sm">
+      <div class="empty-state-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+      </div>
+      <div class="empty-state-title">Queue is empty</div>
+      <div class="empty-state-body">Scheduled operations will appear here before dispatch.</div>
+    </div>`;
+    if (next) next.textContent = ''; return;
+  }
   if (next && items[0].when) {
     const t = new Date(items[0].when);
     next.textContent = 'next ' + t.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'});
@@ -1915,25 +1960,63 @@ window.api.onCertificationResult((data) => {
 
 window.api.onCertHistory((entries) => {
   const el = document.getElementById('cert-history-body');
-  if (!entries || !entries.length) { el.innerHTML = '<div class="loading-hint">No history.</div>'; return; }
-  el.innerHTML = entries.slice(0, 20).map(e => {
-    const ts    = e.timestamp ? new Date(e.timestamp).toLocaleString() : '—';
-    const ok    = e.outcome === 'success';
-    const fail  = e.outcome === 'failed';
-    const icon  = ok ? '&#x2713;' : fail ? '&#x2717;' : '&#x25CF;';
-    const cls   = ok ? 'cert-hist-ok' : fail ? 'cert-hist-fail' : 'cert-hist-neutral';
-    const mode  = e.whatif ? '<span class="badge-whatif">Safe</span>' : '<span class="badge-live">Live</span>';
-    const subj  = e.subject ? escHtml(e.subject) : '<span class="text-dim">—</span>';
-    return '<div class="cert-hist-entry">'
-      + '<div class="cert-hist-icon ' + cls + '">' + icon + '</div>'
-      + '<div class="cert-hist-body">'
-        + '<div class="cert-hist-top">'
-          + '<span class="cert-hist-subject">' + subj + '</span>'
-          + mode
-        + '</div>'
-        + '<div class="cert-hist-ts">' + escHtml(ts) + '</div>'
-      + '</div>'
-    + '</div>';
+  if (!entries || !entries.length) {
+    el.innerHTML = `<div class="empty-state">
+      <div class="empty-state-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/></svg>
+      </div>
+      <div class="empty-state-title">No campaign history</div>
+      <div class="empty-state-body">Run a campaign above to start building an attestation record.</div>
+    </div>`;
+    return;
+  }
+
+  // Group by campaign subject name
+  const grouped = {};
+  entries.forEach(e => {
+    const key = e.subject || 'Unknown';
+    if (!grouped[key]) grouped[key] = [];
+    grouped[key].push(e);
+  });
+
+  el.innerHTML = Object.entries(grouped).map(([name, runs]) => {
+    const total  = runs.length;
+    const passed = runs.filter(r => r.outcome === 'success').length;
+    const failed = runs.filter(r => r.outcome === 'failed').length;
+    const pct    = total ? Math.round((passed / total) * 100) : 0;
+    const last   = runs[0]; // most recent first
+    const lastTs = last && last.timestamp ? new Date(last.timestamp).toLocaleDateString('en-US', {month: 'short', day: 'numeric'}) : '—';
+    const lastMode = last && !last.whatif ? '<span class="badge-live">Live</span>' : '<span class="badge-whatif">Safe</span>';
+    const passColor = pct >= 80 ? 'var(--emerald)' : pct >= 50 ? 'var(--amber)' : 'var(--coral)';
+
+    const runRows = runs.slice(0, 8).map(r => {
+      const ts  = r.timestamp ? new Date(r.timestamp).toLocaleString() : '—';
+      const ok  = r.outcome === 'success';
+      const fail= r.outcome === 'failed';
+      const icon = ok ? '<span style="color:var(--emerald)">✓</span>' : fail ? '<span style="color:var(--coral)">✗</span>' : '<span style="color:var(--amber)">○</span>';
+      const mode = r.whatif ? '<span class="badge-whatif">Safe</span>' : '<span class="badge-live">Live</span>';
+      return `<div class="cert-hist-entry">
+        <div class="cert-hist-icon">${icon}</div>
+        <div class="cert-hist-body">
+          <div class="cert-hist-top"><span style="font-family:var(--mono);font-size:11px;color:var(--text-2)">${escHtml(ts)}</span>${mode}</div>
+        </div>
+      </div>`;
+    }).join('');
+
+    return `<details class="cert-campaign-group">
+      <summary>
+        <div class="ccg-left">
+          <span class="ccg-name">${escHtml(name)}</span>
+          <span class="ccg-meta">${total} run${total !== 1 ? 's' : ''} · last ${escHtml(lastTs)}</span>
+        </div>
+        <div class="ccg-right">
+          <span class="ccg-pass-rate" style="color:${passColor}">${pct}% pass</span>
+          ${lastMode}
+          <span class="ccg-chevron">›</span>
+        </div>
+      </summary>
+      <div class="ccg-runs">${runRows}</div>
+    </details>`;
   }).join('');
 });
 
@@ -2492,6 +2575,7 @@ window.api.onAgentHealth((data) => {
     else if (key === 'approver') st = 'waiting';
     else if (key === 'provisioner') st = 'standby';
     tile.dataset.st = st;
+    // Legacy .status-text support (pre-revamp cards)
     const stext = tile.querySelector('.status-text');
     if (stext) {
       const last = a.lastActivity ? ' · ' + new Date(a.lastActivity).toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'}) : '';
@@ -2501,6 +2585,16 @@ window.api.onAgentHealth((data) => {
     if (certLine && a.daysUntilExpiry != null) {
       certLine.textContent = a.daysUntilExpiry < 0 ? 'expired' : 'cert ' + a.daysUntilExpiry + 'd';
     }
+    // Update last-run meta in the new card layout
+    const lrEl = document.getElementById('fleet-lr-' + key);
+    if (lrEl) {
+      lrEl.textContent = a.lastActivity
+        ? new Date(a.lastActivity).toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'})
+        : 'never run';
+    }
+    // Update status pill text
+    const pillEl = tile.querySelector('.agent-st-pill');
+    if (pillEl) pillEl.textContent = st;
   });
   // Dashboard fleet count
   const fleetCount = document.getElementById('dash-fleet-count');
@@ -3697,6 +3791,30 @@ function renderTimeline(entries) {
 })();
 
 // ── User Lookup ───────────────────────────────────────────────────────────────
+
+// Show recently-searched users or a friendly prompt when the tab loads cold.
+function loadRecentUsers() {
+  const listEl  = document.getElementById('user-results-list');
+  const countEl = document.getElementById('user-search-count');
+  if (!listEl) return;
+  // Never auto-search with empty string — Graph API returns 400 for empty $search
+  const searchInput = document.getElementById('user-search-input');
+  if (searchInput && searchInput.value.trim()) return;
+  const cached = typeof _userCache !== 'undefined' ? _userCache.slice(0, 10) : [];
+  if (countEl) countEl.textContent = cached.length ? 'Recent · ' + cached.length : '0 identities';
+  // If we already have results visible from a prior search, leave them alone
+  const hasResults = listEl.querySelector('.utable-r');
+  if (hasResults && cached.length) return;
+  // Show friendly hint
+  listEl.innerHTML = `<div class="users-hint">
+    <div class="users-hint-icon">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="36" height="36"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+    </div>
+    <div class="users-hint-title">Search the directory</div>
+    <div class="users-hint-body">Type a name, UPN, or department above to find identities across your Entra tenant.</div>
+  </div>`;
+}
+
 (function () {
   let _selectedUser = null;
 
@@ -3705,7 +3823,11 @@ function renderTimeline(entries) {
 
   function doSearch() {
     const q = (searchInput && searchInput.value.trim()) || '';
-    if (!q) return;
+    if (!q) {
+      // Empty search → show recent users hint
+      loadRecentUsers();
+      return;
+    }
     const countEl = document.getElementById('user-search-count');
     if (countEl) countEl.textContent = 'Searching…';
     document.getElementById('user-results-list').innerHTML = '<div class="loading-hint">Searching…</div>';
@@ -3728,15 +3850,32 @@ function renderTimeline(entries) {
     }
     const listEl  = document.getElementById('user-results-list');
     const countEl = document.getElementById('user-search-count');
+    const isBlankSearch = !searchInput || !searchInput.value.trim();
     if (data.error) {
+      // Suppress errors for empty/blank searches (Graph rejects $search with empty value)
+      if (isBlankSearch) return;
       listEl.innerHTML = '<div class="loading-hint">Error: ' + escHtml(data.error) + '</div>';
       if (countEl) countEl.textContent = '';
       return;
     }
     const users = data.users || [];
-    if (countEl) countEl.textContent = users.length + ' result' + (users.length !== 1 ? 's' : '');
+    if (isBlankSearch) {
+      if (countEl) countEl.textContent = users.length ? 'Recent · ' + users.length : '0 identities';
+    } else {
+      if (countEl) countEl.textContent = users.length + ' result' + (users.length !== 1 ? 's' : '');
+    }
     if (!users.length) {
-      listEl.innerHTML = '<div class="loading-hint">No users found.</div>';
+      if (isBlankSearch) {
+        listEl.innerHTML = `<div class="users-hint">
+          <div class="users-hint-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="36" height="36"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+          </div>
+          <div class="users-hint-title">Search the directory</div>
+          <div class="users-hint-body">Type a name, UPN, or department above to find identities across your Entra tenant.</div>
+        </div>`;
+      } else {
+        listEl.innerHTML = '<div class="loading-hint">No users found.</div>';
+      }
       return;
     }
     // Render revamp's .utable-r rows (avatar + name + dept + status + licenses + risk meter)
@@ -4644,3 +4783,188 @@ setupUserAutocomplete(document.getElementById('ql-upn'));
 setupUserAutocomplete(document.getElementById('sod-test-upn'));
 setupUserAutocomplete(document.getElementById('sched-upn'));
 setupUserAutocomplete(document.getElementById('log-filter-upn'));
+
+// ── Command Palette (Ctrl+K) ──────────────────────────────────────────────────
+(function () {
+  const palette   = document.getElementById('cmd-palette');
+  const input     = document.getElementById('cmd-input');
+  const results   = document.getElementById('cmd-results');
+  const backdrop  = palette && palette.querySelector('.cmd-backdrop');
+  if (!palette || !input || !results) return;
+
+  let _activeIdx = -1;
+  let _items = [];
+
+  // Tab navigation entries
+  const TAB_CMDS = [
+    { label: 'Dashboard',      meta: 'Overview',           tab: 'dashboard',      icon: '⊞' },
+    { label: 'Approver Agent', meta: 'AI · conversational', tab: 'approver',      icon: '◇' },
+    { label: 'Audit Agent',    meta: 'AI · read-only',     tab: 'auditor',        icon: '◌' },
+    { label: 'Graph Runner',   meta: 'Ad-hoc Graph API',   tab: 'graph',          icon: '⟩⟨' },
+    { label: 'Approvals',      meta: 'Pending sign-offs',  tab: 'approvals',      icon: '✓' },
+    { label: 'Operations',     meta: 'Live · Queued',      tab: 'operations',     icon: '⚙' },
+    { label: 'Access Reviews', meta: 'Certifier campaigns',tab: 'certifications', icon: '◈' },
+    { label: 'Integrations',   meta: 'HRIS · Teams · SIEM',tab: 'integrations',   icon: '⇆' },
+    { label: 'Security',       meta: 'UEBA · Drift',       tab: 'security',       icon: '◥' },
+    { label: 'Audit Log',      meta: 'Hash-chained events',tab: 'audit-log',      icon: '≡' },
+    { label: 'Exports',        meta: 'Sentinel · Blob',    tab: 'exports',        icon: '↑' },
+    { label: 'Users',          meta: 'Directory search',   tab: 'users',          icon: '◎' },
+    { label: 'Agent Certs',    meta: 'Certificates · expiry',tab: 'certs',        icon: '⬟' },
+    { label: 'Settings',       meta: 'Tenant · operators', tab: 'settings',       icon: '◎' },
+  ];
+
+  // Action entries
+  const ACTION_CMDS = [
+    { label: 'New Joiner',    meta: 'Open Approver Agent', action: () => { closePalette(); switchTab('approver'); const i = document.getElementById('input-approver'); if (i) { i.value = 'New joiner: '; i.focus(); } } },
+    { label: 'Offboard User', meta: 'Quick Leaver',        action: () => { closePalette(); switchTab('operations'); setTimeout(() => document.getElementById('ops-quick-leaver')?.setAttribute('open',''), 100); } },
+    { label: 'Move User',     meta: 'Quick Mover',         action: () => { closePalette(); switchTab('operations'); setTimeout(() => document.getElementById('ops-quick-mover')?.setAttribute('open',''), 100); } },
+    { label: 'Run Security Scan', meta: 'Re-scan UEBA + Drift', action: () => { closePalette(); switchTab('security'); setTimeout(() => document.getElementById('refresh-security')?.click(), 200); } },
+    { label: 'Open Audit Log', meta: 'Browse hash-chain', action: () => { closePalette(); switchTab('audit-log'); } },
+  ];
+
+  function openPalette() {
+    palette.style.display = 'flex';
+    input.value = '';
+    _activeIdx = -1;
+    renderResults('');
+    setTimeout(() => input.focus(), 30);
+  }
+
+  function closePalette() {
+    palette.style.display = 'none';
+    input.value = '';
+    _activeIdx = -1;
+  }
+
+  function renderResults(q) {
+    const ql = q.toLowerCase().trim();
+    _items = [];
+    let html = '';
+
+    // Score and filter tab commands
+    const tabMatches = TAB_CMDS.filter(c =>
+      !ql || c.label.toLowerCase().includes(ql) || c.meta.toLowerCase().includes(ql)
+    );
+    if (tabMatches.length) {
+      html += '<div class="cmd-group-label">Navigate</div>';
+      tabMatches.forEach(c => {
+        const idx = _items.length;
+        _items.push({ type: 'tab', tab: c.tab });
+        html += `<div class="cmd-item" data-idx="${idx}" role="option">
+          <div class="cmd-item-icon">${escHtml(c.icon)}</div>
+          <div class="cmd-item-label">${escHtml(c.label)}</div>
+          <div class="cmd-item-meta">${escHtml(c.meta)}</div>
+        </div>`;
+      });
+    }
+
+    // User cache matches
+    const userMatches = (typeof _userCache !== 'undefined' ? _userCache : [])
+      .filter(u => !ql || (u.displayName || '').toLowerCase().includes(ql) || (u.userPrincipalName || '').toLowerCase().includes(ql))
+      .slice(0, 5);
+    if (userMatches.length) {
+      html += '<div class="cmd-group-label">Users</div>';
+      userMatches.forEach(u => {
+        const idx = _items.length;
+        const initials = (u.displayName || u.userPrincipalName || '?').split(/[\s._@-]+/).filter(Boolean).map(s => s[0]).join('').slice(0,2).toUpperCase();
+        _items.push({ type: 'user', upn: u.userPrincipalName });
+        html += `<div class="cmd-item" data-idx="${idx}" role="option">
+          <div class="cmd-item-icon" style="font-family:var(--mono);font-size:10px">${escHtml(initials)}</div>
+          <div style="flex:1;min-width:0">
+            <div class="cmd-item-label">${escHtml(u.displayName || u.userPrincipalName)}</div>
+            <div class="cmd-item-upn">${escHtml(u.userPrincipalName || '')}</div>
+          </div>
+          <div class="cmd-item-meta">${escHtml(u.department || u.jobTitle || '')}</div>
+        </div>`;
+      });
+    }
+
+    // Action commands
+    const actionMatches = ACTION_CMDS.filter(c =>
+      !ql || c.label.toLowerCase().includes(ql) || c.meta.toLowerCase().includes(ql)
+    );
+    if (actionMatches.length) {
+      html += '<div class="cmd-group-label">Actions</div>';
+      actionMatches.forEach(c => {
+        const idx = _items.length;
+        _items.push({ type: 'action', fn: c.action });
+        html += `<div class="cmd-item" data-idx="${idx}" role="option">
+          <div class="cmd-item-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><polyline points="9 18 15 12 9 6"/></svg>
+          </div>
+          <div class="cmd-item-label">${escHtml(c.label)}</div>
+          <div class="cmd-item-meta">${escHtml(c.meta)}</div>
+        </div>`;
+      });
+    }
+
+    if (!html) {
+      html = `<div class="cmd-empty">No results for "${escHtml(q)}"</div>`;
+    }
+
+    results.innerHTML = html;
+    _activeIdx = -1;
+
+    results.querySelectorAll('.cmd-item').forEach(el => {
+      el.addEventListener('mouseenter', () => setActive(parseInt(el.dataset.idx, 10)));
+      el.addEventListener('click', () => selectItem(parseInt(el.dataset.idx, 10)));
+    });
+  }
+
+  function setActive(idx) {
+    _activeIdx = idx;
+    results.querySelectorAll('.cmd-item').forEach((el, i) => el.classList.toggle('active', i === idx || parseInt(el.dataset.idx, 10) === idx));
+  }
+
+  function selectItem(idx) {
+    const item = _items[idx];
+    if (!item) return;
+    if (item.type === 'tab') {
+      closePalette();
+      switchTab(item.tab);
+    } else if (item.type === 'user') {
+      closePalette();
+      switchTab('users');
+      const si = document.getElementById('user-search-input');
+      if (si) { si.value = item.upn; document.getElementById('btn-user-search')?.click(); }
+    } else if (item.type === 'action') {
+      item.fn();
+    }
+  }
+
+  // Keyboard navigation
+  input.addEventListener('input', () => renderResults(input.value));
+  input.addEventListener('keydown', e => {
+    const visibleItems = results.querySelectorAll('.cmd-item');
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      const next = Math.min(_activeIdx + 1, visibleItems.length - 1);
+      const nextIdx = parseInt(visibleItems[next]?.dataset.idx ?? next, 10);
+      setActive(nextIdx);
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      const prev = Math.max(_activeIdx - 1, 0);
+      const prevIdx = parseInt(visibleItems[prev]?.dataset.idx ?? prev, 10);
+      setActive(prevIdx);
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      // Find item by active index from dataset
+      const activeEl = results.querySelector('.cmd-item.active');
+      if (activeEl) selectItem(parseInt(activeEl.dataset.idx, 10));
+      else if (_items.length) selectItem(parseInt(visibleItems[0]?.dataset.idx ?? '0', 10));
+    } else if (e.key === 'Escape') {
+      closePalette();
+    }
+  });
+
+  // Open/close triggers
+  document.addEventListener('keydown', e => {
+    if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+      e.preventDefault();
+      palette.style.display === 'none' ? openPalette() : closePalette();
+    }
+    if (e.key === 'Escape' && palette.style.display !== 'none') closePalette();
+  });
+
+  if (backdrop) backdrop.addEventListener('click', closePalette);
+})();

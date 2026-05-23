@@ -5,14 +5,17 @@
   "main": "main.js",
   "scripts": {
     "start": "electron .",
-    "capture": "electron . --capture",
+    "capture": "electron . --capture --disable-gpu",
     "build": "electron-builder --win --x64"
   },
   "build": {
     "appId": "com.jml.console",
     "productName": "JML Console",
     "win": {
-      "target": ["nsis", "zip"],
+      "target": [
+        "nsis",
+        "zip"
+      ],
       "icon": "assets/icon.ico"
     },
     "nsis": {
@@ -29,15 +32,70 @@
       "Assets/icon.ico"
     ],
     "extraResources": [
-      { "from": "../joiner",      "to": "agents/joiner",      "filter": ["**/*.ps1"] },
-      { "from": "../mover",       "to": "agents/mover",       "filter": ["**/*.ps1"] },
-      { "from": "../leaver",      "to": "agents/leaver",      "filter": ["**/*.ps1"] },
-      { "from": "../enroller",    "to": "agents/enroller",    "filter": ["**/*.ps1"] },
-      { "from": "../approver",    "to": "agents/approver",    "filter": ["**/*.ps1"] },
-      { "from": "../auditor",     "to": "agents/auditor",     "filter": ["**/*.ps1"] },
-      { "from": "../certifier",   "to": "agents/certifier",   "filter": ["**/*.ps1"] },
-      { "from": "../provisioner", "to": "agents/provisioner", "filter": ["**/*.ps1"] },
-      { "from": "../shared",      "to": "agents/shared",      "filter": ["**/*.ps1", "*.json"] }
+      {
+        "from": "../joiner",
+        "to": "agents/joiner",
+        "filter": [
+          "**/*.ps1"
+        ]
+      },
+      {
+        "from": "../mover",
+        "to": "agents/mover",
+        "filter": [
+          "**/*.ps1"
+        ]
+      },
+      {
+        "from": "../leaver",
+        "to": "agents/leaver",
+        "filter": [
+          "**/*.ps1"
+        ]
+      },
+      {
+        "from": "../enroller",
+        "to": "agents/enroller",
+        "filter": [
+          "**/*.ps1"
+        ]
+      },
+      {
+        "from": "../approver",
+        "to": "agents/approver",
+        "filter": [
+          "**/*.ps1"
+        ]
+      },
+      {
+        "from": "../auditor",
+        "to": "agents/auditor",
+        "filter": [
+          "**/*.ps1"
+        ]
+      },
+      {
+        "from": "../certifier",
+        "to": "agents/certifier",
+        "filter": [
+          "**/*.ps1"
+        ]
+      },
+      {
+        "from": "../provisioner",
+        "to": "agents/provisioner",
+        "filter": [
+          "**/*.ps1"
+        ]
+      },
+      {
+        "from": "../shared",
+        "to": "agents/shared",
+        "filter": [
+          "**/*.ps1",
+          "*.json"
+        ]
+      }
     ]
   },
   "dependencies": {
@@ -48,6 +106,7 @@
   "devDependencies": {
     "@fontsource/inter": "^5.2.8",
     "electron": "^42.0.0",
-    "electron-builder": "^26.8.1"
+    "electron-builder": "^26.8.1",
+    "png-to-ico": "^3.0.1"
   }
 }

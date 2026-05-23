@@ -1,6 +1,6 @@
 'use strict';
 
-const { app, BrowserWindow, ipcMain, dialog } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, nativeImage, Tray, Menu, Notification } = require('electron');
 const { execFileSync, execFile, spawnSync } = require('child_process');
 const path  = require('path');
 const fs    = require('fs');
@@ -9,7 +9,8 @@ const os    = require('os');
 const AGENTS_DIR    = app.isPackaged
   ? path.join(process.resourcesPath, 'agents')
   : path.join(__dirname, '..');
-const APP_ICON      = path.join(__dirname, 'Assets', 'icon.ico');
+const APP_ICON      = nativeImage.createFromPath(path.join(__dirname, 'Assets', 'icon-rounded.png'));
+const TRAY_ICON     = nativeImage.createFromPath(path.join(__dirname, 'Assets', 'tray-icon.png'));
 const REPORTS_DIR   = path.join(__dirname, '..', 'auditor', 'reports');
 const TENANT_DOMAIN   = 'contoso.onmicrosoft.com';
 const SETUP_FILE      = path.join(AGENTS_DIR, 'approver', 'setup.json');
@@ -297,6 +298,64 @@ function runPsAsync(scriptPath, params = {}) {
   });
 }
 
+// ── System tray + toast notifications ────────────────────────────────────────
+let tray     = null;
+let quitting = false;
+
+function showMainWindow() {
+  if (win && !win.isDestroyed()) { win.show(); win.focus(); }
+}
+
+function buildTrayMenu() {
+  return Menu.buildFromTemplate([
+    { label: 'Show Console',  click: showMainWindow },
+    { label: 'Hide',          click: () => { if (win && !win.isDestroyed()) win.hide(); } },
+    { type: 'separator' },
+    { label: 'Quit JML Console', click: () => {
+      const choice = dialog.showMessageBoxSync({
+        type: 'question', buttons: ['Quit', 'Cancel'],
+        defaultId: 1, cancelId: 1,
+        title: 'Quit JML Console',
+        message: 'Are you sure you want to quit?',
+        detail: 'The app will stop running and tray notifications will be disabled.'
+      });
+      if (choice === 0) { quitting = true; app.quit(); }
+    }}
+  ]);
+}
+
+function createTray() {
+  tray = new Tray(TRAY_ICON);
+  tray.setToolTip('JML Fleet Console');
+  tray.setContextMenu(buildTrayMenu());
+  tray.on('double-click', showMainWindow);
+}
+
+function sendToast(title, body) {
+  if (!Notification.isSupported()) return;
+  const n = new Notification({ title, body, icon: APP_ICON, silent: false });
+  n.on('click', showMainWindow);
+  n.show();
+}
+
+let _lastApprovalCount = -1;
+function pollTrayApprovals() {
+  try {
+    const count = fs.existsSync(PENDING_DIR)
+      ? fs.readdirSync(PENDING_DIR).filter(f => f.endsWith('.json')).length
+      : 0;
+    if (_lastApprovalCount >= 0 && count > _lastApprovalCount) {
+      const diff = count - _lastApprovalCount;
+      sendToast(
+        'Pending Approval' + (diff > 1 ? 's' : ''),
+        diff + ' new approval request' + (diff > 1 ? 's' : '') + ' awaiting admin sign-off.'
+      );
+    }
+    _lastApprovalCount = count;
+    tray && tray.setToolTip('JML Fleet Console' + (count ? ' · ' + count + ' pending' : ''));
+  } catch {}
+}
+
 function routeBlockedLeaverToApproval(input, stage) {
   if (!fs.existsSync(PENDING_DIR)) fs.mkdirSync(PENDING_DIR, { recursive: true });
   const token = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
@@ -312,6 +371,7 @@ function routeBlockedLeaverToApproval(input, stage) {
     status: 'pending'
   };
   fs.writeFileSync(path.join(PENDING_DIR, token + '.json'), JSON.stringify(record, null, 2), 'utf8');
+  sendToast('Admin Approval Required', (input.userPrincipalName || 'User') + ' holds privileged directory roles — leaver queued for admin sign-off.');
   return token;
 }
 
@@ -662,8 +722,10 @@ ipcMain.on('approve-pending', (event, payload) => {
     }
     const result = parsePs1Output(raw);
     fs.unlinkSync(file);
+    sendToast('Approval Executed', (inp.userPrincipalName || 'Operation') + ' leaver completed successfully.');
     event.sender.send('approve-result', { ok: true, result });
   } catch (err) {
+    sendToast('Approval Failed', err.message);
     event.sender.send('approve-result', { ok: false, error: err.message });
   }
 });
@@ -671,7 +733,10 @@ ipcMain.on('approve-pending', (event, payload) => {
 ipcMain.on('reject-pending', (event, { id }) => {
   try {
     const file = path.join(PENDING_DIR, id + '.json');
+    let upn = '';
+    try { upn = readJson(file).input?.userPrincipalName || ''; } catch {}
     if (fs.existsSync(file)) fs.unlinkSync(file);
+    sendToast('Approval Rejected', (upn || 'Request') + ' was rejected and removed from the queue.');
     event.sender.send('reject-result', { ok: true });
   } catch (err) {
     event.sender.send('reject-result', { ok: false, error: err.message });
@@ -918,7 +983,7 @@ ipcMain.on('get-hr-queue', async (event) => {
 
 ipcMain.on('window-minimize', () => { if (win) win.minimize(); });
 ipcMain.on('window-maximize', () => { if (win) { win.isMaximized() ? win.unmaximize() : win.maximize(); } });
-ipcMain.on('window-close',    () => { app.quit(); });
+ipcMain.on('window-close',    () => { if (win && !win.isDestroyed()) win.hide(); });
 ipcMain.on('sign-out', () => {
   currentOperator = null;
   currentRole     = 'viewer';
@@ -973,6 +1038,7 @@ function createMainWindow() {
     }
   });
   win.loadFile(path.join(__dirname, 'renderer', 'index.html'));
+  win.setIcon(APP_ICON);
 }
 
 function createOperatorWindow() {
@@ -1526,8 +1592,8 @@ async function runCapture() {
   createOperatorWindow();
   await new Promise(r => operatorWin.webContents.once('did-finish-load', r));
   await sleep(1000);
-  const selImg = await operatorWin.webContents.capturePage();
-  fs.writeFileSync(path.join(CAPTURE_OUT, 'operator-select.png'), selImg.toPNG());
+  let selImg; for (let a=0;a<3;a++){try{selImg=await operatorWin.webContents.capturePage();break;}catch(e){await sleep(600);}}
+  if (selImg) fs.writeFileSync(path.join(CAPTURE_OUT, 'operator-select.png'), selImg.toPNG());
   console.log('Captured: operator-select');
   operatorWin.close(); operatorWin = null;
 
@@ -1587,20 +1653,28 @@ async function runCapture() {
   await win.webContents.executeJavaScript(`document.querySelector('[data-tab="approver"]')?.click()`);
   await sleep(800);
   {
-    const img = await win.webContents.capturePage();
-    fs.writeFileSync(path.join(CAPTURE_OUT, 'jml-fleet-input.png'), img.toPNG());
-    console.log('Captured: jml-fleet-input');
+    win.webContents.invalidate();
+    await sleep(600);
+    let img; for (let a=0;a<3;a++){try{img=await win.webContents.capturePage();break;}catch(e){await sleep(600);}}
+    if (img) { fs.writeFileSync(path.join(CAPTURE_OUT, 'jml-fleet-input.png'), img.toPNG()); console.log('Captured: jml-fleet-input'); }
   }
 
   for (const [tab, ipcJs, wait] of TABS) {
     await win.webContents.executeJavaScript(`document.querySelector('[data-tab="${tab}"]')?.click()`);
-    await sleep(300);
+    await sleep(500);
     if (ipcJs) await win.webContents.executeJavaScript(ipcJs);
     await sleep(wait);
     if (TAB_INJECT[tab]) await win.webContents.executeJavaScript(TAB_INJECT[tab]);
     await win.webContents.executeJavaScript(REMOVE_OVERFLOW);
-    await sleep(400);
-    const img = await win.webContents.capturePage();
+    // Force a fresh paint before capture (especially needed in --disable-gpu / software render mode)
+    win.webContents.invalidate();
+    await sleep(800);
+    let img;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try { img = await win.webContents.capturePage(); break; }
+      catch (e) { console.warn(`capturePage attempt ${attempt + 1} failed: ${e.message}`); await sleep(600); }
+    }
+    if (!img) { console.error('capturePage failed for', tab, '- skipping'); continue; }
     fs.writeFileSync(path.join(CAPTURE_OUT, tab + '.png'), img.toPNG());
     console.log('Captured:', tab);
   }
@@ -1703,9 +1777,13 @@ function ensureDataDirs() {
 }
 
 app.whenReady().then(() => {
-  if (CAPTURE_MODE) { runCapture(); return; }
+  app.setAppUserModelId('com.jml.console');
+  if (CAPTURE_MODE) { runCapture().catch(e => { console.error('Capture error:', e); app.quit(); process.exitCode = 1; }); return; }
+  createTray();
   ensureDataDirs();
   if (isFirstRun()) { createSetupWindow(); } else { createOperatorWindow(); }
+  setInterval(pollTrayApprovals, 30000);
+  pollTrayApprovals();
 
   setInterval(() => {
     const ops  = loadScheduled();
@@ -1749,7 +1827,7 @@ app.whenReady().then(() => {
   }, 60000);
 });
 
-app.on('window-all-closed', () => app.quit());
+app.on('window-all-closed', () => { if (quitting) app.quit(); });
 
 // ── Feature: User Lookup ──────────────────────────────────────────────────────
 ipcMain.on('search-users', (event, { query }) => {
