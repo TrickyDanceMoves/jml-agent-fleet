@@ -147,5 +147,8 @@ contextBridge.exposeInMainWorld('api', {
   saveIntegrationsConfig: (config) => ipcRenderer.invoke('save-integrations-config', { config }),
 
   // Sign out — closes main window, returns to operator select
-  signOut: () => ipcRenderer.send('sign-out')
+  signOut: () => ipcRenderer.send('sign-out'),
+
+  // Avatar file picker — uses Electron native dialog (reliable vs hidden input)
+  pickImageFile: () => ipcRenderer.invoke('pick-image-file')
 });
