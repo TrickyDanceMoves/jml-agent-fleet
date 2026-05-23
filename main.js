@@ -1,7 +1,7 @@
 'use strict';
 
 const { app, BrowserWindow, ipcMain } = require('electron');
-const { execFileSync, spawnSync }      = require('child_process');
+const { execFileSync, execFile, spawnSync } = require('child_process');
 const path  = require('path');
 const fs    = require('fs');
 const os    = require('os');
@@ -281,6 +281,22 @@ function runPs(scriptPath, params = {}) {
   return execFileSync('powershell', args, { encoding: 'utf8', timeout: 120000 });
 }
 
+function runPsAsync(scriptPath, params = {}) {
+  return new Promise((resolve, reject) => {
+    if (!fs.existsSync(scriptPath)) { reject(new Error('Script not found: ' + scriptPath)); return; }
+    const args = ['-NonInteractive', '-File', scriptPath];
+    for (const [k, v] of Object.entries(params)) {
+      if (v === null || v === undefined) continue;
+      if (typeof v === 'boolean') { if (v) args.push('-' + k); }
+      else if (Array.isArray(v))  { args.push('-' + k, v.join(',')); }
+      else                        { args.push('-' + k, String(v)); }
+    }
+    execFile('powershell', args, { encoding: 'utf8', timeout: 120000 }, (err, stdout) => {
+      if (err) reject(err); else resolve(stdout);
+    });
+  });
+}
+
 function parsePs1Output(raw) {
   const lines = raw.trim().split('\n');
   const visible = lines.filter(l => /\[(ACTION|ERROR|WARN|SKIP|WHATIF)\]/.test(l))
@@ -472,14 +488,16 @@ ipcMain.on('get-audit-log', (event) => {
   event.sender.send('audit-log-data', entries.reverse());
 });
 
-ipcMain.on('get-dashboard-stats', (event) => {
+ipcMain.on('get-dashboard-stats', async (event) => {
   try {
     const script = path.join(AGENTS_DIR, 'auditor', 'Invoke-AuditorQuery.ps1');
     if (!fs.existsSync(script)) { event.sender.send('dashboard-stats', { error: 'Auditor not configured' }); return; }
-    const userRaw     = runPs(script, { QueryType: 'UserSummary' });
-    const licenseRaw  = runPs(script, { QueryType: 'LicenseReport' });
-    const activityRaw = runPs(script, { QueryType: 'JMLActivity', TopN: '5' });
     const parseJ = raw => { const l = raw.trim().split('\n').filter(l => l.trim().startsWith('{')).pop(); return l ? JSON.parse(l) : {}; };
+    const [userRaw, licenseRaw, activityRaw] = await Promise.all([
+      runPsAsync(script, { QueryType: 'UserSummary' }),
+      runPsAsync(script, { QueryType: 'LicenseReport' }),
+      runPsAsync(script, { QueryType: 'JMLActivity', TopN: '5' })
+    ]);
     event.sender.send('dashboard-stats', {
       users:    parseJ(userRaw),
       licenses: parseJ(licenseRaw),
@@ -519,10 +537,10 @@ ipcMain.on('get-exports-status', (event) => {
   });
 });
 
-ipcMain.on('run-blob-export', (event) => {
+ipcMain.on('run-blob-export', async (event) => {
   const script = path.join(AGENTS_DIR, 'auditor', 'Invoke-BlobExport.ps1');
   try {
-    runPs(script);
+    await runPsAsync(script);
     const status = readJson(path.join(REPORTS_DIR, 'blob-export-status.json'));
     event.sender.send('export-run-result', { type: 'blob', ok: true, status });
   } catch (err) {
@@ -530,10 +548,10 @@ ipcMain.on('run-blob-export', (event) => {
   }
 });
 
-ipcMain.on('run-sentinel-ingest', (event) => {
+ipcMain.on('run-sentinel-ingest', async (event) => {
   const script = path.join(AGENTS_DIR, 'auditor', 'Invoke-SentinelIngest.ps1');
   try {
-    runPs(script);
+    await runPsAsync(script);
     const status = readJson(path.join(REPORTS_DIR, 'sentinel-status.json'));
     event.sender.send('export-run-result', { type: 'sentinel', ok: true, status });
   } catch (err) {
@@ -854,6 +872,12 @@ ipcMain.on('get-hr-queue', async (event) => {
 ipcMain.on('window-minimize', () => { if (win) win.minimize(); });
 ipcMain.on('window-maximize', () => { if (win) { win.isMaximized() ? win.unmaximize() : win.maximize(); } });
 ipcMain.on('window-close',    () => { app.quit(); });
+ipcMain.on('sign-out', () => {
+  currentOperator = null;
+  currentRole     = 'viewer';
+  if (win && !win.isDestroyed()) { win.close(); win = null; }
+  createOperatorWindow();
+});
 
 // ── Window ────────────────────────────────────────────────────────────────────
 let win;

@@ -948,9 +948,11 @@ window.api.onExportRunResult((result) => {
   setRunning(result.type, false);
   if (result.ok) {
     window.api.getExportsStatus();
+    showToast((result.type === 'blob' ? 'Blob export' : 'Sentinel ingest') + ' complete', 'success');
   } else {
     const errEl = document.getElementById(result.type === 'blob' ? 'blob-error' : 'sentinel-error');
-    errEl.textContent = result.error || 'Unknown error';
+    if (errEl) errEl.textContent = result.error || 'Unknown error';
+    showToast((result.type === 'blob' ? 'Blob export' : 'Sentinel ingest') + ' failed — check integration config', 'error');
   }
 });
 
@@ -2825,6 +2827,10 @@ if (typeof window.api?.getTenantConfig === 'function') {
   switchBtn.addEventListener('click', openSwitchModal);
   cancelBtn.addEventListener('click', () => { overlay.style.display = 'none'; });
   overlay.addEventListener('click', e => { if (e.target === overlay) overlay.style.display = 'none'; });
+  document.getElementById('op-switch-signout').addEventListener('click', () => {
+    overlay.style.display = 'none';
+    window.api.signOut();
+  });
 
   window.api.onOperatorSwitched(d => {
     setSidebarOperator(d.name);
