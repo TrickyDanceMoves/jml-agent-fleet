@@ -144,5 +144,8 @@ contextBridge.exposeInMainWorld('api', {
 
   // Integrations config
   getIntegrationsConfig:  ()       => ipcRenderer.invoke('get-integrations-config'),
-  saveIntegrationsConfig: (config) => ipcRenderer.invoke('save-integrations-config', { config })
+  saveIntegrationsConfig: (config) => ipcRenderer.invoke('save-integrations-config', { config }),
+
+  // Sign out — closes main window, returns to operator select
+  signOut: () => ipcRenderer.send('sign-out')
 });
