@@ -2702,17 +2702,19 @@ function setSidebarOperator(name) {
     const saved = (function() {
       try { return localStorage.getItem('jml-avatar-' + base); } catch { return null; }
     })();
+    const existingImg = av.querySelector('img.av-photo');
+    if (existingImg) existingImg.remove();
     if (saved) {
-      av.style.setProperty('background-image', 'url(' + JSON.stringify(saved) + ')', 'important');
-      av.style.backgroundSize     = 'cover';
-      av.style.backgroundPosition = 'center';
-      av.style.color              = 'transparent';
+      const photo = document.createElement('img');
+      photo.className = 'av-photo';
+      photo.src = saved;
+      photo.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;object-fit:cover;border-radius:7px;pointer-events:none;';
+      av.appendChild(photo);
+      av.style.color = 'transparent';
       av.classList.add('has-image');
     } else {
-      av.style.removeProperty('background-image');
-      av.style.removeProperty('background-size');
-      av.style.removeProperty('background-position');
       av.style.removeProperty('color');
+      av.style.removeProperty('background-image');
       av.classList.remove('has-image');
     }
   }
