@@ -2703,12 +2703,16 @@ function setSidebarOperator(name) {
       try { return localStorage.getItem('jml-avatar-' + base); } catch { return null; }
     })();
     if (saved) {
-      // Use a CSS variable so the rule with !important can pick it up cleanly
-      // and beat the default linear-gradient on .who-avatar.
-      av.style.setProperty('--avatar-image', `url("${saved}")`);
+      av.style.setProperty('background-image', 'url(' + JSON.stringify(saved) + ')', 'important');
+      av.style.backgroundSize     = 'cover';
+      av.style.backgroundPosition = 'center';
+      av.style.color              = 'transparent';
       av.classList.add('has-image');
     } else {
-      av.style.removeProperty('--avatar-image');
+      av.style.removeProperty('background-image');
+      av.style.removeProperty('background-size');
+      av.style.removeProperty('background-position');
+      av.style.removeProperty('color');
       av.classList.remove('has-image');
     }
   }

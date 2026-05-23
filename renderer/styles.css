@@ -388,7 +388,7 @@ a { color: var(--cyan); text-decoration: none; }
   background: rgb(0 0 0 / .55); color: var(--text);
   font-size: 14px;
 }
-.who-avatar.has-image { color: transparent; background-image: var(--avatar-image) !important; }
+.who-avatar.has-image { color: transparent; }
 .who-meta { display: flex; flex-direction: column; line-height: 1.2; flex: 1; min-width: 0; gap: 3px; }
 .sidebar-operator {
   display: flex; align-items: center; gap: 6px;
