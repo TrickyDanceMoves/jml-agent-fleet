@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'unsafe-inline'; script-src 'self' 'unsafe-inline'; font-src 'self'">
+  <title>JML Fleet — Select Operator</title>
+  <style>
+    @font-face { font-family: 'Geist'; src: url('fonts/geist-400.woff2') format('woff2'); font-weight: 400; font-display: swap; }
+    @font-face { font-family: 'Geist'; src: url('fonts/geist-500.woff2') format('woff2'); font-weight: 500; font-display: swap; }
+    @font-face { font-family: 'Geist'; src: url('fonts/geist-600.woff2') format('woff2'); font-weight: 600; font-display: swap; }
+    @font-face { font-family: 'JetBrains Mono'; src: url('fonts/jbmono-500.woff2') format('woff2'); font-weight: 500; font-display: swap; }
+    :root {
+      --bg: oklch(0.16 0.012 252);
+      --bg-2: oklch(0.18 0.014 252);
+      --surface: oklch(0.205 0.016 252);
+      --border: oklch(0.31 0.022 252);
+      --border-strong: oklch(0.40 0.030 252);
+      --text: oklch(0.97 0.005 252);
+      --text-2: oklch(0.78 0.010 252);
+      --muted: oklch(0.58 0.014 252);
+      --cyan: oklch(0.82 0.14 195);
+      --cyan-dim: oklch(0.55 0.12 195);
+      --coral: oklch(0.70 0.20 24);
+      --emerald: oklch(0.78 0.16 155);
+      --violet: oklch(0.74 0.14 280);
+      --mono: 'JetBrains Mono', 'Cascadia Code', 'Consolas', ui-monospace, monospace;
+      --sans: 'Geist', 'Inter', system-ui, sans-serif;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: var(--sans);
+      background:
+        radial-gradient(800px 500px at 8% -10%, oklch(0.24 0.05 230 / .4), transparent 60%),
+        radial-gradient(700px 400px at 105% 100%, oklch(0.22 0.06 280 / .3), transparent 55%),
+        var(--bg);
+      color: var(--text);
+      height: 100vh;
+      display: flex; align-items: center; justify-content: center;
+      user-select: none;
+      -webkit-app-region: drag;
+      -webkit-font-smoothing: antialiased;
+    }
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 28px 30px;
+      width: 380px;
+      display: flex; flex-direction: column; gap: 18px;
+      -webkit-app-region: no-drag;
+      box-shadow: 0 30px 80px oklch(0 0 0 / .55);
+    }
+    .brand-row { display: flex; align-items: center; gap: 12px; }
+    .seal {
+      width: 38px; height: 38px; border-radius: 10px;
+      background: conic-gradient(from 220deg at 50% 50%, var(--cyan), var(--violet), var(--coral), var(--cyan));
+      position: relative;
+      box-shadow: 0 0 0 1px oklch(0.4 0.02 252 / .8);
+      flex-shrink: 0;
+    }
+    .seal::after { content: ""; position: absolute; inset: 4px; border-radius: 7px; background: var(--bg-2); }
+    .seal::before {
+      content: ""; position: absolute; inset: 10px; border-radius: 4px;
+      background: linear-gradient(135deg, var(--cyan), var(--violet));
+      animation: pulse 4s ease-in-out infinite;
+    }
+    @keyframes pulse { 50% { transform: scale(.9); } }
+    .brand-title { font-size: 16px; font-weight: 600; letter-spacing: -.01em; }
+    .brand-sub { font-size: 11px; color: var(--muted); font-family: var(--mono); letter-spacing: .04em; text-transform: uppercase; margin-top: 2px; }
+    .divider { height: 1px; background: var(--border); }
+    .prompt { font-size: 12.5px; color: var(--text-2); }
+    .operator-list { display: flex; flex-direction: column; gap: 6px; max-height: 320px; overflow-y: auto; }
+    .operator-list::-webkit-scrollbar { width: 6px; }
+    .operator-list::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 3px; }
+    .op-btn {
+      display: flex; align-items: center; gap: 12px;
+      padding: 10px 12px;
+      background: var(--bg-2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      cursor: pointer;
+      transition: border-color .15s, background .15s, transform .15s;
+      color: inherit; font-family: inherit; font-size: 13px;
+      width: 100%; text-align: left;
+    }
+    .op-btn:hover { border-color: var(--cyan-dim); background: oklch(0.22 0.04 200 / .25); transform: translateY(-1px); }
+    .op-btn.selected { border-color: var(--cyan); }
+    .op-av {
+      width: 32px; height: 32px; border-radius: 8px;
+      display: grid; place-items: center;
+      font-weight: 600; font-size: 11px;
+      border: 1px solid var(--border-strong);
+      background: linear-gradient(135deg, oklch(0.55 0.12 195), oklch(0.40 0.12 280));
+      color: #fff;
+      flex-shrink: 0;
+    }
+    .op-meta { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
+    .op-name { font-weight: 500; color: var(--text); }
+    .op-role {
+      font-family: var(--mono); font-size: 10px;
+      padding: 2px 7px; border-radius: 4px;
+      letter-spacing: .08em; text-transform: uppercase;
+      border: 1px solid; width: fit-content; margin-left: auto; align-self: center;
+    }
+    .role-admin    { color: var(--cyan);    border-color: oklch(0.55 0.12 195 / .45); background: oklch(0.55 0.12 195 / .08); }
+    .role-helpdesk { color: var(--emerald); border-color: oklch(0.50 0.13 155 / .45); background: oklch(0.50 0.13 155 / .08); }
+    .role-viewer   { color: var(--text-2);  border-color: var(--border-strong);        background: oklch(0.27 0.02 252); }
+    .role-other    { color: var(--muted);   border-color: var(--border-strong);        background: oklch(0.27 0.02 252); }
+    .guest-row { display: flex; align-items: center; gap: 8px; }
+    .guest-divider { flex: 1; height: 1px; background: var(--border); }
+    .guest-label { font-size: 10px; color: var(--muted); font-family: var(--mono); letter-spacing: .08em; text-transform: uppercase; }
+    .btn-continue {
+      padding: 9px 14px;
+      background: transparent;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      cursor: pointer;
+      color: var(--text-2);
+      font-family: inherit; font-size: 12px;
+      width: 100%; text-align: center;
+      transition: border-color .15s, color .15s, background .15s;
+    }
+    .btn-continue:hover { border-color: var(--border-strong); color: var(--text); background: var(--bg-2); }
+    .no-ops { font-size: 12px; color: var(--muted); text-align: center; padding: 14px; }
+    /* PIN gate dialog */
+    .pin-gate-overlay {
+      position: fixed; inset: 0; background: oklch(0 0 0 / .7); backdrop-filter: blur(4px);
+      z-index: 100; display: flex; align-items: center; justify-content: center;
+    }
+    .pin-gate { width: 360px; max-width: 92vw; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 20px; display: flex; flex-direction: column; gap: 14px; }
+    .pin-gate h3 { font-size: 14px; font-weight: 600; margin: 0; }
+    .pin-gate .sub { font-size: 12px; color: var(--muted); line-height: 1.5; }
+    .pin-gate-choice { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .pin-gate-choice button {
+      padding: 12px 10px; background: var(--bg-2); border: 1px solid var(--border); border-radius: 8px;
+      color: var(--text); cursor: pointer; font-family: inherit; font-size: 13px;
+      display: flex; flex-direction: column; gap: 4px; align-items: center;
+    }
+    .pin-gate-choice button:hover { border-color: var(--cyan-dim); }
+    .pin-gate-choice button .label { font-weight: 600; }
+    .pin-gate-choice button .desc { font-size: 11px; color: var(--muted); }
+    .pin-gate input { padding: 10px 12px; font-family: var(--mono); font-size: 16px;
+      background: var(--bg-2); border: 1px solid var(--border); border-radius: 8px;
+      color: var(--text); letter-spacing: .3em; text-align: center;
+    }
+    .pin-gate input:focus { border-color: var(--cyan-dim); outline: 0; }
+    .pin-gate-actions { display: flex; gap: 8px; justify-content: flex-end; }
+    .pin-gate-actions button { padding: 7px 14px; border-radius: 7px; font-size: 12.5px; cursor: pointer; }
+    .pin-gate-actions .btn-cancel { background: transparent; color: var(--text-2); border: 1px solid var(--border); }
+    .pin-gate-actions .btn-ok { background: var(--cyan); color: oklch(0.14 0.02 220); border: 0; font-weight: 600; }
+    .pin-gate-error { font-size: 11px; color: var(--coral); font-family: var(--mono); min-height: 14px; }
+    .win-map {
+      margin-top: 4px; padding: 8px 10px;
+      border: 1px solid var(--border); border-radius: 7px;
+      background: var(--bg-2);
+      font-family: var(--mono); font-size: 10.5px; color: var(--text-2);
+      display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+    }
+    .win-map .k { color: var(--muted); text-transform: uppercase; letter-spacing: .08em; font-size: 9px; }
+    .win-map .arrow { color: var(--muted); }
+    .win-map b { color: var(--text); }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="brand-row">
+      <div class="seal"></div>
+      <div>
+        <div class="brand-title">JML Fleet Console</div>
+        <div class="brand-sub">Identity Lifecycle Management</div>
+      </div>
+    </div>
+    <div class="divider"></div>
+    <div class="prompt">Who is operating this session? All actions will be signed with this identity's certificate and recorded to the audit chain.</div>
+    <div class="operator-list" id="operator-list">
+      <div class="no-ops">Loading operators…</div>
+    </div>
+    <div class="guest-row">
+      <div class="guest-divider"></div>
+      <span class="guest-label">or</span>
+      <div class="guest-divider"></div>
+    </div>
+    <button class="btn-continue" id="btn-guest">Continue as <span id="guest-name">guest</span></button>
+    <div class="win-map">
+      <span class="k">Win-Auth</span>
+      <b id="winauth-name">—</b>
+      <span class="arrow">→</span>
+      <span class="k">Console</span>
+    </div>
+  </div>
+
+  <script>
+    const roleClass = r => {
+      if (!r) return 'role-other';
+      const l = r.toLowerCase();
+      if (l === 'admin')    return 'role-admin';
+      if (l === 'helpdesk') return 'role-helpdesk';
+      if (l === 'viewer')   return 'role-viewer';
+      return 'role-other';
+    };
+    const initials = name => {
+      if (!name) return '?';
+      return name.split(/[.\s_-]+/).map(s => s[0]).join('').slice(0, 2).toUpperCase() || name.slice(0, 2).toUpperCase();
+    };
+
+    window.api.getOperatorsForLogin().then(data => {
+      const list = document.getElementById('operator-list');
+      const ops  = data.operators || {};
+      const entries = Object.entries(ops);
+
+      if (!entries.length) {
+        list.innerHTML = '<div class="no-ops">No operators configured — see Settings.</div>';
+        return;
+      }
+
+      list.innerHTML = entries.map(([name, role]) =>
+        `<button class="op-btn" data-name="${name}" data-role="${role || ''}">
+          <span class="op-av">${initials(name)}</span>
+          <span class="op-meta">
+            <span class="op-name">${name}</span>
+          </span>
+          <span class="op-role ${roleClass(role)}">${role || 'user'}</span>
+        </button>`
+      ).join('');
+
+      list.querySelectorAll('.op-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          gateOperator(btn.dataset.name, btn.dataset.role);
+        });
+      });
+    }).catch(() => {
+      document.getElementById('operator-list').innerHTML =
+        '<div class="no-ops">Could not load operators.</div>';
+    });
+
+    document.getElementById('guest-name').textContent = window.api.currentUser;
+    document.getElementById('winauth-name').textContent = window.api.currentUser;
+    document.getElementById('btn-guest').addEventListener('click', () => {
+      // Guest = read-only viewer; no PIN required
+      window.api.selectOperator(window.api.currentUser, 'guest');
+    });
+
+    // ── PIN gate for write-access operators ────────────────────────────────
+    // admin / helpdesk roles require either a configured PIN (entered now) or
+    // a one-time setup if none exists; viewer + guest skip the gate.
+    async function gateOperator(name, role) {
+      const writeAccess = role === 'admin' || role === 'helpdesk';
+      if (!writeAccess) {
+        window.api.selectOperator(name, role);
+        return;
+      }
+      const allAuth = await window.api.getOperatorAuth();
+      const a = allAuth && allAuth[name];
+      if (!a || !a.set) {
+        // No auth configured yet — offer PIN setup or Windows-auth path
+        const choice = await showAuthChoice(name);
+        if (!choice) return; // cancelled, stay on sign-in
+        if (choice === 'windows') {
+          await window.api.setOperatorAuthWindows(name);
+          window.api.selectOperator(name, role);
+          return;
+        }
+        // PIN path
+        const newPin = await showPinPrompt({ title: 'Set a new PIN', body: 'Choose a 4–8 digit PIN. Required for Live writes and approvals.', confirm: true });
+        if (!newPin) return;
+        const resp = await window.api.setOperatorAuthPin(name, newPin);
+        if (!(resp && resp.ok)) return;
+        window.api.selectOperator(name, role);
+        return;
+      }
+      // Auth exists — verify
+      const pin = await showPinPrompt({ title: a.mode === 'windows' ? 'Confirm Windows session' : 'Enter your PIN', body: 'Required to sign in with write access.', confirm: false });
+      if (!pin) return;
+      const verify = await window.api.verifyOperatorPin(name, pin);
+      if (!(verify && verify.ok)) {
+        // Show inline error and retry by re-calling
+        showError('PIN incorrect — try again or cancel.');
+        return gateOperator(name, role);
+      }
+      window.api.selectOperator(name, role);
+    }
+
+    function showAuthChoice(name) {
+      return new Promise(resolve => {
+        const overlay = document.createElement('div');
+        overlay.className = 'pin-gate-overlay';
+        overlay.innerHTML = `
+          <div class="pin-gate">
+            <h3>Set up authentication</h3>
+            <div class="sub">${name} is a write-access operator. Choose how to authenticate this and future sign-ins.</div>
+            <div class="pin-gate-choice">
+              <button data-c="pin"><span class="label">Use PIN</span><span class="desc">4–8 digit code</span></button>
+              <button data-c="windows"><span class="label">Use Windows</span><span class="desc">Trust the OS session</span></button>
+            </div>
+            <div class="pin-gate-actions"><button class="btn-cancel">Cancel sign-in</button></div>
+          </div>`;
+        document.body.appendChild(overlay);
+        const done = (v) => { overlay.remove(); resolve(v); };
+        overlay.querySelectorAll('.pin-gate-choice button').forEach(b => b.addEventListener('click', () => done(b.dataset.c)));
+        overlay.querySelector('.btn-cancel').addEventListener('click', () => done(null));
+        overlay.addEventListener('click', e => { if (e.target === overlay) done(null); });
+      });
+    }
+
+    function showPinPrompt({ title, body, confirm }) {
+      return new Promise(resolve => {
+        const overlay = document.createElement('div');
+        overlay.className = 'pin-gate-overlay';
+        overlay.innerHTML = `
+          <div class="pin-gate">
+            <h3>${title}</h3>
+            <div class="sub">${body}</div>
+            <input type="password" inputmode="numeric" pattern="[0-9]*" autocomplete="off" autofocus maxlength="12" placeholder="PIN" class="pin-input"/>
+            ${confirm ? '<input type="password" inputmode="numeric" pattern="[0-9]*" autocomplete="off" maxlength="12" placeholder="Confirm PIN" class="pin-confirm"/>' : ''}
+            <div class="pin-gate-error"></div>
+            <div class="pin-gate-actions">
+              <button class="btn-cancel">Cancel</button>
+              <button class="btn-ok">OK</button>
+            </div>
+          </div>`;
+        document.body.appendChild(overlay);
+        const pinIn = overlay.querySelector('.pin-input');
+        const conf  = overlay.querySelector('.pin-confirm');
+        const err   = overlay.querySelector('.pin-gate-error');
+        const done = (v) => { overlay.remove(); resolve(v); };
+        const submit = () => {
+          const v = (pinIn.value || '').trim();
+          if (v.length < 4) { err.textContent = 'PIN must be at least 4 characters'; return; }
+          if (conf && v !== conf.value) { err.textContent = 'PINs do not match'; return; }
+          done(v);
+        };
+        overlay.querySelector('.btn-ok').addEventListener('click', submit);
+        overlay.querySelector('.btn-cancel').addEventListener('click', () => done(null));
+        pinIn.addEventListener('keydown', e => { if (e.key === 'Enter') (conf ? conf.focus() : submit()); else if (e.key === 'Escape') done(null); });
+        if (conf) conf.addEventListener('keydown', e => { if (e.key === 'Enter') submit(); else if (e.key === 'Escape') done(null); });
+        setTimeout(() => pinIn.focus(), 50);
+      });
+    }
+
+    function showError(msg) {
+      // Lightweight inline toast
+      const t = document.createElement('div');
+      t.style.cssText = 'position:fixed;top:14px;left:50%;transform:translateX(-50%);background:var(--surface);border:1px solid oklch(0.45 0.16 24 / .45);color:var(--coral);padding:8px 12px;border-radius:8px;font-size:12px;z-index:200';
+      t.textContent = msg;
+      document.body.appendChild(t);
+      setTimeout(() => t.remove(), 2500);
+    }
+  </script>
+</body>
+</html>
