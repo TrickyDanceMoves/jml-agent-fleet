@@ -1,0 +1,53 @@
+{
+  "name": "jml-console",
+  "version": "1.0.0",
+  "description": "JML Identity Management Console",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "capture": "electron . --capture",
+    "build": "electron-builder --win --x64"
+  },
+  "build": {
+    "appId": "com.jml.console",
+    "productName": "JML Console",
+    "win": {
+      "target": ["nsis", "zip"],
+      "icon": "assets/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "renderer/**/*",
+      "Assets/icon.ico"
+    ],
+    "extraResources": [
+      { "from": "../joiner",      "to": "agents/joiner",      "filter": ["**/*.ps1"] },
+      { "from": "../mover",       "to": "agents/mover",       "filter": ["**/*.ps1"] },
+      { "from": "../leaver",      "to": "agents/leaver",      "filter": ["**/*.ps1"] },
+      { "from": "../enroller",    "to": "agents/enroller",    "filter": ["**/*.ps1"] },
+      { "from": "../approver",    "to": "agents/approver",    "filter": ["**/*.ps1"] },
+      { "from": "../auditor",     "to": "agents/auditor",     "filter": ["**/*.ps1"] },
+      { "from": "../certifier",   "to": "agents/certifier",   "filter": ["**/*.ps1"] },
+      { "from": "../provisioner", "to": "agents/provisioner", "filter": ["**/*.ps1"] },
+      { "from": "../shared",      "to": "agents/shared",      "filter": ["**/*.ps1", "*.json"] }
+    ]
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.94.0",
+    "@azure/data-tables": "^13.3.0",
+    "@azure/storage-queue": "^12.23.0"
+  },
+  "devDependencies": {
+    "@fontsource/inter": "^5.2.8",
+    "electron": "^42.0.0",
+    "electron-builder": "^26.8.1"
+  }
+}
