@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'unsafe-inline'; script-src 'self' 'unsafe-inline'; font-src 'self'">
+  <title>JML Fleet — Setup</title>
+  <style>
+    @font-face { font-family: 'Geist'; src: url('fonts/geist-400.woff2') format('woff2'); font-weight: 400; font-display: swap; }
+    @font-face { font-family: 'Geist'; src: url('fonts/geist-500.woff2') format('woff2'); font-weight: 500; font-display: swap; }
+    @font-face { font-family: 'Geist'; src: url('fonts/geist-600.woff2') format('woff2'); font-weight: 600; font-display: swap; }
+    @font-face { font-family: 'JetBrains Mono'; src: url('fonts/jbmono-500.woff2') format('woff2'); font-weight: 500; font-display: swap; }
+    :root {
+      --bg:           oklch(0.16 0.012 252);
+      --bg-2:         oklch(0.18 0.014 252);
+      --surface:      oklch(0.205 0.016 252);
+      --border:       oklch(0.31 0.022 252);
+      --border-strong:oklch(0.40 0.030 252);
+      --text:         oklch(0.97 0.005 252);
+      --text-2:       oklch(0.78 0.010 252);
+      --muted:        oklch(0.58 0.014 252);
+      --cyan:         oklch(0.82 0.14 195);
+      --cyan-dim:     oklch(0.55 0.12 195);
+      --coral:        oklch(0.70 0.20 24);
+      --emerald:      oklch(0.78 0.16 155);
+      --violet:       oklch(0.74 0.14 280);
+      --mono:         'JetBrains Mono', ui-monospace, monospace;
+      --sans:         'Geist', 'Inter', system-ui, sans-serif;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: var(--sans);
+      background:
+        radial-gradient(800px 500px at 8% -10%, oklch(0.24 0.05 230 / .4), transparent 60%),
+        radial-gradient(700px 400px at 105% 100%, oklch(0.22 0.06 280 / .3), transparent 55%),
+        var(--bg);
+      color: var(--text);
+      height: 100vh;
+      display: flex; align-items: center; justify-content: center;
+      user-select: none;
+      -webkit-app-region: drag;
+      -webkit-font-smoothing: antialiased;
+    }
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 28px 30px 24px;
+      width: 390px;
+      display: flex; flex-direction: column; gap: 0;
+      -webkit-app-region: no-drag;
+      box-shadow: 0 30px 80px oklch(0 0 0 / .55);
+    }
+    /* Step progress dots */
+    .steps { display: flex; align-items: center; gap: 0; margin-bottom: 22px; }
+    .step-dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: var(--border-strong);
+      transition: background .2s, width .2s;
+      flex-shrink: 0;
+    }
+    .step-dot.active { background: var(--cyan); width: 20px; border-radius: 4px; }
+    .step-dot.done   { background: var(--emerald); }
+    .step-line { flex: 1; height: 1px; background: var(--border); margin: 0 6px; }
+
+    /* Brand */
+    .brand-row { display: flex; align-items: center; gap: 12px; margin-bottom: 18px; }
+    .seal {
+      width: 34px; height: 34px; border-radius: 9px;
+      background: conic-gradient(from 220deg, var(--cyan), var(--violet), var(--coral), var(--cyan));
+      position: relative; box-shadow: 0 0 0 1px oklch(0.4 0.02 252 / .8); flex-shrink: 0;
+    }
+    .seal::after { content:""; position:absolute; inset:3px; border-radius:6px; background:var(--bg-2); }
+    .seal::before {
+      content:""; position:absolute; inset:9px; border-radius:3px;
+      background: linear-gradient(135deg, var(--cyan), var(--violet));
+      animation: pulse 4s ease-in-out infinite;
+    }
+    @keyframes pulse { 50% { transform: scale(.88); } }
+    .brand-title { font-size: 15px; font-weight: 600; letter-spacing: -.01em; }
+    .brand-sub { font-size: 11px; color: var(--muted); font-family: var(--mono); letter-spacing: .04em; text-transform: uppercase; margin-top: 2px; }
+
+    /* Panel */
+    .panel { display: none; flex-direction: column; gap: 14px; }
+    .panel.active { display: flex; }
+    .panel-title { font-size: 17px; font-weight: 600; letter-spacing: -.02em; }
+    .panel-desc { font-size: 12.5px; color: var(--text-2); line-height: 1.6; }
+
+    /* Choice cards */
+    .choice-grid { display: flex; flex-direction: column; gap: 8px; }
+    .choice-btn {
+      display: flex; align-items: center; gap: 12px;
+      padding: 11px 14px;
+      background: var(--bg-2); border: 1px solid var(--border); border-radius: 9px;
+      cursor: pointer; color: var(--text); font-family: inherit; font-size: 13px; text-align: left;
+      transition: border-color .15s, background .15s;
+      -webkit-app-region: no-drag;
+    }
+    .choice-btn:hover { border-color: var(--cyan-dim); background: oklch(0.22 0.04 200 / .2); }
+    .choice-btn.selected { border-color: var(--cyan); }
+    .choice-icon {
+      width: 34px; height: 34px; border-radius: 8px; flex-shrink: 0;
+      display: grid; place-items: center; font-size: 16px;
+      border: 1px solid var(--border-strong); background: var(--bg);
+    }
+    .choice-meta { display: flex; flex-direction: column; gap: 2px; }
+    .choice-label { font-weight: 600; font-size: 13px; }
+    .choice-desc  { font-size: 11.5px; color: var(--muted); }
+
+    /* Inputs */
+    .field-group { display: flex; flex-direction: column; gap: 5px; }
+    .field-label { font-size: 11.5px; color: var(--text-2); }
+    .field-input {
+      padding: 9px 11px; font-family: var(--mono); font-size: 12.5px;
+      background: var(--bg-2); border: 1px solid var(--border); border-radius: 8px;
+      color: var(--text); outline: 0;
+      -webkit-app-region: no-drag;
+    }
+    .field-input:focus { border-color: var(--cyan-dim); }
+    .field-hint { font-size: 11px; color: var(--muted); line-height: 1.5; }
+
+    /* Windows auth preview */
+    .win-row {
+      display: flex; align-items: center; gap: 8px; padding: 10px 12px;
+      background: var(--bg-2); border: 1px solid var(--border); border-radius: 8px;
+      font-family: var(--mono); font-size: 11.5px;
+    }
+    .win-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--emerald); flex-shrink: 0; }
+
+    /* Divider */
+    .divider { height: 1px; background: var(--border); }
+
+    /* Action area */
+    .panel-actions { display: flex; gap: 8px; align-items: center; margin-top: 4px; }
+    .btn-primary {
+      flex: 1; padding: 10px; background: var(--cyan); border: 0; border-radius: 8px;
+      color: oklch(0.14 0.02 220); font-family: inherit; font-size: 13px; font-weight: 600;
+      cursor: pointer; transition: opacity .15s;
+      -webkit-app-region: no-drag;
+    }
+    .btn-primary:hover { opacity: .88; }
+    .btn-ghost {
+      padding: 10px 14px; background: transparent; border: 1px solid var(--border); border-radius: 8px;
+      color: var(--text-2); font-family: inherit; font-size: 13px; cursor: pointer;
+      transition: border-color .15s, color .15s;
+      -webkit-app-region: no-drag;
+    }
+    .btn-ghost:hover { border-color: var(--border-strong); color: var(--text); }
+    .btn-skip {
+      background: transparent; border: 0; color: var(--muted); font-family: inherit;
+      font-size: 11.5px; cursor: pointer; text-decoration: underline; text-underline-offset: 3px;
+      -webkit-app-region: no-drag;
+    }
+    .btn-skip:hover { color: var(--text-2); }
+    .error-msg { font-size: 11px; color: var(--coral); min-height: 14px; font-family: var(--mono); }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <!-- Progress dots -->
+    <div class="steps">
+      <div class="step-dot active" id="dot-1"></div>
+      <div class="step-line"></div>
+      <div class="step-dot" id="dot-2"></div>
+      <div class="step-line"></div>
+      <div class="step-dot" id="dot-3"></div>
+    </div>
+
+    <!-- Panel 1: Welcome -->
+    <div class="panel active" id="panel-1">
+      <div class="brand-row">
+        <div class="seal"></div>
+        <div>
+          <div class="brand-title">JML Fleet Console</div>
+          <div class="brand-sub">Identity Lifecycle Management</div>
+        </div>
+      </div>
+      <div class="panel-title">Welcome</div>
+      <div class="panel-desc">
+        JML Fleet is a zero-trust identity lifecycle console for Microsoft Entra ID. It coordinates
+        Joiner, Mover, and Leaver workflows across a fleet of least-privilege AI agents.
+        <br><br>
+        Let's take a minute to set up your operator account and connect your tenant.
+        You can skip any step and configure it later in Settings.
+      </div>
+      <div class="panel-actions">
+        <button class="btn-primary" id="btn-start">Get Started →</button>
+      </div>
+      <div style="text-align:center;margin-top:6px">
+        <button class="btn-skip" id="btn-skip-all">Skip setup and open app</button>
+      </div>
+    </div>
+
+    <!-- Panel 2: Account -->
+    <div class="panel" id="panel-2">
+      <div class="panel-title">Create your account</div>
+      <div class="panel-desc">Choose how to authenticate as an operator. You can change this later in Settings → Operators.</div>
+      <div class="choice-grid">
+        <button class="choice-btn selected" id="choice-windows">
+          <div class="choice-icon">🪟</div>
+          <div class="choice-meta">
+            <div class="choice-label">Use Windows Authentication</div>
+            <div class="choice-desc">Trust the current Windows session — no PIN needed</div>
+          </div>
+        </button>
+        <button class="choice-btn" id="choice-skip-account">
+          <div class="choice-icon">⏭</div>
+          <div class="choice-meta">
+            <div class="choice-label">Skip for now</div>
+            <div class="choice-desc">Configure operators manually in Settings</div>
+          </div>
+        </button>
+      </div>
+      <div class="win-row" id="win-user-row">
+        <div class="win-dot"></div>
+        <span style="color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.08em">Windows user</span>
+        <b id="win-username" style="color:var(--text)">—</b>
+        <span style="color:var(--muted)">→ admin</span>
+      </div>
+      <div class="error-msg" id="err-account"></div>
+      <div class="panel-actions" style="margin-top:0">
+        <button class="btn-ghost" id="btn-back-2">Back</button>
+        <button class="btn-primary" id="btn-next-2">Next →</button>
+      </div>
+    </div>
+
+    <!-- Panel 3: Tenant -->
+    <div class="panel" id="panel-3">
+      <div class="panel-title">Connect your tenant</div>
+      <div class="panel-desc">Enter your Microsoft Entra (Azure AD) Tenant ID to wire the agents to your directory. You can skip this now and configure it in Settings → Tenant.</div>
+      <div class="field-group">
+        <div class="field-label">Tenant ID (GUID)</div>
+        <input class="field-input" id="setup-tenant-id" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" autocomplete="off" spellcheck="false">
+        <div class="field-hint">Found in Entra ID → Properties → Tenant ID</div>
+      </div>
+      <div class="field-group">
+        <div class="field-label">Primary domain <span style="color:var(--muted)">(optional)</span></div>
+        <input class="field-input" id="setup-primary-domain" placeholder="contoso.onmicrosoft.com" autocomplete="off" spellcheck="false">
+        <div class="field-hint">Used as the UPN suffix in AI agent prompts. No data is ingested until you run the agents.</div>
+      </div>
+      <div class="error-msg" id="err-tenant"></div>
+      <div class="panel-actions" style="margin-top:4px">
+        <button class="btn-ghost" id="btn-back-3">Back</button>
+        <button class="btn-primary" id="btn-done">Start JML Fleet</button>
+      </div>
+      <div style="text-align:center;margin-top:6px">
+        <button class="btn-skip" id="btn-skip-tenant">Skip tenant setup →</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    'use strict';
+    const GUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+    // Populate Windows username
+    const winName = window.api.currentUser || '—';
+    document.getElementById('win-username').textContent = winName;
+
+    let _accountChoice = 'windows'; // 'windows' | 'skip'
+
+    // Panel navigation
+    let _step = 1;
+    function goStep(n) {
+      for (let i = 1; i <= 3; i++) {
+        document.getElementById('panel-' + i).classList.toggle('active', i === n);
+        const dot = document.getElementById('dot-' + i);
+        dot.classList.remove('active', 'done');
+        if (i < n) dot.classList.add('done');
+        else if (i === n) dot.classList.add('active');
+      }
+      _step = n;
+    }
+
+    // Step 1
+    document.getElementById('btn-start').addEventListener('click', () => goStep(2));
+    document.getElementById('btn-skip-all').addEventListener('click', () => {
+      window.api.skipFirstRun();
+    });
+
+    // Step 2 choices
+    document.getElementById('choice-windows').addEventListener('click', () => {
+      _accountChoice = 'windows';
+      document.getElementById('choice-windows').classList.add('selected');
+      document.getElementById('choice-skip-account').classList.remove('selected');
+      document.getElementById('win-user-row').style.display = '';
+    });
+    document.getElementById('choice-skip-account').addEventListener('click', () => {
+      _accountChoice = 'skip';
+      document.getElementById('choice-skip-account').classList.add('selected');
+      document.getElementById('choice-windows').classList.remove('selected');
+      document.getElementById('win-user-row').style.display = 'none';
+    });
+
+    document.getElementById('btn-back-2').addEventListener('click', () => goStep(1));
+    document.getElementById('btn-next-2').addEventListener('click', () => goStep(3));
+
+    // Step 3
+    document.getElementById('btn-back-3').addEventListener('click', () => goStep(2));
+    document.getElementById('btn-skip-tenant').addEventListener('click', () => {
+      finish(false);
+    });
+
+    document.getElementById('btn-done').addEventListener('click', () => {
+      const tenantId = document.getElementById('setup-tenant-id').value.trim();
+      const err = document.getElementById('err-tenant');
+      if (tenantId && !GUID_RE.test(tenantId)) {
+        err.textContent = 'Tenant ID must be a GUID (xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx)';
+        return;
+      }
+      err.textContent = '';
+      finish(true);
+    });
+
+    async function finish(withTenant) {
+      const tenantId     = withTenant ? document.getElementById('setup-tenant-id').value.trim() : '';
+      const primaryDomain= withTenant ? document.getElementById('setup-primary-domain').value.trim() : '';
+      await window.api.completeFirstRun({
+        winAuth:       _accountChoice === 'windows',
+        tenantId:      tenantId      || null,
+        primaryDomain: primaryDomain || null
+      });
+    }
+
+    // Keyboard shortcuts
+    document.addEventListener('keydown', e => {
+      if (e.key === 'Escape') window.api.skipFirstRun();
+    });
+  </script>
+</body>
+</html>
