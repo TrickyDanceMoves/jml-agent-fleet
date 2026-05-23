@@ -7,22 +7,22 @@
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
   :root {
-    --bg:           oklch(0.11 0.010 252);
-    --bg-2:         oklch(0.14 0.010 252);
-    --surface:      oklch(0.16 0.010 252);
-    --elev:         oklch(0.19 0.010 252);
-    --border:       oklch(0.24 0.008 252);
-    --border-strong:oklch(0.30 0.008 252);
-    --text:         oklch(0.94 0.005 252);
-    --text-2:       oklch(0.72 0.008 252);
-    --muted:        oklch(0.52 0.008 252);
-    --dim:          oklch(0.38 0.006 252);
-    --cyan:         oklch(0.80 0.14 200);
-    --coral:        oklch(0.70 0.20 24);
-    --coral-dim:    oklch(0.45 0.16 24);
-    --amber:        oklch(0.78 0.16 75);
-    --emerald:      oklch(0.75 0.17 155);
-    --violet:       oklch(0.68 0.18 285);
+    --bg:            oklch(0.11 0.010 252);
+    --bg-2:          oklch(0.14 0.010 252);
+    --surface:       oklch(0.16 0.010 252);
+    --elev:          oklch(0.19 0.010 252);
+    --border:        oklch(0.24 0.008 252);
+    --border-strong: oklch(0.30 0.008 252);
+    --text:          oklch(0.94 0.005 252);
+    --text-2:        oklch(0.72 0.008 252);
+    --muted:         oklch(0.52 0.008 252);
+    --dim:           oklch(0.38 0.006 252);
+    --cyan:          oklch(0.80 0.14 200);
+    --coral:         oklch(0.70 0.20 24);
+    --coral-dim:     oklch(0.45 0.16 24);
+    --amber:         oklch(0.78 0.16 75);
+    --emerald:       oklch(0.75 0.17 155);
+    --violet:        oklch(0.68 0.18 285);
     --sans: 'Inter', system-ui, sans-serif;
     --mono: 'JetBrains Mono', 'Fira Code', monospace;
     --r: 8px;
@@ -49,7 +49,6 @@
     background: var(--bg-2);
     flex-shrink: 0;
   }
-  /* Brand mark — matches main console exactly */
   .brand-mark {
     -webkit-app-region: no-drag;
     width: 24px; height: 24px; border-radius: 6px; flex-shrink: 0;
@@ -64,17 +63,14 @@
   .brand-mark::before {
     content: ""; position: absolute; inset: 6px; border-radius: 2px;
     background: linear-gradient(135deg, var(--cyan), var(--violet));
-    filter: blur(.5px); animation: brand-pulse 4s ease-in-out infinite;
-    z-index: 1;
+    filter: blur(.5px); animation: brand-pulse 4s ease-in-out infinite; z-index: 1;
   }
   @keyframes brand-pulse { 50% { filter: blur(2px); transform: scale(.85); } }
-
   .brand-text {
     flex: 1; display: flex; flex-direction: column; line-height: 1.15; min-width: 0;
   }
   .brand-text .t1 { font-size: 12px; font-weight: 600; letter-spacing: .02em; color: var(--text); }
   .brand-text .t2 { font-size: 10px; color: var(--muted); font-family: var(--mono); letter-spacing: .05em; text-transform: uppercase; }
-
   .header-actions {
     -webkit-app-region: no-drag;
     display: flex; align-items: center; gap: 5px; flex-shrink: 0;
@@ -90,11 +86,10 @@
   .icon-btn svg { display: block; }
   .close-btn:hover { background: color-mix(in oklch, var(--coral) 15%, transparent); color: var(--coral); border-color: color-mix(in oklch, var(--coral) 40%, transparent); }
 
-  /* ── Settings panel (collapsible) ── */
+  /* ── Settings panel ── */
   .settings-panel {
     background: var(--bg-2); border-bottom: 1px solid var(--border);
-    padding: 10px 12px 8px; flex-shrink: 0;
-    display: none;
+    padding: 10px 12px 8px; flex-shrink: 0; display: none;
   }
   .settings-panel.open { display: block; }
   .sp-title {
@@ -106,9 +101,7 @@
     padding: 4px 0; cursor: pointer; color: var(--text-2); font-size: 12px;
   }
   .sp-row:hover { color: var(--text); }
-  .sp-row input[type="checkbox"] {
-    accent-color: var(--cyan); width: 12px; height: 12px; cursor: pointer;
-  }
+  .sp-row input[type="checkbox"] { accent-color: var(--cyan); width: 12px; height: 12px; cursor: pointer; }
 
   /* ── Scrollable body ── */
   .panel-body { flex: 1; overflow-y: auto; overflow-x: hidden; }
@@ -116,19 +109,40 @@
   .panel-body::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
 
   /* ── Sections ── */
-  .section { padding: 9px 12px; border-bottom: 1px solid var(--border); }
+  .section { border-bottom: 1px solid var(--border); }
   .section:last-child { border-bottom: 0; }
   .section-label {
     font-family: var(--mono); font-size: 9.5px; letter-spacing: .1em;
-    text-transform: uppercase; color: var(--dim); margin-bottom: 7px;
+    text-transform: uppercase; color: var(--dim);
+    display: flex; align-items: center; gap: 5px;
+    padding: 9px 12px 0; cursor: pointer; -webkit-app-region: no-drag;
   }
+  .section-label:hover { color: var(--text-2); }
+  .section-title { flex: 1; }
+  .grip {
+    color: var(--dim); cursor: grab; font-size: 11px; line-height: 1;
+    opacity: 0; transition: opacity .15s; flex-shrink: 0;
+    letter-spacing: 0; text-transform: none; font-family: var(--sans);
+  }
+  .section:hover .grip { opacity: 0.7; }
+  .grip:active { cursor: grabbing; }
+  .chevron {
+    color: var(--dim); font-size: 8px; letter-spacing: 0; text-transform: none;
+    font-family: var(--sans); transition: transform .2s; flex-shrink: 0;
+  }
+  .section.collapsed .chevron { transform: rotate(-90deg); }
+  .section-body { padding: 7px 12px 9px; }
+  .section.collapsed .section-body { display: none; }
+  .section.dragging  { opacity: 0.35; }
+  .section.drag-above { box-shadow: inset 0  2px 0 0 var(--cyan); }
+  .section.drag-below { box-shadow: inset 0 -2px 0 0 var(--cyan); }
+  body.xwide .grip { display: none; }
 
   /* ── Approval stat ── */
   .approval-row {
     display: flex; align-items: center; justify-content: space-between;
     cursor: pointer; padding: 6px 8px; border-radius: var(--r);
-    border: 1px solid var(--border); background: var(--surface);
-    transition: background .1s;
+    border: 1px solid var(--border); background: var(--surface); transition: background .1s;
   }
   .approval-row:hover { background: var(--elev); }
   .approval-row .label { font-size: 12px; color: var(--text-2); }
@@ -139,61 +153,114 @@
     border: 1px solid color-mix(in oklch, var(--coral) 45%, transparent);
     color: var(--coral);
   }
-  .approval-badge.none {
-    background: var(--elev); border-color: var(--border); color: var(--dim);
+  .approval-badge.none { background: var(--elev); border-color: var(--border); color: var(--dim); }
+  .approval-age {
+    font-family: var(--mono); font-size: 9px; color: var(--muted); margin-top: 4px; padding: 0 2px;
   }
+  .approval-age.urgent { color: var(--amber); }
 
   /* ── Cert health ── */
-  .cert-row {
-    display: flex; align-items: center; gap: 8px;
-    padding: 5px 0; font-size: 11.5px; color: var(--text-2);
-  }
-  .cert-dot {
-    width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0;
-    background: var(--emerald);
-  }
-  .cert-dot.warn  { background: var(--amber); }
-  .cert-dot.crit  { background: var(--coral); }
-  .cert-dot.none  { background: var(--dim); }
+  .cert-row { display: flex; align-items: center; gap: 8px; padding: 5px 0; font-size: 11.5px; color: var(--text-2); }
+  .cert-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; background: var(--emerald); }
+  .cert-dot.warn { background: var(--amber); }
+  .cert-dot.crit { background: var(--coral); }
+  .cert-dot.none { background: var(--dim); }
   .cert-row .cert-name { flex: 1; font-family: var(--mono); font-size: 10px; color: var(--muted); }
   .cert-row .cert-days { font-family: var(--mono); font-size: 10px; }
 
-  /* ── Last event ── */
-  .event-box {
+  /* ── Recent events feed ── */
+  .event-item {
     background: var(--surface); border: 1px solid var(--border);
-    border-radius: var(--r); padding: 7px 9px;
-    cursor: pointer;
+    border-radius: var(--r); padding: 7px 9px; cursor: pointer;
+    margin-bottom: 5px; transition: background .1s;
   }
-  .event-box:hover { background: var(--elev); }
-  .event-box .ev-agent { font-family: var(--mono); font-size: 10px; color: var(--cyan); }
-  .event-box .ev-subject { font-size: 11.5px; color: var(--text); margin: 2px 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .event-box .ev-meta { font-family: var(--mono); font-size: 9.5px; color: var(--muted); display: flex; gap: 8px; }
+  .event-item:last-child { margin-bottom: 0; }
+  .event-item:hover { background: var(--elev); }
+  .event-item .ev-agent { font-family: var(--mono); font-size: 10px; color: var(--cyan); }
+  .event-item .ev-subject { font-size: 11.5px; color: var(--text); margin: 2px 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .event-item .ev-meta { font-family: var(--mono); font-size: 9.5px; color: var(--muted); display: flex; gap: 8px; }
   .ev-outcome { font-family: var(--mono); font-size: 9px; padding: 1px 5px; border-radius: 3px; }
   .ev-outcome.success { color: var(--emerald); background: color-mix(in oklch, var(--emerald) 10%, transparent); }
   .ev-outcome.failed  { color: var(--coral);   background: color-mix(in oklch, var(--coral)   10%, transparent); }
   .ev-outcome.partial { color: var(--amber);   background: color-mix(in oklch, var(--amber)   10%, transparent); }
 
+  /* ── HR Queue ── */
+  .hr-row {
+    display: flex; align-items: center; justify-content: space-between;
+    cursor: pointer; padding: 6px 8px; border-radius: var(--r);
+    border: 1px solid var(--border); background: var(--surface); transition: background .1s;
+  }
+  .hr-row:hover { background: var(--elev); }
+  .hr-row .label { font-size: 12px; color: var(--text-2); }
+  .hr-badge {
+    font-family: var(--mono); font-size: 11px; font-weight: 700;
+    padding: 2px 8px; border-radius: 99px;
+    background: color-mix(in oklch, var(--amber) 15%, transparent);
+    border: 1px solid color-mix(in oklch, var(--amber) 45%, transparent);
+    color: var(--amber);
+  }
+  .hr-badge.none { background: var(--elev); border-color: var(--border); color: var(--dim); }
+  .hr-age {
+    font-family: var(--mono); font-size: 9px; color: var(--muted); margin-top: 4px; padding: 0 2px;
+  }
+  .hr-age.urgent { color: var(--amber); }
+
   /* ── Quick action ── */
+  .qa-wrap { position: relative; margin-bottom: 7px; }
   .qa-input {
     width: 100%; padding: 7px 9px;
     background: var(--surface); border: 1px solid var(--border);
     border-radius: var(--r); color: var(--text); font-size: 12px;
-    font-family: var(--mono); outline: none; margin-bottom: 7px;
+    font-family: var(--mono); outline: none;
   }
   .qa-input:focus { border-color: var(--cyan); box-shadow: 0 0 0 2px color-mix(in oklch, var(--cyan) 15%, transparent); }
   .qa-input::placeholder { color: var(--dim); }
-  .qa-btns { display: flex; gap: 6px; }
+  .qa-suggest, .qa-recents {
+    position: absolute; top: calc(100% + 3px); left: 0; right: 0; z-index: 99;
+    background: var(--elev); border: 1px solid var(--border); border-radius: var(--r);
+    overflow: hidden; box-shadow: 0 4px 16px color-mix(in oklch, black 30%, transparent);
+  }
+  .qa-ac-item, .qa-rc-item {
+    padding: 6px 9px; cursor: pointer; font-size: 11.5px; color: var(--text);
+    display: flex; flex-direction: column; gap: 1px;
+  }
+  .qa-ac-item:hover, .qa-rc-item:hover { background: var(--surface); }
+  .qa-ac-upn, .qa-rc-label { font-family: var(--mono); font-size: 9.5px; color: var(--muted); }
+  .qa-btns { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 7px; }
   .qa-btn {
-    flex: 1; padding: 6px 0; border-radius: var(--r);
-    font-size: 11.5px; font-weight: 500; cursor: pointer;
+    padding: 6px 0; border-radius: var(--r); font-size: 11.5px; font-weight: 500; cursor: pointer;
     border: 1px solid var(--border); background: var(--surface); color: var(--text-2);
-    transition: background .1s, color .1s;
+    transition: background .1s, color .1s, box-shadow .15s;
   }
   .qa-btn:hover { background: var(--elev); color: var(--text); }
+  .qa-btn.joiner { color: var(--cyan); border-color: color-mix(in oklch, var(--cyan) 45%, transparent); }
+  .qa-btn.joiner:hover { background: color-mix(in oklch, var(--cyan) 10%, transparent); }
   .qa-btn.soft { color: var(--coral); border-color: color-mix(in oklch, var(--coral) 45%, transparent); }
   .qa-btn.soft:hover { background: color-mix(in oklch, var(--coral) 10%, transparent); }
   .qa-btn.hard { background: var(--coral-dim); color: #fff; border-color: var(--coral-dim); font-weight: 600; }
   .qa-btn.hard:hover { background: var(--coral); border-color: var(--coral); }
+  /* Live-mode glow on destructive buttons */
+  body.mode-live .qa-btn.soft {
+    box-shadow: 0 0 0 1px color-mix(in oklch, var(--coral) 50%, transparent),
+                0 0 8px color-mix(in oklch, var(--coral) 20%, transparent);
+  }
+  body.mode-live .qa-btn.hard {
+    box-shadow: 0 0 0 2px color-mix(in oklch, var(--coral) 65%, transparent),
+                0 0 14px color-mix(in oklch, var(--coral) 35%, transparent);
+  }
+  body.mode-live .qa-btn.hard::after {
+    content: ' · LIVE'; font-size: 8px; font-family: var(--mono); letter-spacing: .05em; opacity: .75;
+  }
+
+  /* ── Mode pill ── */
+  .mode-pill {
+    font-family: var(--mono); font-size: 9px; letter-spacing: .06em; text-transform: uppercase;
+    padding: 2px 8px; border-radius: 99px; font-weight: 700;
+    -webkit-app-region: no-drag; cursor: pointer; transition: filter .15s;
+  }
+  .mode-pill:hover { filter: brightness(1.2); }
+  .mode-pill.safe { color: var(--violet); background: color-mix(in oklch, var(--violet) 12%, transparent); border: 1px solid color-mix(in oklch, var(--violet) 30%, transparent); }
+  .mode-pill.live { color: var(--coral);  background: color-mix(in oklch, var(--coral)  12%, transparent); border: 1px solid color-mix(in oklch, var(--coral)  40%, transparent); }
 
   /* ── Footer ── */
   .footer {
@@ -210,9 +277,235 @@
     font-family: var(--mono); font-size: 9px; color: var(--dim);
     padding: 1px 5px; border: 1px solid var(--border); border-radius: 3px; background: var(--bg);
   }
+
+  /* ── Toast ── */
+  .toast-container {
+    position: fixed; bottom: 42px; left: 8px; right: 8px; z-index: 300;
+    display: flex; flex-direction: column; gap: 5px; pointer-events: none;
+  }
+  .toast {
+    padding: 8px 12px; border-radius: var(--r); font-size: 11.5px; line-height: 1.4;
+    border: 1px solid var(--border); background: var(--bg-2);
+    box-shadow: 0 4px 16px color-mix(in oklch, black 40%, transparent);
+    animation: toast-in .2s ease, toast-out .3s ease 2.7s forwards;
+    pointer-events: auto;
+  }
+  .toast.success { border-color: color-mix(in oklch, var(--emerald) 50%, transparent); color: var(--emerald); }
+  .toast.error   { border-color: color-mix(in oklch, var(--coral)   50%, transparent); color: var(--coral);   }
+  .toast.info    { border-color: color-mix(in oklch, var(--cyan)    40%, transparent); color: var(--text-2);  }
+  @keyframes toast-in  { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+  @keyframes toast-out { from { opacity: 1; } to { opacity: 0; } }
+
+  /* ── 8-direction resize handles ── */
+  .rz { position: fixed; z-index: 999; -webkit-app-region: no-drag; transition: background .1s; }
+  .rz:hover { background: color-mix(in oklch, var(--cyan) 20%, transparent); }
+  .rz-n  { top: 0;    left: 9px;  right: 9px;  height: 5px; cursor: n-resize; }
+  .rz-s  { bottom: 0; left: 9px;  right: 9px;  height: 5px; cursor: s-resize; }
+  .rz-e  { right: 0;  top: 9px;   bottom: 9px; width: 5px;  cursor: e-resize; }
+  .rz-w  { left: 0;   top: 9px;   bottom: 9px; width: 5px;  cursor: w-resize; }
+  .rz-nw { top: 0; left: 0;  width: 11px; height: 11px; cursor: nw-resize; }
+  .rz-ne { top: 0; right: 0; width: 11px; height: 11px; cursor: ne-resize; }
+  .rz-sw { bottom: 0; left: 0;  width: 11px; height: 11px; cursor: sw-resize; }
+  .rz-se { bottom: 0; right: 0; width: 11px; height: 11px; cursor: se-resize; }
+
+  /* ── Wide layout (≥ 360px) ── */
+  body.wide .section-body  { padding: 8px 14px 10px; }
+  body.wide .section-label { padding: 10px 14px 0; }
+
+  /* ── X-Wide two-column layout (≥ 500px) ── */
+  body.xwide .panel-body {
+    display: grid; grid-template-columns: 1fr 1fr; grid-auto-rows: auto; align-items: start;
+  }
+  body.xwide #section-approvals  { grid-column: 1; grid-row: 1; border-right: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+  body.xwide #section-certs      { grid-column: 1; grid-row: 2; border-right: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+  body.xwide #section-hrQueue    { grid-column: 1; grid-row: 3; border-right: 1px solid var(--border); }
+  body.xwide #section-lastEvent  { grid-column: 2; grid-row: 1; border-bottom: 1px solid var(--border); }
+  body.xwide #section-quickAction{ grid-column: 2; grid-row: 2; }
+  body.xwide #section-agentChat  { grid-column: 1 / -1; grid-row: 4; border-top: 1px solid var(--border); }
+  body.xwide .section { border-bottom: 0; }
+
+  /* ── Approval cards ── */
+  #approval-list { margin-top: 7px; }
+  .ap-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-left-width: 3px; border-radius: var(--r);
+    padding: 7px 9px; margin-bottom: 5px;
+  }
+  .ap-card:last-child { margin-bottom: 0; }
+  .ap-card.crit { border-left-color: var(--coral); }
+  .ap-card.warn { border-left-color: var(--amber); }
+  .ap-card.none { border-left-color: var(--dim); }
+  .ap-header { display: flex; align-items: center; gap: 6px; margin-bottom: 3px; }
+  .ap-action { font-size: 11.5px; font-weight: 600; color: var(--text); flex: 1; }
+  .ap-age { font-family: var(--mono); font-size: 9px; color: var(--muted); flex-shrink: 0; }
+  .ap-upn {
+    font-family: var(--mono); font-size: 9.5px; color: var(--cyan);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 3px;
+  }
+  .ap-meta { font-size: 10px; color: var(--muted); margin-bottom: 6px; }
+  .ap-btns { display: flex; gap: 5px; }
+  .ap-approve-btn {
+    flex: 1; padding: 4px 0; border-radius: 5px; font-size: 11px; font-weight: 600; cursor: pointer;
+    background: color-mix(in oklch, var(--emerald) 12%, transparent);
+    border: 1px solid color-mix(in oklch, var(--emerald) 40%, transparent);
+    color: var(--emerald); transition: background .1s;
+  }
+  .ap-approve-btn:hover { background: color-mix(in oklch, var(--emerald) 22%, transparent); }
+  .ap-approve-btn:disabled { opacity: 0.4; cursor: default; }
+  .ap-reject-btn {
+    flex: 1; padding: 4px 0; border-radius: 5px; font-size: 11px; cursor: pointer;
+    background: transparent; border: 1px solid var(--border); color: var(--muted);
+    transition: background .1s, color .1s, border-color .1s;
+  }
+  .ap-reject-btn:hover { background: color-mix(in oklch, var(--coral) 10%, transparent); color: var(--coral); border-color: color-mix(in oklch, var(--coral) 40%, transparent); }
+  .ap-reject-btn:disabled { opacity: 0.4; cursor: default; }
+  .ap-empty { font-size: 11px; color: var(--dim); padding: 4px 2px; }
+
+  /* ── PIN modal ── */
+  .pin-overlay {
+    position: fixed; inset: 0; z-index: 250;
+    background: color-mix(in oklch, black 60%, transparent);
+    display: flex; align-items: center; justify-content: center; padding: 16px;
+  }
+  .pin-modal {
+    background: var(--bg-2); border: 1px solid var(--border); border-radius: 10px;
+    padding: 16px; width: 100%;
+    box-shadow: 0 8px 32px color-mix(in oklch, black 55%, transparent);
+  }
+  .pin-title   { font-size: 13px; font-weight: 600; color: var(--text); margin-bottom: 4px; }
+  .pin-context { font-size: 11px; color: var(--text-2); margin-bottom: 10px; line-height: 1.4; }
+  .pin-upn     { font-family: var(--mono); color: var(--cyan); display: block; margin-top: 2px; font-size: 10px; }
+  .pin-input {
+    width: 100%; padding: 7px 10px; letter-spacing: .2em;
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--r); color: var(--text); font-size: 15px;
+    font-family: var(--mono); outline: none; margin-bottom: 5px;
+  }
+  .pin-input:focus { border-color: var(--cyan); box-shadow: 0 0 0 2px color-mix(in oklch, var(--cyan) 15%, transparent); }
+  .pin-error { font-size: 10.5px; color: var(--coral); min-height: 15px; margin-bottom: 10px; }
+  .pin-btns  { display: flex; gap: 8px; justify-content: flex-end; }
+  .pin-cancel-btn {
+    padding: 5px 12px; border-radius: 6px; font-size: 12px; cursor: pointer;
+    background: transparent; border: 1px solid var(--border); color: var(--text-2);
+  }
+  .pin-cancel-btn:hover { background: var(--elev); }
+  .pin-submit-btn {
+    padding: 5px 14px; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer;
+    background: var(--emerald); border: 1px solid var(--emerald); color: var(--bg);
+  }
+  .pin-submit-btn:hover { filter: brightness(1.08); }
+  .pin-submit-btn:disabled { opacity: 0.5; cursor: default; }
+
+  /* ── Confirm modal ── */
+  .confirm-overlay {
+    position: fixed; inset: 0; z-index: 200;
+    background: color-mix(in oklch, black 55%, transparent);
+    display: flex; align-items: center; justify-content: center; padding: 16px;
+  }
+  .confirm-modal {
+    background: var(--bg-2); border: 1px solid var(--border); border-radius: 10px;
+    padding: 16px; width: 100%;
+    box-shadow: 0 8px 32px color-mix(in oklch, black 50%, transparent);
+  }
+  .confirm-title { font-size: 13px; font-weight: 600; color: var(--text); margin-bottom: 6px; }
+  .confirm-body  { font-size: 11.5px; color: var(--text-2); line-height: 1.5; margin-bottom: 14px; }
+  .confirm-btns  { display: flex; gap: 8px; justify-content: flex-end; }
+  .confirm-cancel-btn {
+    padding: 5px 12px; border-radius: 6px; font-size: 12px; cursor: pointer;
+    background: transparent; border: 1px solid var(--border); color: var(--text-2);
+  }
+  .confirm-cancel-btn:hover { background: var(--elev); color: var(--text); }
+  .confirm-ok-btn {
+    padding: 5px 14px; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer;
+    background: var(--coral-dim); border: 1px solid var(--coral-dim); color: #fff;
+  }
+  .confirm-ok-btn:hover { background: var(--coral); border-color: var(--coral); }
+  .confirm-ok-btn.primary { background: var(--cyan); border-color: var(--cyan); color: var(--bg); }
+  .confirm-ok-btn.primary:hover { filter: brightness(1.08); }
+
+  /* ── Agent Chat ── */
+  .ac-tabs { display: flex; gap: 4px; margin-bottom: 7px; }
+  .ac-tab {
+    flex: 1; padding: 4px 0; border-radius: 5px; font-size: 11px; font-weight: 500;
+    cursor: pointer; border: 1px solid var(--border); background: transparent; color: var(--muted);
+    font-family: var(--mono); text-transform: uppercase; letter-spacing: .05em;
+    transition: background .1s, color .1s, border-color .1s;
+  }
+  .ac-tab.active { background: color-mix(in oklch, var(--cyan) 12%, transparent); border-color: color-mix(in oklch, var(--cyan) 40%, transparent); color: var(--cyan); }
+  .ac-tab:disabled { opacity: 0.5; cursor: default; }
+  .ac-thread {
+    height: 150px; overflow-y: auto; overflow-x: hidden;
+    border: 1px solid var(--border); border-radius: var(--r);
+    background: var(--surface); padding: 6px; margin-bottom: 6px;
+    display: flex; flex-direction: column; gap: 4px;
+  }
+  .ac-thread::-webkit-scrollbar { width: 3px; }
+  .ac-thread::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+  .ac-empty { font-size: 10.5px; color: var(--dim); padding: 4px 2px; text-align: center; align-self: center; margin: auto; }
+  .ac-msg {
+    max-width: 93%; padding: 5px 8px; border-radius: 6px;
+    font-size: 11.5px; line-height: 1.45; word-break: break-word; white-space: pre-wrap;
+  }
+  .ac-msg.user      { align-self: flex-end; background: color-mix(in oklch, var(--cyan) 12%, transparent); border: 1px solid color-mix(in oklch, var(--cyan) 30%, transparent); color: var(--text); }
+  .ac-msg.assistant { align-self: flex-start; background: var(--bg-2); border: 1px solid var(--border); color: var(--text); }
+  .ac-msg.assistant.streaming { border-color: color-mix(in oklch, var(--cyan) 30%, transparent); }
+  .ac-tool-chip {
+    align-self: flex-start;
+    display: inline-flex; align-items: center; gap: 4px;
+    font-family: var(--mono); font-size: 9px; letter-spacing: .04em;
+    padding: 2px 7px; border-radius: 3px;
+    background: color-mix(in oklch, var(--violet) 10%, transparent);
+    border: 1px solid color-mix(in oklch, var(--violet) 30%, transparent);
+    color: var(--violet);
+  }
+  .ac-tool-chip.done { background: color-mix(in oklch, var(--emerald) 8%, transparent); border-color: color-mix(in oklch, var(--emerald) 30%, transparent); color: var(--emerald); }
+  .ac-tool-chip.fail { background: color-mix(in oklch, var(--coral)   8%, transparent); border-color: color-mix(in oklch, var(--coral)   30%, transparent); color: var(--coral); }
+  .ac-thinking {
+    align-self: flex-start; padding: 6px 10px; border-radius: 6px;
+    background: var(--bg-2); border: 1px solid var(--border);
+    display: flex; gap: 3px; align-items: center;
+  }
+  .ac-thinking span { width: 4px; height: 4px; border-radius: 50%; background: var(--muted); animation: ac-dot 1.2s ease-in-out infinite; }
+  .ac-thinking span:nth-child(2) { animation-delay: .2s; }
+  .ac-thinking span:nth-child(3) { animation-delay: .4s; }
+  @keyframes ac-dot { 0%, 80%, 100% { transform: scale(.7); opacity: .35; } 40% { transform: scale(1); opacity: 1; } }
+  .ac-input-row { display: flex; gap: 5px; }
+  .ac-input {
+    flex: 1; padding: 6px 8px;
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--r); color: var(--text); font-size: 11.5px;
+    font-family: var(--sans); outline: none;
+  }
+  .ac-input:focus { border-color: var(--cyan); box-shadow: 0 0 0 2px color-mix(in oklch, var(--cyan) 12%, transparent); }
+  .ac-input::placeholder { color: var(--dim); }
+  .ac-input:disabled { opacity: 0.5; cursor: not-allowed; }
+  .ac-send-btn {
+    padding: 0 10px; border-radius: var(--r); font-size: 11px; cursor: pointer;
+    background: color-mix(in oklch, var(--cyan) 15%, transparent);
+    border: 1px solid color-mix(in oklch, var(--cyan) 40%, transparent);
+    color: var(--cyan); font-weight: 600; transition: background .1s; flex-shrink: 0;
+  }
+  .ac-send-btn:hover { background: color-mix(in oklch, var(--cyan) 25%, transparent); }
+  .ac-send-btn:disabled { opacity: 0.4; cursor: default; }
+  .ac-clear-btn {
+    padding: 0 7px; border-radius: var(--r); font-size: 10px; cursor: pointer;
+    background: transparent; border: 1px solid var(--border); color: var(--dim);
+    transition: color .1s, border-color .1s; flex-shrink: 0;
+  }
+  .ac-clear-btn:hover { color: var(--muted); border-color: var(--border-strong); }
+  .ac-clear-btn:disabled { opacity: 0.4; cursor: default; }
 </style>
 </head>
 <body>
+
+<div class="rz rz-n"  data-dir="n"></div>
+<div class="rz rz-s"  data-dir="s"></div>
+<div class="rz rz-e"  data-dir="e"></div>
+<div class="rz rz-w"  data-dir="w"></div>
+<div class="rz rz-nw" data-dir="nw"></div>
+<div class="rz rz-ne" data-dir="ne"></div>
+<div class="rz rz-sw" data-dir="sw"></div>
+<div class="rz rz-se" data-dir="se"></div>
 
 <div class="drag-handle">
   <div class="brand-mark"></div>
@@ -221,12 +514,13 @@
     <span class="t2">Identity Console</span>
   </div>
   <div class="header-actions">
+    <span class="mode-pill safe" id="panel-mode-pill">Safe</span>
     <button class="icon-btn" id="settings-btn" title="Panel settings">
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7">
         <circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
       </svg>
     </button>
-    <button class="icon-btn close-btn" id="close-btn" title="Close panel">
+    <button class="icon-btn close-btn" id="close-btn" title="Close panel (Ctrl+Shift+D)">
       <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
         <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
       </svg>
@@ -234,56 +528,155 @@
   </div>
 </div>
 
-<!-- Collapsible settings -->
 <div class="settings-panel" id="settings-panel">
   <div class="sp-title">Visible sections</div>
-  <label class="sp-row"><input type="checkbox" data-section="approvals" checked> Pending Approvals</label>
-  <label class="sp-row"><input type="checkbox" data-section="certs" checked> Agent Certs</label>
-  <label class="sp-row"><input type="checkbox" data-section="lastEvent" checked> Last Event</label>
+  <label class="sp-row"><input type="checkbox" data-section="approvals"   checked> Pending Approvals</label>
+  <label class="sp-row"><input type="checkbox" data-section="certs"       checked> Agent Certs</label>
+  <label class="sp-row"><input type="checkbox" data-section="lastEvent"   checked> Recent Events</label>
+  <label class="sp-row"><input type="checkbox" data-section="hrQueue"     checked> HR Queue</label>
   <label class="sp-row"><input type="checkbox" data-section="quickAction" checked> Quick Action</label>
+  <label class="sp-row"><input type="checkbox" data-section="agentChat"   checked> Agent Chat</label>
+  <label class="sp-row"><input type="checkbox" id="pref-keep-console"> Keep console open</label>
 </div>
 
 <div class="panel-body">
 
-  <div class="section" id="section-approvals">
-    <div class="section-label">Pending Approvals</div>
-    <div class="approval-row" id="approval-row">
-      <span class="label">Approval queue</span>
-      <span class="approval-badge none" id="approval-badge">0</span>
+  <div class="section" id="section-approvals" draggable="true">
+    <div class="section-label">
+      <span class="grip">⠿</span>
+      <span class="section-title">Pending Approvals</span>
+      <span class="chevron">▾</span>
+    </div>
+    <div class="section-body">
+      <div class="approval-row" id="approval-row">
+        <span class="label">Approval queue</span>
+        <span class="approval-badge none" id="approval-badge">0</span>
+      </div>
+      <div class="approval-age" id="approval-age" style="display:none"></div>
+      <div id="approval-list"></div>
     </div>
   </div>
 
-  <div class="section" id="section-certs">
-    <div class="section-label">Agent Certs</div>
-    <div id="cert-list">
-      <div class="cert-row"><div class="cert-dot none"></div><span class="cert-name">loading…</span></div>
+  <div class="section" id="section-certs" draggable="true">
+    <div class="section-label">
+      <span class="grip">⠿</span>
+      <span class="section-title">Agent Certs</span>
+      <span class="chevron">▾</span>
+    </div>
+    <div class="section-body">
+      <div id="cert-list">
+        <div class="cert-row"><div class="cert-dot none"></div><span class="cert-name">loading…</span></div>
+      </div>
     </div>
   </div>
 
-  <div class="section" id="section-lastEvent">
-    <div class="section-label">Last Event</div>
-    <div class="event-box" id="event-box">
-      <div class="ev-agent">—</div>
-      <div class="ev-subject">No recent events</div>
-      <div class="ev-meta"><span>—</span></div>
+  <div class="section" id="section-lastEvent" draggable="true">
+    <div class="section-label">
+      <span class="grip">⠿</span>
+      <span class="section-title">Recent Events</span>
+      <span class="chevron">▾</span>
+    </div>
+    <div class="section-body">
+      <div id="events-list">
+        <div class="event-item">
+          <div class="ev-agent">—</div>
+          <div class="ev-subject">No recent events</div>
+          <div class="ev-meta"><span>—</span></div>
+        </div>
+      </div>
     </div>
   </div>
 
-  <div class="section" id="section-quickAction">
-    <div class="section-label">Quick Action</div>
-    <input class="qa-input" id="qa-upn" placeholder="user@domain.com" autocomplete="off" spellcheck="false">
-    <div class="qa-btns">
-      <button class="qa-btn" id="qa-move">Move…</button>
-      <button class="qa-btn soft" id="qa-soft">Soft Leave</button>
-      <button class="qa-btn hard" id="qa-hard">Hard Leave</button>
+  <div class="section" id="section-hrQueue" draggable="true">
+    <div class="section-label">
+      <span class="grip">⠿</span>
+      <span class="section-title">HR Queue</span>
+      <span class="chevron">▾</span>
+    </div>
+    <div class="section-body">
+      <div class="hr-row" id="hr-row">
+        <span class="label">HRIS trigger queue</span>
+        <span class="hr-badge none" id="hr-badge">—</span>
+      </div>
+      <div class="hr-age" id="hr-age" style="display:none"></div>
+    </div>
+  </div>
+
+  <div class="section" id="section-quickAction" draggable="true">
+    <div class="section-label">
+      <span class="grip">⠿</span>
+      <span class="section-title">Quick Action</span>
+      <span class="chevron">▾</span>
+    </div>
+    <div class="section-body">
+      <div class="qa-wrap">
+        <input class="qa-input" id="qa-upn" placeholder="user@domain.com" autocomplete="off" spellcheck="false">
+        <div class="qa-suggest" id="qa-suggest" style="display:none"></div>
+        <div class="qa-recents" id="qa-recents" style="display:none"></div>
+      </div>
+      <div class="qa-btns">
+        <button class="qa-btn joiner" id="qa-joiner">Joiner…</button>
+        <button class="qa-btn" id="qa-move">Move…</button>
+        <button class="qa-btn soft" id="qa-soft">Soft Leave</button>
+        <button class="qa-btn hard" id="qa-hard">Hard Leave</button>
+      </div>
+    </div>
+  </div>
+
+
+  <div class="section" id="section-agentChat" draggable="true">
+    <div class="section-label">
+      <span class="grip">⠿</span>
+      <span class="section-title">Agent Chat</span>
+      <span class="chevron">▾</span>
+    </div>
+    <div class="section-body">
+      <div class="ac-tabs">
+        <button class="ac-tab active" data-agent="approver">Approver</button>
+        <button class="ac-tab"        data-agent="auditor">Auditor</button>
+      </div>
+      <div class="ac-thread" id="ac-thread">
+        <div class="ac-empty">Ask the agent anything…</div>
+      </div>
+      <div class="ac-input-row">
+        <input class="ac-input" id="ac-input" placeholder="Ask the agent…" autocomplete="off" spellcheck="false">
+        <button class="ac-send-btn"  id="ac-send">Send</button>
+        <button class="ac-clear-btn" id="ac-clear" title="Clear conversation">✕</button>
+      </div>
     </div>
   </div>
 
 </div>
 
+<div class="pin-overlay" id="pin-overlay" style="display:none">
+  <div class="pin-modal">
+    <div class="pin-title">Authenticate to Approve</div>
+    <div class="pin-context">Approving <span id="pin-action-label"></span> for:<span class="pin-upn" id="pin-upn"></span></div>
+    <input class="pin-input" id="pin-input" type="password" placeholder="PIN" autocomplete="off" maxlength="32">
+    <div class="pin-error" id="pin-error"></div>
+    <div class="pin-btns">
+      <button class="pin-cancel-btn" id="pin-cancel">Cancel</button>
+      <button class="pin-submit-btn" id="pin-submit">Approve</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast-container" id="toast-container"></div>
+
+<div class="confirm-overlay" id="confirm-overlay" style="display:none">
+  <div class="confirm-modal">
+    <div class="confirm-title" id="confirm-title"></div>
+    <div class="confirm-body"  id="confirm-body"></div>
+    <div class="confirm-btns">
+      <button class="confirm-cancel-btn" id="confirm-cancel">Cancel</button>
+      <button class="confirm-ok-btn"     id="confirm-ok">Confirm</button>
+    </div>
+  </div>
+</div>
+
 <div class="footer">
   <button class="open-btn" id="open-console">Open Console →</button>
-  <span class="kbd">Ctrl+Shift+J</span>
+  <span class="kbd">Ctrl+Shift+D</span>
 </div>
 
 <script src="docked.js"></script>

@@ -146,6 +146,9 @@ contextBridge.exposeInMainWorld('api', {
   getIntegrationsConfig:  ()       => ipcRenderer.invoke('get-integrations-config'),
   saveIntegrationsConfig: (config) => ipcRenderer.invoke('save-integrations-config', { config }),
 
+  // Open external URL in default browser
+  openExternal: (url) => ipcRenderer.invoke('open-external', url),
+
   // Sign out — closes main window, returns to operator select
   signOut: () => ipcRenderer.send('sign-out'),
 
@@ -154,5 +157,10 @@ contextBridge.exposeInMainWorld('api', {
 
   // Docked panel toggle
   toggleDockedPanel: () => ipcRenderer.invoke('toggle-docked-panel'),
-  onDockedPanelState: (cb) => ipcRenderer.on('docked-panel-state', (_, v) => cb(v)),
+  onDockedPanelState: (cb) => {
+    ipcRenderer.removeAllListeners('docked-panel-state');
+    ipcRenderer.on('docked-panel-state', (_, v) => cb(v));
+  },
+  // Mode sync from docked panel
+  onModeChanged: (cb) => ipcRenderer.on('mode-changed', (_, d) => cb(d)),
 });

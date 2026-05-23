@@ -175,6 +175,15 @@ a { color: var(--cyan); text-decoration: none; }
 }
 .win-btn:hover { background: var(--elev); color: var(--text); }
 .win-btn.close:hover { background: var(--coral); color: #fff; }
+/* App-function buttons — visually distinct from OS window chrome */
+.azure-btn, .docked-btn {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-2);
+}
+.azure-btn:hover { border-color: color-mix(in oklch, var(--cyan) 50%, transparent); color: var(--cyan); background: color-mix(in oklch, var(--cyan) 8%, transparent); }
+.docked-btn:hover { border-color: var(--border-strong); color: var(--text); }
+.docked-btn.active { color: var(--cyan); border-color: color-mix(in oklch, var(--cyan) 40%, transparent); background: color-mix(in oklch, var(--cyan) 8%, transparent); }
 .help-btn { font-family: var(--mono); font-weight: 600; }
 .notif-bell-wrap { position: relative; }
 .notif-bell-btn {
@@ -1974,7 +1983,15 @@ a { color: var(--cyan); text-decoration: none; }
   font-family: var(--mono); font-size: 11px;
   margin-right: 4px; margin-bottom: 4px;
 }
-.udp-actions { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
+.udp-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 14px; }
+#udp-btn-leaver-hard {
+  min-width: 108px; padding: 8px 16px;
+  font-size: 13px; letter-spacing: .01em;
+  box-shadow: 0 0 0 1px var(--coral-dim), 0 4px 12px color-mix(in oklch, var(--coral) 20%, transparent);
+}
+#udp-btn-leaver-hard:hover {
+  box-shadow: 0 0 0 1px var(--coral), 0 4px 16px color-mix(in oklch, var(--coral) 35%, transparent);
+}
 
 /* ============================================================
    GRAPH RUNNER
