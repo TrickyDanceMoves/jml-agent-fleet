@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'">
+<title>JML Fleet — Docked</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg:      oklch(0.11 0.010 252);
+    --bg-2:    oklch(0.14 0.010 252);
+    --surface: oklch(0.16 0.010 252);
+    --elev:    oklch(0.19 0.010 252);
+    --border:  oklch(0.24 0.008 252);
+    --text:    oklch(0.94 0.005 252);
+    --text-2:  oklch(0.72 0.008 252);
+    --muted:   oklch(0.52 0.008 252);
+    --dim:     oklch(0.38 0.006 252);
+    --cyan:       oklch(0.80 0.14 200);
+    --coral:      oklch(0.70 0.20 24);
+    --coral-dim:  oklch(0.45 0.16 24);
+    --amber:      oklch(0.78 0.16 75);
+    --emerald:    oklch(0.75 0.17 155);
+    --sans: 'Inter', system-ui, sans-serif;
+    --mono: 'JetBrains Mono', 'Fira Code', monospace;
+    --r: 8px;
+  }
+  html, body { height: 100%; }
+  body {
+    font-family: var(--sans);
+    background: var(--bg);
+    color: var(--text);
+    font-size: 12.5px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    user-select: none;
+  }
+
+  /* ── Drag handle ── */
+  .drag-handle {
+    -webkit-app-region: drag;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 10px 12px 8px;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg-2);
+  }
+  .drag-handle .logo {
+    display: flex; align-items: center; gap: 7px;
+    font-size: 11.5px; font-weight: 600; color: var(--text-2);
+  }
+  .drag-handle .logo .dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: conic-gradient(from 220deg, var(--cyan), var(--coral), var(--cyan));
+  }
+  .drag-handle .close-btn {
+    -webkit-app-region: no-drag;
+    width: 18px; height: 18px; border-radius: 50%;
+    background: var(--elev); border: 1px solid var(--border);
+    cursor: pointer; display: grid; place-items: center;
+    color: var(--muted); font-size: 11px; line-height: 1;
+  }
+  .drag-handle .close-btn:hover { background: var(--coral); color: #fff; border-color: var(--coral); }
+
+  /* ── Sections ── */
+  .section { padding: 10px 12px; border-bottom: 1px solid var(--border); }
+  .section:last-child { border-bottom: 0; }
+  .section-label {
+    font-family: var(--mono); font-size: 9.5px; letter-spacing: .1em;
+    text-transform: uppercase; color: var(--dim); margin-bottom: 7px;
+  }
+
+  /* ── Approval stat ── */
+  .approval-row {
+    display: flex; align-items: center; justify-content: space-between;
+    cursor: pointer; padding: 6px 8px; border-radius: var(--r);
+    border: 1px solid var(--border); background: var(--surface);
+    transition: background .1s;
+  }
+  .approval-row:hover { background: var(--elev); }
+  .approval-row .label { font-size: 12px; color: var(--text-2); }
+  .approval-badge {
+    font-family: var(--mono); font-size: 11px; font-weight: 700;
+    padding: 2px 8px; border-radius: 99px;
+    background: color-mix(in oklch, var(--coral) 15%, transparent);
+    border: 1px solid color-mix(in oklch, var(--coral) 45%, transparent);
+    color: var(--coral);
+  }
+  .approval-badge.none {
+    background: var(--elev); border-color: var(--border); color: var(--dim);
+  }
+
+  /* ── Cert health ── */
+  .cert-row {
+    display: flex; align-items: center; gap: 8px;
+    padding: 5px 0; font-size: 11.5px; color: var(--text-2);
+  }
+  .cert-dot {
+    width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0;
+    background: var(--emerald);
+  }
+  .cert-dot.warn  { background: var(--amber); }
+  .cert-dot.crit  { background: var(--coral); }
+  .cert-dot.none  { background: var(--dim); }
+  .cert-row .cert-name { flex: 1; font-family: var(--mono); font-size: 10px; color: var(--muted); }
+  .cert-row .cert-days { font-family: var(--mono); font-size: 10px; }
+
+  /* ── Last event ── */
+  .event-box {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--r); padding: 7px 9px;
+    cursor: pointer;
+  }
+  .event-box:hover { background: var(--elev); }
+  .event-box .ev-agent { font-family: var(--mono); font-size: 10px; color: var(--cyan); }
+  .event-box .ev-subject { font-size: 11.5px; color: var(--text); margin: 2px 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .event-box .ev-meta { font-family: var(--mono); font-size: 9.5px; color: var(--muted); display: flex; gap: 8px; }
+  .ev-outcome { font-family: var(--mono); font-size: 9px; padding: 1px 5px; border-radius: 3px; }
+  .ev-outcome.success { color: var(--emerald); background: color-mix(in oklch, var(--emerald) 10%, transparent); }
+  .ev-outcome.failed  { color: var(--coral);   background: color-mix(in oklch, var(--coral)   10%, transparent); }
+  .ev-outcome.partial { color: var(--amber);   background: color-mix(in oklch, var(--amber)   10%, transparent); }
+
+  /* ── Quick action ── */
+  .qa-input {
+    width: 100%; padding: 7px 9px;
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--r); color: var(--text); font-size: 12px;
+    font-family: var(--mono); outline: none; margin-bottom: 7px;
+  }
+  .qa-input:focus { border-color: var(--cyan); box-shadow: 0 0 0 2px color-mix(in oklch, var(--cyan) 15%, transparent); }
+  .qa-input::placeholder { color: var(--dim); }
+  .qa-btns { display: flex; gap: 6px; }
+  .qa-btn {
+    flex: 1; padding: 6px 0; border-radius: var(--r);
+    font-size: 11.5px; font-weight: 500; cursor: pointer;
+    border: 1px solid var(--border); background: var(--surface); color: var(--text-2);
+    transition: background .1s, color .1s;
+  }
+  .qa-btn:hover { background: var(--elev); color: var(--text); }
+  .qa-btn.soft { color: var(--coral); border-color: color-mix(in oklch, var(--coral) 45%, transparent); }
+  .qa-btn.soft:hover { background: color-mix(in oklch, var(--coral) 10%, transparent); }
+  .qa-btn.hard { background: var(--coral-dim); color: #fff; border-color: var(--coral-dim); font-weight: 600; }
+  .qa-btn.hard:hover { background: var(--coral); border-color: var(--coral); }
+
+  /* ── Footer ── */
+  .footer {
+    padding: 8px 12px;
+    display: flex; justify-content: space-between; align-items: center;
+    background: var(--bg-2);
+  }
+  .footer .open-btn {
+    font-family: var(--mono); font-size: 10px; color: var(--cyan);
+    background: none; border: none; cursor: pointer; letter-spacing: .04em;
+  }
+  .footer .open-btn:hover { text-decoration: underline; }
+  .footer .kbd {
+    font-family: var(--mono); font-size: 9px; color: var(--dim);
+    padding: 1px 5px; border: 1px solid var(--border); border-radius: 3px; background: var(--bg);
+  }
+</style>
+</head>
+<body>
+
+<div class="drag-handle">
+  <div class="logo"><div class="dot"></div>JML Fleet</div>
+  <div class="close-btn" id="close-btn">×</div>
+</div>
+
+<div class="section">
+  <div class="section-label">Pending Approvals</div>
+  <div class="approval-row" id="approval-row">
+    <span class="label">Approval queue</span>
+    <span class="approval-badge none" id="approval-badge">0</span>
+  </div>
+</div>
+
+<div class="section" id="cert-section">
+  <div class="section-label">Agent Certs</div>
+  <div id="cert-list">
+    <div class="cert-row"><div class="cert-dot none"></div><span class="cert-name">loading…</span></div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="section-label">Last Event</div>
+  <div class="event-box" id="event-box">
+    <div class="ev-agent">—</div>
+    <div class="ev-subject">No recent events</div>
+    <div class="ev-meta"><span>—</span></div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="section-label">Quick Action</div>
+  <input class="qa-input" id="qa-upn" placeholder="user@domain.com" autocomplete="off" spellcheck="false">
+  <div class="qa-btns">
+    <button class="qa-btn" id="qa-move">Move…</button>
+    <button class="qa-btn soft" id="qa-soft">Soft Leave</button>
+    <button class="qa-btn hard" id="qa-hard">Hard Leave</button>
+  </div>
+</div>
+
+<div class="footer">
+  <button class="open-btn" id="open-console">Open Console →</button>
+  <span class="kbd">Ctrl+Shift+J</span>
+</div>
+
+<script src="docked.js"></script>
+</body>
+</html>
