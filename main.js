@@ -466,7 +466,7 @@ function createDockedPanel() {
   const { x: wa_x, y: wa_y, width: wa_w, height: wa_h } = screen.getPrimaryDisplay().workArea;
   const saved = loadPanelBounds();
   const W = saved ? Math.max(220, Math.min(640, saved.width))               : 280;
-  const H = saved ? Math.max(280, Math.min(wa_h - 20, saved.height))        : Math.min(600, wa_h - 40);
+  const H = saved ? Math.max(220, Math.min(wa_h - 20, saved.height))        : Math.min(600, wa_h - 40);
   const X = saved ? Math.max(wa_x, Math.min(wa_x + wa_w - W, saved.x))     : wa_x + wa_w - W - 8;
   const Y = saved ? Math.max(wa_y, Math.min(wa_y + wa_h - H, saved.y))     : wa_y + Math.round((wa_h - H) / 2);
   dockedWin = new BrowserWindow({
@@ -794,7 +794,7 @@ ipcMain.handle('panel-resize-to', (_, { x, y, width, height }) => {
   if (!dockedWin || dockedWin.isDestroyed()) return;
   const { x: wa_x, y: wa_y, width: wa_w, height: wa_h } = screen.getPrimaryDisplay().workArea;
   const W = Math.max(220, Math.min(640, Math.round(width)));
-  const H = Math.max(280, Math.min(900, Math.round(height)));
+  const H = Math.max(220, Math.min(900, Math.round(height)));
   const X = Math.max(wa_x, Math.min(wa_x + wa_w - W, Math.round(x)));
   const Y = Math.max(wa_y, Math.min(wa_y + wa_h - H, Math.round(y)));
   dockedWin.setSize(W, H);
