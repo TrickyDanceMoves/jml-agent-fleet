@@ -5070,3 +5070,11 @@ setupUserAutocomplete(document.getElementById('log-filter-upn'));
 
   if (backdrop) backdrop.addEventListener('click', closePalette);
 })();
+
+// Docked panel toggle button
+(function () {
+  const btn = document.getElementById('btn-toggle-docked');
+  if (!btn) return;
+  btn.addEventListener('click', () => { window.api.toggleDockedPanel(); });
+  window.api.onDockedPanelState(visible => { btn.classList.toggle('active', !!visible); });
+})();
