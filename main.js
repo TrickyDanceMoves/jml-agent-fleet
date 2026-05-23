@@ -379,11 +379,11 @@ function executeTool(agent, toolName, input, whatif) {
       }));
     case 'submit_leaver_soft':
       return parsePs1Output(runPs(path.join(AGENTS_DIR, 'leaver', 'Invoke-LeaverProcess.ps1'), {
-        UserPrincipalName: input.userPrincipalName, Stage: 'Soft', WhatIf: w
+        UserPrincipalName: input.userPrincipalName, Stage: 'Soft', WhatIf: w, OperatorRole: currentRole
       }));
     case 'submit_leaver_hard':
       return parsePs1Output(runPs(path.join(AGENTS_DIR, 'leaver', 'Invoke-LeaverProcess.ps1'), {
-        UserPrincipalName: input.userPrincipalName, Stage: 'Hard', WhatIf: w
+        UserPrincipalName: input.userPrincipalName, Stage: 'Hard', WhatIf: w, OperatorRole: currentRole
       }));
     default:
       return { error: 'Unknown tool: ' + toolName };
@@ -541,7 +541,8 @@ ipcMain.on('run-blob-export', async (event) => {
   const script = path.join(AGENTS_DIR, 'auditor', 'Invoke-BlobExport.ps1');
   try {
     await runPsAsync(script);
-    const status = readJson(path.join(REPORTS_DIR, 'blob-export-status.json'));
+    const statusPath = path.join(REPORTS_DIR, 'blob-export-status.json');
+    const status = fs.existsSync(statusPath) ? readJson(statusPath) : null;
     event.sender.send('export-run-result', { type: 'blob', ok: true, status });
   } catch (err) {
     event.sender.send('export-run-result', { type: 'blob', ok: false, error: err.message });
@@ -552,7 +553,8 @@ ipcMain.on('run-sentinel-ingest', async (event) => {
   const script = path.join(AGENTS_DIR, 'auditor', 'Invoke-SentinelIngest.ps1');
   try {
     await runPsAsync(script);
-    const status = readJson(path.join(REPORTS_DIR, 'sentinel-status.json'));
+    const statusPath = path.join(REPORTS_DIR, 'sentinel-ingest-status.json');
+    const status = fs.existsSync(statusPath) ? readJson(statusPath) : null;
     event.sender.send('export-run-result', { type: 'sentinel', ok: true, status });
   } catch (err) {
     event.sender.send('export-run-result', { type: 'sentinel', ok: false, error: err.message });
@@ -764,6 +766,22 @@ ipcMain.on('get-operators', (event) => {
 
 ipcMain.on('save-operators', (event, { operators, roles }) => {
   try {
+    if (currentRole !== 'admin') {
+      const existing = fs.existsSync(OPERATORS_FILE) ? readJson(OPERATORS_FILE) : {};
+      const existingOps = existing.operators || {};
+      for (const [user, role] of Object.entries(existingOps)) {
+        if (role === 'admin' && (operators || {})[user] !== 'admin') {
+          event.sender.send('operators-saved', { ok: false, error: 'Non-admin operators cannot remove or demote admin accounts.' });
+          return;
+        }
+      }
+      for (const [user, role] of Object.entries(operators || {})) {
+        if (role === 'admin' && existingOps[user] !== 'admin') {
+          event.sender.send('operators-saved', { ok: false, error: 'Non-admin operators cannot add admin accounts.' });
+          return;
+        }
+      }
+    }
     const existing = fs.existsSync(OPERATORS_FILE) ? readJson(OPERATORS_FILE) : {};
     const updated  = Object.assign({}, existing, { operators, roles });
     fs.writeFileSync(OPERATORS_FILE, JSON.stringify(updated, null, 2), 'utf8');
@@ -1777,7 +1795,7 @@ ipcMain.on('run-quick-leaver', (event, payload) => {
   try {
     const raw    = runPs(path.join(AGENTS_DIR, 'leaver', 'Invoke-LeaverProcess.ps1'), {
       UserPrincipalName: upn, Stage: stage || 'Soft',
-      TicketRef: reason || '', WhatIf: !!whatif
+      TicketRef: reason || '', WhatIf: !!whatif, OperatorRole: currentRole
     });
     const result = parsePs1Output(raw);
     event.sender.send('quick-op-result', { type: 'leaver', lines: result.lines, data: result.data });
