@@ -31,6 +31,7 @@ let _dragFromGrip  = false;
 let _dragId        = null;
 let _dropDir       = null; // 'before' | 'after'
 let _rz = null, _rzPending = null, _rzRaf = null;
+let _autoFitTimer = null;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function escHtml(s) {
@@ -86,6 +87,7 @@ function applyPrefs(prefs) {
     if (cb) cb.checked = visible;
   });
   keepConsoleCb.checked = !!prefs.keepConsole;
+  scheduleAutoFitPanel();
 }
 
 function applyCollapsed(collapseMap) {
@@ -106,6 +108,7 @@ applyCollapsed(collapseMap);
 settingsBtn.addEventListener('click', () => {
   const open = settingsPanel.classList.toggle('open');
   settingsBtn.classList.toggle('active', open);
+  scheduleAutoFitPanel();
 });
 
 settingsPanel.querySelectorAll('input[data-section]').forEach(cb => {
@@ -139,6 +142,7 @@ document.querySelectorAll('.section-label').forEach(label => {
     section.classList.toggle('collapsed');
     collapseMap[id] = section.classList.contains('collapsed');
     saveCollapsed(collapseMap);
+    scheduleAutoFitPanel();
   });
 });
 
@@ -202,7 +206,7 @@ modePill.addEventListener('click', async () => {
 });
 
 // ── 8-direction resize ────────────────────────────────────────────────────────
-const MIN_W = 220, MAX_W = 640, MIN_H = 280, MAX_H = 900;
+const MIN_W = 220, MAX_W = 640, MIN_H = 220, MAX_H = 900;
 
 function _rzCursor(dirs) {
   if (dirs.n && dirs.w) return 'nw-resize';
@@ -265,6 +269,27 @@ const layoutObserver = new ResizeObserver(([entry]) => {
   document.body.classList.toggle('xwide', w >= 500);
 });
 layoutObserver.observe(document.body);
+
+function scheduleAutoFitPanel() {
+  clearTimeout(_autoFitTimer);
+  _autoFitTimer = setTimeout(autoFitPanel, 80);
+}
+
+function autoFitPanel() {
+  if (_rz) return;
+  const measured = Math.ceil(document.body.scrollHeight + 2);
+  const targetHeight = Math.max(MIN_H, Math.min(MAX_H, measured));
+  if (Math.abs(targetHeight - window.outerHeight) < 8) return;
+
+  const bounds = {
+    x: window.screenX,
+    y: window.screenY,
+    width: window.outerWidth,
+    height: targetHeight
+  };
+  window.panelApi.resizeTo(bounds);
+  window.panelApi.saveBounds(bounds);
+}
 
 // ── Actions ───────────────────────────────────────────────────────────────────
 document.getElementById('close-btn').addEventListener('click', () => window.panelApi.close());
@@ -589,6 +614,7 @@ window.panelApi.onUpdate((data) => {
 
   if (Array.isArray(data.pendingList)) {
     renderPendingList(data.pendingList);
+    scheduleAutoFitPanel();
   }
 
   if ('oldestApproval' in data) {
@@ -616,6 +642,7 @@ window.panelApi.onUpdate((data) => {
           </div>`;
         }).join('')
       : '<div class="cert-row"><div class="cert-dot none"></div><span class="cert-name">No agents</span></div>';
+    scheduleAutoFitPanel();
   }
 
   if (Array.isArray(data.recentEvents)) {
@@ -625,6 +652,7 @@ window.panelApi.onUpdate((data) => {
   } else if (data.lastEvent) {
     eventsList.innerHTML = renderEventItem(data.lastEvent);
   }
+  if (Array.isArray(data.recentEvents) || data.lastEvent) scheduleAutoFitPanel();
 
   if (data.hrQueue != null) {
     const { count, oldestMin } = data.hrQueue;
@@ -638,6 +666,7 @@ window.panelApi.onUpdate((data) => {
     } else {
       hrAge.style.display = 'none';
     }
+    scheduleAutoFitPanel();
   }
 
 });
