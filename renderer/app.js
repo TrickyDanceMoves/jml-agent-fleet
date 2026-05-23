@@ -948,11 +948,16 @@ window.api.onExportRunResult((result) => {
   setRunning(result.type, false);
   if (result.ok) {
     window.api.getExportsStatus();
-    showToast((result.type === 'blob' ? 'Blob export' : 'Sentinel ingest') + ' complete', 'success');
+    const label = result.type === 'blob' ? 'Blob export' : 'Sentinel ingest';
+    if (result.status && result.status.configured === false) {
+      showToast(label + ' skipped — configure in Integrations settings', 'warning');
+    } else {
+      showToast(label + ' complete', 'success');
+    }
   } else {
     const errEl = document.getElementById(result.type === 'blob' ? 'blob-error' : 'sentinel-error');
     if (errEl) errEl.textContent = result.error || 'Unknown error';
-    showToast((result.type === 'blob' ? 'Blob export' : 'Sentinel ingest') + ' failed — check integration config', 'error');
+    showToast((result.type === 'blob' ? 'Blob export' : 'Sentinel ingest') + ' failed: ' + (result.error || 'unknown error'), 'error');
   }
 });
 
@@ -2425,6 +2430,11 @@ function renderOperators() {
   }).join('') || '<tr><td colspan="4" class="empty-row">No operators configured.</td></tr>';
   tbody.querySelectorAll('.btn-del-op').forEach(btn => {
     btn.addEventListener('click', () => {
+      const targetRole = (_operators[btn.dataset.user] || '').toLowerCase();
+      if (targetRole === 'admin' && currentOperatorRole() !== 'admin') {
+        showToast('Only admin operators can remove admin accounts', 'error');
+        return;
+      }
       delete _operators[btn.dataset.user];
       renderOperators();
     });
@@ -2446,6 +2456,10 @@ document.getElementById('btn-add-operator').addEventListener('click', () => {
   const user = document.getElementById('input-add-op-user').value.trim();
   const role = document.getElementById('input-add-op-role').value;
   if (!user) return;
+  if (role === 'admin' && currentOperatorRole() !== 'admin') {
+    showToast('Only admin operators can add admin accounts', 'error');
+    return;
+  }
   _operators[user] = role;
   document.getElementById('input-add-op-user').value = '';
   renderOperators();
