@@ -1,3 +1,6 @@
 node_modules/
 dist/
 *.log
+panel-bounds.json
+design-preview.html
+renderer/pre-revamp/

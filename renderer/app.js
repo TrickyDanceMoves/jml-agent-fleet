@@ -5088,10 +5088,34 @@ setupUserAutocomplete(document.getElementById('log-filter-upn'));
   if (backdrop) backdrop.addEventListener('click', closePalette);
 })();
 
-// Docked panel toggle button
+// Docked panel toggle buttons (topbar #btn-toggle-docked + sidebar .nav-docked-toggle)
 (function () {
-  const btn = document.getElementById('btn-toggle-docked');
-  if (!btn) return;
-  btn.addEventListener('click', () => { window.api.toggleDockedPanel(); });
-  window.api.onDockedPanelState(visible => { btn.classList.toggle('active', !!visible); });
+  const btns = document.querySelectorAll('#btn-toggle-docked, .nav-docked-toggle');
+  if (!btns.length) return;
+  btns.forEach(btn => btn.addEventListener('click', () => { window.api.toggleDockedPanel(); }));
+  window.api.onDockedPanelState(visible => { btns.forEach(btn => btn.classList.toggle('active', !!visible)); });
 })();
+
+// Azure Portal button
+(function () {
+  const btn = document.getElementById('btn-azure');
+  if (!btn) return;
+  btn.addEventListener('click', () => { window.api.openExternal('https://portal.azure.com'); });
+})();
+
+// Populate tenant badge from live agent config (replaces hardcoded placeholder)
+(function () {
+  window.api.getTenantConfig().then(cfg => {
+    if (cfg && cfg.primaryDomain) {
+      document.querySelectorAll('.tenant-badge').forEach(el => { el.textContent = cfg.primaryDomain; });
+    }
+  }).catch(() => {});
+})();
+
+// Sync session mode when toggled from the docked panel
+window.api.onModeChanged(({ whatif }) => {
+  isWhatif = whatif;
+  setHardMode(whatif ? 'whatif' : 'live');
+  window.api.setMode(whatif);
+  updateTopbarModePill();
+});

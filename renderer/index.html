@@ -109,7 +109,7 @@
           </button>
 
           <div class="nav-docked-divider"></div>
-          <button class="nav-docked-toggle" id="btn-toggle-docked" title="Toggle docked panel (Ctrl+Shift+J)">
+          <button class="nav-docked-toggle" title="Toggle docked panel (Ctrl+Shift+D)">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" width="13" height="13"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="15" y1="3" x2="15" y2="21"/></svg>
             <span>Docked</span>
           </button>
@@ -170,6 +170,15 @@
               </div>
             </div>
             <span class="divider"></span>
+            <button class="win-btn azure-btn" id="btn-azure" title="Open Azure Portal">
+              <svg viewBox="0 0 24 24" fill="currentColor" width="13" height="13">
+                <path d="M13.5 3.5L5 20.5h4l2-5.5h3.5L19 20.5h4L13.5 3.5zm0 5.5 2.1 5.5h-4.2z"/>
+              </svg>
+            </button>
+            <button class="win-btn docked-btn" id="btn-toggle-docked" title="Toggle docked panel (Ctrl+Shift+D)">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="13" height="13"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="15" y1="3" x2="15" y2="21"/></svg>
+            </button>
+            <span class="divider"></span>
             <button class="win-btn" id="btn-minimize" title="Minimize">&#x2212;</button>
             <button class="win-btn" id="btn-maximize" title="Maximize">&#x25A1;</button>
             <button class="win-btn close" id="btn-close" title="Close">&#x2715;</button>
@@ -186,7 +195,7 @@
               <p class="desc">Seven specialist agents handling joiners, movers, leavers, enrollment, certification and audit across your Entra tenant.</p>
             </div>
             <div class="row-flex">
-              <span class="tenant-badge">contoso.onmicrosoft.com</span>
+              <span class="tenant-badge" id="dash-tenant-badge">contoso.onmicrosoft.com</span>
               <button class="btn ghost" id="btn-customize-dashboard" title="Show/hide dashboard sections">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="13" height="13"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
                 Customize
@@ -339,21 +348,21 @@
                 <div class="dash-sec-icon">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M8 11h8M12 7v8"/></svg>
                 </div>
-                <div class="dash-sec-label">Behavioral · UEBA</div>
+                <div class="dash-sec-label">Behavior Anomalies</div>
                 <div class="dash-sec-counts" id="dash-ueba-counts"><span class="count-badge loading">—</span></div>
               </button>
               <button class="dash-sec-tile dash-sec-drift" id="dash-tile-drift">
                 <div class="dash-sec-icon">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
                 </div>
-                <div class="dash-sec-label">Configuration · Drift</div>
+                <div class="dash-sec-label">Config Drift</div>
                 <div class="dash-sec-counts" id="dash-drift-counts"><span class="count-badge loading">—</span></div>
               </button>
               <button class="dash-sec-tile dash-sec-risky" id="dash-tile-risky">
                 <div class="dash-sec-icon">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/><line x1="18" y1="8" x2="23" y2="13"/><line x1="23" y1="8" x2="18" y2="13"/></svg>
                 </div>
-                <div class="dash-sec-label">Compromised · Identity</div>
+                <div class="dash-sec-label">Identity Risk</div>
                 <div class="dash-sec-counts" id="dash-risky-counts"><span class="count-badge loading">—</span></div>
               </button>
             </div>
@@ -892,7 +901,7 @@
           <!-- Scan trio -->
           <div class="scan-trio">
             <div class="scan ueba" id="sec-ueba">
-              <div class="name">Behavioral · UEBA</div>
+              <div class="name">Behavior Anomalies</div>
               <div class="nums" id="sec-ueba-counts">
                 <div class="n cr"><b>—</b><span>critical</span></div>
                 <div class="n wn"><b>—</b><span>warning</span></div>
@@ -905,7 +914,7 @@
               <div class="glow"></div>
             </div>
             <div class="scan drift" id="sec-drift">
-              <div class="name">Configuration · Drift</div>
+              <div class="name">Config Drift</div>
               <div class="nums" id="sec-drift-counts">
                 <div class="n cr"><b>—</b><span>critical</span></div>
                 <div class="n wn"><b>—</b><span>warning</span></div>
@@ -918,7 +927,7 @@
               <div class="glow"></div>
             </div>
             <div class="scan id" id="sec-risky">
-              <div class="name">Identity Protection</div>
+              <div class="name">Identity Risk</div>
               <div class="nums" id="sec-risky-counts">
                 <div class="n cr"><b>—</b><span>critical</span></div>
                 <div class="n wn"><b>—</b><span>warning</span></div>
@@ -933,9 +942,9 @@
           </div>
 
           <!-- UEBA findings -->
-          <details class="collapse" id="sec-section-ueba">
+          <details class="collapse" id="sec-section-ueba" open>
             <summary>
-              Behavioral · UEBA
+              Behavior Anomalies
               <span id="sec-ueba-summary-preview" class="collapse-summary-preview"></span>
               <span id="sec-ueba-run" style="font-family:var(--mono);font-size:11px;color:var(--muted);font-weight:400;margin-left:auto"></span>
             </summary>
@@ -945,9 +954,9 @@
           </details>
 
           <!-- Drift findings -->
-          <details class="collapse" id="sec-section-drift">
+          <details class="collapse" id="sec-section-drift" open>
             <summary>
-              Configuration · Drift
+              Config Drift
               <span id="sec-drift-summary-preview" class="collapse-summary-preview"></span>
               <span id="sec-drift-run" style="font-family:var(--mono);font-size:11px;color:var(--muted);font-weight:400;margin-left:auto"></span>
             </summary>
@@ -957,9 +966,9 @@
           </details>
 
           <!-- Risky users -->
-          <details class="collapse" id="sec-section-risky">
+          <details class="collapse" id="sec-section-risky" open>
             <summary>
-              Identity Protection · Risky Users
+              Identity Risk · Risky Users
               <span id="sec-risky-summary-preview" class="collapse-summary-preview"></span>
               <span id="sec-risky-run" style="font-family:var(--mono);font-size:11px;color:var(--muted);font-weight:400;margin-left:auto"></span>
             </summary>
