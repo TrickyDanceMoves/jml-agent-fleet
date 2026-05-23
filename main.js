@@ -297,6 +297,24 @@ function runPsAsync(scriptPath, params = {}) {
   });
 }
 
+function routeBlockedLeaverToApproval(input, stage) {
+  if (!fs.existsSync(PENDING_DIR)) fs.mkdirSync(PENDING_DIR, { recursive: true });
+  const token = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  const record = {
+    id: token, token,
+    tool: 'submit_leaver_' + stage.toLowerCase(),
+    severity: 'crit',
+    requestedBy: currentOperator || 'helpdesk',
+    requestedByRole: currentRole,
+    requestedAt: new Date().toISOString(),
+    input: { userPrincipalName: input.userPrincipalName, stage, ticketRef: input.ticketRef || '' },
+    note: 'User holds privileged Entra directory roles — admin approval required to proceed.',
+    status: 'pending'
+  };
+  fs.writeFileSync(path.join(PENDING_DIR, token + '.json'), JSON.stringify(record, null, 2), 'utf8');
+  return token;
+}
+
 function parsePs1Output(raw) {
   const lines = raw.trim().split('\n');
   const visible = lines.filter(l => /\[(ACTION|ERROR|WARN|SKIP|WHATIF)\]/.test(l))
@@ -378,13 +396,24 @@ function executeTool(agent, toolName, input, whatif) {
         GroupsToAdd: input.groupsToAdd, GroupsToRemove: input.groupsToRemove, WhatIf: w
       }));
     case 'submit_leaver_soft':
-      return parsePs1Output(runPs(path.join(AGENTS_DIR, 'leaver', 'Invoke-LeaverProcess.ps1'), {
-        UserPrincipalName: input.userPrincipalName, Stage: 'Soft', WhatIf: w, OperatorRole: currentRole
-      }));
-    case 'submit_leaver_hard':
-      return parsePs1Output(runPs(path.join(AGENTS_DIR, 'leaver', 'Invoke-LeaverProcess.ps1'), {
-        UserPrincipalName: input.userPrincipalName, Stage: 'Hard', WhatIf: w, OperatorRole: currentRole
-      }));
+    case 'submit_leaver_hard': {
+      const _stage = toolName === 'submit_leaver_hard' ? 'Hard' : 'Soft';
+      try {
+        return parsePs1Output(runPs(path.join(AGENTS_DIR, 'leaver', 'Invoke-LeaverProcess.ps1'), {
+          UserPrincipalName: input.userPrincipalName, Stage: _stage, WhatIf: w, OperatorRole: currentRole
+        }));
+      } catch (_lErr) {
+        const _stdout = _lErr.stdout || _lErr.message || '';
+        if (currentRole === 'helpdesk' && !w && _stdout.includes('BLOCKED: Operator role')) {
+          const _tok = routeBlockedLeaverToApproval(input, _stage);
+          return { approvalQueued: true, token: _tok, message: 'User holds privileged Entra directory roles. Approval request submitted — an admin operator must approve from the Approvals tab before this leaver executes.' };
+        }
+        if (currentRole === 'helpdesk' && w && _stdout.includes('BLOCKED: Operator role')) {
+          return { approvalRequired: true, message: 'This user holds privileged Entra directory roles. In Live mode, this leaver would be routed to the Approvals tab for admin sign-off.' };
+        }
+        throw _lErr;
+      }
+    }
     default:
       return { error: 'Unknown tool: ' + toolName };
   }
@@ -627,7 +656,7 @@ ipcMain.on('approve-pending', (event, payload) => {
       finally { try { fs.unlinkSync(pf); } catch {} }
     } else {
       const stage = inp.stage || (tool.includes('hard') ? 'Hard' : 'Soft');
-      const params = { UserPrincipalName: inp.userPrincipalName, Stage: stage };
+      const params = { UserPrincipalName: inp.userPrincipalName, Stage: stage, OperatorRole: 'admin' };
       if (inp.ticketRef) params.TicketRef = inp.ticketRef;
       raw = runPs(path.join(AGENTS_DIR, 'leaver', 'Invoke-LeaverProcess.ps1'), params);
     }
@@ -1800,6 +1829,13 @@ ipcMain.on('run-quick-leaver', (event, payload) => {
     const result = parsePs1Output(raw);
     event.sender.send('quick-op-result', { type: 'leaver', lines: result.lines, data: result.data });
   } catch (err) {
+    const stdout = err.stdout || err.message || '';
+    if (currentRole === 'helpdesk' && !whatif && stdout.includes('BLOCKED: Operator role')) {
+      const tok = routeBlockedLeaverToApproval({ userPrincipalName: upn, ticketRef: reason }, stage || 'Soft');
+      event.sender.send('quick-op-result', { type: 'leaver', approvalQueued: true, token: tok,
+        lines: ['[APPROVAL] User holds privileged Entra directory roles — approval request submitted for admin review.'] });
+      return;
+    }
     event.sender.send('quick-op-result', { type: 'leaver', lines: [err.message], data: null, error: true });
   }
 });

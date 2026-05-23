@@ -2676,7 +2676,7 @@ function applyRoleUI(role) {
       if (bannerText) bannerText.textContent = 'Read-only viewer — all write operations are disabled.';
     } else if (r === 'helpdesk') {
       banner.classList.remove('hidden');
-      if (bannerText) bannerText.textContent = 'Helpdesk role — restricted to joiner and enroller operations.';
+      if (bannerText) bannerText.textContent = 'Helpdesk role — integrations config and admin account management are restricted. Leavers on privileged users require admin approval.';
     } else {
       banner.classList.add('hidden');
     }
@@ -3977,6 +3977,12 @@ function renderTimeline(entries) {
     if (!resultEl) return;
     resultEl.style.display = 'block';
 
+    if (data.approvalQueued) {
+      resultEl.innerHTML = '<div class="qop-warn" style="color:var(--amber)">[APPROVAL QUEUED] Approval request submitted — go to the <strong>Approvals</strong> tab for admin sign-off. Token: ' + escHtml(String(data.token || '').toUpperCase()) + '</div>';
+      showToast('Approval request queued — admin sign-off required in Approvals tab', 'warning');
+      return;
+    }
+
     const lines = data.lines || [];
     if (!lines.length) {
       resultEl.innerHTML = data.error
@@ -3986,10 +3992,11 @@ function renderTimeline(entries) {
     }
 
     resultEl.innerHTML = lines.map(line => {
-      if (/\[ACTION\]/.test(line)) return '<div class="qop-action">' + escHtml(line) + '</div>';
-      if (/\[WARN\]/.test(line))   return '<div class="qop-warn">'   + escHtml(line) + '</div>';
-      if (/\[ERROR\]/.test(line))  return '<div class="qop-error">'  + escHtml(line) + '</div>';
-      if (/\[WHATIF\]/.test(line)) return '<div class="qop-whatif">' + escHtml(line) + '</div>';
+      if (/\[ACTION\]/.test(line))   return '<div class="qop-action">' + escHtml(line) + '</div>';
+      if (/\[APPROVAL\]/.test(line)) return '<div class="qop-warn" style="color:var(--amber)">' + escHtml(line) + '</div>';
+      if (/\[WARN\]/.test(line))     return '<div class="qop-warn">'   + escHtml(line) + '</div>';
+      if (/\[ERROR\]/.test(line))    return '<div class="qop-error">'  + escHtml(line) + '</div>';
+      if (/\[WHATIF\]/.test(line))   return '<div class="qop-whatif">' + escHtml(line) + '</div>';
       return '<div style="color:var(--text-muted)">' + escHtml(line) + '</div>';
     }).join('');
   });
