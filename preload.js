@@ -150,5 +150,9 @@ contextBridge.exposeInMainWorld('api', {
   signOut: () => ipcRenderer.send('sign-out'),
 
   // Avatar file picker — uses Electron native dialog (reliable vs hidden input)
-  pickImageFile: () => ipcRenderer.invoke('pick-image-file')
+  pickImageFile: () => ipcRenderer.invoke('pick-image-file'),
+
+  // Docked panel toggle
+  toggleDockedPanel: () => ipcRenderer.invoke('toggle-docked-panel'),
+  onDockedPanelState: (cb) => ipcRenderer.on('docked-panel-state', (_, v) => cb(v)),
 });

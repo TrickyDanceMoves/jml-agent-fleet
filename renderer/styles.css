@@ -326,6 +326,27 @@ a { color: var(--cyan); text-decoration: none; }
 .nav-divider {
   height: 1px; background: var(--border); margin: 8px 6px;
 }
+.nav-docked-divider {
+  height: 1px; background: var(--border); margin: 6px 6px 2px;
+  opacity: 0.4;
+}
+.nav-docked-toggle {
+  display: flex; align-items: center; gap: 8px; padding: 7px 10px;
+  border-radius: var(--r-1); color: var(--dim);
+  font-size: 12px; font-weight: 400; cursor: pointer;
+  width: 100%; text-align: left; background: none; border: none;
+  transition: color .15s;
+  opacity: 0.6;
+}
+.nav-docked-toggle svg { flex-shrink: 0; color: var(--dim); transition: color .15s; }
+.nav-docked-toggle:hover { color: var(--text-2); opacity: 1; }
+.nav-docked-toggle:hover svg { color: var(--muted); }
+.nav-docked-toggle.active {
+  color: var(--text-2); opacity: 1;
+}
+.nav-docked-toggle.active svg { color: var(--cyan); }
+.layout.sidebar-collapsed .nav-docked-toggle span { display: none; }
+.layout.sidebar-collapsed .nav-docked-toggle { justify-content: center; padding: 7px 6px; }
 
 /* Hard mode toggle (sticky session default) */
 .hard-mode {

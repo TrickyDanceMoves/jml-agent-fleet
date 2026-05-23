@@ -790,6 +790,23 @@ function saveScheduled(ops) {
 }
 
 // ── Docked panel / palette IPC ────────────────────────────────────────────────
+ipcMain.handle('toggle-docked-panel', () => {
+  if (!dockedWin || dockedWin.isDestroyed()) {
+    createDockedPanel();
+    if (win && !win.isDestroyed()) win.webContents.send('docked-panel-state', true);
+    return true;
+  }
+  if (dockedWin.isVisible()) {
+    dockedWin.hide();
+    if (win && !win.isDestroyed()) win.webContents.send('docked-panel-state', false);
+    return false;
+  } else {
+    dockedWin.show(); dockedWin.focus();
+    if (win && !win.isDestroyed()) win.webContents.send('docked-panel-state', true);
+    return true;
+  }
+});
+
 ipcMain.on('panel-open-console', (event, tab) => {
   showMainWindow();
   if (win && !win.isDestroyed() && tab) {
