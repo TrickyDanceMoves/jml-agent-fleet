@@ -1474,6 +1474,37 @@ const MOCK_CERT_EXPIRY = [
   { agent:'provisioner', thumbprint:null,             expiry: null, daysLeft: null },
   { agent:'auditor',     thumbprint:'F6A1B2C3D4E5',  expiry: new Date(Date.now()+86400000*312).toISOString(), daysLeft:312 }
 ];
+const MOCK_APPROVALS = [
+  {
+    id: 'INC-1020', token: 'INC-1020',
+    tool: 'submit_leaver_hard', severity: 'crit',
+    requestedBy: 'admin', requestedByRole: 'helpdesk',
+    requestedAt: new Date(Date.now()-86400000*1).toISOString(),
+    status: 'pending',
+    input: {
+      userPrincipalName: 'robert.martinez@contoso.onmicrosoft.com',
+      stage: 'Hard', ticketRef: 'INC-1020',
+      givenName: 'Robert', surname: 'Martinez',
+    },
+    note: 'User holds privileged Entra directory roles — admin approval required to proceed.'
+  },
+  {
+    id: 'INC-1025', token: 'INC-1025',
+    tool: 'submit_joiner', severity: 'info',
+    requestedBy: 'helpdesk1', requestedByRole: 'helpdesk',
+    requestedAt: new Date(Date.now()-3600000*2).toISOString(),
+    status: 'pending',
+    input: {
+      userPrincipalName: 'alex.nguyen@contoso.onmicrosoft.com',
+      stage: 'Provision', ticketRef: 'INC-1025',
+      givenName: 'Alex', surname: 'Nguyen',
+      department: 'Engineering', jobTitle: 'Software Engineer',
+      licenses: ['Microsoft 365 E3'],
+      groups: ['Engineering-All', 'Dev-Team'],
+    },
+    note: 'New hire provisioning — license assignment pending admin sign-off.'
+  }
+];
 
 // JS injected into renderer for tabs that show empty state by default
 const TAB_INJECT = {
@@ -1526,6 +1557,19 @@ const TAB_INJECT = {
           Robert Martinez is also <strong>confirmedCompromised</strong> in Identity Protection. Sessions were auto-revoked.
         </div></div></div>
       \`;
+      // Add action chips to the last assistant message (mirrors P4 in onComplete)
+      const lastMsg = c.querySelector('.message.assistant:last-of-type .message-text');
+      if (lastMsg && !lastMsg.querySelector('.auditor-finding-actions')) {
+        const wrap = document.createElement('div');
+        wrap.className = 'auditor-finding-actions';
+        [['→ Security','security'],['→ Operations','operations'],['→ Audit Log','audit-log']].forEach(([label, tab]) => {
+          const btn = document.createElement('button');
+          btn.className = 'auditor-action-chip';
+          btn.textContent = label;
+          wrap.appendChild(btn);
+        });
+        lastMsg.appendChild(wrap);
+      }
       c.scrollTop = c.scrollHeight;
     })();
   `,
@@ -1612,7 +1656,8 @@ async function runCapture() {
   // Pre-send mock data so dashboard/certs show content without Graph connection
   win.webContents.send('dashboard-stats',  MOCK_DASHBOARD);
   win.webContents.send('agent-health',     MOCK_AGENT_HEALTH);
-  win.webContents.send('cert-expiry-data', MOCK_CERT_EXPIRY);
+  win.webContents.send('cert-expiry', { certs: MOCK_CERT_EXPIRY.map(c => ({ ...c, daysRemaining: c.daysLeft })) });
+  win.webContents.send('pending-approvals', MOCK_APPROVALS);
   await sleep(400);
 
   // Remove overflow constraints so all content is visible in tall screenshots
@@ -1640,7 +1685,7 @@ async function runCapture() {
     ['auditor',        null, 600],
     ['security',       `window.api.getSecurityReports(); window.api.getAgentHealth();`, 2500],
     ['exports',        `window.api.getExportsStatus();`, 2000],
-    ['approvals',      `window.api.getPendingApprovals();`, 2000],
+    ['approvals',      null, 2000],
     ['operations',     `window.api.getScheduledOps();`, 1800],
     ['certifications', `window.api.getCertHistory();`, 1800],
     ['settings',       `window.api.getPolicy();`, 1800],
@@ -1663,6 +1708,9 @@ async function runCapture() {
     await win.webContents.executeJavaScript(`document.querySelector('[data-tab="${tab}"]')?.click()`);
     await sleep(500);
     if (ipcJs) await win.webContents.executeJavaScript(ipcJs);
+    // Re-send mock approvals each time the approvals tab is visited (real IPC reads
+    // empty PENDING_DIR in capture mode, which would wipe the pre-sent mock data)
+    if (tab === 'approvals') win.webContents.send('pending-approvals', MOCK_APPROVALS);
     await sleep(wait);
     if (TAB_INJECT[tab]) await win.webContents.executeJavaScript(TAB_INJECT[tab]);
     await win.webContents.executeJavaScript(REMOVE_OVERFLOW);

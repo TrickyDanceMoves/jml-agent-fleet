@@ -619,6 +619,30 @@ window.api.onComplete(({ agent }) => {
   const msgEl = currentMsgEl[agent];
   if (msgEl) {
     msgEl.querySelector('.typing-indicator').style.display = 'none';
+    // Auditor: if the response contains findings, surface quick-nav action chips
+    if (agent === 'auditor') {
+      const textEl = msgEl.querySelector('.message-text');
+      const txt = textEl ? (textEl.textContent || '') : '';
+      const findingKeywords = ['risk', 'finding', 'violation', 'anomaly', 'flag', 'alert', 'concern', 'critical', 'warning', 'suspicious', 'unusual', 'gap', 'exposure'];
+      const hasFinding = findingKeywords.some(kw => txt.toLowerCase().includes(kw));
+      if (hasFinding && textEl) {
+        const chips = [
+          { label: '→ Security', tab: 'security' },
+          { label: '→ Operations', tab: 'operations' },
+          { label: '→ Audit Log', tab: 'audit-log' },
+        ];
+        const wrap = document.createElement('div');
+        wrap.className = 'auditor-finding-actions';
+        chips.forEach(({ label, tab }) => {
+          const btn = document.createElement('button');
+          btn.className = 'auditor-action-chip';
+          btn.textContent = label;
+          btn.addEventListener('click', () => switchTab(tab));
+          wrap.appendChild(btn);
+        });
+        textEl.appendChild(wrap);
+      }
+    }
     currentMsgEl[agent] = null;
   }
 });
@@ -679,18 +703,7 @@ function buildCountBadges(crit, warn, info) {
 window.api.onSecurityReports((data) => {
   // Re-scan visual cue: data arrived → clear the pulsing state
   setSecurityScanning(false);
-  // Open only the most-recent scan section by timestamp; collapse the others
-  const tstamps = {
-    ueba: data.ueba?.timestamp ? new Date(data.ueba.timestamp).getTime() : 0,
-    drift: data.drift?.timestamp ? new Date(data.drift.timestamp).getTime() : 0,
-    risky: data.riskyUsers?.timestamp ? new Date(data.riskyUsers.timestamp).getTime() : 0,
-  };
-  const newest = Object.entries(tstamps).sort((a, b) => b[1] - a[1])[0];
-  if (newest && newest[1] > 0) {
-    document.querySelectorAll('#sec-section-ueba, #sec-section-drift, #sec-section-risky').forEach(d => d.removeAttribute('open'));
-    const target = document.getElementById('sec-section-' + newest[0]);
-    if (target) target.setAttribute('open', '');
-  }
+  // Sections stay collapsed by default — user clicks a scan card to open one
   // Update summary strip tiles (scan-trio)
   function updateTile(id, report) {
     const countsEl = document.getElementById('sec-' + id + '-counts');
@@ -990,42 +1003,28 @@ function loadAuditLog() {
   window.api.getAuditLog();
 }
 
-window.api.onAuditLogData((entries) => {
-  // Feed Operations kanban Completed-today column from audit log
-  renderOpsCompleted(entries || []);
+const LOG_PAGE_SIZE = 50;
+let _logPage = 0;
+let _logEntries = [];
 
-  // Feed dashboard Audit widget
-  if (Array.isArray(entries)) {
-    const total = entries.length;
-    const totalEl = document.getElementById('dash-audit-total');
-    if (totalEl) totalEl.textContent = total;
-    const cnt = document.getElementById('dash-audit-cnt');
-    if (cnt) cnt.textContent = `· ${total} entries`;
-    const last = entries[0];
-    const sealEl = document.getElementById('dash-audit-seal');
-    if (sealEl && last) sealEl.textContent = last.timestamp ? new Date(last.timestamp).toLocaleString() : '—';
-    const headEl = document.getElementById('dash-audit-head');
-    if (headEl && last && last.hash) headEl.textContent = String(last.hash).slice(0, 12) + '…';
-  }
+function renderAuditPage() {
+  const tbody   = document.getElementById('log-tbody');
+  const paginEl = document.getElementById('log-pagination');
+  const entries = _logEntries;
+  const total   = entries.length;
+  const start   = _logPage * LOG_PAGE_SIZE;
+  const end     = Math.min(start + LOG_PAGE_SIZE, total);
+  const page    = entries.slice(start, end);
 
-  const tbody    = document.getElementById('log-tbody');
-  const countEl  = document.getElementById('log-count');
-  if (!entries.length) {
-    tbody.innerHTML = '<tr><td colspan="7" class="empty-row">No audit entries found.</td></tr>';
-    if (countEl) countEl.textContent = '';
-    return;
-  }
-  if (countEl) countEl.textContent = entries.length + ' entries';
-  // Stash for click handlers
-  window._lastAuditEntries = entries;
-  tbody.innerHTML = entries.map(e => {
+  tbody.innerHTML = page.map((e, i) => {
+    const idx      = start + i;
     const ts       = e.timestamp ? new Date(e.timestamp).toLocaleString() : '--';
     const outcome  = e.outcome || '--';
     const mode     = e.whatif ? '<span class="badge-whatif">Safe</span>' : '<span class="badge-live">Live</span>';
     const cls      = outcome === 'success' ? 'success' : outcome === 'partial' ? 'partial' : outcome === 'failed' ? 'failed' : '';
     const ticket   = (e.details && e.details.ticketRef) ? escHtml(e.details.ticketRef) : '<span class="dim">—</span>';
     const operator = e.operator ? escHtml(e.operator) : '<span class="dim">—</span>';
-    return `<tr data-audit-idx="${escHtml(String(entries.indexOf(e)))}" style="cursor:pointer">
+    return `<tr data-audit-idx="${idx}" style="cursor:pointer">
       <td class="mono">${ts}</td>
       <td>${escHtml(e.agent || '--')}</td>
       <td class="mono">${escHtml(e.subject || '--')}</td>
@@ -1035,7 +1034,8 @@ window.api.onAuditLogData((entries) => {
       <td>${mode}</td>
     </tr>`;
   }).join('');
-  // Click an audit row → show full detail popover
+
+  // Click handler for detail popover
   tbody.querySelectorAll('tr[data-audit-idx]').forEach(row => {
     row.addEventListener('click', () => {
       const e = entries[parseInt(row.dataset.auditIdx, 10)];
@@ -1063,6 +1063,58 @@ window.api.onAuditLogData((entries) => {
       });
     });
   });
+
+  // Pagination controls
+  if (paginEl) {
+    const totalPages = Math.ceil(total / LOG_PAGE_SIZE);
+    if (total <= LOG_PAGE_SIZE) {
+      paginEl.innerHTML = '';
+    } else {
+      paginEl.innerHTML = `
+        <span class="lp-range">Showing ${start + 1}–${end} of ${total}</span>
+        <div class="lp-btns">
+          <button class="lp-btn" id="lp-prev"${_logPage === 0 ? ' disabled' : ''}>← Prev</button>
+          <button class="lp-btn" id="lp-next"${_logPage >= totalPages - 1 ? ' disabled' : ''}>Next →</button>
+        </div>`;
+      const prevBtn = paginEl.querySelector('#lp-prev');
+      const nextBtn = paginEl.querySelector('#lp-next');
+      if (prevBtn) prevBtn.addEventListener('click', () => { _logPage--; renderAuditPage(); });
+      if (nextBtn) nextBtn.addEventListener('click', () => { _logPage++; renderAuditPage(); });
+    }
+  }
+}
+
+window.api.onAuditLogData((entries) => {
+  // Feed Operations kanban Completed-today column from audit log
+  renderOpsCompleted(entries || []);
+
+  // Feed dashboard Audit widget
+  if (Array.isArray(entries)) {
+    const total = entries.length;
+    const totalEl = document.getElementById('dash-audit-total');
+    if (totalEl) totalEl.textContent = total;
+    const cnt = document.getElementById('dash-audit-cnt');
+    if (cnt) cnt.textContent = `· ${total} entries`;
+    const last = entries[0];
+    const sealEl = document.getElementById('dash-audit-seal');
+    if (sealEl && last) sealEl.textContent = last.timestamp ? new Date(last.timestamp).toLocaleString() : '—';
+    const headEl = document.getElementById('dash-audit-head');
+    if (headEl && last && last.hash) headEl.textContent = String(last.hash).slice(0, 12) + '…';
+  }
+
+  const countEl = document.getElementById('log-count');
+  if (!entries.length) {
+    document.getElementById('log-tbody').innerHTML = '<tr><td colspan="7" class="empty-row">No audit entries found.</td></tr>';
+    if (countEl) countEl.textContent = '';
+    const paginEl = document.getElementById('log-pagination');
+    if (paginEl) paginEl.innerHTML = '';
+    return;
+  }
+  if (countEl) countEl.textContent = entries.length + ' entries';
+  window._lastAuditEntries = entries;
+  _logEntries = entries;
+  _logPage = 0;
+  renderAuditPage();
 });
 
 // ── Dashboard ─────────────────────────────────────────────────────────────────
@@ -2003,7 +2055,8 @@ window.api.onCertHistory((entries) => {
       </div>`;
     }).join('');
 
-    return `<details class="cert-campaign-group">
+    const isPerfect = pct === 100;
+    return `<details class="cert-campaign-group${isPerfect ? ' ccg-perfect' : ''}"${isPerfect ? '' : ''}>
       <summary>
         <div class="ccg-left">
           <span class="ccg-name">${escHtml(name)}</span>
@@ -2012,7 +2065,7 @@ window.api.onCertHistory((entries) => {
         <div class="ccg-right">
           <span class="ccg-pass-rate" style="color:${passColor}">${pct}% pass</span>
           ${lastMode}
-          <span class="ccg-chevron">›</span>
+          ${isPerfect ? '<span class="ccg-checkmark">✓</span>' : '<span class="ccg-chevron">›</span>'}
         </div>
       </summary>
       <div class="ccg-runs">${runRows}</div>
@@ -2934,7 +2987,7 @@ if (typeof window.api?.getTenantConfig === 'function') {
 const _viewAllBtn = document.getElementById('btn-view-all-activity');
 if (_viewAllBtn) _viewAllBtn.addEventListener('click', () => switchTab('audit-log'));
 const _viewFleetBtn = document.getElementById('dash-open-fleet');
-if (_viewFleetBtn) _viewFleetBtn.addEventListener('click', () => switchTab('security'));
+if (_viewFleetBtn) _viewFleetBtn.addEventListener('click', () => switchTab('certs'));
 
 // Universal "OPEN →" links on dashboard widgets — any [data-jump-tab] navigates
 document.querySelectorAll('[data-jump-tab]').forEach(el => {
@@ -2951,6 +3004,8 @@ function refreshDashWidgets() {
   if (typeof window.api?.getAuditLog === 'function') { try { window.api.getAuditLog(); } catch (_) {} }
   // Exports — exports status
   if (typeof window.api?.getExportsStatus === 'function') { try { window.api.getExportsStatus(); } catch (_) {} }
+  // Agent Certs — cert expiry dashboard widget
+  if (typeof window.api?.getCertExpiry === 'function') { try { window.api.getCertExpiry(); } catch (_) {} }
   // Graph runner — recent queries from localStorage
   try {
     const recent = JSON.parse(localStorage.getItem('jml-graph-recent') || '[]');
@@ -3544,7 +3599,36 @@ document.getElementById('dash-action-mover').addEventListener('click',  () => _d
 document.getElementById('dash-action-leaver').addEventListener('click', () => _dashQuickAction('approver', 'Offboard a leaver'));
 document.getElementById('dash-action-audit').addEventListener('click',  () => { switchTab('auditor'); document.getElementById('input-auditor').focus(); });
 document.getElementById('dash-open-security').addEventListener('click', () => switchTab('security'));
-document.querySelectorAll('.dash-sec-tile').forEach(btn => btn.addEventListener('click', () => switchTab('security')));
+
+// Shared helper: open a <details> then smooth-scroll to it within its .view container
+function openSecSection(key) {
+  const d = document.getElementById('sec-section-' + key);
+  if (!d) return;
+  d.open = true;
+  // Two-frame wait: first frame commits the open, second frame lets the
+  // browser reflow the expanded content so scrollIntoView lands correctly
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    d.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }));
+}
+
+// Security page — top stat cards open+scroll their section
+[['sec-ueba', 'ueba'], ['sec-drift', 'drift'], ['sec-risky', 'risky']].forEach(([cardId, key]) => {
+  const card = document.getElementById(cardId);
+  if (card) { card.style.cursor = 'pointer'; card.addEventListener('click', () => openSecSection(key)); }
+});
+
+// Dashboard security tiles → Security tab, open + scroll to that section
+const _SEC_TILE_MAP = { 'dash-tile-ueba': 'ueba', 'dash-tile-drift': 'drift', 'dash-tile-risky': 'risky' };
+Object.entries(_SEC_TILE_MAP).forEach(([btnId, key]) => {
+  const btn = document.getElementById(btnId);
+  if (!btn) return;
+  btn.addEventListener('click', () => {
+    switchTab('security');
+    // After tab switch, wait for the view to be visible before opening+scrolling
+    setTimeout(() => openSecSection(key), 120);
+  });
+});
 
 loadDashboard();
 
@@ -4029,8 +4113,15 @@ function loadRecentUsers() {
       if (det) det.setAttribute('open', '');
     }, 100);
   });
-  if (btnLeaverHard) btnLeaverHard.addEventListener('click', () => {
+  if (btnLeaverHard) btnLeaverHard.addEventListener('click', async () => {
     if (!_selectedUser) return;
+    const confirmed = await confirmModal({
+      title: 'Confirm Hard Leave',
+      body: `Hard Leave permanently removes all licenses and group memberships for ${_selectedUser.displayName || _selectedUser.upn} and terminates the account. This cannot be undone.`,
+      danger: true,
+      okLabel: 'Hard Leave',
+    });
+    if (!confirmed) return;
     switchTab('operations');
     setTimeout(() => {
       const upnEl = document.getElementById('ql-upn');
@@ -4244,6 +4335,17 @@ function loadRecentUsers() {
         addNotification('⚠️', 'Cert expiring soon: ' + c.agent + ' (' + c.daysRemaining + 'd)');
       }
     });
+
+    // Populate dashboard Agent Certs widget
+    const _cOk   = certs.filter(c => c.daysRemaining === null || c.daysRemaining > 90).length;
+    const _cWarn = certs.filter(c => c.daysRemaining !== null && c.daysRemaining > 0 && c.daysRemaining <= 90).length;
+    const _cCrit = certs.filter(c => c.daysRemaining !== null && c.daysRemaining <= 0).length;
+    const _setDashCert = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+    _setDashCert('dash-certs-ok',   _cOk);
+    _setDashCert('dash-certs-warn', _cWarn || '—');
+    _setDashCert('dash-certs-crit', _cCrit || '—');
+    const _cCnt = document.getElementById('dash-certs-cnt');
+    if (_cCnt) _cCnt.textContent = '· ' + certs.length + ' agent' + (certs.length !== 1 ? 's' : '');
 
     bodyEl.innerHTML =
       '<table class="cert-expiry-table">' +
