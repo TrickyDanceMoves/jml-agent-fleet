@@ -1,6 +1,6 @@
 'use strict';
 
-const { app, BrowserWindow, ipcMain } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog } = require('electron');
 const { execFileSync, execFile, spawnSync } = require('child_process');
 const path  = require('path');
 const fs    = require('fs');
@@ -1133,6 +1133,20 @@ ipcMain.handle('save-tenant-config', (event, { tenantId, primaryDomain, region, 
 });
 
 // Read recent operator activity (most recent first). Used by Settings → Operators audit view.
+ipcMain.handle('pick-image-file', async () => {
+  const { canceled, filePaths } = await dialog.showOpenDialog({
+    properties: ['openFile'],
+    filters: [{ name: 'Images', extensions: ['jpg', 'jpeg', 'png', 'gif', 'webp'] }]
+  });
+  if (canceled || !filePaths.length) return null;
+  try {
+    const data = fs.readFileSync(filePaths[0]);
+    const ext  = path.extname(filePaths[0]).slice(1).toLowerCase();
+    const mime = (ext === 'jpg' || ext === 'jpeg') ? 'image/jpeg' : 'image/' + ext;
+    return 'data:' + mime + ';base64,' + data.toString('base64');
+  } catch { return null; }
+});
+
 ipcMain.handle('get-operator-activity', (event, { limit }) => {
   try {
     if (!fs.existsSync(OPERATOR_ACTIVITY_FILE)) return { entries: [] };
