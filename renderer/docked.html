@@ -7,20 +7,22 @@
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
   :root {
-    --bg:      oklch(0.11 0.010 252);
-    --bg-2:    oklch(0.14 0.010 252);
-    --surface: oklch(0.16 0.010 252);
-    --elev:    oklch(0.19 0.010 252);
-    --border:  oklch(0.24 0.008 252);
-    --text:    oklch(0.94 0.005 252);
-    --text-2:  oklch(0.72 0.008 252);
-    --muted:   oklch(0.52 0.008 252);
-    --dim:     oklch(0.38 0.006 252);
-    --cyan:       oklch(0.80 0.14 200);
-    --coral:      oklch(0.70 0.20 24);
-    --coral-dim:  oklch(0.45 0.16 24);
-    --amber:      oklch(0.78 0.16 75);
-    --emerald:    oklch(0.75 0.17 155);
+    --bg:           oklch(0.11 0.010 252);
+    --bg-2:         oklch(0.14 0.010 252);
+    --surface:      oklch(0.16 0.010 252);
+    --elev:         oklch(0.19 0.010 252);
+    --border:       oklch(0.24 0.008 252);
+    --border-strong:oklch(0.30 0.008 252);
+    --text:         oklch(0.94 0.005 252);
+    --text-2:       oklch(0.72 0.008 252);
+    --muted:        oklch(0.52 0.008 252);
+    --dim:          oklch(0.38 0.006 252);
+    --cyan:         oklch(0.80 0.14 200);
+    --coral:        oklch(0.70 0.20 24);
+    --coral-dim:    oklch(0.45 0.16 24);
+    --amber:        oklch(0.78 0.16 75);
+    --emerald:      oklch(0.75 0.17 155);
+    --violet:       oklch(0.68 0.18 285);
     --sans: 'Inter', system-ui, sans-serif;
     --mono: 'JetBrains Mono', 'Fira Code', monospace;
     --r: 8px;
@@ -35,35 +37,86 @@
     border-radius: 10px;
     overflow: hidden;
     user-select: none;
+    display: flex; flex-direction: column;
   }
 
   /* ── Drag handle ── */
   .drag-handle {
     -webkit-app-region: drag;
-    display: flex; align-items: center; justify-content: space-between;
-    padding: 10px 12px 8px;
+    display: flex; align-items: center; gap: 9px;
+    padding: 9px 11px 8px;
     border-bottom: 1px solid var(--border);
     background: var(--bg-2);
+    flex-shrink: 0;
   }
-  .drag-handle .logo {
-    display: flex; align-items: center; gap: 7px;
-    font-size: 11.5px; font-weight: 600; color: var(--text-2);
-  }
-  .drag-handle .logo .dot {
-    width: 8px; height: 8px; border-radius: 50%;
-    background: conic-gradient(from 220deg, var(--cyan), var(--coral), var(--cyan));
-  }
-  .drag-handle .close-btn {
+  /* Brand mark — matches main console exactly */
+  .brand-mark {
     -webkit-app-region: no-drag;
-    width: 18px; height: 18px; border-radius: 50%;
-    background: var(--elev); border: 1px solid var(--border);
-    cursor: pointer; display: grid; place-items: center;
-    color: var(--muted); font-size: 11px; line-height: 1;
+    width: 24px; height: 24px; border-radius: 6px; flex-shrink: 0;
+    background: conic-gradient(from 220deg at 50% 50%, var(--cyan), var(--violet), var(--coral), var(--cyan));
+    position: relative;
+    box-shadow: 0 0 0 1px color-mix(in oklch, var(--border-strong) 80%, transparent),
+                0 4px 12px color-mix(in oklch, var(--cyan) 20%, transparent);
   }
-  .drag-handle .close-btn:hover { background: var(--coral); color: #fff; border-color: var(--coral); }
+  .brand-mark::after {
+    content: ""; position: absolute; inset: 2px; border-radius: 4px; background: var(--bg-2);
+  }
+  .brand-mark::before {
+    content: ""; position: absolute; inset: 6px; border-radius: 2px;
+    background: linear-gradient(135deg, var(--cyan), var(--violet));
+    filter: blur(.5px); animation: brand-pulse 4s ease-in-out infinite;
+    z-index: 1;
+  }
+  @keyframes brand-pulse { 50% { filter: blur(2px); transform: scale(.85); } }
+
+  .brand-text {
+    flex: 1; display: flex; flex-direction: column; line-height: 1.15; min-width: 0;
+  }
+  .brand-text .t1 { font-size: 12px; font-weight: 600; letter-spacing: .02em; color: var(--text); }
+  .brand-text .t2 { font-size: 10px; color: var(--muted); font-family: var(--mono); letter-spacing: .05em; text-transform: uppercase; }
+
+  .header-actions {
+    -webkit-app-region: no-drag;
+    display: flex; align-items: center; gap: 5px; flex-shrink: 0;
+  }
+  .icon-btn {
+    width: 20px; height: 20px; border-radius: 5px;
+    background: none; border: 1px solid transparent;
+    cursor: pointer; display: grid; place-items: center;
+    color: var(--muted); transition: background .1s, color .1s, border-color .1s;
+  }
+  .icon-btn:hover { background: var(--elev); border-color: var(--border); color: var(--text-2); }
+  .icon-btn.active { color: var(--cyan); border-color: color-mix(in oklch, var(--cyan) 40%, transparent); }
+  .icon-btn svg { display: block; }
+  .close-btn:hover { background: color-mix(in oklch, var(--coral) 15%, transparent); color: var(--coral); border-color: color-mix(in oklch, var(--coral) 40%, transparent); }
+
+  /* ── Settings panel (collapsible) ── */
+  .settings-panel {
+    background: var(--bg-2); border-bottom: 1px solid var(--border);
+    padding: 10px 12px 8px; flex-shrink: 0;
+    display: none;
+  }
+  .settings-panel.open { display: block; }
+  .sp-title {
+    font-family: var(--mono); font-size: 9.5px; letter-spacing: .1em;
+    text-transform: uppercase; color: var(--dim); margin-bottom: 8px;
+  }
+  .sp-row {
+    display: flex; align-items: center; gap: 8px;
+    padding: 4px 0; cursor: pointer; color: var(--text-2); font-size: 12px;
+  }
+  .sp-row:hover { color: var(--text); }
+  .sp-row input[type="checkbox"] {
+    accent-color: var(--cyan); width: 12px; height: 12px; cursor: pointer;
+  }
+
+  /* ── Scrollable body ── */
+  .panel-body { flex: 1; overflow-y: auto; overflow-x: hidden; }
+  .panel-body::-webkit-scrollbar { width: 4px; }
+  .panel-body::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
 
   /* ── Sections ── */
-  .section { padding: 10px 12px; border-bottom: 1px solid var(--border); }
+  .section { padding: 9px 12px; border-bottom: 1px solid var(--border); }
   .section:last-child { border-bottom: 0; }
   .section-label {
     font-family: var(--mono); font-size: 9.5px; letter-spacing: .1em;
@@ -144,9 +197,9 @@
 
   /* ── Footer ── */
   .footer {
-    padding: 8px 12px;
+    padding: 7px 12px; flex-shrink: 0;
     display: flex; justify-content: space-between; align-items: center;
-    background: var(--bg-2);
+    background: var(--bg-2); border-top: 1px solid var(--border);
   }
   .footer .open-btn {
     font-family: var(--mono); font-size: 10px; color: var(--cyan);
@@ -162,42 +215,70 @@
 <body>
 
 <div class="drag-handle">
-  <div class="logo"><div class="dot"></div>JML Fleet</div>
-  <div class="close-btn" id="close-btn">×</div>
-</div>
-
-<div class="section">
-  <div class="section-label">Pending Approvals</div>
-  <div class="approval-row" id="approval-row">
-    <span class="label">Approval queue</span>
-    <span class="approval-badge none" id="approval-badge">0</span>
+  <div class="brand-mark"></div>
+  <div class="brand-text">
+    <span class="t1">JML Fleet</span>
+    <span class="t2">Identity Console</span>
+  </div>
+  <div class="header-actions">
+    <button class="icon-btn" id="settings-btn" title="Panel settings">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7">
+        <circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+      </svg>
+    </button>
+    <button class="icon-btn close-btn" id="close-btn" title="Close panel">
+      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+        <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+      </svg>
+    </button>
   </div>
 </div>
 
-<div class="section" id="cert-section">
-  <div class="section-label">Agent Certs</div>
-  <div id="cert-list">
-    <div class="cert-row"><div class="cert-dot none"></div><span class="cert-name">loading…</span></div>
-  </div>
+<!-- Collapsible settings -->
+<div class="settings-panel" id="settings-panel">
+  <div class="sp-title">Visible sections</div>
+  <label class="sp-row"><input type="checkbox" data-section="approvals" checked> Pending Approvals</label>
+  <label class="sp-row"><input type="checkbox" data-section="certs" checked> Agent Certs</label>
+  <label class="sp-row"><input type="checkbox" data-section="lastEvent" checked> Last Event</label>
+  <label class="sp-row"><input type="checkbox" data-section="quickAction" checked> Quick Action</label>
 </div>
 
-<div class="section">
-  <div class="section-label">Last Event</div>
-  <div class="event-box" id="event-box">
-    <div class="ev-agent">—</div>
-    <div class="ev-subject">No recent events</div>
-    <div class="ev-meta"><span>—</span></div>
-  </div>
-</div>
+<div class="panel-body">
 
-<div class="section">
-  <div class="section-label">Quick Action</div>
-  <input class="qa-input" id="qa-upn" placeholder="user@domain.com" autocomplete="off" spellcheck="false">
-  <div class="qa-btns">
-    <button class="qa-btn" id="qa-move">Move…</button>
-    <button class="qa-btn soft" id="qa-soft">Soft Leave</button>
-    <button class="qa-btn hard" id="qa-hard">Hard Leave</button>
+  <div class="section" id="section-approvals">
+    <div class="section-label">Pending Approvals</div>
+    <div class="approval-row" id="approval-row">
+      <span class="label">Approval queue</span>
+      <span class="approval-badge none" id="approval-badge">0</span>
+    </div>
   </div>
+
+  <div class="section" id="section-certs">
+    <div class="section-label">Agent Certs</div>
+    <div id="cert-list">
+      <div class="cert-row"><div class="cert-dot none"></div><span class="cert-name">loading…</span></div>
+    </div>
+  </div>
+
+  <div class="section" id="section-lastEvent">
+    <div class="section-label">Last Event</div>
+    <div class="event-box" id="event-box">
+      <div class="ev-agent">—</div>
+      <div class="ev-subject">No recent events</div>
+      <div class="ev-meta"><span>—</span></div>
+    </div>
+  </div>
+
+  <div class="section" id="section-quickAction">
+    <div class="section-label">Quick Action</div>
+    <input class="qa-input" id="qa-upn" placeholder="user@domain.com" autocomplete="off" spellcheck="false">
+    <div class="qa-btns">
+      <button class="qa-btn" id="qa-move">Move…</button>
+      <button class="qa-btn soft" id="qa-soft">Soft Leave</button>
+      <button class="qa-btn hard" id="qa-hard">Hard Leave</button>
+    </div>
+  </div>
+
 </div>
 
 <div class="footer">

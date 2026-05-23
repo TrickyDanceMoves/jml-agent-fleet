@@ -791,23 +791,31 @@ function saveScheduled(ops) {
 
 // ── Docked panel / palette IPC ────────────────────────────────────────────────
 ipcMain.handle('toggle-docked-panel', () => {
+  const sendState = (v) => { if (win && !win.isDestroyed()) win.webContents.send('docked-panel-state', v); };
   if (!dockedWin || dockedWin.isDestroyed()) {
     createDockedPanel();
-    if (win && !win.isDestroyed()) win.webContents.send('docked-panel-state', true);
+    if (win && !win.isDestroyed()) win.hide();
+    sendState(true);
     return true;
   }
   if (dockedWin.isVisible()) {
     dockedWin.hide();
-    if (win && !win.isDestroyed()) win.webContents.send('docked-panel-state', false);
+    sendState(false);
+    showMainWindow();
     return false;
   } else {
     dockedWin.show(); dockedWin.focus();
-    if (win && !win.isDestroyed()) win.webContents.send('docked-panel-state', true);
+    if (win && !win.isDestroyed()) win.hide();
+    sendState(true);
     return true;
   }
 });
 
 ipcMain.on('panel-open-console', (event, tab) => {
+  if (dockedWin && !dockedWin.isDestroyed()) {
+    dockedWin.hide();
+    if (win && !win.isDestroyed()) win.webContents.send('docked-panel-state', false);
+  }
   showMainWindow();
   if (win && !win.isDestroyed() && tab) {
     win.webContents.executeJavaScript(`
@@ -818,7 +826,11 @@ ipcMain.on('panel-open-console', (event, tab) => {
 
 ipcMain.on('palette-dismiss', () => {
   if (paletteWin && !paletteWin.isDestroyed()) paletteWin.close();
-  if (dockedWin  && !dockedWin.isDestroyed())  dockedWin.hide();
+  if (dockedWin  && !dockedWin.isDestroyed() && dockedWin.isVisible()) {
+    dockedWin.hide();
+    if (win && !win.isDestroyed()) win.webContents.send('docked-panel-state', false);
+    showMainWindow();
+  }
 });
 
 ipcMain.on('panel-run-action', (event, { type, upn }) => {
@@ -2034,9 +2046,6 @@ app.whenReady().then(() => {
   createTray();
   ensureDataDirs();
   if (isFirstRun()) { createSetupWindow(); } else { createOperatorWindow(); }
-
-  // Docked panel — launch on startup
-  createDockedPanel();
 
   // Global hotkey — Ctrl+Shift+J summons palette
   globalShortcut.register('CommandOrControl+Shift+J', () => {

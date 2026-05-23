@@ -509,14 +509,17 @@ function appendUserMessage(agent, text) {
 function appendAssistantPlaceholder(agent) {
   const msgs = document.getElementById('messages-' + agent);
   const el   = document.createElement('div');
-  el.className = 'message assistant';
+  el.className = 'message assistant thinking';
   const avatarSvg = AGENT_AVATARS[agent] || 'AI';
   el.innerHTML = `
     <div class="message-avatar avatar-${agent}">${avatarSvg}</div>
     <div class="message-body">
+      <div class="thinking-indicator">
+        <span class="thinking-dots"><span></span><span></span><span></span></span>
+        <span class="thinking-label">Thinking</span>
+      </div>
       <div class="message-text"></div>
       <div class="tool-indicators"></div>
-      <div class="typing-indicator"><span></span><span></span><span></span></div>
     </div>`;
   msgs.appendChild(el);
   msgs.scrollTop = msgs.scrollHeight;
@@ -540,12 +543,19 @@ window.api.onChunk(({ type, text, toolName, success }) => {
   const msgs   = msgEl.closest('.messages');
 
   if (type === 'text') {
-    msgEl.querySelector('.typing-indicator').style.display = 'none';
+    const thinkEl = msgEl.querySelector('.thinking-indicator');
+    if (thinkEl) thinkEl.style.display = 'none';
+    msgEl.classList.remove('thinking');
+    textEl.classList.add('streaming');
     textEl.innerHTML = renderMarkdown(textEl.dataset.raw ? textEl.dataset.raw + text : text);
     textEl.dataset.raw = (textEl.dataset.raw || '') + text;
   }
 
   if (type === 'tool_start') {
+    const thinkLbl = msgEl.querySelector('.thinking-label');
+    if (thinkLbl && msgEl.classList.contains('thinking')) {
+      thinkLbl.textContent = formatToolName(toolName) + '…';
+    }
     if (SUBMIT_LABELS[toolName]) {
       const lbl = SUBMIT_LABELS[toolName];
       if (!_submitBatch[agent][toolName]) _submitBatch[agent][toolName] = { el: null, started: 0, done: 0, failed: 0 };
@@ -618,7 +628,11 @@ window.api.onComplete(({ agent }) => {
   setWaiting(agent, false);
   const msgEl = currentMsgEl[agent];
   if (msgEl) {
-    msgEl.querySelector('.typing-indicator').style.display = 'none';
+    const thinkEl = msgEl.querySelector('.thinking-indicator');
+    if (thinkEl) thinkEl.style.display = 'none';
+    msgEl.classList.remove('thinking');
+    const textEl2 = msgEl.querySelector('.message-text');
+    if (textEl2) textEl2.classList.remove('streaming');
     // Auditor: if the response contains findings, surface quick-nav action chips
     if (agent === 'auditor') {
       const textEl = msgEl.querySelector('.message-text');
@@ -653,8 +667,11 @@ window.api.onError(({ text }) => {
       setWaiting(agent, false);
       const msgEl = currentMsgEl[agent];
       if (msgEl) {
-        msgEl.querySelector('.typing-indicator').style.display = 'none';
+        const thinkElE = msgEl.querySelector('.thinking-indicator');
+        if (thinkElE) thinkElE.style.display = 'none';
+        msgEl.classList.remove('thinking');
         const textEl = msgEl.querySelector('.message-text');
+        textEl.classList.remove('streaming');
         textEl.innerHTML = '<span class="error-text">Error: ' + escHtml(text) + '</span>';
         currentMsgEl[agent] = null;
       }
