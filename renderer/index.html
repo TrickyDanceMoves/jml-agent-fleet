@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; script-src 'self'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; script-src 'self'; img-src 'self' data:">
   <link rel="stylesheet" href="styles.css">
   <title>JML Fleet · Identity Console</title>
 </head>
@@ -101,7 +101,7 @@
           </button>
           <button class="nav-item" data-tab="certs">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="6"/><path d="M9 14l-2 8 5-3 5 3-2-8"/></svg>
-            <span>Certs</span>
+            <span>Agent Certs</span>
           </button>
           <button class="nav-item" data-tab="settings">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
@@ -265,14 +265,46 @@
                 <button class="btn-text-link" id="dash-open-fleet">VIEW ALL →</button>
               </div>
               <div class="agent-grid" id="dash-agent-grid">
-                <div class="agent" data-st="idle" data-agent="joiner"><div class="row"><div class="ico-sq">◢</div><div class="name">Joiner</div><div class="role">JOINER</div></div><div class="status"><span class="d"></span><span class="status-text">idle</span></div><div class="meter"><i></i></div><div class="foot"><span class="cert-line">cert —</span><span class="ok">ready</span></div></div>
-                <div class="agent" data-st="idle" data-agent="mover"><div class="row"><div class="ico-sq">⇆</div><div class="name">Mover</div><div class="role">MOVER</div></div><div class="status"><span class="d"></span><span class="status-text">idle</span></div><div class="meter"><i></i></div><div class="foot"><span class="cert-line">cert —</span><span class="ok">ready</span></div></div>
-                <div class="agent" data-st="idle" data-agent="leaver"><div class="row"><div class="ico-sq">◣</div><div class="name">Leaver</div><div class="role">LEAVER</div></div><div class="status"><span class="d"></span><span class="status-text">idle</span></div><div class="meter"><i></i></div><div class="foot"><span class="cert-line">cert —</span><span class="ok">ready</span></div></div>
-                <div class="agent" data-st="idle" data-agent="enroller"><div class="row"><div class="ico-sq">⊞</div><div class="name">Enroller</div><div class="role">ENROLLER</div></div><div class="status"><span class="d"></span><span class="status-text">idle</span></div><div class="meter"><i></i></div><div class="foot"><span class="cert-line">cert —</span><span class="ok">ready</span></div></div>
-                <div class="agent" data-st="idle" data-agent="certifier"><div class="row"><div class="ico-sq">◈</div><div class="name">Certifier</div><div class="role">CERTIFIER</div></div><div class="status"><span class="d"></span><span class="status-text">idle</span></div><div class="meter"><i></i></div><div class="foot"><span class="cert-line">cert —</span><span class="ok">ready</span></div></div>
-                <div class="agent" data-st="waiting" data-agent="approver"><div class="row"><div class="ico-sq">◇</div><div class="name">Approver</div><div class="role">APPROVER</div></div><div class="status"><span class="d"></span><span class="status-text">waiting</span></div><div class="meter"><i></i></div><div class="foot"><span class="cert-line">cert —</span><span class="ok">healthy</span></div></div>
-                <div class="agent" data-st="standby" data-agent="provisioner"><div class="row"><div class="ico-sq">⚙</div><div class="name">Provisioner</div><div class="role">PROVIS.</div></div><div class="status"><span class="d"></span><span class="status-text">standby</span></div><div class="meter"><i></i></div><div class="foot"><span class="cert-line">no expiry</span><span class="ok">healthy</span></div></div>
-                <div class="agent" data-st="active" data-agent="auditor"><div class="row"><div class="ico-sq">◌</div><div class="name">Auditor</div><div class="role">AUDITOR</div></div><div class="status"><span class="d"></span><span class="status-text">active</span></div><div class="meter"><i></i></div><div class="foot"><span class="cert-line">cert —</span><span class="ok">streaming</span></div></div>
+                <div class="agent" data-st="idle" data-agent="joiner">
+                  <div class="agent-card-top"><div class="ico-sq">◢</div><div class="agent-card-info"><div class="name">Joiner</div><div class="agent-last-run" id="fleet-lr-joiner">—</div></div><span class="agent-st-pill">idle</span></div>
+                  <div class="meter"><i></i></div>
+                  <div class="foot"><span class="cert-line" id="fleet-cert-joiner">cert —</span><span class="ok">ready</span></div>
+                </div>
+                <div class="agent" data-st="idle" data-agent="mover">
+                  <div class="agent-card-top"><div class="ico-sq">⇆</div><div class="agent-card-info"><div class="name">Mover</div><div class="agent-last-run" id="fleet-lr-mover">—</div></div><span class="agent-st-pill">idle</span></div>
+                  <div class="meter"><i></i></div>
+                  <div class="foot"><span class="cert-line" id="fleet-cert-mover">cert —</span><span class="ok">ready</span></div>
+                </div>
+                <div class="agent" data-st="idle" data-agent="leaver">
+                  <div class="agent-card-top"><div class="ico-sq">◣</div><div class="agent-card-info"><div class="name">Leaver</div><div class="agent-last-run" id="fleet-lr-leaver">—</div></div><span class="agent-st-pill">idle</span></div>
+                  <div class="meter"><i></i></div>
+                  <div class="foot"><span class="cert-line" id="fleet-cert-leaver">cert —</span><span class="ok">ready</span></div>
+                </div>
+                <div class="agent" data-st="idle" data-agent="enroller">
+                  <div class="agent-card-top"><div class="ico-sq">⊞</div><div class="agent-card-info"><div class="name">Enroller</div><div class="agent-last-run" id="fleet-lr-enroller">—</div></div><span class="agent-st-pill">idle</span></div>
+                  <div class="meter"><i></i></div>
+                  <div class="foot"><span class="cert-line" id="fleet-cert-enroller">cert —</span><span class="ok">ready</span></div>
+                </div>
+                <div class="agent" data-st="idle" data-agent="certifier">
+                  <div class="agent-card-top"><div class="ico-sq">◈</div><div class="agent-card-info"><div class="name">Certifier</div><div class="agent-last-run" id="fleet-lr-certifier">—</div></div><span class="agent-st-pill">idle</span></div>
+                  <div class="meter"><i></i></div>
+                  <div class="foot"><span class="cert-line" id="fleet-cert-certifier">cert —</span><span class="ok">ready</span></div>
+                </div>
+                <div class="agent" data-st="waiting" data-agent="approver">
+                  <div class="agent-card-top"><div class="ico-sq">◇</div><div class="agent-card-info"><div class="name">Approver</div><div class="agent-last-run" id="fleet-lr-approver">—</div></div><span class="agent-st-pill">waiting</span></div>
+                  <div class="meter"><i></i></div>
+                  <div class="foot"><span class="cert-line" id="fleet-cert-approver">cert —</span><span class="ok">healthy</span></div>
+                </div>
+                <div class="agent" data-st="standby" data-agent="provisioner">
+                  <div class="agent-card-top"><div class="ico-sq">⚙</div><div class="agent-card-info"><div class="name">Provisioner</div><div class="agent-last-run" id="fleet-lr-provisioner">—</div></div><span class="agent-st-pill">standby</span></div>
+                  <div class="meter"><i></i></div>
+                  <div class="foot"><span class="cert-line" id="fleet-cert-provisioner">no expiry</span><span class="ok">healthy</span></div>
+                </div>
+                <div class="agent" data-st="active" data-agent="auditor">
+                  <div class="agent-card-top"><div class="ico-sq">◌</div><div class="agent-card-info"><div class="name">Auditor</div><div class="agent-last-run" id="fleet-lr-auditor">—</div></div><span class="agent-st-pill">active</span></div>
+                  <div class="meter"><i></i></div>
+                  <div class="foot"><span class="cert-line" id="fleet-cert-auditor">cert —</span><span class="ok">streaming</span></div>
+                </div>
               </div>
             </div>
           </div>
@@ -897,7 +929,9 @@
           <!-- UEBA findings -->
           <details class="collapse" id="sec-section-ueba">
             <summary>
-              <span id="sec-ueba-run" style="font-family:var(--mono);font-size:11px;color:var(--muted);font-weight:400">UEBA findings</span>
+              Behavioral · UEBA
+              <span id="sec-ueba-summary-preview" class="collapse-summary-preview"></span>
+              <span id="sec-ueba-run" style="font-family:var(--mono);font-size:11px;color:var(--muted);font-weight:400;margin-left:auto"></span>
             </summary>
             <div class="collapse-body" id="sec-ueba-list">
               <div class="loading-hint">Loading…</div>
@@ -907,7 +941,9 @@
           <!-- Drift findings -->
           <details class="collapse" id="sec-section-drift">
             <summary>
-              <span id="sec-drift-run" style="font-family:var(--mono);font-size:11px;color:var(--muted);font-weight:400">Drift findings</span>
+              Configuration · Drift
+              <span id="sec-drift-summary-preview" class="collapse-summary-preview"></span>
+              <span id="sec-drift-run" style="font-family:var(--mono);font-size:11px;color:var(--muted);font-weight:400;margin-left:auto"></span>
             </summary>
             <div class="collapse-body" id="sec-drift-list">
               <div class="loading-hint">Loading…</div>
@@ -917,7 +953,9 @@
           <!-- Risky users -->
           <details class="collapse" id="sec-section-risky">
             <summary>
-              <span id="sec-risky-run" style="font-family:var(--mono);font-size:11px;color:var(--muted);font-weight:400">Identity Protection · risky users</span>
+              Identity Protection · Risky Users
+              <span id="sec-risky-summary-preview" class="collapse-summary-preview"></span>
+              <span id="sec-risky-run" style="font-family:var(--mono);font-size:11px;color:var(--muted);font-weight:400;margin-left:auto"></span>
             </summary>
             <div class="collapse-body" id="sec-risky-list">
               <div class="loading-hint">Loading…</div>
@@ -1658,6 +1696,29 @@
         </section>
 
       </main>
+    </div>
+
+    <!-- =========================================================
+         COMMAND PALETTE  (Ctrl+K)
+         ========================================================= -->
+    <div id="cmd-palette" class="cmd-palette" style="display:none" role="dialog" aria-label="Command palette">
+      <div class="cmd-backdrop"></div>
+      <div class="cmd-modal">
+        <div class="cmd-bar">
+          <svg class="cmd-search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+          <input id="cmd-input" class="cmd-input" type="text" placeholder="Search users, navigate tabs, run actions…" autocomplete="off" spellcheck="false">
+          <kbd class="cmd-esc-key">ESC</kbd>
+        </div>
+        <div class="cmd-divider"></div>
+        <div class="cmd-results" id="cmd-results" role="listbox">
+          <!-- populated by JS -->
+        </div>
+        <div class="cmd-footer">
+          <span><kbd>↑↓</kbd> navigate</span>
+          <span><kbd>↵</kbd> select</span>
+          <span><kbd>ESC</kbd> dismiss</span>
+        </div>
+      </div>
     </div>
 
     <!-- =========================================================
