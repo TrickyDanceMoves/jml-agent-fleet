@@ -4,6 +4,16 @@ const PREFS_KEY    = 'jml-docked-sections';
 const ORDER_KEY    = 'jml-docked-order';
 const COLLAPSE_KEY = 'jml-docked-collapsed';
 const RECENTS_KEY  = 'jml-docked-recents';
+const SLIM_KEY     = 'jml-docked-slim';
+const SLIM_W_KEY   = 'jml-docked-pre-slim-w';
+const SLIM_X_KEY   = 'jml-docked-pre-slim-x';
+const SLIM_H_KEY   = 'jml-docked-pre-slim-h';
+const SLIM_EDGE_KEY = 'jml-docked-slim-edge';
+const SLIM_W       = 200; // wide enough for tooltip transparent region; pill is 48px right-aligned
+const SLIM_H       = 220;
+const SLIM_MIN_DIM      = 52;  // absolute minimum height (vert) or width (horiz) in slim mode
+const SLIM_MINIMAL_THRESH = 88; // height/width threshold below which logo-only mode activates
+let _slimEdge = localStorage.getItem(SLIM_EDGE_KEY) || 'right';
 const SECTION_IDS  = ['approvals', 'certs', 'lastEvent', 'hrQueue', 'quickAction', 'agentChat'];
 
 // ── DOM refs ─────────────────────────────────────────────────────────────────
@@ -27,11 +37,13 @@ const toastContainer= document.getElementById('toast-container');
 
 // ── Module-level state ────────────────────────────────────────────────────────
 let _currentMode   = 'safe';
+let _slimMode      = localStorage.getItem(SLIM_KEY) === '1';
 let _dragFromGrip  = false;
 let _dragId        = null;
 let _dropDir       = null; // 'before' | 'after'
 let _rz = null, _rzPending = null, _rzRaf = null;
 let _autoFitTimer = null;
+let _userResized   = false; // true after user manually resizes — suppresses autoFit
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function escHtml(s) {
@@ -104,15 +116,52 @@ applyPrefs(prefs);
 const collapseMap = loadCollapsed();
 applyCollapsed(collapseMap);
 
+if (_slimMode) {
+  document.body.classList.add('slim-mode');
+  document.body.classList.add(`slim-${_slimEdge}`);
+  setTimeout(() => {
+    const isHoriz = _slimEdge === 'top' || _slimEdge === 'bottom';
+    const slimW = isHoriz ? 300 : SLIM_W;
+    const slimH = isHoriz ? 160 : SLIM_H;
+    window.panelApi.slimResizeTo({ x: window.screenX, y: window.screenY, width: slimW, height: slimH, edge: _slimEdge });
+    checkSlimMinimal();
+  }, 80);
+}
+
+// ── Slim edge listener ────────────────────────────────────────────────────────
+window.panelApi.onSlimEdge((edge) => {
+  _slimEdge = edge;
+  localStorage.setItem(SLIM_EDGE_KEY, edge);
+  document.body.classList.remove('slim-right', 'slim-left', 'slim-top', 'slim-bottom');
+  document.body.classList.add(`slim-${edge}`);
+  checkSlimMinimal();
+});
+
+// ── Slim minimal detection ────────────────────────────────────────────────────
+function _checkSlimMinimalFromSize(w, h) {
+  const isHoriz = _slimEdge === 'top' || _slimEdge === 'bottom';
+  const minimal = isHoriz ? w <= SLIM_MINIMAL_THRESH : h <= SLIM_MINIMAL_THRESH;
+  document.body.classList.toggle('slim-minimal', minimal);
+}
+
+function checkSlimMinimal() {
+  if (!_slimMode) { document.body.classList.remove('slim-minimal'); return; }
+  _checkSlimMinimalFromSize(window.outerWidth, window.outerHeight);
+}
+
+window.addEventListener('resize', () => { if (_slimMode) checkSlimMinimal(); });
+
 // ── Settings panel ────────────────────────────────────────────────────────────
 settingsBtn.addEventListener('click', () => {
   const open = settingsPanel.classList.toggle('open');
   settingsBtn.classList.toggle('active', open);
+  if (open) renderSpShortcuts();
   scheduleAutoFitPanel();
 });
 
 settingsPanel.querySelectorAll('input[data-section]').forEach(cb => {
   cb.addEventListener('change', () => {
+    _userResized = false; // section change: re-enable autofit
     prefs[cb.dataset.section] = cb.checked;
     savePrefs(prefs);
     applyPrefs(prefs);
@@ -132,17 +181,68 @@ document.addEventListener('keydown', (e) => {
   }
 });
 
+// ── Section → console tab mapping ────────────────────────────────────────────
+const SECTION_TAB = {
+  approvals:   'approvals',
+  certs:       'certifications',
+  lastEvent:   'audit-log',
+  hrQueue:     'jml-fleet-input',
+  quickAction: 'operations',
+  agentChat:   'approver',
+};
+
+// ── JS tooltip (escapes overflow clipping) ────────────────────────────────────
+const _tip = document.getElementById('section-tip');
+let _tipTimer = null;
+
+function showSectionTip(label) {
+  if (!_tip) return;
+  const text = label.dataset.tip;
+  if (!text) return;
+  _tip.textContent = text;
+  _tip.style.display = 'block';
+  _tip.style.opacity = '0';
+  const rect = label.getBoundingClientRect();
+  // Position: right-aligned, centred vertically on the label
+  const tipW = _tip.offsetWidth;
+  const tipH = _tip.offsetHeight;
+  const left = Math.max(4, rect.left - tipW - 8);
+  const top  = rect.top + (rect.height - tipH) / 2;
+  _tip.style.left = left + 'px';
+  _tip.style.top  = top  + 'px';
+  _tip.style.opacity = '1';
+}
+
+function hideSectionTip() {
+  if (!_tip) return;
+  _tip.style.opacity = '0';
+  clearTimeout(_tipTimer);
+  _tipTimer = setTimeout(() => { _tip.style.display = 'none'; }, 130);
+}
+
 // ── Inline section collapse ───────────────────────────────────────────────────
 document.querySelectorAll('.section-label').forEach(label => {
+  label.addEventListener('mouseenter', () => {
+    const section = label.closest('.section');
+    if (section && section.classList.contains('collapsed')) showSectionTip(label);
+  });
+  label.addEventListener('mouseleave', hideSectionTip);
+
   label.addEventListener('click', (e) => {
     if (e.target.classList.contains('grip') || _dragFromGrip) return;
     const section = label.closest('.section');
     if (!section) return;
     const id = section.id.replace('section-', '');
+    const wasCollapsed = section.classList.contains('collapsed');
     section.classList.toggle('collapsed');
     collapseMap[id] = section.classList.contains('collapsed');
     saveCollapsed(collapseMap);
     scheduleAutoFitPanel();
+    hideSectionTip();
+    // If expanding from collapsed: scroll section into view
+    if (wasCollapsed) {
+      setTimeout(() => section.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 80);
+    }
   });
 });
 
@@ -237,28 +337,53 @@ window.addEventListener('mousemove', (e) => {
   if (_rz.dirs.s) h = _rz.startH + dy;
   if (_rz.dirs.w) w = _rz.startW - dx;
   if (_rz.dirs.e) w = _rz.startW + dx;
-  w = Math.max(MIN_W, Math.min(MAX_W, Math.round(w)));
-  h = Math.max(MIN_H, Math.min(MAX_H, Math.round(h)));
+  if (_slimMode) {
+    const isHoriz = _slimEdge === 'top' || _slimEdge === 'bottom';
+    // In slim mode lock the non-resize axis and apply slim-specific limits
+    w = isHoriz ? Math.max(SLIM_MIN_DIM, Math.min(600, Math.round(w))) : _rz.startW;
+    h = isHoriz ? _rz.startH : Math.max(SLIM_MIN_DIM, Math.min(600, Math.round(h)));
+  } else {
+    w = Math.max(MIN_W, Math.min(MAX_W, Math.round(w)));
+    h = Math.max(MIN_H, Math.min(MAX_H, Math.round(h)));
+  }
   if (_rz.dirs.w) x = _rz.startWinX + (_rz.startW - w);
   if (_rz.dirs.n) y = _rz.startWinY + (_rz.startH - h);
   _rzPending = { x: Math.round(x), y: Math.round(y), width: w, height: h };
   if (!_rzRaf) {
     _rzRaf = requestAnimationFrame(() => {
       _rzRaf = null;
-      if (_rzPending) { window.panelApi.resizeTo(_rzPending); _rzPending = null; }
+      if (_rzPending) {
+        const p = _rzPending;
+        _rzPending = null;
+        if (_slimMode) {
+          // Route through slim-resize so main.js snaps to edge & allows small sizes
+          window.panelApi.slimResizeTo({ ...p, edge: _slimEdge });
+          _checkSlimMinimalFromSize(p.width, p.height);
+        } else {
+          window.panelApi.resizeTo(p);
+        }
+      }
     });
   }
 });
 
 window.addEventListener('mouseup', () => {
   if (_rz) {
+    _userResized = true; // user explicitly set a height — don't autofit over it
     _rz = null;
     document.body.style.cursor = '';
-    // Persist bounds so next open restores size+position
-    window.panelApi.saveBounds({
-      x: window.screenX, y: window.screenY,
-      width: window.outerWidth, height: window.outerHeight
-    });
+    if (!_slimMode) {
+      const snapThresh = 28;
+      const aw = window.screen.availWidth;
+      const px = window.screenX, pw = window.outerWidth;
+      const py = window.screenY, ph = window.outerHeight;
+      let sx = px;
+      if (px <= snapThresh)           sx = 0;
+      else if (px + pw >= aw - snapThresh) sx = aw - pw;
+      const bounds = { x: sx, y: py, width: pw, height: ph };
+      window.panelApi.saveBounds(bounds);
+      if (sx !== px) window.panelApi.resizeTo(bounds);
+    }
   }
 });
 
@@ -275,8 +400,39 @@ function scheduleAutoFitPanel() {
   _autoFitTimer = setTimeout(autoFitPanel, 80);
 }
 
+function setSlimMode(on) {
+  _slimMode = on;
+  localStorage.setItem(SLIM_KEY, on ? '1' : '0');
+  document.body.classList.toggle('slim-mode', on);
+  if (on) {
+    localStorage.setItem(SLIM_W_KEY, String(window.outerWidth));
+    localStorage.setItem(SLIM_X_KEY, String(window.screenX));
+    localStorage.setItem(SLIM_H_KEY, String(window.outerHeight));
+    document.body.classList.remove('slim-right', 'slim-left', 'slim-top', 'slim-bottom');
+    document.body.classList.add(`slim-${_slimEdge}`);
+    const isHoriz = _slimEdge === 'top' || _slimEdge === 'bottom';
+    const slimW = isHoriz ? 300 : SLIM_W;
+    const slimH = isHoriz ? 160 : SLIM_H;
+    window.panelApi.slimResizeTo({ x: window.screenX, y: window.screenY, width: slimW, height: slimH, edge: _slimEdge });
+    checkSlimMinimal();
+  } else {
+    const prevW = parseInt(localStorage.getItem(SLIM_W_KEY) || '280', 10);
+    const prevX = parseInt(localStorage.getItem(SLIM_X_KEY) || String(window.screenX), 10);
+    const prevH = parseInt(localStorage.getItem(SLIM_H_KEY) || '0', 10);
+    document.body.classList.remove('slim-right', 'slim-left', 'slim-top', 'slim-bottom', 'slim-minimal');
+    if (prevH > 0) {
+      _userResized = true; // restore exact pre-slim size; suppress autoFit
+      window.panelApi.resizeTo({ x: prevX, y: window.screenY, width: prevW, height: prevH });
+    } else {
+      _userResized = false; // let autoFit determine the correct height on expand
+      window.panelApi.resizeTo({ x: prevX, y: window.screenY, width: prevW, height: 500 });
+      scheduleAutoFitPanel();
+    }
+  }
+}
+
 function autoFitPanel() {
-  if (_rz) return;
+  if (_rz || _slimMode || _userResized) return;
   const measured = Math.ceil(document.body.scrollHeight + 2);
   const targetHeight = Math.max(MIN_H, Math.min(MAX_H, measured));
   if (Math.abs(targetHeight - window.outerHeight) < 8) return;
@@ -291,29 +447,291 @@ function autoFitPanel() {
   window.panelApi.saveBounds(bounds);
 }
 
+// ── Console features registry ─────────────────────────────────────────────────
+const _ico = (path, vb = '0 0 24 24', sw = '1.8') =>
+  `<svg width="14" height="14" viewBox="${vb}" fill="none" stroke="currentColor" stroke-width="${sw}">${path}</svg>`;
+
+const CONSOLE_FEATURES = [
+  { id: 'dashboard',    label: 'Dashboard',    tab: 'dashboard',       icon: _ico('<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>') },
+  { id: 'approver',     label: 'Approver',     tab: 'approver',        icon: _ico('<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><polyline points="9 11 12 14 16 9"/>') },
+  { id: 'auditor',      label: 'Auditor',      tab: 'auditor',         icon: _ico('<circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><polyline points="8 11 11 14 15 9"/>') },
+  { id: 'security',     label: 'Security',     tab: 'security',        icon: _ico('<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>') },
+  { id: 'exports',      label: 'Exports',      tab: 'exports',         icon: _ico('<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>') },
+  { id: 'approvals',    label: 'Approvals',    tab: 'approvals',       icon: _ico('<polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>') },
+  { id: 'operations',   label: 'Operations',   tab: 'operations',      icon: _ico('<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>') },
+  { id: 'certifications', label: 'Certs',      tab: 'certifications',  icon: _ico('<circle cx="12" cy="8" r="6"/><path d="M15.477 12.89L17 22l-5-3-5 3 1.523-9.11"/>') },
+  { id: 'settings',     label: 'Settings',     tab: 'settings',        icon: _ico('<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>', '0 0 24 24', '1.7') },
+  { id: 'auditLog',     label: 'Audit Log',    tab: 'audit-log',       icon: _ico('<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>') },
+  { id: 'users',        label: 'Users',        tab: 'users',           icon: _ico('<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>') },
+  { id: 'graph',        label: 'MS Graph',     tab: 'graph',           icon: _ico('<circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>') },
+  { id: 'hrQueue',      label: 'HR Queue',     tab: 'dashboard',       icon: _ico('<ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/>') },
+];
+
+// ── Shortcut persistence ──────────────────────────────────────────────────────
+const SLIM_SC_KEY   = 'jml-slim-shortcuts';
+const DOCKED_SC_KEY = 'jml-docked-shortcuts';
+let _slimSC   = JSON.parse(localStorage.getItem(SLIM_SC_KEY)   || '[]');
+let _dockedSC = JSON.parse(localStorage.getItem(DOCKED_SC_KEY) || '[]');
+
+function saveSlimSC()   { localStorage.setItem(SLIM_SC_KEY,   JSON.stringify(_slimSC));   }
+function saveDockedSC() { localStorage.setItem(DOCKED_SC_KEY, JSON.stringify(_dockedSC)); }
+
+// ── Slim shortcuts render ─────────────────────────────────────────────────────
+function renderSlimShortcuts() {
+  const container = document.getElementById('slim-shortcuts');
+  const divider   = document.getElementById('slim-cust-divider');
+  if (!container) return;
+  if (divider) divider.style.display = _slimSC.length > 0 ? '' : 'none';
+  container.innerHTML = _slimSC.map(id => {
+    const f = CONSOLE_FEATURES.find(x => x.id === id);
+    return f ? `<div class="slim-shortcut" data-tab="${f.tab}" data-tip="Open ${f.label}">${f.icon}</div>` : '';
+  }).join('');
+  container.querySelectorAll('.slim-shortcut').forEach(el => {
+    el.addEventListener('click', e => {
+      e.stopPropagation();
+      window.panelApi.openConsole(el.dataset.tab);
+    });
+  });
+  updateSlimHeight();
+}
+
+function updateSlimHeight() {
+  if (!_slimMode) return;
+  if (_slimEdge === 'top' || _slimEdge === 'bottom') return;
+  // base: drag+brand+divider+4stats+divider+modedot+customize+resize (approx 230px)
+  // each shortcut: ~26px; divider before shortcuts: 7px if any
+  const BASE = 230;
+  const extra = _slimSC.length > 0 ? 7 + _slimSC.length * 26 : 0;
+  const h = Math.max(SLIM_MIN_DIM, Math.min(520, BASE + extra));
+  window.panelApi.slimResizeTo({ x: window.screenX, y: window.screenY, width: SLIM_W, height: h, edge: _slimEdge });
+  checkSlimMinimal();
+}
+
+// ── Docked shortcuts section render ──────────────────────────────────────────
+function renderDockedShortcuts() {
+  const sec  = document.getElementById('section-shortcuts');
+  const grid = document.getElementById('shortcut-grid');
+  if (!sec || !grid) return;
+  if (!_dockedSC.length) { sec.style.display = 'none'; scheduleAutoFitPanel(); return; }
+  sec.style.display = '';
+  // Expand it by default if newly showing
+  sec.classList.remove('collapsed');
+  grid.innerHTML = _dockedSC.map(id => {
+    const f = CONSOLE_FEATURES.find(x => x.id === id);
+    return f ? `<button class="shortcut-tile" data-tab="${f.tab}">
+      <span class="st-icon">${f.icon}</span>
+      <span class="st-label">${f.label}</span>
+    </button>` : '';
+  }).join('');
+  grid.querySelectorAll('.shortcut-tile').forEach(el => {
+    el.addEventListener('click', () => window.panelApi.openConsole(el.dataset.tab));
+  });
+  scheduleAutoFitPanel();
+}
+
+// ── Settings panel shortcut grid ──────────────────────────────────────────────
+function renderSpShortcuts() {
+  const grid = document.getElementById('sp-shortcut-grid');
+  if (!grid) return;
+  grid.innerHTML = CONSOLE_FEATURES.map(f => {
+    const inS = _slimSC.includes(f.id);
+    const inD = _dockedSC.includes(f.id);
+    return `<div class="sp-shortcut-chip">
+      <span class="sp-chip-icon">${f.icon}</span>
+      <span class="sp-chip-name">${f.label}</span>
+      <span class="sp-chip-pins">
+        <button class="sp-pin ${inS ? 'on-slim' : ''}" data-id="${f.id}" data-target="slim"   title="Pin to sidebar">S</button>
+        <button class="sp-pin ${inD ? 'on-docked' : ''}" data-id="${f.id}" data-target="docked" title="Pin to panel">P</button>
+      </span>
+    </div>`;
+  }).join('');
+
+  grid.querySelectorAll('.sp-pin[data-target="slim"]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const id = btn.dataset.id;
+      _slimSC = _slimSC.includes(id) ? _slimSC.filter(x => x !== id) : [..._slimSC, id];
+      saveSlimSC();
+      renderSlimShortcuts();
+      renderSpShortcuts();
+    });
+  });
+
+  grid.querySelectorAll('.sp-pin[data-target="docked"]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const id = btn.dataset.id;
+      _dockedSC = _dockedSC.includes(id) ? _dockedSC.filter(x => x !== id) : [..._dockedSC, id];
+      saveDockedSC();
+      renderDockedShortcuts();
+      renderSpShortcuts();
+    });
+  });
+}
+
+// Initial render
+renderSlimShortcuts();
+renderDockedShortcuts();
+
 // ── Actions ───────────────────────────────────────────────────────────────────
 document.getElementById('close-btn').addEventListener('click', () => window.panelApi.close());
+document.getElementById('slim-btn').addEventListener('click', () => setSlimMode(true));
 document.getElementById('open-console').addEventListener('click', () => window.panelApi.openConsole('dashboard'));
-approvalRow.addEventListener('click', () => window.panelApi.openConsole('approvals'));
-hrRow.addEventListener('click', () => window.panelApi.openConsole('dashboard'));
-eventsList.addEventListener('click', (e) => {
-  if (e.target.closest('.event-item')) window.panelApi.openConsole('audit-log');
+
+// Slim customize button → expand panel, open settings, scroll to shortcut grid
+document.getElementById('slim-customize').addEventListener('click', (e) => {
+  e.stopPropagation();
+  setSlimMode(false);
+  setTimeout(() => {
+    settingsPanel.classList.add('open');
+    settingsBtn.classList.add('active');
+    renderSpShortcuts();
+    scheduleAutoFitPanel();
+    setTimeout(() => {
+      const grid = document.getElementById('sp-shortcut-grid');
+      if (grid) grid.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }, 80);
+  }, 200);
 });
 
+// Pin button (header) → toggle settings panel focused on shortcuts
+document.getElementById('pin-btn').addEventListener('click', () => {
+  const open = settingsPanel.classList.toggle('open');
+  settingsBtn.classList.toggle('active', open);
+  if (open) {
+    renderSpShortcuts();
+    scheduleAutoFitPanel();
+    setTimeout(() => {
+      const grid = document.getElementById('sp-shortcut-grid');
+      if (grid) grid.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }, 50);
+  } else {
+    scheduleAutoFitPanel();
+  }
+});
+
+// ── Slim pill: targeted expand targets ───────────────────────────────────────
+function _slimExpandTo(sectionId, delay = 180) {
+  setSlimMode(false);
+  setTimeout(() => {
+    const sec = document.getElementById(sectionId);
+    if (sec) { sec.classList.remove('collapsed'); sec.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+  }, delay);
+}
+
+// JML logo → expand panel
+document.getElementById('slim-brand').addEventListener('click', (e) => {
+  e.stopPropagation();
+  setSlimMode(false);
+});
+
+// Brand tooltip via JS tip system
+document.getElementById('slim-brand').addEventListener('mouseenter', () => {
+  if (!_tip) return;
+  _tip.textContent = 'JML Fleet Console — expand';
+  _tip.style.display = 'block'; _tip.style.opacity = '0';
+  const rect = document.getElementById('slim-brand').getBoundingClientRect();
+  const tipW = _tip.offsetWidth, tipH = _tip.offsetHeight;
+  _tip.style.left = Math.max(4, rect.left - tipW - 10) + 'px';
+  _tip.style.top  = (rect.top + (rect.height - tipH) / 2) + 'px';
+  _tip.style.opacity = '1';
+});
+document.getElementById('slim-brand').addEventListener('mouseleave', hideSectionTip);
+
+// Approvals stat → Pending Approvals section
+document.getElementById('slim-stat-approvals').addEventListener('click', (e) => {
+  e.stopPropagation(); _slimExpandTo('section-approvals');
+});
+
+// HR stat → HR Queue section
+document.getElementById('slim-stat-hr').addEventListener('click', (e) => {
+  e.stopPropagation(); _slimExpandTo('section-hrQueue');
+});
+
+// Certs stat → Agent Certs section
+document.getElementById('slim-stat-certs').addEventListener('click', (e) => {
+  e.stopPropagation(); _slimExpandTo('section-certs');
+});
+
+// Quick Action stat → expand + focus UPN input
+document.getElementById('slim-stat-qa').addEventListener('click', (e) => {
+  e.stopPropagation();
+  setSlimMode(false);
+  setTimeout(() => {
+    const sec = document.getElementById('section-quickAction');
+    if (sec) { sec.classList.remove('collapsed'); sec.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+    setTimeout(() => { const upn = document.getElementById('qa-upn'); if (upn) upn.focus(); }, 80);
+  }, 180);
+});
+
+// Mode dot → toggle mode directly (no expand needed)
+document.getElementById('slim-mode-dot').addEventListener('click', (e) => {
+  e.stopPropagation();
+  modePill.click();
+});
+
+// Joiner → pre-fills Agent Chat with intent, expands chat section, focuses input
 document.getElementById('qa-joiner').addEventListener('click', () => {
-  window.panelApi.runAction({ type: 'joiner', upn: '' });
-  showToast('Opening Joiner in console…', 'info');
+  const sec = document.getElementById('section-agentChat');
+  if (sec && sec.classList.contains('collapsed')) {
+    sec.classList.remove('collapsed');
+    collapseMap['agentChat'] = false;
+    saveCollapsed(collapseMap);
+  }
+  document.querySelectorAll('.ac-tab').forEach(t => t.classList.remove('active'));
+  const tab = document.querySelector('.ac-tab[data-agent="approver"]');
+  if (tab) { tab.classList.add('active'); _chatAgent = 'approver'; }
+  acInput.value = 'Provision new joiner — ';
+  scheduleAutoFitPanel();
+  setTimeout(() => {
+    sec && sec.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    acInput.focus();
+    acInput.setSelectionRange(acInput.value.length, acInput.value.length);
+  }, 80);
 });
 
+// Move → reveals inline mover form
 document.getElementById('qa-move').addEventListener('click', () => {
   const upn = qaUpn.value.trim();
   if (!upn) { qaUpn.focus(); return; }
+  const form = document.getElementById('qa-mover-form');
+  document.getElementById('qa-mover-upn').textContent = upn;
+  form.style.display = 'block';
+  qaSuggest.style.display = 'none';
+  qaRecents.style.display = 'none';
+  document.getElementById('qa-move-dept').focus();
+  scheduleAutoFitPanel();
+});
+
+document.getElementById('qa-move-cancel').addEventListener('click', () => {
+  document.getElementById('qa-mover-form').style.display = 'none';
+  document.getElementById('qa-move-dept').value = '';
+  document.getElementById('qa-move-title').value = '';
+  document.getElementById('qa-move-manager').value = '';
+  scheduleAutoFitPanel();
+});
+
+document.getElementById('qa-move-run').addEventListener('click', async () => {
+  const upn = qaUpn.value.trim();
+  if (!upn) return;
+  const newDepartment = document.getElementById('qa-move-dept').value.trim() || undefined;
+  const newJobTitle   = document.getElementById('qa-move-title').value.trim() || undefined;
+  const newManager    = document.getElementById('qa-move-manager').value.trim() || undefined;
+  const whatif = _currentMode !== 'live';
+  let writeToken = null;
+  if (!whatif) {
+    writeToken = await showPinModal('Mover', upn, 'Authorize Live Operation');
+    if (!writeToken) return;
+  }
   addRecent(upn);
-  window.panelApi.runAction({ type: 'move', upn });
-  showToast('Opening Mover in console for ' + upn, 'info');
   qaUpn.value = '';
   qaSuggest.style.display = 'none';
   qaRecents.style.display = 'none';
+  document.getElementById('qa-mover-form').style.display = 'none';
+  document.getElementById('qa-move-dept').value = '';
+  document.getElementById('qa-move-title').value = '';
+  document.getElementById('qa-move-manager').value = '';
+  scheduleAutoFitPanel();
+  showToast((whatif ? '[Safe] ' : '') + 'Running Move for ' + upn + '…', 'info');
+  window.panelApi.runQuickMover({ upn, newDepartment, newJobTitle, newManager, whatif, writeToken });
 });
 
 document.getElementById('qa-soft').addEventListener('click', async () => {
@@ -363,8 +781,10 @@ window.panelApi.onQuickOpResult((data) => {
     showToast('Approval queued — admin sign-off required', 'info');
     return;
   }
-  const label = data.type === 'leaver' ? ((data.data && data.data.stage) || 'Leaver') + ' Leave' : 'Mover';
-  if (data.error) showToast(label + ' failed — ' + ((data.lines || [])[0] || 'see console'), 'error');
+  const label = data.type === 'leaver'
+    ? ((data.data && data.data.stage) || 'Leaver') + ' Leave'
+    : data.type === 'mover' ? 'Move' : 'Operation';
+  if (data.error) showToast(label + ' failed — ' + ((data.lines || [])[0] || 'unknown error'), 'error');
   else            showToast(label + ' complete', 'success');
 });
 
@@ -378,34 +798,47 @@ qaUpn.addEventListener('keydown', (e) => {
   }
 });
 
-// ── UPN autocomplete ──────────────────────────────────────────────────────────
+// ── UPN autocomplete helper ───────────────────────────────────────────────────
 let _acTimer = null;
-qaUpn.addEventListener('input', () => {
-  clearTimeout(_acTimer);
-  qaRecents.style.display = 'none';
-  const q = qaUpn.value.trim();
-  if (q.length < 2) { qaSuggest.style.display = 'none'; return; }
-  _acTimer = setTimeout(async () => {
-    try {
-      const results = await window.panelApi.searchUsers(q);
-      if (!results || !results.length) { qaSuggest.style.display = 'none'; return; }
-      qaSuggest.innerHTML = results.slice(0, 5).map(u =>
-        `<div class="qa-ac-item" data-upn="${escHtml(u.upn)}">
-          ${escHtml(u.displayName || u.upn)}
-          <span class="qa-ac-upn">${escHtml(u.upn)}</span>
-        </div>`
-      ).join('');
-      qaSuggest.style.display = 'block';
-      qaSuggest.querySelectorAll('.qa-ac-item').forEach(item => {
-        item.addEventListener('mousedown', (e) => {
-          e.preventDefault();
-          qaUpn.value = item.dataset.upn;
-          qaSuggest.style.display = 'none';
+
+function attachUpnAutocomplete(inputEl, suggestEl, onSelect) {
+  let timer = null;
+  inputEl.addEventListener('input', () => {
+    clearTimeout(timer);
+    const q = inputEl.value.trim();
+    if (q.length < 2) { suggestEl.style.display = 'none'; return; }
+    timer = setTimeout(async () => {
+      try {
+        const results = await window.panelApi.searchUsers(q);
+        if (!results || !results.length) { suggestEl.style.display = 'none'; return; }
+        suggestEl.innerHTML = results.slice(0, 6).map(u =>
+          `<div class="qa-ac-item" data-upn="${escHtml(u.upn)}">
+            ${escHtml(u.displayName || u.upn)}
+            <span class="qa-ac-upn">${escHtml(u.upn)}</span>
+          </div>`
+        ).join('');
+        suggestEl.style.display = 'block';
+        suggestEl.querySelectorAll('.qa-ac-item').forEach(item => {
+          item.addEventListener('mousedown', (e) => {
+            e.preventDefault();
+            inputEl.value = item.dataset.upn;
+            suggestEl.style.display = 'none';
+            if (onSelect) onSelect(item.dataset.upn);
+          });
         });
-      });
-    } catch { qaSuggest.style.display = 'none'; }
-  }, 220);
-});
+      } catch { suggestEl.style.display = 'none'; }
+    }, 220);
+  });
+  inputEl.addEventListener('blur', () => {
+    setTimeout(() => { suggestEl.style.display = 'none'; }, 200);
+  });
+}
+
+attachUpnAutocomplete(qaUpn, qaSuggest);
+attachUpnAutocomplete(
+  document.getElementById('qa-move-manager'),
+  document.getElementById('qa-manager-suggest')
+);
 
 // ── Recent UPNs ───────────────────────────────────────────────────────────────
 qaUpn.addEventListener('focus', () => {
@@ -600,6 +1033,8 @@ window.panelApi.onUpdate((data) => {
     modePill.textContent = live ? 'Live' : 'Safe';
     modePill.className = 'mode-pill ' + (live ? 'live' : 'safe');
     document.body.classList.toggle('mode-live', live);
+    const slimDot = document.getElementById('slim-mode-dot');
+    if (slimDot) slimDot.classList.toggle('live', live);
   }
 
   if (typeof data.keepConsole === 'boolean') {
@@ -610,6 +1045,21 @@ window.panelApi.onUpdate((data) => {
     const n = data.approvals;
     approvalBadge.textContent = n;
     approvalBadge.className = 'approval-badge' + (n > 0 ? '' : ' none');
+    const slimApNum  = document.getElementById('slim-stat-approvals-num');
+    const slimApIcon = document.getElementById('slim-stat-approvals-icon');
+    const slimApStat = document.getElementById('slim-stat-approvals');
+    if (slimApNum) {
+      slimApNum.textContent = n;
+      const cls = n > 0 ? 'active-coral' : '';
+      slimApNum.className  = 'slim-stat-num'  + (cls ? ' ' + cls : '');
+      slimApIcon.className = 'slim-stat-icon' + (cls ? ' ' + cls : '') + (n > 0 ? ' alerting' : '');
+      if (slimApStat) {
+        slimApStat.dataset.tip = n > 0
+          ? n + ' approval' + (n === 1 ? '' : 's') + ' pending — click to review'
+          : 'No pending approvals';
+        slimApStat.className = 'slim-stat' + (n > 0 ? ' active-coral' : '');
+      }
+    }
   }
 
   if (Array.isArray(data.pendingList)) {
@@ -642,6 +1092,27 @@ window.panelApi.onUpdate((data) => {
           </div>`;
         }).join('')
       : '<div class="cert-row"><div class="cert-dot none"></div><span class="cert-name">No agents</span></div>';
+    // Slim HUD — cert health stat
+    const crit = data.certs.filter(c => c.daysLeft != null && c.daysLeft < 14).length;
+    const warn = data.certs.filter(c => c.daysLeft != null && c.daysLeft >= 14 && c.daysLeft < 45).length;
+    const slimCertNum  = document.getElementById('slim-stat-certs-num');
+    const slimCertIcon = document.getElementById('slim-stat-certs-icon');
+    const slimCertStat = document.getElementById('slim-stat-certs');
+    if (slimCertNum) {
+      const bad = crit + warn;
+      slimCertNum.textContent = bad > 0 ? bad : '✓';
+      const cls = crit > 0 ? 'active-coral' : warn > 0 ? 'active-amber' : '';
+      slimCertNum.className  = 'slim-stat-num'  + (cls ? ' ' + cls : '');
+      slimCertIcon.className = 'slim-stat-icon' + (cls ? ' ' + cls : '') + (crit > 0 ? ' alerting' : '');
+      if (slimCertStat) {
+        slimCertStat.className = 'slim-stat' + (crit > 0 ? ' active-coral' : warn > 0 ? ' active-amber' : '');
+        slimCertStat.dataset.tip = crit > 0
+          ? crit + ' cert' + (crit === 1 ? '' : 's') + ' expiring soon — click to review'
+          : warn > 0
+            ? warn + ' cert' + (warn === 1 ? '' : 's') + ' expiring in <45d'
+            : 'All agent certs healthy';
+      }
+    }
     scheduleAutoFitPanel();
   }
 
@@ -665,6 +1136,27 @@ window.panelApi.onUpdate((data) => {
       hrAge.style.display = '';
     } else {
       hrAge.style.display = 'none';
+    }
+    // Slim HUD — HR queue stat
+    const slimHrNum  = document.getElementById('slim-stat-hr-num');
+    const slimHrIcon = document.getElementById('slim-stat-hr-icon');
+    const slimHrStat = document.getElementById('slim-stat-hr');
+    if (slimHrNum) {
+      const n = count || 0;
+      const urgent = n > 0 && oldestMin != null && oldestMin > 30;
+      slimHrNum.textContent = n;
+      const cls = n > 0 ? 'active-amber' : '';
+      slimHrNum.className  = 'slim-stat-num'  + (cls ? ' ' + cls : '');
+      slimHrIcon.className = 'slim-stat-icon' + (cls ? ' ' + cls : '') + (urgent ? ' alerting' : '');
+      if (slimHrStat) {
+        slimHrStat.className = 'slim-stat' + (n > 0 ? ' active-amber' : '');
+        const ageStr = oldestMin != null && oldestMin > 0
+          ? ' · oldest ' + (oldestMin >= 60 ? Math.round(oldestMin / 60) + 'h' : oldestMin + 'm')
+          : '';
+        slimHrStat.dataset.tip = n > 0
+          ? n + ' HR item' + (n === 1 ? '' : 's') + ageStr
+          : 'HR queue empty';
+      }
     }
     scheduleAutoFitPanel();
   }

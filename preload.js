@@ -157,10 +157,16 @@ contextBridge.exposeInMainWorld('api', {
 
   // Docked panel toggle
   toggleDockedPanel: () => ipcRenderer.invoke('toggle-docked-panel'),
+  // Agent overlay toggle
+  toggleOverlay: () => ipcRenderer.send('toggle-overlay'),
   onDockedPanelState: (cb) => {
     ipcRenderer.removeAllListeners('docked-panel-state');
     ipcRenderer.on('docked-panel-state', (_, v) => cb(v));
   },
   // Mode sync from docked panel
   onModeChanged: (cb) => ipcRenderer.on('mode-changed', (_, d) => cb(d)),
+
+  // Window state
+  onMaximized:    (cb) => ipcRenderer.on('window-maximized', (_, v) => cb(v)),
+  onOverlayState: (cb) => ipcRenderer.on('overlay-state',    (_, v) => cb(v)),
 });
