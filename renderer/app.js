@@ -2138,7 +2138,7 @@ document.getElementById('btn-schedule').addEventListener('click', () => {
   if (!op || !upn || !when) return;
   window.api.saveScheduledOp({
     operation: op,
-    payload:   { userPrincipalName: upn },
+    payload:   { userPrincipalName: upn, whatif },
     scheduledFor: new Date(when).toISOString(),
     createdBy: window.api.currentUser,
     whatif
@@ -2152,7 +2152,7 @@ window.api.onScheduledOps((ops) => {
   const queuedItems = Array.isArray(ops)
     ? ops.filter(o => o.status === 'pending' || !o.status).map(o => ({
         id: o.id, op: o.operation, upn: (o.payload || {}).userPrincipalName,
-        when: o.scheduledFor, whatif: (o.payload || {}).whatif !== false, status: o.status || 'pending'
+        when: o.scheduledFor, whatif: o.whatif !== false && (o.payload || {}).whatif !== false, status: o.status || 'pending'
       }))
     : [];
   renderOpsQueued(queuedItems);
@@ -3429,6 +3429,13 @@ if (typeof window.api?.onHrQueue === 'function') {
       if (sub === 'notifications') loadNotificationRules();
     });
   });
+  document.querySelectorAll('[data-settings-sub]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const sub = btn.dataset.settingsSub;
+      const target = document.querySelector('#view-settings .s-item[data-sub="' + sub + '"]');
+      if (target) target.click();
+    });
+  });
   // Initial preload of notification rules
   loadNotificationRules();
 })();
@@ -4407,6 +4414,15 @@ function loadRecentUsers() {
     if (riskBarEl) riskBarEl.style.width = Math.max(2, Math.min(100, riskScore)) + '%';
     if (writeRouteEl) writeRouteEl.textContent = riskScore >= 70 || !u.accountEnabled ? 'Dual approval required' : 'Safe preview first';
     if (auditPostureEl) auditPostureEl.textContent = u.accountEnabled ? 'Chain ready' : 'Disabled account';
+    const avatarEl = document.getElementById('udp-avatar');
+    const roleExposureEl = document.getElementById('udp-role-exposure');
+    const licenseExposureEl = document.getElementById('udp-license-exposure');
+    const groupExposureEl = document.getElementById('udp-group-exposure');
+    const nextActionEl = document.getElementById('udp-next-action');
+    const routeEl = document.getElementById('udp-dossier-route');
+    const initials = (u.displayName || u.userPrincipalName || '--')
+      .split(/[.\s@_-]+/).filter(Boolean).slice(0, 2).map(s => s[0]).join('').toUpperCase() || '--';
+    if (avatarEl) avatarEl.textContent = initials;
 
     const detailsEl = document.getElementById('udp-details');
     const fields = [
@@ -4425,12 +4441,18 @@ function loadRecentUsers() {
     licensesEl.innerHTML = lics.length
       ? lics.map(l => '<span class="user-tag">' + escHtml(l) + '</span>').join('')
       : '<span class="loading-hint">None</span>';
+    if (licenseExposureEl) licenseExposureEl.textContent = lics.length ? lics.length + ' assigned' : 'none assigned';
 
     const groupsEl = document.getElementById('udp-groups');
     const grps = data.groups || [];
     groupsEl.innerHTML = grps.length
       ? grps.map(g => '<span class="user-tag">' + escHtml(g) + '</span>').join('')
       : '<span class="loading-hint">None</span>';
+    const privileged = grps.some(g => /admin|privileged|pim|global|security/i.test(String(g)));
+    if (roleExposureEl) roleExposureEl.textContent = privileged ? 'privileged group member' : 'standard user';
+    if (groupExposureEl) groupExposureEl.textContent = grps.length ? grps.length + ' groups' : 'no groups';
+    if (nextActionEl) nextActionEl.textContent = !u.accountEnabled ? 'audit disabled account' : (riskScore >= 70 || privileged ? 'review before write' : 'safe preview first');
+    if (routeEl) routeEl.textContent = riskScore >= 70 || privileged ? 'approval-routed profile' : 'standard lifecycle profile';
 
     const managerEl = document.getElementById('udp-manager');
     if (data.manager && data.manager.displayName) {
@@ -4952,13 +4974,20 @@ function loadRecentUsers() {
   const respMeta    = document.getElementById('graph-resp-meta');
   const assistInput = document.getElementById('graph-assist-input');
   const btnAssist   = document.getElementById('btn-graph-assist');
+  const guardCard   = document.getElementById('graph-write-guard-card');
+  const guardText   = document.getElementById('graph-write-guard');
+  const guardSub    = document.getElementById('graph-write-guard-sub');
+  const prevMethod  = document.getElementById('graph-preview-method');
+  const prevTarget  = document.getElementById('graph-preview-target');
+  const prevApprove = document.getElementById('graph-preview-approval');
+  const dryrunMode  = document.getElementById('graph-dryrun-mode');
 
   // Quick-pick chips
   document.querySelectorAll('.graph-cq-chip').forEach(chip => {
     chip.addEventListener('click', () => {
       if (methodSel) methodSel.value = chip.dataset.method || 'GET';
       if (urlInput)  urlInput.value  = chip.dataset.url   || '';
-      toggleBodyArea();
+      updateGraphGuard();
     });
   });
 
@@ -4980,7 +5009,7 @@ function loadRecentUsers() {
     if (bodyArea  && data.body && data.body !== null) {
       bodyArea.value = typeof data.body === 'string' ? data.body : JSON.stringify(data.body, null, 2);
     }
-    toggleBodyArea();
+    updateGraphGuard();
     showToast('Suggestion applied', 'success');
   });
 
@@ -5017,26 +5046,56 @@ function loadRecentUsers() {
         if (methodSel) methodSel.value = e.method;
         if (urlInput)  urlInput.value  = e.url;
         if (bodyArea && e.body) { bodyArea.value = e.body; bodyArea.style.display = ''; }
-        toggleBodyArea();
+        updateGraphGuard();
       });
     });
   }
 
-  function toggleBodyArea() {
-    const method = methodSel ? methodSel.value : 'GET';
-    if (bodyArea) bodyArea.style.display = (method === 'POST' || method === 'PATCH') ? '' : 'none';
+  function isGraphMutation(method) {
+    return /^(POST|PATCH|DELETE)$/i.test(method || '');
   }
 
-  if (methodSel) methodSel.addEventListener('change', toggleBodyArea);
-  toggleBodyArea();
+  function updateGraphGuard() {
+    const method = methodSel ? methodSel.value : 'GET';
+    const url = urlInput ? urlInput.value.trim() || '/me' : '/me';
+    const mutating = isGraphMutation(method);
+    if (bodyArea) bodyArea.style.display = (method === 'POST' || method === 'PATCH') ? '' : 'none';
+    if (guardCard) guardCard.classList.toggle('warn', mutating);
+    if (guardText) guardText.textContent = mutating ? 'PIN + approval guarded' : 'Read-only request';
+    if (guardSub) guardSub.textContent = mutating
+      ? 'POST, PATCH, and DELETE require a fresh write token before the request is sent.'
+      : 'GET calls are recorded but do not require approval.';
+    if (prevMethod) prevMethod.textContent = method;
+    if (prevTarget) prevTarget.textContent = url;
+    if (prevApprove) prevApprove.textContent = mutating ? 'write token required' : 'not required';
+    if (dryrunMode) dryrunMode.textContent = mutating ? 'guarded write' : 'safe read';
+  }
+
+  if (methodSel) methodSel.addEventListener('change', updateGraphGuard);
+  if (urlInput) urlInput.addEventListener('input', updateGraphGuard);
+  updateGraphGuard();
   renderRecent();
 
   if (btnRun) {
-    btnRun.addEventListener('click', () => {
+    btnRun.addEventListener('click', async () => {
       const method = methodSel ? methodSel.value : 'GET';
       const url    = urlInput  ? urlInput.value.trim() : '';
       const body   = bodyArea  ? bodyArea.value.trim() : '';
       if (!url) { showToast('URL is required', 'warning'); return; }
+      updateGraphGuard();
+      let writeToken = null;
+      if (isGraphMutation(method)) {
+        const ok = await confirmModal({
+          title: 'Guarded Graph write',
+          body: method + ' ' + url + ' will mutate the tenant and requires a fresh operator write token.',
+          danger: method === 'DELETE',
+          okLabel: 'Continue',
+        });
+        if (!ok) return;
+        const t = await requirePinIfNeeded('Confirm Graph ' + method);
+        if (!t) return;
+        writeToken = typeof t === 'string' ? t : null;
+      }
 
       if (respPanel) respPanel.style.display = 'flex';
       if (respPre)   respPre.textContent = 'Running…';
@@ -5050,7 +5109,7 @@ function loadRecentUsers() {
       }
 
       _lastMethod = method; _lastUrl = url;
-      window.api.runGraphQuery({ method, url, body: parsedBody });
+      window.api.runGraphQuery({ method, url, body: parsedBody, writeToken });
 
       // Save to recent
       const entries = loadRecent().filter(e => !(e.method === method && e.url === url));

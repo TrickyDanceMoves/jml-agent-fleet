@@ -834,6 +834,24 @@
             </div>
           </div>
 
+          <div class="v2-approval-command">
+            <div class="approval-signal urgent">
+              <span class="sig-k">Decision SLA</span>
+              <span class="sig-v">30 min token window</span>
+              <span class="sig-sub">Expired approvals cannot be replayed; requester must rebuild the plan.</span>
+            </div>
+            <div class="approval-signal">
+              <span class="sig-k">Dual control</span>
+              <span class="sig-v">Hard leaver + PIM guarded</span>
+              <span class="sig-sub">High-impact writes need a peer operator before commit.</span>
+            </div>
+            <div class="approval-signal">
+              <span class="sig-k">Evidence</span>
+              <span class="sig-v">Decision receipt to audit chain</span>
+              <span class="sig-sub">Approve/reject stores token, operator, subject, mode, and policy route.</span>
+            </div>
+          </div>
+
           <div class="appv-grid" id="approvals-list">
             <div class="loading-hint">Loading approvals…</div>
           </div>
@@ -848,6 +866,32 @@
               <h1 class="h1">Operations <span class="sub" id="ops-headline-sub">live · queued · completed</span></h1>
               <p class="desc">In-flight runs, pending dispatch, and recent completions across the fleet. Quick actions and scheduling below.</p>
             </div>
+          </div>
+
+          <div class="v2-ops-command">
+            <div class="ops-command-card">
+              <span class="cmd-k">Write path</span>
+              <span class="cmd-v">Intent -> plan -> approval -> commit</span>
+              <span class="cmd-sub">Every live operation must expose agent, subject, reversibility, and audit receipt before it mutates Entra.</span>
+            </div>
+            <div class="ops-command-card warn">
+              <span class="cmd-k">Rollback posture</span>
+              <span class="cmd-v">Soft stages reversible</span>
+              <span class="cmd-sub">Hard leaver and session revocation remain one-way and route through Approver.</span>
+            </div>
+            <div class="ops-command-card">
+              <span class="cmd-k">Current guardrail</span>
+              <span class="cmd-v">Freeze + SoD checks active</span>
+              <span class="cmd-sub">Scheduled jobs are evaluated again at dispatch time, not only when queued.</span>
+            </div>
+          </div>
+
+          <div class="v2-execution-rail" aria-label="Operation execution path">
+            <div class="rail-step ok"><span class="rail-n">01</span><span class="rail-t">Capture intent</span><span class="rail-s">Operator or HRIS event</span></div>
+            <div class="rail-step ok"><span class="rail-n">02</span><span class="rail-t">Build plan</span><span class="rail-s">Agent scopes + policy diff</span></div>
+            <div class="rail-step warn"><span class="rail-n">03</span><span class="rail-t">Human gate</span><span class="rail-s">Approval token or reaction window</span></div>
+            <div class="rail-step"><span class="rail-n">04</span><span class="rail-t">Write tenant</span><span class="rail-s">Graph mutation with receipt</span></div>
+            <div class="rail-step"><span class="rail-n">05</span><span class="rail-t">Seal evidence</span><span class="rail-s">Audit hash + exports</span></div>
           </div>
 
           <!-- Live kanban (in-flight / queued / completed) -->
@@ -1580,10 +1624,13 @@
             </div>
 
             <div id="user-detail-panel" style="display:none">
-              <div>
+              <div class="udp-hero">
+                <div class="udp-avatar" id="udp-avatar">--</div>
+                <div class="udp-title-block">
                 <div id="udp-name">—</div>
                 <div id="udp-upn">—</div>
                 <div id="udp-badge" class="user-detail-badge enabled">—</div>
+              </div>
               </div>
               <div id="udp-details"></div>
               <div class="udp-risk-lane" id="udp-risk-lane">
@@ -1601,6 +1648,18 @@
                   <span class="risk-k">Audit posture</span>
                   <span class="risk-v" id="udp-audit-posture">Chain ready</span>
                   <span class="risk-sub">Profile actions are logged with operator, subject, and mode.</span>
+                </div>
+              </div>
+              <div class="udp-lifecycle-dossier">
+                <div class="dossier-head">
+                  <span>Lifecycle Dossier</span>
+                  <span id="udp-dossier-route">read-only profile</span>
+                </div>
+                <div class="dossier-grid">
+                  <div class="dossier-cell"><span class="k">Role exposure</span><span class="v" id="udp-role-exposure">standard user</span></div>
+                  <div class="dossier-cell"><span class="k">License exposure</span><span class="v" id="udp-license-exposure">--</span></div>
+                  <div class="dossier-cell"><span class="k">Group exposure</span><span class="v" id="udp-group-exposure">--</span></div>
+                  <div class="dossier-cell"><span class="k">Next safe action</span><span class="v" id="udp-next-action">select operation</span></div>
                 </div>
               </div>
               <div>
@@ -1635,6 +1694,24 @@
             </div>
           </div>
 
+          <div class="v2-graph-guard">
+            <div class="graph-guard-card">
+              <span class="guard-k">Scope boundary</span>
+              <span class="guard-v">Fleet RBAC enforced</span>
+              <span class="guard-sub">Requests run through the service principal allowed for this console role.</span>
+            </div>
+            <div class="graph-guard-card" id="graph-write-guard-card">
+              <span class="guard-k">Write guard</span>
+              <span class="guard-v" id="graph-write-guard">Read-only request</span>
+              <span class="guard-sub" id="graph-write-guard-sub">GET calls are recorded but do not require approval.</span>
+            </div>
+            <div class="graph-guard-card">
+              <span class="guard-k">Audit receipt</span>
+              <span class="guard-v">API Archiver + hash chain</span>
+              <span class="guard-sub">Common call patterns are tracked for review and evidence export.</span>
+            </div>
+          </div>
+
           <div class="graph-shell">
             <aside class="graph-side">
               <div class="gs-h">QUICK PICKS</div>
@@ -1665,6 +1742,19 @@
               </div>
 
               <textarea id="graph-body" rows="6" placeholder='{ "key": "value" }' style="display:none"></textarea>
+
+              <div class="graph-dryrun-card" id="graph-dryrun-card">
+                <div class="dryrun-head">
+                  <span>Request Preview</span>
+                  <span id="graph-dryrun-mode">safe read</span>
+                </div>
+                <div class="dryrun-grid">
+                  <div><span class="k">Method</span><span class="v" id="graph-preview-method">GET</span></div>
+                  <div><span class="k">Target</span><span class="v" id="graph-preview-target">/me</span></div>
+                  <div><span class="k">Approval</span><span class="v" id="graph-preview-approval">not required</span></div>
+                  <div><span class="k">Receipt</span><span class="v">audit.write pending</span></div>
+                </div>
+              </div>
 
               <div class="graph-assist-row">
                 <input id="graph-assist-input" type="text" placeholder="Ask AI: 'find users with no MFA'"  autocomplete="off">
@@ -1819,6 +1909,31 @@
             <div>
               <h1 class="h1">Settings <span class="sub">tenant · agent certs · operators · policy</span></h1>
               <p class="desc">Configure tenant binding, agent certificates, role authorities, and operational guardrails. Changes require an Approver token and are recorded to the audit chain.</p>
+            </div>
+          </div>
+
+          <div class="v2-policy-board">
+            <div class="policy-board-head">
+              <div>
+                <span class="board-k">Policy Calendar</span>
+                <span class="board-v">Freeze windows, review cadence, and approval posture</span>
+              </div>
+              <button class="btn ghost sm" data-settings-sub="freeze">Open freeze windows</button>
+            </div>
+            <div class="policy-calendar">
+              <div class="cal-day ok"><span>Mon</span><b>Normal ops</b><small>single + dual approval</small></div>
+              <div class="cal-day ok"><span>Tue</span><b>Joiner batch</b><small>HRIS import allowed</small></div>
+              <div class="cal-day warn"><span>Wed</span><b>Review board</b><small>access reviews due</small></div>
+              <div class="cal-day crit"><span>Thu</span><b>Freeze window</b><small>live writes blocked 18:00-23:00</small></div>
+              <div class="cal-day ok"><span>Fri</span><b>Cert rotation</b><small>Provisioner staged</small></div>
+              <div class="cal-day idle"><span>Sat</span><b>Audit export</b><small>replication receipt</small></div>
+              <div class="cal-day idle"><span>Sun</span><b>Quiet hours</b><small>break-glass only</small></div>
+            </div>
+            <div class="policy-rule-strip">
+              <div><span class="k">Hard leaver</span><span class="v">dual approval</span></div>
+              <div><span class="k">PIM group</span><span class="v">dual approval + SoD</span></div>
+              <div><span class="k">Live write PIN</span><span class="v">enforced</span></div>
+              <div><span class="k">Evidence export</span><span class="v">hash-chain required</span></div>
             </div>
           </div>
 
