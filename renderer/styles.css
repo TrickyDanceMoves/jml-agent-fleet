@@ -800,6 +800,15 @@ body.maximized, body.maximized .app { border-radius: 0; }
 /* Hidden sections from customize panel */
 .dash-section.dash-hidden { display: none; }
 
+/* V2 dashboard owns KPIs, fleet status, live ops, telemetry, and activity.
+   Keep the legacy nodes mounted for renderer data hooks, but do not show
+   duplicate surfaces in the first-pass dashboard. */
+#view-dashboard .dash-section[data-section="kpi"],
+#view-dashboard .dash-section[data-section="fleet"],
+#view-dashboard .dash-section[data-section="activity"] {
+  display: none !important;
+}
+
 /* Mini-row used in dashboard widget panels (Integrations, Exports, etc.) */
 .dash-mini-row { display: grid; grid-template-columns: 14px 1fr auto; gap: 10px; align-items: center; font-size: 12.5px; padding: 4px 0; }
 .dash-mini-dot { width: 8px; height: 8px; border-radius: 50%; margin-left: 3px; }
@@ -1169,7 +1178,37 @@ body.maximized, body.maximized .app { border-radius: 0; }
 
 /* Bottom row of dashboard (two-column: liveops + telemetry) */
 .v2-bottom-row {
-  display: grid; grid-template-columns: 1.3fr 1fr; gap: 14px; margin-bottom: 14px;
+  display: grid; grid-template-columns: 1.3fr 1fr; gap: 14px; margin-bottom: 24px;
+}
+
+.v2-supporting-head {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 16px;
+  margin: 6px 0 12px;
+  padding-top: 2px;
+}
+.v2-supporting-head .eyebrow {
+  display: block;
+  margin-bottom: 4px;
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: .15em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.v2-supporting-head h2 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0;
+}
+.v2-supporting-meta {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--dim);
+  text-align: right;
 }
 
 /* V2 page-title block (replaces the .head/h1 heading) */
