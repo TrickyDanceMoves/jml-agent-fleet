@@ -127,6 +127,10 @@ const PAGE_BRIEFS = {
 };
 
 function setupPageBriefs() {
+  // Function-first console: page briefs were visually useful in isolation, but
+  // they delayed the actual tool on every tab. Keep the copy here for future
+  // help/tooltips, but do not inject full-width info tiles.
+  return;
   Object.entries(PAGE_BRIEFS).forEach(([tab, items]) => {
     const view = document.getElementById('view-' + tab);
     const head = view && view.querySelector(':scope > .head');
