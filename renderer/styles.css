@@ -2201,6 +2201,41 @@ body.maximized, body.maximized .app { border-radius: 0; }
 .cert-num .v .u { font-size: 13px; color: var(--muted); font-weight: 400; margin-left: 5px; }
 .cert-num .m { margin-top: 6px; font-family: var(--mono); font-size: 11px; color: var(--text-2); }
 
+.v2-cert-control {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.v2-cert-stage {
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  background: linear-gradient(180deg, var(--surface), var(--bg-2));
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-height: 108px;
+}
+.v2-cert-stage.warn { border-color: color-mix(in oklch, var(--warn) 32%, var(--border)); }
+.v2-cert-stage .stage-k {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.v2-cert-stage .stage-v {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+}
+.v2-cert-stage .stage-sub {
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--text-2);
+}
+
 .camp, .cert-campaign-card {
   padding: 18px; border: 1px solid var(--border); border-radius: var(--r-2);
   background: var(--surface); margin-bottom: 12px;
@@ -2304,6 +2339,96 @@ body.maximized, body.maximized .app { border-radius: 0; }
 .exp.s3 .top .logo       { background: linear-gradient(135deg, oklch(0.55 0.18 35), oklch(0.32 0.12 35)); }
 .exp .actions { display: flex; gap: 6px; flex-wrap: wrap; }
 
+.v2-export-chain {
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  margin-bottom: 14px;
+  overflow: hidden;
+}
+.export-chain-head {
+  padding: 14px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-2);
+}
+.export-chain-head .ttl {
+  font-size: 13.5px;
+  font-weight: 600;
+}
+.export-chain-head .sub {
+  margin-top: 2px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.export-chain-seal {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--ok);
+  border: 1px solid color-mix(in oklch, var(--ok) 35%, transparent);
+  background: var(--ok-bg);
+  border-radius: 99px;
+  padding: 4px 8px;
+  white-space: nowrap;
+}
+.export-chain-hops {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+.export-hop {
+  position: relative;
+  padding: 14px 16px;
+  border-right: 1px solid var(--border);
+  display: grid;
+  grid-template-columns: 10px 1fr;
+  gap: 4px 8px;
+  align-items: center;
+}
+.export-hop:last-child { border-right: 0; }
+.export-hop:not(:last-child)::after {
+  content: "";
+  position: absolute;
+  right: -6px;
+  top: 50%;
+  width: 10px;
+  height: 10px;
+  border-top: 1px solid var(--border-strong);
+  border-right: 1px solid var(--border-strong);
+  transform: translateY(-50%) rotate(45deg);
+  background: var(--surface);
+  z-index: 1;
+}
+.export-hop .hop-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--ok);
+  box-shadow: 0 0 8px color-mix(in oklch, var(--ok) 60%, transparent);
+}
+.export-hop.soon .hop-dot {
+  background: var(--muted);
+  box-shadow: none;
+}
+.export-hop.err .hop-dot {
+  background: var(--crit);
+  box-shadow: 0 0 8px color-mix(in oklch, var(--crit) 60%, transparent);
+}
+.export-hop .hop-name {
+  font-size: 12.5px;
+  font-weight: 600;
+}
+.export-hop .hop-meta {
+  grid-column: 2;
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: var(--muted);
+}
+
 .export-status-chip {
   font-family: var(--mono); font-size: 10.5px;
   padding: 3px 8px; border-radius: 99px;
@@ -2319,6 +2444,40 @@ body.maximized, body.maximized .app { border-radius: 0; }
    USERS
    ============================================================ */
 .users-shell { display: flex; flex-direction: column; gap: 14px; }
+.v2-users-overview {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.user-signal-card {
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  padding: 14px;
+  min-height: 112px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.user-signal-card.warn { border-color: color-mix(in oklch, var(--warn) 32%, var(--border)); }
+.user-signal-card .sig-k {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.user-signal-card .sig-v {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+}
+.user-signal-card .sig-sub {
+  color: var(--text-2);
+  font-size: 12px;
+  line-height: 1.45;
+}
 .utable-h-full {
   display: grid !important;
   grid-template-columns: 30px 1fr 130px 100px 130px 110px 90px 50px;
@@ -2361,6 +2520,50 @@ body.maximized, body.maximized .app { border-radius: 0; }
 #user-detail-panel {
   padding: 16px; border: 1px solid var(--border); border-radius: var(--r-2);
   background: var(--surface); display: flex; flex-direction: column; gap: 12px;
+}
+.udp-risk-lane {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+.risk-mini {
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--bg-2);
+  padding: 10px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.risk-mini .risk-k {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.risk-mini .risk-v {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+.risk-mini .risk-sub {
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.35;
+}
+.risk-track {
+  height: 4px;
+  border-radius: 99px;
+  background: var(--elev);
+  overflow: hidden;
+}
+.risk-track i {
+  display: block;
+  height: 100%;
+  border-radius: 99px;
+  background: linear-gradient(90deg, var(--ok), var(--warn), var(--crit));
 }
 #udp-name { font-size: 16px; font-weight: 600; }
 #udp-upn { font-family: var(--mono); font-size: 12px; color: var(--muted); }
@@ -2514,6 +2717,40 @@ body.maximized, body.maximized .app { border-radius: 0; }
 /* ============================================================
    CERTS (agent certificates + permission matrix)
    ============================================================ */
+.v2-cert-ops {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.cert-op-card {
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  padding: 14px;
+  min-height: 112px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.cert-op-card.warn { border-color: color-mix(in oklch, var(--warn) 32%, var(--border)); }
+.cert-op-card .op-k {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.cert-op-card .op-v {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+}
+.cert-op-card .op-sub {
+  color: var(--text-2);
+  font-size: 12px;
+  line-height: 1.45;
+}
 .cert-grid { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 12px; margin-bottom: 18px; }
 .cert-tile {
   padding: 14px; border: 1px solid var(--border); border-radius: var(--r-2);
@@ -2967,8 +3204,16 @@ label { font-size: 12.5px; color: var(--text-2); }
   .grid-2 { grid-template-columns: 1fr; }
   .ops-cols { grid-template-columns: 1fr; }
   .exp-grid { grid-template-columns: 1fr; }
+  .v2-export-chain .export-chain-hops { grid-template-columns: 1fr; }
+  .v2-export-chain .export-hop { border-right: 0; border-bottom: 1px solid var(--border); }
+  .v2-export-chain .export-hop:last-child { border-bottom: 0; }
+  .v2-export-chain .export-hop::after { display: none; }
   .cert-grid { grid-template-columns: repeat(2, 1fr); }
   .users-shell { grid-template-columns: 1fr; }
+  .v2-cert-control,
+  .v2-users-overview,
+  .v2-cert-ops,
+  .udp-risk-lane { grid-template-columns: 1fr; }
   .dash-quick-actions { grid-template-columns: repeat(2, 1fr); }
   .card-b { grid-template-columns: 1fr; }
   .camp { grid-template-columns: 1fr; }

@@ -1069,6 +1069,8 @@ window.api.onExportsStatus((data) => {
     if (!b.error) document.getElementById('blob-error').textContent = '';
   }
 
+  updateExportReceiptHop('blob', b, b && b.entriesExported != null ? b.entriesExported + ' entries' : null);
+
   const s = data.sentinel;
   applyExportStatus('sentinel', s);
   if (s) {
@@ -1076,6 +1078,8 @@ window.api.onExportsStatus((data) => {
     document.getElementById('sentinel-events').textContent    = s.eventsIngested != null ? s.eventsIngested + ' events' : '—';
     if (!s.error) document.getElementById('sentinel-error').textContent = '';
   }
+
+  updateExportReceiptHop('sentinel', s, s && s.eventsIngested != null ? s.eventsIngested + ' events' : null);
 
   // Feed dashboard Exports widget
   const blobOk = b && !b.error;
@@ -1089,6 +1093,30 @@ window.api.onExportsStatus((data) => {
   const sentMeta = document.getElementById('dash-exp-sentinel');
   if (sentMeta) sentMeta.textContent = s ? (s.eventsIngested != null ? s.eventsIngested + ' events' : (s.error ? 'error' : 'ready')) : 'unconfigured';
 });
+
+function updateExportReceiptHop(id, status, countText) {
+  const hop = document.getElementById('export-hop-' + id);
+  const meta = document.getElementById('export-hop-' + id + '-meta');
+  if (!hop || !meta) return;
+  hop.classList.remove('ok', 'err', 'soon');
+  if (!status) {
+    hop.classList.add('soon');
+    meta.textContent = 'unconfigured';
+    return;
+  }
+  if (status.error) {
+    hop.classList.add('err');
+    meta.textContent = 'needs attention';
+    return;
+  }
+  if (status.configured === false) {
+    hop.classList.add('soon');
+    meta.textContent = 'not configured';
+    return;
+  }
+  hop.classList.add('ok');
+  meta.textContent = countText || (status.lastRun ? 'last run recorded' : 'ready');
+}
 
 function setRunning(type, running) {
   const btn = document.getElementById('btn-run-' + type);
@@ -4367,6 +4395,18 @@ function loadRecentUsers() {
       badgeEl.style.background = u.accountEnabled ? 'var(--success-soft)' : 'var(--danger-soft)';
       badgeEl.style.color      = u.accountEnabled ? 'var(--success)'      : 'var(--danger)';
     }
+
+    const riskScore = typeof u.riskScore === 'number'
+      ? u.riskScore
+      : (u.riskLevel === 'high' ? 82 : u.riskLevel === 'medium' ? 54 : u.riskLevel === 'low' ? 22 : (u.accountEnabled ? 12 : 36));
+    const riskScoreEl = document.getElementById('udp-risk-score');
+    const riskBarEl = document.getElementById('udp-risk-bar');
+    const writeRouteEl = document.getElementById('udp-write-route');
+    const auditPostureEl = document.getElementById('udp-audit-posture');
+    if (riskScoreEl) riskScoreEl.textContent = riskScore + ' / 100';
+    if (riskBarEl) riskBarEl.style.width = Math.max(2, Math.min(100, riskScore)) + '%';
+    if (writeRouteEl) writeRouteEl.textContent = riskScore >= 70 || !u.accountEnabled ? 'Dual approval required' : 'Safe preview first';
+    if (auditPostureEl) auditPostureEl.textContent = u.accountEnabled ? 'Chain ready' : 'Disabled account';
 
     const detailsEl = document.getElementById('udp-details');
     const fields = [
