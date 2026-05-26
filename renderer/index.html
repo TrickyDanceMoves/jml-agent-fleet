@@ -834,24 +834,6 @@
             </div>
           </div>
 
-          <div class="v2-approval-command">
-            <div class="approval-signal urgent">
-              <span class="sig-k">Decision SLA</span>
-              <span class="sig-v">30 min token window</span>
-              <span class="sig-sub">Expired approvals cannot be replayed; requester must rebuild the plan.</span>
-            </div>
-            <div class="approval-signal">
-              <span class="sig-k">Dual control</span>
-              <span class="sig-v">Hard leaver + PIM guarded</span>
-              <span class="sig-sub">High-impact writes need a peer operator before commit.</span>
-            </div>
-            <div class="approval-signal">
-              <span class="sig-k">Evidence</span>
-              <span class="sig-v">Decision receipt to audit chain</span>
-              <span class="sig-sub">Approve/reject stores token, operator, subject, mode, and policy route.</span>
-            </div>
-          </div>
-
           <div class="appv-grid" id="approvals-list">
             <div class="loading-hint">Loading approvals…</div>
           </div>
@@ -866,32 +848,6 @@
               <h1 class="h1">Operations <span class="sub" id="ops-headline-sub">live · queued · completed</span></h1>
               <p class="desc">In-flight runs, pending dispatch, and recent completions across the fleet. Quick actions and scheduling below.</p>
             </div>
-          </div>
-
-          <div class="v2-ops-command">
-            <div class="ops-command-card">
-              <span class="cmd-k">Write path</span>
-              <span class="cmd-v">Intent -> plan -> approval -> commit</span>
-              <span class="cmd-sub">Every live operation must expose agent, subject, reversibility, and audit receipt before it mutates Entra.</span>
-            </div>
-            <div class="ops-command-card warn">
-              <span class="cmd-k">Rollback posture</span>
-              <span class="cmd-v">Soft stages reversible</span>
-              <span class="cmd-sub">Hard leaver and session revocation remain one-way and route through Approver.</span>
-            </div>
-            <div class="ops-command-card">
-              <span class="cmd-k">Current guardrail</span>
-              <span class="cmd-v">Freeze + SoD checks active</span>
-              <span class="cmd-sub">Scheduled jobs are evaluated again at dispatch time, not only when queued.</span>
-            </div>
-          </div>
-
-          <div class="v2-execution-rail" aria-label="Operation execution path">
-            <div class="rail-step ok"><span class="rail-n">01</span><span class="rail-t">Capture intent</span><span class="rail-s">Operator or HRIS event</span></div>
-            <div class="rail-step ok"><span class="rail-n">02</span><span class="rail-t">Build plan</span><span class="rail-s">Agent scopes + policy diff</span></div>
-            <div class="rail-step warn"><span class="rail-n">03</span><span class="rail-t">Human gate</span><span class="rail-s">Approval token or reaction window</span></div>
-            <div class="rail-step"><span class="rail-n">04</span><span class="rail-t">Write tenant</span><span class="rail-s">Graph mutation with receipt</span></div>
-            <div class="rail-step"><span class="rail-n">05</span><span class="rail-t">Seal evidence</span><span class="rail-s">Audit hash + exports</span></div>
           </div>
 
           <!-- Live kanban (in-flight / queued / completed) -->
@@ -1021,24 +977,6 @@
             </div>
             <div class="row-flex">
               <button class="btn ghost" id="btn-refresh-certs">Refresh</button>
-            </div>
-          </div>
-
-          <div class="v2-cert-control">
-            <div class="v2-cert-stage">
-              <span class="stage-k">Review cadence</span>
-              <span class="stage-v">Quarterly access attestation</span>
-              <span class="stage-sub">Certifier reads group membership; Approver owns any revoke writes.</span>
-            </div>
-            <div class="v2-cert-stage">
-              <span class="stage-k">Decision route</span>
-              <span class="stage-v">Approve / revoke / exception</span>
-              <span class="stage-sub">Sensitive groups require a second operator before removal.</span>
-            </div>
-            <div class="v2-cert-stage warn">
-              <span class="stage-k">Evidence</span>
-              <span class="stage-v">Audit hash + reviewer receipt</span>
-              <span class="stage-sub">Each campaign produces an exportable attestation pack.</span>
             </div>
           </div>
 
@@ -1454,43 +1392,6 @@
             </div>
           </div>
 
-          <div class="v2-export-chain" aria-label="Replication receipt chain">
-            <div class="export-chain-head">
-              <div>
-                <div class="ttl">Replication Receipts</div>
-                <div class="sub">Every downstream copy carries the same audit-chain root and source seal.</div>
-              </div>
-              <span class="export-chain-seal">root hash verified</span>
-            </div>
-            <div class="export-chain-hops">
-              <div class="export-hop ok">
-                <span class="hop-dot"></span>
-                <span class="hop-name">Local chain</span>
-                <span class="hop-meta">source of truth</span>
-              </div>
-              <div class="export-hop ok" id="export-hop-blob">
-                <span class="hop-dot"></span>
-                <span class="hop-name">Azure Blob</span>
-                <span class="hop-meta" id="export-hop-blob-meta">waiting for status</span>
-              </div>
-              <div class="export-hop ok" id="export-hop-sentinel">
-                <span class="hop-dot"></span>
-                <span class="hop-name">Sentinel</span>
-                <span class="hop-meta" id="export-hop-sentinel-meta">waiting for status</span>
-              </div>
-              <div class="export-hop soon">
-                <span class="hop-dot"></span>
-                <span class="hop-name">Splunk</span>
-                <span class="hop-meta">planned</span>
-              </div>
-              <div class="export-hop soon">
-                <span class="hop-dot"></span>
-                <span class="hop-name">S3 Object Lock</span>
-                <span class="hop-meta">planned</span>
-              </div>
-            </div>
-          </div>
-
           <div class="exp-grid">
             <!-- Microsoft Sentinel -->
             <div class="exp sentinel">
@@ -1597,24 +1498,6 @@
             <div class="spacer"></div>
           </div>
 
-          <div class="v2-users-overview">
-            <div class="user-signal-card">
-              <span class="sig-k">Search surface</span>
-              <span class="sig-v">Directory inventory</span>
-              <span class="sig-sub">Identity rows merge lifecycle, license, sign-in, and risk context before any operation.</span>
-            </div>
-            <div class="user-signal-card">
-              <span class="sig-k">Write guardrail</span>
-              <span class="sig-v">Mover / Leaver handoff</span>
-              <span class="sig-sub">Profile actions prefill Operations and keep irreversible work behind approval gates.</span>
-            </div>
-            <div class="user-signal-card warn">
-              <span class="sig-k">High-risk lens</span>
-              <span class="sig-v">UEBA + role holder checks</span>
-              <span class="sig-sub">Privileged identities should be reviewed before hard offboard.</span>
-            </div>
-          </div>
-
           <div class="users-shell">
             <div class="utable">
               <div class="utable-h"><span>USER</span></div>
@@ -1694,24 +1577,6 @@
             </div>
           </div>
 
-          <div class="v2-graph-guard">
-            <div class="graph-guard-card">
-              <span class="guard-k">Scope boundary</span>
-              <span class="guard-v">Fleet RBAC enforced</span>
-              <span class="guard-sub">Requests run through the service principal allowed for this console role.</span>
-            </div>
-            <div class="graph-guard-card" id="graph-write-guard-card">
-              <span class="guard-k">Write guard</span>
-              <span class="guard-v" id="graph-write-guard">Read-only request</span>
-              <span class="guard-sub" id="graph-write-guard-sub">GET calls are recorded but do not require approval.</span>
-            </div>
-            <div class="graph-guard-card">
-              <span class="guard-k">Audit receipt</span>
-              <span class="guard-v">API Archiver + hash chain</span>
-              <span class="guard-sub">Common call patterns are tracked for review and evidence export.</span>
-            </div>
-          </div>
-
           <div class="graph-shell">
             <aside class="graph-side">
               <div class="gs-h">QUICK PICKS</div>
@@ -1787,24 +1652,6 @@
             <div>
               <h1 class="h1">Agent Certificates <span class="sub">8 app registrations · permissions matrix</span></h1>
               <p class="desc">Per-agent app-registration certificates and tenant permissions. Each agent operates with the narrowest viable Graph scopes; expiring certs auto-rotate via the Provisioner with a 14-day pre-warning.</p>
-            </div>
-          </div>
-
-          <div class="v2-cert-ops">
-            <div class="cert-op-card">
-              <span class="op-k">Rotation queue</span>
-              <span class="op-v">1 agent inside warning window</span>
-              <span class="op-sub">Provisioner stages a replacement certificate before the current credential expires.</span>
-            </div>
-            <div class="cert-op-card">
-              <span class="op-k">Least privilege</span>
-              <span class="op-v">Permission matrix enforced</span>
-              <span class="op-sub">Privileged scopes are isolated to agents that own those duties.</span>
-            </div>
-            <div class="cert-op-card warn">
-              <span class="op-k">Rotation evidence</span>
-              <span class="op-v">Hash-chain receipt required</span>
-              <span class="op-sub">Every app-reg cert change is signed and replayable from Audit Log.</span>
             </div>
           </div>
 
@@ -1909,31 +1756,6 @@
             <div>
               <h1 class="h1">Settings <span class="sub">tenant · agent certs · operators · policy</span></h1>
               <p class="desc">Configure tenant binding, agent certificates, role authorities, and operational guardrails. Changes require an Approver token and are recorded to the audit chain.</p>
-            </div>
-          </div>
-
-          <div class="v2-policy-board">
-            <div class="policy-board-head">
-              <div>
-                <span class="board-k">Policy Calendar</span>
-                <span class="board-v">Freeze windows, review cadence, and approval posture</span>
-              </div>
-              <button class="btn ghost sm" data-settings-sub="freeze">Open freeze windows</button>
-            </div>
-            <div class="policy-calendar">
-              <div class="cal-day ok"><span>Mon</span><b>Normal ops</b><small>single + dual approval</small></div>
-              <div class="cal-day ok"><span>Tue</span><b>Joiner batch</b><small>HRIS import allowed</small></div>
-              <div class="cal-day warn"><span>Wed</span><b>Review board</b><small>access reviews due</small></div>
-              <div class="cal-day crit"><span>Thu</span><b>Freeze window</b><small>live writes blocked 18:00-23:00</small></div>
-              <div class="cal-day ok"><span>Fri</span><b>Cert rotation</b><small>Provisioner staged</small></div>
-              <div class="cal-day idle"><span>Sat</span><b>Audit export</b><small>replication receipt</small></div>
-              <div class="cal-day idle"><span>Sun</span><b>Quiet hours</b><small>break-glass only</small></div>
-            </div>
-            <div class="policy-rule-strip">
-              <div><span class="k">Hard leaver</span><span class="v">dual approval</span></div>
-              <div><span class="k">PIM group</span><span class="v">dual approval + SoD</span></div>
-              <div><span class="k">Live write PIN</span><span class="v">enforced</span></div>
-              <div><span class="k">Evidence export</span><span class="v">hash-chain required</span></div>
             </div>
           </div>
 
