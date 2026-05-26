@@ -2806,12 +2806,16 @@ $result | ConvertTo-Json -Depth 3 -Compress
 });
 
 // ── Feature: Graph Query Runner ───────────────────────────────────────────────
-ipcMain.on('run-graph-query', (event, { method, url, body }) => {
+ipcMain.on('run-graph-query', (event, payload) => {
   try {
+    const { method, url, body } = payload || {};
+    const verb = String(method || 'GET').toUpperCase();
+    if (!url) { event.sender.send('graph-query-result', { ok: false, error: 'Graph URL is required' }); return; }
+    if (/^(POST|PATCH|DELETE)$/.test(verb) && !requireWriteToken(event, payload, 'graph-query-result')) return;
     const cfgPath = path.join(AGENTS_DIR, 'auditor', 'config.json');
     const safeUrl  = url.replace(/'/g, "''");
     const safeBody = body ? JSON.stringify(body) : '';
-    const bodyBlock = (method === 'POST' || method === 'PATCH') && safeBody
+    const bodyBlock = (verb === 'POST' || verb === 'PATCH') && safeBody
       ? `-Body ('${safeBody.replace(/'/g, "''")}' | ConvertFrom-Json)`
       : '';
     const ps = `
@@ -2822,7 +2826,7 @@ $cfg = [System.IO.File]::ReadAllText('${cfgPath.replace(/'/g, "''")}') | Convert
 $agentsRoot = '${AGENTS_DIR}'
 . (Join-Path $agentsRoot 'shared\\Helpers.ps1')
 Connect-AgentGraph -Config $cfg
-$resp = Invoke-GraphWithRetry -Method ${method} -Uri '${safeUrl}' ${bodyBlock}
+$resp = Invoke-GraphWithRetry -Method ${verb} -Uri '${safeUrl}' ${bodyBlock}
 $resp | ConvertTo-Json -Depth 6 -Compress
 `;
     const raw = execFileSync('powershell', ['-NonInteractive', '-Command', ps], { encoding: 'utf8', timeout: 60000 }).split(String.fromCharCode(0xFEFF)).join('');

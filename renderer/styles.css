@@ -4639,6 +4639,370 @@ label { font-size: 12.5px; color: var(--text-2); }
 }
 
 /* ============================================================
+   V2 remaining-page revamp: Approvals, Operations, Users, Graph, Settings
+   ============================================================ */
+
+.v2-approval-command,
+.v2-ops-command,
+.v2-graph-guard,
+.v2-users-overview,
+.v2-cert-control,
+.v2-cert-ops {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin: 0 0 16px;
+}
+
+.approval-signal,
+.ops-command-card,
+.graph-guard-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.approval-signal.urgent,
+.ops-command-card.warn,
+.graph-guard-card.warn {
+  border-color: color-mix(in oklch, var(--warn) 42%, transparent);
+  background: linear-gradient(180deg, var(--warn-bg), var(--surface));
+}
+
+.approval-signal .sig-k,
+.ops-command-card .cmd-k,
+.graph-guard-card .guard-k,
+.policy-board-head .board-k {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: .11em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.approval-signal .sig-v,
+.ops-command-card .cmd-v,
+.graph-guard-card .guard-v,
+.policy-board-head .board-v {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.approval-signal .sig-sub,
+.ops-command-card .cmd-sub,
+.graph-guard-card .guard-sub {
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--text-2);
+}
+
+.v2-execution-rail {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0 0 16px;
+}
+
+.rail-step {
+  position: relative;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  padding: 12px 12px 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-height: 92px;
+}
+
+.rail-step::after {
+  content: "";
+  position: absolute;
+  right: -8px;
+  top: 50%;
+  width: 8px;
+  height: 1px;
+  background: var(--border-strong);
+}
+
+.rail-step:last-child::after { display: none; }
+.rail-step.ok { border-color: color-mix(in oklch, var(--ok) 38%, transparent); }
+.rail-step.warn { border-color: color-mix(in oklch, var(--warn) 42%, transparent); }
+.rail-n { font-family: var(--mono); font-size: 10px; color: var(--muted); }
+.rail-t { font-size: 13px; font-weight: 600; color: var(--text); }
+.rail-s { font-size: 11.5px; line-height: 1.4; color: var(--muted); }
+
+#user-detail-panel {
+  gap: 14px;
+}
+
+.udp-hero {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.udp-avatar {
+  width: 42px;
+  height: 42px;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  font-family: var(--mono);
+  font-weight: 700;
+  color: #fff;
+  background: linear-gradient(135deg, var(--violet-dim), var(--cyan-dim));
+  border: 1px solid var(--border-strong);
+}
+
+.udp-title-block {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.udp-hero-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.mini-chip {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: var(--text-2);
+  border: 1px solid var(--border);
+  background: var(--bg-2);
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.udp-lifecycle-dossier {
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  background: var(--bg-2);
+  overflow: hidden;
+}
+
+.dossier-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.dossier-head span:last-child {
+  color: var(--violet);
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.dossier-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.dossier-cell {
+  padding: 10px 12px;
+  border-right: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.dossier-cell:nth-child(2n) { border-right: 0; }
+.dossier-cell:nth-last-child(-n+2) { border-bottom: 0; }
+.dossier-cell .k {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: .08em;
+}
+.dossier-cell .v { font-size: 12.5px; color: var(--text); }
+
+.graph-dryrun-card {
+  border: 1px solid var(--border);
+  background: var(--surface);
+  border-radius: var(--r-lg);
+  overflow: hidden;
+}
+
+.dryrun-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: .08em;
+}
+
+.dryrun-head span:last-child { color: var(--ok); }
+.graph-guard-card.warn + .graph-guard-card .guard-v,
+.graph-guard-card.warn .guard-v,
+.graph-dryrun-card:has(#graph-dryrun-mode) .dryrun-head span:last-child { color: var(--warn); }
+
+.dryrun-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.dryrun-grid > div {
+  padding: 10px 12px;
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+.dryrun-grid > div:last-child { border-right: 0; }
+.dryrun-grid .k {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: .08em;
+}
+.dryrun-grid .v {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--text-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.v2-policy-board {
+  border: 1px solid var(--border);
+  background: var(--surface);
+  border-radius: var(--r-lg);
+  overflow: hidden;
+  margin: 0 0 16px;
+}
+
+.policy-board-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-2);
+}
+
+.policy-board-head > div {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.policy-calendar {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 0;
+}
+
+.cal-day {
+  min-height: 112px;
+  padding: 12px;
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  background: var(--surface);
+}
+.cal-day:last-child { border-right: 0; }
+.cal-day span {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: .1em;
+}
+.cal-day b { font-size: 13px; color: var(--text); }
+.cal-day small { font-size: 11.5px; color: var(--text-2); line-height: 1.35; }
+.cal-day.ok { box-shadow: inset 0 2px 0 var(--ok); }
+.cal-day.warn { box-shadow: inset 0 2px 0 var(--warn); background: linear-gradient(180deg, var(--warn-bg), var(--surface)); }
+.cal-day.crit { box-shadow: inset 0 2px 0 var(--crit); background: linear-gradient(180deg, var(--crit-bg), var(--surface)); }
+.cal-day.idle { opacity: .82; }
+
+.policy-rule-strip {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  border-top: 1px solid var(--border);
+}
+.policy-rule-strip > div {
+  padding: 10px 12px;
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.policy-rule-strip > div:last-child { border-right: 0; }
+.policy-rule-strip .k {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--muted);
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+.policy-rule-strip .v { font-size: 12px; color: var(--text); }
+
+@media (max-width: 1180px) {
+  .v2-approval-command,
+  .v2-ops-command,
+  .v2-graph-guard,
+  .v2-users-overview,
+  .v2-cert-control,
+  .v2-cert-ops,
+  .v2-execution-rail,
+  .policy-calendar,
+  .policy-rule-strip {
+    grid-template-columns: 1fr;
+  }
+  .rail-step::after,
+  .cal-day,
+  .policy-rule-strip > div,
+  .dryrun-grid > div {
+    border-right: 0;
+  }
+  .dryrun-grid,
+  .dossier-grid {
+    grid-template-columns: 1fr;
+  }
+  .dossier-cell,
+  .dossier-cell:nth-child(2n),
+  .dossier-cell:nth-last-child(-n+2) {
+    border-right: 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .dossier-cell:last-child { border-bottom: 0; }
+}
+
+/* ============================================================
    Print mode
    ============================================================ */
 
