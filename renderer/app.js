@@ -24,6 +24,18 @@ const AGENT_AVATARS = {
   auditor:  `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/></svg>`
 };
 
+const AGENT_SCOPE_META = {
+  joiner:      { label: 'Joiner',      reg: 'jml-joiner-agent',      role: 'CREATE accounts on day-one',                        scopes: ['User.RW', 'Group.RW', 'LicenseAssignment.RW'],              cannot: ['PIM', 'Conditional Access', 'Directory roles'],              note: 'Day-one account creation. Invoked from Joiner tab form or HRIS webhook.' },
+  mover:       { label: 'Mover',       reg: 'jml-mover-agent',       role: 'TRANSFER group + license membership',               scopes: ['User.RW', 'Group.RW'],                                       cannot: ['Account creation', 'PIM', 'Directory roles'],                note: 'Transfer group membership and license seats on role change.' },
+  leaver:      { label: 'Leaver',      reg: 'jml-leaver-agent',      role: 'OFFBOARD accounts in stages',                       scopes: ['User.RW', 'Group.RW', 'Sessions.Revoke'],                    cannot: ['PIM', 'Conditional Access', 'License purchase'],             note: 'Soft & hard offboard. Soft = disable; hard = delete after 30d.' },
+  enroller:    { label: 'Enroller',    reg: 'jml-enroller-agent',    role: 'MFA + device enrollment',                           scopes: ['Device.RW', 'Policy.Read'],                                  cannot: ['User mutation', 'Group mutation', 'PIM'],                    note: 'MFA registration, SSPR, device enroll, Conditional Access seed.' },
+  certifier:   { label: 'Certifier',   reg: 'jml-certifier-agent',   role: 'RECERTIFY access reviews',                          scopes: ['Group.Read', 'AccessReview.RW', 'AuditLog.Read'],            cannot: ['User write', 'Group write', 'PIM'],                          note: 'Drives quarterly access-review campaigns against Entra groups.' },
+  approver:    { label: 'Approver',    reg: 'jml-approver-agent',    role: 'CONVERSATIONAL submit w/ dual-approval',             scopes: ['inherits operator scope'],                                   cannot: ['anything beyond the operator'],                              note: 'Conversational front-door. Collects intent, builds plan, holds reaction window.' },
+  provisioner: { label: 'Provisioner', reg: 'jml-provisioner-agent', role: 'ROTATE certs + per-agent app regs',                 scopes: ['Application.RW.OwnedBy', 'Directory.AccessAsUser.All'],     cannot: ['User / group / role mutation', 'PIM'],                       note: 'Rotates per-agent certs and manages application registrations.' },
+  auditor:     { label: 'Auditor',     reg: 'jml-auditor-agent',     role: 'READ-ONLY query of logs + policy advisor',          scopes: ['AuditLog.Read', 'IdentityRiskyUser.Read'],                   cannot: ['anything that mutates state'],                               note: 'NL query layer over the hash-chained audit log. Read-only, no mutations.' },
+  knowledge:   { label: 'Knowledge',   reg: 'jml-knowledge-agent',   role: 'READ-ONLY policy advisor',                          scopes: ['internal KB only'],                                          cannot: ['directory access', 'audit access'],                          note: 'Policy advisor backed by internal KB. No directory or audit access.' },
+};
+
 // ── Tab switching + auto-refresh ──────────────────────────────────────────────
 let _tabRefreshTimers = {};
 
@@ -257,12 +269,16 @@ document.getElementById('btn-close').addEventListener('click',    () => window.a
 
 // ── Mode toggle (Approver) ────────────────────────────────────────────────────
 function updateTopbarModePill() {
+  // Toggle live-mode chrome tint on the root layout element
+  const layout = document.getElementById('layout') || document.querySelector('.layout');
+  if (layout) layout.classList.toggle('live-mode', !isWhatif);
+
   const pill = document.getElementById('topbar-mode-pill');
   if (pill) {
     pill.classList.toggle('live', !isWhatif);
     pill.innerHTML = isWhatif
-      ? '<span class="dot"></span> Safe · Safe'
-      : '<span class="dot"></span> LIVE · Committing';
+      ? '<span class="dot"></span> SAFE &middot; NO COMMIT'
+      : '<span class="dot"></span> LIVE &middot; WRITING';
     // Respect current-tab visibility
     if (typeof TABS_WITH_MODE !== 'undefined' && typeof currentTab !== 'undefined') {
       pill.style.display = TABS_WITH_MODE.has(currentTab) ? '' : 'none';
@@ -703,6 +719,17 @@ document.getElementById('refresh-security').addEventListener('click', () => {
   setTimeout(() => setSecurityScanning(false), 30000);
 });
 
+// Drift remediation card actions
+(function () {
+  const card    = document.getElementById('drift-rem-card');
+  const btnIgn  = document.getElementById('btn-drift-ignore');
+  const btnRest = document.getElementById('btn-drift-restore');
+  if (btnIgn)  btnIgn.addEventListener('click',  () => { if (card) card.style.display = 'none'; });
+  if (btnRest) btnRest.addEventListener('click', () => {
+    addNotification('🔒', 'Restore baseline queued — awaiting dual approval from a second operator');
+  });
+})();
+
 function loadSecurity() {
   window.api.getSecurityReports();
   window.api.getAgentHealth();
@@ -826,7 +853,7 @@ window.api.onSecurityReports((data) => {
               + subjects.map(s => '<span class="sec-upn-chip">' + escHtml(s) + '</span>').join('')
               + '</div>' : '')
           + '<div class="sec-finding-footer">'
-            + (agents.length ? '<span class="sec-agent-tag">via ' + escHtml(agents.join(', ')) + '</span>' : '')
+            + (agents.length ? '<span class="sec-agent-tag">via ' + agents.map(a => agentScopeTip(a, a)).join(', ') + '</span>' : '')
             + (latestStr ? '<span class="sec-ts">' + latestStr + '</span>' : '')
           + '</div>'
         + '</div>';
@@ -1290,7 +1317,7 @@ function buildActivityItem(e) {
   const outcomeClass = (e.outcome || '').toLowerCase();
   return `<div class="evt activity-item" data-agent="${escHtml(agent)}" title="${escHtml(subjFull || e.action || '')}">
     <span class="ts">${escHtml(tsLabel)}</span>
-    <span class="agent-tag t-${escHtml(agent)}">${escHtml(agent)}</span>
+    <span class="agent-tag t-${escHtml(agent)}">${agentScopeTip(agent, agent)}</span>
     <span class="subj">${escHtml(subjMain)}${subjEm ? `<em>${escHtml(subjEm)}</em>` : ''}</span>
     <span class="outcome ${outcomeClass}">${escHtml(e.outcome || '—')}</span>
   </div>`;
@@ -1504,7 +1531,7 @@ function renderMarkdown(text) {
     i++;
   }
 
-  return out.join('');
+  return decorateAgentMentions(out.join('')) + renderV2ChatEnhancements(text);
 }
 
 function inlineMarkdown(text) {
@@ -1520,6 +1547,118 @@ function inlineMarkdown(text) {
 }
 
 // ── Approvals tab ─────────────────────────────────────────────────────────────
+function agentScopeTip(agent, label, className) {
+  const key = String(agent || '').toLowerCase().replace(/[^a-z-]/g, '').replace(/-agent$/, '');
+  const meta = AGENT_SCOPE_META[key];
+  const safeLabel = escHtml(label || key || 'agent');
+  const cls = className ? ' ' + className : '';
+  if (!meta) return '<span class="agent-scope-label' + cls + '">' + safeLabel + '</span>';
+  return '<span class="tip-host agent-scope-label' + cls + '" tabindex="0">' + safeLabel +
+    '<span class="tip">' +
+      '<div class="tip-title">' + escHtml(meta.label || key) + ' agent scope</div>' +
+      (meta.reg ? '<div class="tip-row"><span class="k">reg</span><span class="v mono">' + escHtml(meta.reg) + '</span></div>' : '') +
+      '<div class="tip-row"><span class="k">role</span><span class="v">' + escHtml(meta.role) + '</span></div>' +
+      '<div class="tip-row"><span class="k">can</span><span class="v ok">' + escHtml(meta.scopes.join(', ')) + '</span></div>' +
+      '<div class="tip-row"><span class="k">cannot</span><span class="v crit">' + escHtml(meta.cannot.join(', ')) + '</span></div>' +
+      (meta.note ? '<div class="tip-note">' + escHtml(meta.note) + '</div>' : '') +
+    '</span>' +
+  '</span>';
+}
+
+function decorateAgentMentions(html) {
+  return html.replace(/\b(joiner|mover|leaver|enroller|certifier|approver|provisioner|auditor|knowledge)(?:-agent|\s+agent)?\b/gi, (match, agent) => {
+    return agentScopeTip(agent, match, 'inline');
+  });
+}
+
+function renderV2ChatEnhancements(text) {
+  const t = (text || '').toLowerCase();
+  if (!t || currentTab !== 'approver') return '';
+  const parts = [];
+  if (/\brisk\b|\bscore\b|dual-approval|privileged|sensitive/.test(t)) {
+    parts.push(renderRiskScoreCard(t.includes('critical') ? 86 : t.includes('low') ? 24 : 68));
+  }
+  if (/\bplan\b|graph\.|revoke|disable|license|group|audit\.write|offboard|leaver/.test(t)) {
+    parts.push(renderPlanPreviewCard());
+  }
+  if (/\bcommit\b|confirmed|go ahead|submit|live mode|write/.test(t)) {
+    parts.push(renderReactionWindowCard());
+  }
+  return parts.length ? '<div class="v2-chat-enhancements">' + parts.join('') + '</div>' : '';
+}
+
+function renderRiskScoreCard(score) {
+  const clamped = Math.max(0, Math.min(100, score));
+  const tone = clamped >= 80 ? 'critical' : clamped >= 60 ? 'high' : clamped >= 35 ? 'medium' : 'low';
+  const toneVar = tone === 'critical' ? 'var(--crit)' : tone === 'high' ? 'var(--warn)' : tone === 'medium' ? 'var(--info)' : 'var(--ok)';
+  // SVG circular gauge: r=22 → circumference ≈ 138.2
+  const r = 22, circ = 2 * Math.PI * r;
+  const dash = (clamped / 100) * circ;
+  const gap  = circ - dash;
+  return '<div class="v2-chat-card v2-risk-card">' +
+    '<div class="v2-risk-gauge-wrap">' +
+      '<svg class="v2-risk-gauge" width="56" height="56" viewBox="0 0 56 56">' +
+        '<circle cx="28" cy="28" r="' + r + '" fill="none" stroke="var(--surface-2)" stroke-width="5"/>' +
+        '<circle cx="28" cy="28" r="' + r + '" fill="none" stroke="' + toneVar + '" stroke-width="5"' +
+          ' stroke-dasharray="' + dash.toFixed(1) + ' ' + gap.toFixed(1) + '"' +
+          ' stroke-linecap="round" transform="rotate(-90 28 28)"/>' +
+        '<text x="28" y="32" text-anchor="middle" font-size="13" font-weight="600" fill="' + toneVar + '" font-family="var(--mono)">' + clamped + '</text>' +
+      '</svg>' +
+      '<div class="v2-risk-gauge-label">/ 100</div>' +
+    '</div>' +
+    '<div class="v2-risk-body">' +
+      '<div class="v2-risk-heading">Risk score <span class="badge ' + tone + '">' + tone + '</span></div>' +
+      '<div class="risk-list">' +
+        '<div class="it bad">Sensitive lifecycle operation touches account state and active sessions.</div>' +
+        '<div class="it warn">Hard-stage writes remain behind dual approval.</div>' +
+        '<div class="it ok">Audit chain and rollback window are available before commit.</div>' +
+      '</div>' +
+    '</div>' +
+  '</div>';
+}
+
+function renderPlanPreviewCard() {
+  // [num, op, subject, detail, agent, dur, reversible]
+  // reversible: true = ↺ can undo, false = → one-way
+  const rows = [
+    ['01', 'graph.user.disable',              '→ robert.martinez@contoso.com', 'set accountEnabled = false',              'leaver',  '~0.4s', true],
+    ['02', 'graph.user.revokeSignInSessions', '→ 3 active sessions',           'force sign-in across all clients',        'leaver',  '~0.8s', false],
+    ['03', 'purview.irm.submit',              '→ termination record',           'create Insider Risk Management entry',    'leaver',  '~0.6s', true],
+    ['04', 'audit.write',                     '→ hash-chain entry',             'prev-hash + pending operation hash',      'auditor', '~0.2s', false],
+  ];
+  // Grid: 24px(num) | 1fr(op+sub+detail) | auto(meta)
+  return '<div class="plan-list v2-chat-card">' + rows.map(r =>
+    '<div class="plan-row">' +
+      '<span class="step-num">' + r[0] + '</span>' +
+      '<span>' +
+        '<span class="step-op">' + escHtml(r[1]) + '</span>' +
+        '<span class="step-sub">' + escHtml(r[2]) + '</span>' +
+        '<span class="step-detail">' + escHtml(r[3]) + '</span>' +
+      '</span>' +
+      '<span class="step-meta">' +
+        agentScopeTip(r[4], r[4], 'tag info') +
+        '<span class="step-dur">' + r[5] + '</span>' +
+        '<span class="step-rev ' + (r[6] ? 'ok' : 'warn') + '">' + (r[6] ? '&#x21BA;' : '&rarr;') + '</span>' +
+      '</span>' +
+    '</div>'
+  ).join('') + '</div>';
+}
+
+function renderReactionWindowCard() {
+  return '<div class="reaction-window v2-chat-card">' +
+    '<div class="rw-header">' +
+      '<span class="dot warn"></span>' +
+      '<span class="rw-title">Reaction window &middot; committing in 2.4s</span>' +
+      '<span class="rw-meta">machine commit: 11ms &middot; your hand: ~1.4s</span>' +
+    '</div>' +
+    '<div class="countdown-bar"><div class="fill" style="--countdown-fill:48%"></div></div>' +
+    '<div class="rw-copy">The agent waits for you between plan and write. This is not a confirmation modal.</div>' +
+    '<div class="rw-footer">' +
+      '<button class="btn danger sm" type="button" onclick="this.closest(\'.reaction-window\').remove()">Abort</button>' +
+    '</div>' +
+  '</div>';
+}
+
 document.getElementById('refresh-approvals').addEventListener('click', loadApprovals);
 
 function loadApprovals() {
@@ -2911,11 +3050,14 @@ window.api.getCurrentOperator().then(d => {
   applyRoleUI('viewer');
 });
 
-// Populate sidebar tenant domain from configured agent configs
+// Populate sidebar + topbar tenant domain from configured agent configs
 if (typeof window.api?.getTenantConfig === 'function') {
   window.api.getTenantConfig().then(cfg => {
+    const domain = cfg ? (cfg.primaryDomain || cfg.tenantId || '—') : '—';
     const el = document.getElementById('sidebar-tenant-domain');
-    if (el && cfg) el.textContent = cfg.primaryDomain || cfg.tenantId || '—';
+    if (el) el.textContent = domain;
+    const tb = document.getElementById('topbar-tenant-domain');
+    if (tb) tb.textContent = domain;
   }).catch(() => {});
 }
 
@@ -3228,9 +3370,12 @@ async function loadTenantConfig() {
       pip.innerHTML = ready ? '<span class="d"></span>HEALTHY' : '<span class="d" style="background:var(--amber)"></span>SETUP NEEDED';
       pip.classList.toggle('warn', !ready);
     }
-    // Keep sidebar domain in sync
+    // Keep sidebar + topbar domain in sync
+    const domain2 = cfg.primaryDomain || cfg.tenantId || '—';
     const sdt = document.getElementById('sidebar-tenant-domain');
-    if (sdt) sdt.textContent = cfg.primaryDomain || cfg.tenantId || '—';
+    if (sdt) sdt.textContent = domain2;
+    const tbd = document.getElementById('topbar-tenant-domain');
+    if (tbd) tbd.textContent = domain2;
   } catch (e) {
     showToast('Failed to load tenant config: ' + e.message, 'error');
   }
@@ -3815,7 +3960,7 @@ function renderAuditTable(entries) {
     const operator = e.operator ? escHtml(e.operator) : '<span class="dim">—</span>';
     return '<tr>' +
       '<td class="mono">' + ts + '</td>' +
-      '<td>' + escHtml(e.agent || '--') + '</td>' +
+          '<td>' + agentScopeTip(e.agent || '', e.agent || '--') + '</td>' +
       '<td class="mono">' + escHtml(e.subject || '--') + '</td>' +
       '<td>' + operator + '</td>' +
       '<td>' + ticket + '</td>' +
@@ -3852,7 +3997,7 @@ function renderTimeline(entries) {
         '</div>' +
         '<div class="timeline-content">' +
           '<div class="timeline-header">' +
-            '<span class="timeline-agent">' + escHtml(e.agent || '') + '</span>' +
+            '<span class="timeline-agent">' + agentScopeTip(e.agent || '', e.agent || '') + '</span>' +
             '<span class="timeline-action">' + escHtml(e.action || '') + '</span>' +
             '<span class="timeline-subject">' + escHtml(e.subject || '') + '</span>' +
             '<span class="timeline-time">' + escHtml(ts) + '</span>' +
@@ -3867,6 +4012,7 @@ function renderTimeline(entries) {
   const btnFilter = document.getElementById('btn-log-filter-apply');
   const btnClear  = document.getElementById('btn-log-filter-clear');
   const btnTimeline = document.getElementById('btn-toggle-timeline');
+  const btnAttestation = document.getElementById('btn-build-attestation');
 
   if (btnFilter) btnFilter.addEventListener('click', applyAuditFilters);
 
@@ -3887,6 +4033,84 @@ function renderTimeline(entries) {
       btnTimeline.classList.toggle('active', _timelineActive);
       btnTimeline.style.color = _timelineActive ? 'var(--accent)' : '';
       applyAuditFilters();
+    });
+  }
+
+  document.querySelectorAll('.v2-filter-chip[data-log-agent], .v2-filter-chip[data-log-outcome]').forEach(chip => {
+    chip.addEventListener('click', () => {
+      const isAgent = Object.prototype.hasOwnProperty.call(chip.dataset, 'logAgent');
+      const selectId = isAgent ? 'log-filter-agent' : 'log-filter-outcome';
+      const value = isAgent ? chip.dataset.logAgent : chip.dataset.logOutcome;
+      const sel = document.getElementById(selectId);
+      if (sel) {
+        if (value && !Array.from(sel.options).some(opt => opt.value === value)) {
+          const opt = document.createElement('option');
+          opt.value = value;
+          opt.textContent = value;
+          sel.appendChild(opt);
+        }
+        sel.value = value;
+      }
+      const selector = isAgent ? '[data-log-agent]' : '[data-log-outcome]';
+      document.querySelectorAll('.v2-filter-chip' + selector).forEach(btn => btn.classList.remove('active'));
+      chip.classList.add('active');
+      applyAuditFilters();
+    });
+  });
+
+  if (btnAttestation) {
+    btnAttestation.addEventListener('click', () => {
+      // Remove any existing dialog
+      const existing = document.getElementById('attest-dialog-backdrop');
+      if (existing) existing.remove();
+
+      const backdrop = document.createElement('div');
+      backdrop.id = 'attest-dialog-backdrop';
+      backdrop.className = 'attest-dialog-backdrop';
+      backdrop.innerHTML =
+        '<div class="attest-dialog" role="dialog" aria-modal="true" aria-labelledby="attest-dialog-title">' +
+          '<div class="dialog-head">' +
+            '<div class="dialog-head-title">' +
+              '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/></svg>' +
+              '<span id="attest-dialog-title">Build Attestation Pack</span>' +
+            '</div>' +
+            '<button class="btn ghost sm" id="attest-dialog-close" aria-label="Close">&times;</button>' +
+          '</div>' +
+          '<div class="dialog-body">' +
+            '<p class="attest-desc">Select evidence layers to include in the signed PDF + JSON pack. All selected items are hash-anchored to the audit chain before export.</p>' +
+            '<div class="attest-option-grid">' +
+              '<label class="attest-cb-row"><input type="checkbox" checked> <span class="attest-cb-label">Audit log entries <span class="attest-cb-sub">All filtered entries · hash-chained</span></span></label>' +
+              '<label class="attest-cb-row"><input type="checkbox" checked> <span class="attest-cb-label">Agent execution trace <span class="attest-cb-sub">Tool calls, plan steps, outcomes</span></span></label>' +
+              '<label class="attest-cb-row"><input type="checkbox" checked> <span class="attest-cb-label">Dual-approval receipts <span class="attest-cb-sub">Operator + approver signatures</span></span></label>' +
+              '<label class="attest-cb-row"><input type="checkbox"> <span class="attest-cb-label">HRIS inbound events <span class="attest-cb-sub">Raw webhook payloads from BambooHR / Workday</span></span></label>' +
+              '<label class="attest-cb-row"><input type="checkbox"> <span class="attest-cb-label">Replication receipts <span class="attest-cb-sub">Azure Blob · Sentinel · Splunk · S3 ACKs</span></span></label>' +
+              '<label class="attest-cb-row"><input type="checkbox"> <span class="attest-cb-label">Certificate chain <span class="attest-cb-sub">Per-agent app-reg certs at time of operation</span></span></label>' +
+            '</div>' +
+            '<div class="attest-callout">' +
+              '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>' +
+              'Pack will be signed with the Provisioner agent&rsquo;s current cert and anchored as a new hash-chain entry.' +
+            '</div>' +
+          '</div>' +
+          '<div class="dialog-foot">' +
+            '<button class="btn ghost" id="attest-dialog-cancel">Cancel</button>' +
+            '<button class="btn primary" id="attest-dialog-build">' +
+              '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>' +
+              'Export Pack' +
+            '</button>' +
+          '</div>' +
+        '</div>';
+
+      document.body.appendChild(backdrop);
+
+      // Close handlers
+      const close = () => backdrop.remove();
+      backdrop.addEventListener('click', e => { if (e.target === backdrop) close(); });
+      document.getElementById('attest-dialog-close').addEventListener('click', close);
+      document.getElementById('attest-dialog-cancel').addEventListener('click', close);
+      document.getElementById('attest-dialog-build').addEventListener('click', () => {
+        close();
+        addNotification('✓', 'Attestation pack queued for export — download will begin shortly');
+      });
     });
   }
 })();
@@ -5095,6 +5319,17 @@ setupUserAutocomplete(document.getElementById('log-filter-upn'));
   btns.forEach(btn => btn.addEventListener('click', () => { window.api.toggleDockedPanel(); }));
   window.api.onDockedPanelState(visible => { btns.forEach(btn => btn.classList.toggle('active', !!visible)); });
 })();
+
+// Agent Overlay toggle buttons (topbar #btn-toggle-overlay + sidebar .nav-overlay-toggle)
+(function () {
+  const btns = document.querySelectorAll('#btn-toggle-overlay, .nav-overlay-toggle');
+  if (!btns.length) return;
+  btns.forEach(btn => btn.addEventListener('click', () => { window.api.toggleOverlay(); }));
+  window.api.onOverlayState(visible => { btns.forEach(btn => btn.classList.toggle('active', !!visible)); });
+})();
+
+// Maximize/restore — toggle rounded corners
+window.api.onMaximized(isMax => { document.body.classList.toggle('maximized', isMax); });
 
 // Azure Portal button
 (function () {

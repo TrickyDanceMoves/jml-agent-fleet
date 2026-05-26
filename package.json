@@ -28,6 +28,8 @@
     "files": [
       "main.js",
       "preload.js",
+      "preload-panel.js",
+      "preload-overlay.js",
       "renderer/**/*",
       "Assets/icon.ico"
     ],

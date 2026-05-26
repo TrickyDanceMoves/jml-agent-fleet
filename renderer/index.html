@@ -35,75 +35,75 @@
         </div>
 
         <nav class="nav-items">
-          <!-- OVERVIEW -->
-          <div class="nav-section">Overview</div>
-          <button class="nav-item active" data-tab="dashboard">
+          <!-- FOCUS -->
+          <div class="nav-section">Focus</div>
+          <button class="nav-item active" data-tab="dashboard" title="Dashboard">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
             <span>Dashboard</span>
           </button>
 
-          <!-- DISPATCH -->
-          <div class="nav-section">Dispatch</div>
-          <button class="nav-item" data-tab="approver">
+          <!-- RUN -->
+          <div class="nav-section">Run</div>
+          <button class="nav-item" data-tab="approver" title="Approver Agent">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 2L3 7v10l9 5 9-5V7L12 2z"/><path d="M9 12l2 2 4-4"/></svg>
             <span>Approver Agent</span>
           </button>
-          <button class="nav-item" data-tab="auditor">
+          <button class="nav-item" data-tab="auditor" title="Audit Agent">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>
             <span>Audit Agent</span>
           </button>
-          <button class="nav-item" data-tab="graph">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
-            <span>Graph Runner</span>
+          <button class="nav-item" data-tab="operations" title="Operations">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14"/></svg>
+            <span>Operations</span>
           </button>
-
-          <!-- OPERATE -->
-          <div class="nav-section">Operate</div>
-          <button class="nav-item" data-tab="approvals">
+          <button class="nav-item" data-tab="approvals" title="Approvals">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
             <span>Approvals</span>
             <span class="count empty" id="nav-approvals-count">0</span>
           </button>
-          <button class="nav-item" data-tab="operations">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14"/></svg>
-            <span>Operations</span>
-          </button>
-          <button class="nav-item" data-tab="certifications">
+          <button class="nav-item" data-tab="certifications" title="Access Reviews">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/></svg>
             <span>Access Reviews</span>
-          </button>
-          <button class="nav-item" data-tab="integrations">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1"/><path d="M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1"/></svg>
-            <span>Integrations</span>
           </button>
 
           <!-- GOVERN -->
           <div class="nav-section">Govern</div>
-          <button class="nav-item" data-tab="security">
+          <button class="nav-item" data-tab="security" title="Security">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
             <span>Security</span>
             <span class="count empty" id="nav-security-count">0</span>
           </button>
-          <button class="nav-item" data-tab="audit-log">
+          <button class="nav-item" data-tab="audit-log" title="Audit Log">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><line x1="10" y1="9" x2="8" y2="9"/></svg>
             <span>Audit Log</span>
           </button>
-          <button class="nav-item" data-tab="exports">
+          <button class="nav-item" data-tab="exports" title="Exports">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
             <span>Exports</span>
           </button>
 
           <!-- DATA -->
           <div class="nav-section">Data</div>
-          <button class="nav-item" data-tab="users">
+          <button class="nav-item" data-tab="users" title="Users">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
             <span>Users</span>
           </button>
-          <button class="nav-item" data-tab="certs">
+          <button class="nav-item" data-tab="graph" title="Graph Runner">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+            <span>Graph Runner</span>
+          </button>
+          <button class="nav-item" data-tab="integrations" title="Integrations">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1"/><path d="M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1"/></svg>
+            <span>Integrations</span>
+          </button>
+          <button class="nav-item" data-tab="certs" title="Agent Certs">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="6"/><path d="M9 14l-2 8 5-3 5 3-2-8"/></svg>
             <span>Agent Certs</span>
           </button>
-          <button class="nav-item" data-tab="settings">
+
+          <!-- CONFIGURE -->
+          <div class="nav-section">Configure</div>
+          <button class="nav-item" data-tab="settings" title="Settings">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
             <span>Settings</span>
           </button>
@@ -112,6 +112,10 @@
           <button class="nav-docked-toggle" title="Toggle docked panel (Ctrl+Shift+D)">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" width="13" height="13"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="15" y1="3" x2="15" y2="21"/></svg>
             <span>Docked</span>
+          </button>
+          <button class="nav-overlay-toggle" title="Agent Overlay (Ctrl+Shift+Space)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" width="13" height="13"><rect x="2" y="7" width="20" height="13" rx="2"/><path d="M8 7V5a2 2 0 0 1 4 0v2M12 12v4M10 14h4"/></svg>
+            <span>Overlay</span>
           </button>
         </nav>
 
@@ -143,63 +147,249 @@
       <!-- ============ MAIN ============ -->
       <main class="content">
 
-        <!-- Top bar (drag region · crumbs · mode pill · controls · window buttons) -->
+        <!-- Top bar (drag region · brand · crumbs · mode pill · tenant chip · controls · window buttons) -->
         <div class="topbar">
+          <!-- Brand (mirrors sidebar brand, anchors the bar) -->
+          <div class="brand-tb">
+            <div class="brand-mark-sm"></div>
+            <span class="tb-name">JML Fleet</span>
+            <span class="tb-sub">Console</span>
+          </div>
           <div class="crumbs">
-            <span>Console</span>
             <span class="sep">/</span>
             <span class="cur" id="crumb-cur">Dashboard</span>
           </div>
           <span class="mode-pill" id="topbar-mode-pill">
-            <span class="dot"></span> Safe Mode
+            <span class="dot"></span> SAFE &middot; NO COMMIT
           </span>
           <div class="spacer"></div>
-          <div class="topbar-controls">
-            <button class="win-btn help-btn" id="btn-help" title="Quick Reference">?</button>
-            <div class="notif-bell-wrap" id="notif-bell-wrap">
-              <button class="notif-bell-btn" id="btn-notif-bell" title="Notifications">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="14" height="14"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
-                <span class="notif-badge" id="notif-badge" style="display:none">0</span>
-              </button>
-              <div class="notif-dropdown" id="notif-dropdown" style="display:none">
-                <div class="notif-dropdown-header">
-                  <span class="notif-dropdown-title">Notifications</span>
-                  <button class="btn-text-link" id="btn-notif-clear-all">Clear all</button>
-                </div>
-                <div class="notif-list" id="notif-list"><div class="loading-hint">No notifications.</div></div>
-              </div>
-            </div>
-            <span class="divider"></span>
-            <button class="win-btn azure-btn" id="btn-azure" title="Open Azure Portal">
-              <svg viewBox="0 0 24 24" fill="currentColor" width="13" height="13">
-                <path d="M13.5 3.5L5 20.5h4l2-5.5h3.5L19 20.5h4L13.5 3.5zm0 5.5 2.1 5.5h-4.2z"/>
-              </svg>
-            </button>
-            <button class="win-btn docked-btn" id="btn-toggle-docked" title="Toggle docked panel (Ctrl+Shift+D)">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="13" height="13"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="15" y1="3" x2="15" y2="21"/></svg>
-            </button>
-            <span class="divider"></span>
-            <button class="win-btn" id="btn-minimize" title="Minimize">&#x2212;</button>
-            <button class="win-btn" id="btn-maximize" title="Maximize">&#x25A1;</button>
-            <button class="win-btn close" id="btn-close" title="Close">&#x2715;</button>
+          <!-- Tenant chip -->
+          <div class="tenant-chip" id="topbar-tenant-chip" title="Tenant">
+            <span class="dot"></span>
+            <span id="topbar-tenant-domain">—</span>
           </div>
+          <!-- Icon actions -->
+          <button class="iconbtn" id="btn-help" title="Quick Reference">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" width="15" height="15" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 0 1 5 0c0 2-2.5 2.5-2.5 4"/><circle cx="12" cy="17" r="0.6" fill="currentColor"/></svg>
+          </button>
+          <div class="notif-bell-wrap" id="notif-bell-wrap">
+            <button class="iconbtn" id="btn-notif-bell" title="Notifications" style="position:relative">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" width="15" height="15" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg>
+              <span class="notif-badge" id="notif-badge" style="display:none">0</span>
+            </button>
+            <div class="notif-dropdown" id="notif-dropdown" style="display:none">
+              <div class="notif-dropdown-header">
+                <span class="notif-dropdown-title">Notifications</span>
+                <button class="btn-text-link" id="btn-notif-clear-all">Clear all</button>
+              </div>
+              <div class="notif-list" id="notif-list"><div class="loading-hint">No notifications.</div></div>
+            </div>
+          </div>
+          <span class="divider"></span>
+          <button class="win-btn azure-btn" id="btn-azure" title="Open Azure Portal">
+            <svg viewBox="0 0 24 24" fill="currentColor" width="13" height="13">
+              <path d="M13.5 3.5L5 20.5h4l2-5.5h3.5L19 20.5h4L13.5 3.5zm0 5.5 2.1 5.5h-4.2z"/>
+            </svg>
+          </button>
+          <button class="win-btn docked-btn" id="btn-toggle-docked" title="Toggle docked panel (Ctrl+Shift+D)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="13" height="13"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="15" y1="3" x2="15" y2="21"/></svg>
+          </button>
+          <button class="win-btn docked-btn" id="btn-toggle-overlay" title="Agent Overlay (Ctrl+Shift+Space)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="13" height="13"><rect x="2" y="8" width="20" height="13" rx="2"/><path d="M8 8V6a4 4 0 0 1 8 0v2"/><line x1="12" y1="13" x2="12" y2="17"/><line x1="10" y1="15" x2="14" y2="15"/></svg>
+          </button>
+          <span class="divider"></span>
+          <button class="win-btn" id="btn-minimize" title="Minimize">&#x2212;</button>
+          <button class="win-btn" id="btn-maximize" title="Maximize">&#x25A1;</button>
+          <button class="win-btn close" id="btn-close" title="Close">&#x2715;</button>
         </div>
 
         <!-- =====================================================
              VIEW · DASHBOARD
              ===================================================== -->
         <section class="view active" id="view-dashboard">
-          <div class="head">
-            <div>
-              <h1 class="h1">Fleet Overview <span class="sub" id="dash-headline-sub"></span></h1>
-              <p class="desc">Seven specialist agents handling joiners, movers, leavers, enrollment, certification and audit across your Entra tenant.</p>
+          <div class="v2-page-title">
+            <h1 id="dash-greeting">Fleet Overview</h1>
+            <span class="meta"><b id="dash-fleet-agent-count">7 agents</b> · <span id="dash-headline-sub">loading…</span></span>
+            <button class="btn ghost" id="btn-customize-dashboard" title="Show/hide dashboard sections" style="margin-left:auto;font-size:12px">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="12" height="12"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+              Customize
+            </button>
+          </div>
+          <p class="v2-page-sub">Seven specialist agents handling joiners, movers, leavers, enrollment, certification and audit across your Entra tenant. Three things may need your attention.</p>
+
+          <div class="v2-triage-strip" aria-label="Priority triage">
+            <button class="v2-triage-card crit" data-jump-tab="security">
+              <span class="label">Security / 2 critical</span>
+              <span class="title">After-hours leaver detected</span>
+              <span class="meta">robert.martinez / 05:18 / via leaver</span>
+              <span class="sub">Plus 1 leaver-then-group-add pattern</span>
+            </button>
+            <button class="v2-triage-card warn" data-jump-tab="approvals">
+              <span class="label">Approvals / 3 pending</span>
+              <span class="title">Hard leaver awaiting 2nd approval</span>
+              <span class="meta">sales-ops / expires in 22 min</span>
+              <span class="sub">Plus 2 sensitive group changes</span>
+            </button>
+            <button class="v2-triage-card info" data-jump-tab="certs">
+              <span class="label">Rotations / 2 soon</span>
+              <span class="title">Mover cert expires in 14 days</span>
+              <span class="meta">jml-fleet-mover / thumbprint 7A91...</span>
+              <span class="sub">Provisioner rotation follows in 31 days</span>
+            </button>
+          </div>
+
+          <div class="v2-hris-lane" aria-label="HRIS inbound identity events">
+            <div class="lane-head">
+              <span class="dot info"></span>
+              <span class="section-label" style="margin:0">Inbound / identity work origin</span>
+              <span class="ks">3 events in last 30 min / BambooHR / Workday / ServiceNow</span>
+              <button class="btn ghost sm" style="margin-left:auto">Pause stream</button>
             </div>
-            <div class="row-flex">
-              <span class="tenant-badge" id="dash-tenant-badge">contoso.onmicrosoft.com</span>
-              <button class="btn ghost" id="btn-customize-dashboard" title="Show/hide dashboard sections">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="13" height="13"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-                Customize
+            <div class="v2-hris-grid">
+              <button class="v2-hris-event" data-jump-tab="approver">
+                <span class="src"><span class="dot info"></span>BambooHR / hire</span>
+                <span class="name">taylor.chen</span>
+                <span class="detail">Engineering / L4 / start today</span>
+                <span class="route">-&gt; <span class="tag info">joiner</span></span>
               </button>
+              <button class="v2-hris-event" data-jump-tab="approver">
+                <span class="src"><span class="dot crit"></span>BambooHR / termination</span>
+                <span class="name">robert.martinez</span>
+                <span class="detail">Sales / effective immediate</span>
+                <span class="route">-&gt; <span class="tag crit">leaver</span></span>
+              </button>
+              <button class="v2-hris-event" data-jump-tab="approver">
+                <span class="src"><span class="dot warn"></span>Workday / role change</span>
+                <span class="name">mina.okafor</span>
+                <span class="detail">Finance / approver pool move</span>
+                <span class="route">-&gt; <span class="tag warn">mover</span></span>
+              </button>
+              <button class="v2-hris-event" data-jump-tab="approver">
+                <span class="src"><span class="dot info"></span>ServiceNow / manual</span>
+                <span class="name">REQ-1842</span>
+                <span class="detail">Sensitive license request</span>
+                <span class="route">-&gt; <span class="tag violet">approver</span></span>
+              </button>
+            </div>
+          </div>
+
+          <!-- V2 Fleet Status Strip -->
+          <div class="v2-fleet-hdr">
+            <span class="fleet-lbl">Fleet &middot; <span id="v2-fleet-health-lbl">7 agents</span></span>
+            <span class="fleet-meta">auto-refresh 5s</span>
+          </div>
+          <div class="v2-fleet-strip" id="v2-fleet-strip">
+            <div class="v2-fleet-tile" data-agent="joiner">
+              <div class="ft-top"><span class="ft-name">Joiner</span><span class="ft-dot ok"></span></div>
+              <div class="ft-state">idle</div>
+              <div class="ft-divider"></div>
+              <div class="ft-row"><span>last</span><span id="v2fl-lr-joiner">—</span></div>
+              <div class="ft-row"><span>cert</span><span id="v2fl-cert-joiner">—</span></div>
+            </div>
+            <div class="v2-fleet-tile" data-agent="mover">
+              <div class="ft-top"><span class="ft-name">Mover</span><span class="ft-dot ok"></span></div>
+              <div class="ft-state">idle</div>
+              <div class="ft-divider"></div>
+              <div class="ft-row"><span>last</span><span id="v2fl-lr-mover">—</span></div>
+              <div class="ft-row"><span>cert</span><span id="v2fl-cert-mover">—</span></div>
+            </div>
+            <div class="v2-fleet-tile" data-agent="leaver">
+              <div class="ft-top"><span class="ft-name">Leaver</span><span class="ft-dot ok"></span></div>
+              <div class="ft-state">idle</div>
+              <div class="ft-divider"></div>
+              <div class="ft-row"><span>last</span><span id="v2fl-lr-leaver">—</span></div>
+              <div class="ft-row"><span>cert</span><span id="v2fl-cert-leaver">—</span></div>
+            </div>
+            <div class="v2-fleet-tile" data-agent="enroller">
+              <div class="ft-top"><span class="ft-name">Enroller</span><span class="ft-dot idle"></span></div>
+              <div class="ft-state">idle</div>
+              <div class="ft-divider"></div>
+              <div class="ft-row"><span>last</span><span id="v2fl-lr-enroller">—</span></div>
+              <div class="ft-row"><span>cert</span><span id="v2fl-cert-enroller">—</span></div>
+            </div>
+            <div class="v2-fleet-tile" data-agent="approver">
+              <div class="ft-top"><span class="ft-name">Approver</span><span class="ft-dot info"></span></div>
+              <div class="ft-state">waiting</div>
+              <div class="ft-detail info" id="v2fl-detail-approver">0 in queue</div>
+              <div class="ft-divider"></div>
+              <div class="ft-row"><span>last</span><span id="v2fl-lr-approver">now</span></div>
+              <div class="ft-row"><span>cert</span><span id="v2fl-cert-approver">—</span></div>
+            </div>
+            <div class="v2-fleet-tile" data-agent="provisioner">
+              <div class="ft-top"><span class="ft-name">Provisioner</span><span class="ft-dot idle"></span></div>
+              <div class="ft-state">standby</div>
+              <div class="ft-divider"></div>
+              <div class="ft-row"><span>last</span><span id="v2fl-lr-provisioner">—</span></div>
+              <div class="ft-row"><span>cert</span><span>∞</span></div>
+            </div>
+            <div class="v2-fleet-tile" data-agent="auditor">
+              <div class="ft-top"><span class="ft-name">Auditor</span><span class="ft-dot ok"></span></div>
+              <div class="ft-state">active</div>
+              <div class="ft-detail ok">streaming</div>
+              <div class="ft-divider"></div>
+              <div class="ft-row"><span>last</span><span id="v2fl-lr-auditor">—</span></div>
+              <div class="ft-row"><span>cert</span><span id="v2fl-cert-auditor">—</span></div>
+            </div>
+          </div>
+
+          <!-- V2 Bottom Row: Live Ops + Telemetry -->
+          <div class="v2-bottom-row">
+            <!-- Live Operations Card -->
+            <div class="v2-liveops-card">
+              <div class="card-head">
+                <span class="ft-dot ok" style="width:7px;height:7px;border-radius:50%;display:inline-block;background:var(--ok);box-shadow:0 0 6px var(--ok)"></span>
+                <h3>Live Operations</h3>
+                <span class="ks">streaming</span>
+                <div class="actions">
+                  <button class="btn ghost sm">Pause</button>
+                  <button class="btn ghost sm" id="dash-open-ops">Open queue</button>
+                </div>
+              </div>
+              <div id="v2-liveops-body">
+                <div class="v2-liveops-row">
+                  <span class="lr-ts">—</span>
+                  <span style="color:var(--muted);font-size:11px">no operations in flight</span>
+                  <span></span><span></span><span></span><span></span>
+                </div>
+              </div>
+            </div>
+            <!-- Telemetry Card -->
+            <div class="v2-telemetry-card">
+              <div class="tc-head">
+                <h3>7-Day Telemetry</h3>
+                <span class="tc-range" id="v2-telemetry-range">—</span>
+              </div>
+              <div class="tc-section-lbl">
+                <span>JML OPERATIONS</span>
+                <span id="v2-telemetry-ops-total">— · —</span>
+              </div>
+              <div class="v2-bar-chart" id="v2-bar-chart">
+                <div class="bar" style="height:45%"></div>
+                <div class="bar" style="height:30%"></div>
+                <div class="bar" style="height:80%"></div>
+                <div class="bar" style="height:42%"></div>
+                <div class="bar" style="height:22%"></div>
+                <div class="bar" style="height:15%"></div>
+                <div class="bar" style="height:65%"></div>
+              </div>
+              <div class="v2-bar-days">
+                <span>M</span><span>T</span><span>W</span><span>T</span><span>F</span><span>S</span><span>S</span>
+              </div>
+              <div class="v2-lic-divider"></div>
+              <div class="tc-section-lbl" style="margin-bottom:10px">
+                <span>LICENSE HEADROOM</span>
+                <span id="v2-lic-headroom">— / — used</span>
+              </div>
+              <div id="v2-lic-bars">
+                <div class="v2-lic-row">
+                  <div class="lrl"><span>M365_E5</span><span id="v2-lic-m365" style="color:var(--muted)">—/—</span></div>
+                  <div class="v2-lic-track"><div class="v2-lic-fill ok" style="width:16%"></div></div>
+                </div>
+                <div class="v2-lic-row" style="margin-top:6px">
+                  <div class="lrl"><span>AAD_PREMIUM_P2</span><span id="v2-lic-aad" style="color:var(--muted)">—/—</span></div>
+                  <div class="v2-lic-track"><div class="v2-lic-fill ok" style="width:12%"></div></div>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -504,6 +694,7 @@
             </div>
           </div>
 
+          <div class="v2-approver-layout">
           <div class="chat-shell">
             <div id="mode-toggle">
               <button class="mode-btn active" data-mode="whatif">Safe</button>
@@ -550,6 +741,32 @@
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" width="16" height="16"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
               </button>
             </div>
+          </div>
+
+          <aside class="v2-approver-rail">
+            <div class="v2-rail-card">
+              <div class="v2-rail-head">
+                <h3>Lifecycle</h3>
+                <span class="tag warn">Leaver / staged</span>
+              </div>
+              <div class="v2-lifecycle-map">
+                <div class="v2-lifecycle-state done"><div class="label">Request</div><div class="sub">captured</div></div>
+                <div class="v2-lifecycle-state done"><div class="label">Risk Score</div><div class="sub">68 / high</div></div>
+                <div class="v2-lifecycle-state active"><div class="label">Plan</div><div class="sub">soft stage ready</div></div>
+                <div class="v2-lifecycle-state"><div class="label">Reaction</div><div class="sub">2400 ms wait</div></div>
+                <div class="v2-lifecycle-state blocked"><div class="label">Hard Stage</div><div class="sub">needs 2nd approval</div></div>
+              </div>
+            </div>
+            <div class="v2-rail-card">
+              <div class="v2-rail-head">
+                <h3>Guardrails</h3>
+                <span class="tag ok">Safe</span>
+              </div>
+              <div class="v2-rail-kv"><span>SoD policy</span><b>No conflict</b></div>
+              <div class="v2-rail-kv"><span>Freeze window</span><b>None active</b></div>
+              <div class="v2-rail-kv"><span>Rollback window</span><b>24h soft stage</b></div>
+            </div>
+          </aside>
           </div>
         </section>
 
@@ -965,6 +1182,26 @@
             </div>
           </details>
 
+          <!-- Drift remediation card -->
+          <div class="drift-rem-card" id="drift-rem-card">
+            <div class="drift-rem-head">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+              <span class="drift-rem-title">Remediate drift · MFA not required for Guests</span>
+              <span class="drift-rem-badge">1 item drifted</span>
+            </div>
+            <div class="drift-rem-diff">
+              <div class="diff-row keep"><span class="diff-gutter">&nbsp;</span><span>"conditionalAccessPolicies": [</span></div>
+              <div class="diff-row rem" ><span class="diff-gutter">&minus;</span><span>&nbsp;&nbsp;"grantControls": { "builtInControls": [] }</span></div>
+              <div class="diff-row add" ><span class="diff-gutter">+</span><span>&nbsp;&nbsp;"grantControls": { "builtInControls": ["mfa"] }</span></div>
+              <div class="diff-row keep"><span class="diff-gutter">&nbsp;</span><span>]</span></div>
+            </div>
+            <div class="drift-rem-actions">
+              <span class="note">Requires dual-approval &middot; Provisioner agent will write via PATCH /policies/conditionalAccessPolicies</span>
+              <button class="btn ghost sm" id="btn-drift-ignore">Ignore</button>
+              <button class="btn primary sm" id="btn-drift-restore">Restore baseline</button>
+            </div>
+          </div>
+
           <!-- Risky users -->
           <details class="collapse" id="sec-section-risky" open>
             <summary>
@@ -1043,8 +1280,56 @@
             </div>
             <div class="row-flex">
               <button class="btn ghost" id="btn-toggle-timeline">Timeline</button>
+              <button class="btn" id="btn-build-attestation">Build Attestation Pack</button>
               <button class="btn primary" id="refresh-log">Refresh</button>
             </div>
+          </div>
+
+          <div class="v2-chain-integrity">
+            <div class="chain-head">
+              <h3>Chain Integrity</h3>
+              <div class="chain-meta">
+                <span>head: <b>9f1a3c...b820</b></span>
+                <span>tail: <b>0000...0001</b></span>
+                <span>verified: <b style="color:var(--ok)">yes</b></span>
+              </div>
+            </div>
+            <div class="v2-chain-blocks" aria-label="Hash-chain block sample">
+              <span class="v2-chain-block"></span><span class="v2-chain-block"></span><span class="v2-chain-block"></span><span class="v2-chain-block"></span><span class="v2-chain-block"></span><span class="v2-chain-block"></span>
+              <span class="v2-chain-block"></span><span class="v2-chain-block"></span><span class="v2-chain-block warn"></span><span class="v2-chain-block"></span><span class="v2-chain-block"></span><span class="v2-chain-block"></span>
+              <span class="v2-chain-block"></span><span class="v2-chain-block"></span><span class="v2-chain-block"></span><span class="v2-chain-block crit"></span><span class="v2-chain-block"></span><span class="v2-chain-block"></span>
+              <span class="v2-chain-block"></span><span class="v2-chain-block"></span><span class="v2-chain-block"></span><span class="v2-chain-block"></span><span class="v2-chain-block"></span><span class="v2-chain-block"></span>
+              <span class="v2-chain-block"></span><span class="v2-chain-block"></span><span class="v2-chain-block"></span><span class="v2-chain-block"></span><span class="v2-chain-block"></span><span class="v2-chain-block"></span>
+              <span class="v2-chain-block"></span><span class="v2-chain-block"></span><span class="v2-chain-block"></span><span class="v2-chain-block"></span><span class="v2-chain-block"></span><span class="v2-chain-block"></span>
+            </div>
+            <div class="v2-replication-chain">
+              <div class="rep-title">Replication / tamper-evident end-to-end</div>
+              <div class="v2-replication-hops">
+                <div class="v2-replication-hop"><span class="label"><span class="dot ok"></span>Local Chain</span><span class="sub">SHA-256 / in-memory</span><span class="latency">0 ms</span></div>
+                <span class="v2-replication-arrow">-&gt;</span>
+                <div class="v2-replication-hop"><span class="label"><span class="dot ok"></span>Azure Blob</span><span class="sub">Object-Lock / WORM / 7y</span><span class="latency">120 ms</span></div>
+                <span class="v2-replication-arrow">-&gt;</span>
+                <div class="v2-replication-hop"><span class="label"><span class="dot ok"></span>Sentinel</span><span class="sub">JML_AuditLog_CL</span><span class="latency">1.2 s</span></div>
+                <span class="v2-replication-arrow">-&gt;</span>
+                <div class="v2-replication-hop"><span class="label"><span class="dot ok"></span>Splunk SIEM</span><span class="sub">HEC / enriched</span><span class="latency">2.4 s</span></div>
+                <span class="v2-replication-arrow">-&gt;</span>
+                <div class="v2-replication-hop"><span class="label"><span class="dot ok"></span>S3 Object-Lock</span><span class="sub">cross-region / 7y</span><span class="latency">3.1 s</span></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="v2-filter-chips" aria-label="Quick audit filters">
+            <span class="section-label" style="margin:0 6px 0 0">Filter</span>
+            <button class="v2-filter-chip active" data-log-agent="">All agents</button>
+            <button class="v2-filter-chip" data-log-agent="joiner">joiner</button>
+            <button class="v2-filter-chip" data-log-agent="mover">mover</button>
+            <button class="v2-filter-chip" data-log-agent="leaver">leaver</button>
+            <button class="v2-filter-chip" data-log-agent="certifier">certifier</button>
+            <button class="v2-filter-chip" data-log-agent="enroller">enroller</button>
+            <button class="v2-filter-chip active" data-log-outcome="">All outcomes</button>
+            <button class="v2-filter-chip" data-log-outcome="success">success</button>
+            <button class="v2-filter-chip crit" data-log-outcome="failed">failed</button>
+            <button class="v2-filter-chip info" data-log-outcome="partial">partial</button>
           </div>
 
           <div class="toolbar">

@@ -305,17 +305,34 @@ function runPsAsync(scriptPath, params = {}) {
 // ── System tray + toast notifications ────────────────────────────────────────
 let tray              = null;
 let dockedWin         = null;
+let overlayWin        = null;
+let overlayAnchorY    = null;
 let paletteWin        = null;
 let quitting          = false;
 let dockedKeepConsole = false;
 
 // ── Panel/palette preload path ────────────────────────────────────────────────
-const PANEL_PRELOAD = path.join(__dirname, 'preload-panel.js');
+const PANEL_PRELOAD   = path.join(__dirname, 'preload-panel.js');
+const OVERLAY_PRELOAD = path.join(__dirname, 'preload-overlay.js');
 
-// ── Push live data to docked panel ───────────────────────────────────────────
+// ── Push live data to docked panel / overlay ─────────────────────────────────
 function pushPanelUpdate(partial) {
   if (dockedWin && !dockedWin.isDestroyed()) {
     dockedWin.webContents.send('panel-update', partial);
+  }
+  // Mirror approval/mode data to overlay
+  if (overlayWin && !overlayWin.isDestroyed()) {
+    const mirror = {};
+    if (partial.pendingList !== undefined) mirror.pendingList = partial.pendingList;
+    if (partial.approvals   !== undefined) mirror.approvals   = partial.approvals;
+    if (partial.mode        !== undefined) mirror.mode        = partial.mode;
+    if (Object.keys(mirror).length) overlayWin.webContents.send('overlay-update', mirror);
+  }
+}
+
+function pushOverlayUpdate(partial) {
+  if (overlayWin && !overlayWin.isDestroyed()) {
+    overlayWin.webContents.send('overlay-update', partial);
   }
 }
 
@@ -415,6 +432,7 @@ function buildTrayMenu() {
         } else { createDockedPanel(); }
       }
     },
+    { label: 'Agent Overlay (Ctrl+Shift+Space)', click: toggleOverlayWindow },
     { type: 'separator' },
     { label: 'Quit JML Console', click: () => {
       const choice = dialog.showMessageBoxSync({
@@ -473,18 +491,143 @@ function createDockedPanel() {
     width: W, height: H, x: X, y: Y,
     frame: false, resizable: false,
     alwaysOnTop: true, skipTaskbar: true,
-    transparent: false,
+    transparent: true,
     icon: APP_ICON,
-    backgroundColor: '#1b1d24',
+    backgroundColor: '#00000000',
     webPreferences: { preload: PANEL_PRELOAD, contextIsolation: true, nodeIntegration: false, sandbox: false }
   });
+  dockedWin.setContentProtection(true);
   dockedWin.loadFile(path.join(__dirname, 'renderer', 'docked.html'));
   dockedWin.on('closed', () => { dockedWin = null; });
+  dockedWin.on('moved', () => {
+    if (!dockedWin || dockedWin.isDestroyed()) return;
+    const [wx, wy] = dockedWin.getPosition();
+    const [ww, wh] = dockedWin.getSize();
+    const { x: wa_x, y: wa_y, width: wa_w, height: wa_h } = screen.getPrimaryDisplay().workArea;
+
+    // ── Slim mode: detect nearest edge and snap + reorient ──
+    if (ww <= 220 || wh <= 160) {
+      const cx = wx + ww / 2;
+      const cy = wy + wh / 2;
+      const dRight  = Math.abs(cx - (wa_x + wa_w));
+      const dLeft   = Math.abs(cx - wa_x);
+      const dTop    = Math.abs(cy - wa_y);
+      const dBottom = Math.abs(cy - (wa_y + wa_h));
+      const minD = Math.min(dRight, dLeft, dTop, dBottom);
+
+      let edge, nx, ny, nw, nh;
+      const clampX = (w) => Math.max(wa_x, Math.min(wa_x + wa_w - w, Math.round(cx - w / 2)));
+      const clampY = (h) => Math.max(wa_y, Math.min(wa_y + wa_h - h, Math.round(cy - h / 2)));
+
+      if (minD === dRight)  { edge = 'right';  nw = 200; nh = 220; nx = wa_x + wa_w - nw; ny = clampY(nh); }
+      else if (minD === dLeft)   { edge = 'left';   nw = 200; nh = 220; nx = wa_x;              ny = clampY(nh); }
+      else if (minD === dTop)    { edge = 'top';    nw = 300; nh = 160; nx = clampX(nw);         ny = wa_y;       }
+      else                       { edge = 'bottom'; nw = 300; nh = 160; nx = clampX(nw);         ny = wa_y + wa_h - nh; }
+
+      // Overlay collision avoidance: offset slim pill if overlay is parked at the same edge
+      if (overlayWin && !overlayWin.isDestroyed() && overlayWin.isVisible()) {
+        const [ov_x, ov_y] = overlayWin.getPosition();
+        const [ov_w, ov_h] = overlayWin.getSize();
+        const ov_r = ov_x + ov_w, ov_b = ov_y + ov_h;
+        const OV_GAP = 8;
+        if ((edge === 'right' && ov_r >= wa_x + wa_w - 20) ||
+            (edge === 'left'  && ov_x <= wa_x + 20)) {
+          if (ny < ov_b + OV_GAP && ny + nh > ov_y - OV_GAP) {
+            const spaceAbove = ov_y - OV_GAP - wa_y;
+            const spaceBelow = (wa_y + wa_h) - (ov_b + OV_GAP);
+            if (spaceAbove >= nh)        ny = ov_y - OV_GAP - nh;
+            else if (spaceBelow >= nh)   ny = ov_b + OV_GAP;
+            ny = Math.max(wa_y, Math.min(wa_y + wa_h - nh, ny));
+          }
+        } else if ((edge === 'top'    && ov_y <= wa_y + 20) ||
+                   (edge === 'bottom' && ov_b >= wa_y + wa_h - 20)) {
+          if (nx < ov_r + OV_GAP && nx + nw > ov_x - OV_GAP) {
+            const spaceLeft  = ov_x - OV_GAP - wa_x;
+            const spaceRight = (wa_x + wa_w) - (ov_r + OV_GAP);
+            if (spaceLeft >= nw)         nx = ov_x - OV_GAP - nw;
+            else if (spaceRight >= nw)   nx = ov_r + OV_GAP;
+            nx = Math.max(wa_x, Math.min(wa_x + wa_w - nw, nx));
+          }
+        }
+      }
+      dockedWin.setBounds({ x: nx, y: ny, width: nw, height: nh }, false);
+      dockedWin.webContents.send('slim-edge-changed', edge);
+      return;
+    }
+
+    // ── Normal mode: snap to nearby edges ──
+    const SNAP = 18;
+    let nx = wx, ny = wy;
+    if (Math.abs(wx - wa_x) <= SNAP)                   nx = wa_x;
+    if (Math.abs(wx + ww - (wa_x + wa_w)) <= SNAP)     nx = wa_x + wa_w - ww;
+    if (Math.abs(wy - wa_y) <= SNAP)                   ny = wa_y;
+    if (Math.abs(wy + wh - (wa_y + wa_h)) <= SNAP)     ny = wa_y + wa_h - wh;
+    if (nx !== wx || ny !== wy) {
+      dockedWin.setPosition(nx, ny);
+      savePanelBounds({ x: nx, y: ny, width: ww, height: wh });
+    }
+  });
   dockedWin.webContents.once('did-finish-load', () => {
     pushFreshPanelData();
     // Overlay rich sample data so the panel shows meaningful content in dev
     setTimeout(() => pushPanelUpdate(buildMockPanelData()), 300);
   });
+}
+
+function createOverlayWindow() {
+  if (overlayWin && !overlayWin.isDestroyed()) { overlayWin.show(); overlayWin.focus(); return; }
+  const { x: wa_x, y: wa_y, width: wa_w, height: wa_h } = screen.getPrimaryDisplay().workArea;
+  const W = 460;
+  const H = 88;
+  overlayAnchorY = wa_y + Math.round(wa_h * 0.72);
+  const X = wa_x + Math.round((wa_w - W) / 2);
+  const Y = overlayAnchorY - H;
+  overlayWin = new BrowserWindow({
+    width: W, height: H, x: X, y: Y,
+    frame: false, resizable: true,
+    alwaysOnTop: true, skipTaskbar: true,
+    transparent: true, backgroundColor: '#00000000',
+    webPreferences: { preload: OVERLAY_PRELOAD, contextIsolation: true, nodeIntegration: false, sandbox: false }
+  });
+  overlayWin.setContentProtection(true);
+  overlayWin.setMinimumSize(300, 88);
+  overlayWin.loadFile(path.join(__dirname, 'renderer', 'overlay.html'));
+  overlayWin.on('closed', () => { overlayWin = null; overlayAnchorY = null; });
+  overlayWin.on('moved', () => {
+    if (!overlayWin || overlayWin.isDestroyed()) return;
+    const [wx, wy] = overlayWin.getPosition();
+    const [ww, wh] = overlayWin.getSize();
+    const { x: wa_x, y: wa_y, width: wa_w, height: wa_h } = screen.getPrimaryDisplay().workArea;
+    const SNAP = 24;
+    let nx = wx, ny = wy;
+    if (Math.abs(wx - wa_x) <= SNAP)               nx = wa_x;
+    if (Math.abs(wx + ww - (wa_x + wa_w)) <= SNAP) nx = wa_x + wa_w - ww;
+    if (Math.abs(wy - wa_y) <= SNAP)               ny = wa_y;
+    if (Math.abs(wy + wh - (wa_y + wa_h)) <= SNAP) ny = wa_y + wa_h - wh;
+    if (nx !== wx || ny !== wy) overlayWin.setPosition(nx, ny);
+  });
+  overlayWin.webContents.once('did-finish-load', () => {
+    overlayWin.webContents.send('overlay-init', { anchorY: overlayAnchorY, winX: X, winW: W });
+    // Push current approval state
+    try {
+      const files = fs.existsSync(PENDING_DIR) ? fs.readdirSync(PENDING_DIR).filter(f => f.endsWith('.json')) : [];
+      const pendingList = files.map(f => {
+        try {
+          const d = readJson(path.join(PENDING_DIR, f));
+          return { id: d.id || f.replace('.json',''), tool: d.tool, severity: d.severity,
+            requestedBy: d.requestedBy, requestedByRole: d.requestedByRole,
+            requestedAt: d.requestedAt, input: d.input };
+        } catch { return null; }
+      }).filter(Boolean);
+      pushOverlayUpdate({ approvals: files.length, pendingList, mode: state.approver.whatif ? 'safe' : 'live' });
+    } catch {}
+  });
+}
+
+function toggleOverlayWindow() {
+  const sendOverlayState = (v) => { if (win && !win.isDestroyed()) win.webContents.send('overlay-state', v); };
+  if (!overlayWin || overlayWin.isDestroyed()) { createOverlayWindow(); sendOverlayState(true); return; }
+  if (overlayWin.isVisible()) { overlayWin.hide(); sendOverlayState(false); } else { overlayWin.show(); overlayWin.focus(); sendOverlayState(true); }
 }
 
 function createPaletteWindow() {
@@ -797,10 +940,40 @@ ipcMain.handle('panel-resize-to', (_, { x, y, width, height }) => {
   const H = Math.max(220, Math.min(900, Math.round(height)));
   const X = Math.max(wa_x, Math.min(wa_x + wa_w - W, Math.round(x)));
   const Y = Math.max(wa_y, Math.min(wa_y + wa_h - H, Math.round(y)));
-  dockedWin.setSize(W, H);
-  dockedWin.setPosition(X, Y);
-  // Bounds saved by renderer's mouseup → panel-save-bounds
+  dockedWin.setBounds({ x: X, y: Y, width: W, height: H }, false);
 });
+
+ipcMain.handle('panel-slim-resize', (_, { x, y, width, height, edge }) => {
+  if (!dockedWin || dockedWin.isDestroyed()) return;
+  const { x: wa_x, y: wa_y, width: wa_w, height: wa_h } = screen.getPrimaryDisplay().workArea;
+  const W = Math.max(24, Math.min(640, Math.round(width)));
+  const H = Math.max(24, Math.min(wa_h, Math.round(height)));
+  // Snap flush to the specified edge, or right edge by default
+  let X, Y;
+  const clampX = Math.max(wa_x, Math.min(wa_x + wa_w - W, Math.round(x)));
+  const clampY = Math.max(wa_y, Math.min(wa_y + wa_h - H, Math.round(y)));
+  if (edge === 'left')        { X = wa_x;              Y = clampY; }
+  else if (edge === 'top')    { X = clampX;             Y = wa_y;   }
+  else if (edge === 'bottom') { X = clampX;             Y = wa_y + wa_h - H; }
+  else                        { X = wa_x + wa_w - W;   Y = clampY; } // right (default)
+  dockedWin.setBounds({ x: X, y: Y, width: W, height: H }, false);
+});
+
+ipcMain.handle('overlay-resize-to', (_, { x, y, width, height }) => {
+  if (!overlayWin || overlayWin.isDestroyed()) return;
+  const { x: wa_x, y: wa_y, width: wa_w, height: wa_h } = screen.getPrimaryDisplay().workArea;
+  const W = Math.max(300, Math.min(800, Math.round(width)));
+  const H = Math.max(88, Math.min(700, Math.round(height)));
+  const X = Math.max(wa_x, Math.min(wa_x + wa_w - W, Math.round(x)));
+  const Y = Math.max(wa_y, Math.min(wa_y + wa_h - H, Math.round(y)));
+  overlayWin.setBounds({ x: X, y: Y, width: W, height: H }, false);
+});
+
+ipcMain.on('overlay-close', () => {
+  if (overlayWin && !overlayWin.isDestroyed()) overlayWin.hide();
+});
+
+ipcMain.on('toggle-overlay', toggleOverlayWindow);
 
 ipcMain.on('clear-history', (event, { agent }) => {
   state[agent].messages = [];
@@ -1042,8 +1215,20 @@ ipcMain.handle('panel-reject-pending', (_, { id }) => {
   }
 });
 
+// Shared user cache — populated by Graph searches from main window, queried by panel/overlay
+let _sharedUserCache = [];
+
 ipcMain.handle('search-users', async (event, query) => {
-  // Search through recent audit entries for matching subjects
+  const q = (query || '').toLowerCase().trim();
+  if (!q || q.length < 2) return [];
+
+  // 1. Check shared Graph cache first (fast, no PS overhead)
+  const fromCache = _sharedUserCache.filter(u =>
+    u.upn.toLowerCase().includes(q) || (u.displayName || '').toLowerCase().includes(q)
+  ).slice(0, 8);
+  if (fromCache.length) return fromCache;
+
+  // 2. Fallback: search recent audit log entries
   try {
     const entries = [];
     const logDirs = ['joiner','mover','leaver','enroller'].map(ag => path.join(AGENTS_DIR, ag, 'logs'));
@@ -1058,7 +1243,7 @@ ipcMain.handle('search-users', async (event, query) => {
             const e = JSON.parse(line);
             const upn = e.subject || e.userPrincipalName || '';
             if (!upn || seen.has(upn)) continue;
-            if (upn.toLowerCase().includes(query.toLowerCase())) {
+            if (upn.toLowerCase().includes(q)) {
               seen.add(upn);
               entries.push({ upn, displayName: e.displayName || upn.split('@')[0] });
             }
@@ -1391,7 +1576,11 @@ ipcMain.on('get-hr-queue', async (event) => {
 
 ipcMain.on('window-minimize', () => { if (win) win.minimize(); });
 ipcMain.on('window-maximize', () => { if (win) { win.isMaximized() ? win.unmaximize() : win.maximize(); } });
-ipcMain.on('window-close',    () => { if (win && !win.isDestroyed()) win.hide(); });
+ipcMain.on('window-close', () => {
+  if (win && !win.isDestroyed()) win.hide();
+  if (!dockedWin || dockedWin.isDestroyed()) { createDockedPanel(); }
+  else if (!dockedWin.isVisible()) { dockedWin.show(); }
+});
 ipcMain.on('sign-out', () => {
   currentOperator = null;
   currentRole     = 'viewer';
@@ -1437,7 +1626,9 @@ function createMainWindow() {
     minWidth: 900, minHeight: 600,
     frame: false,
     icon: APP_ICON,
-    backgroundColor: '#11131a',
+    transparent: true,
+    backgroundColor: '#00000000',
+    backgroundMaterial: 'mica',
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -1447,6 +1638,10 @@ function createMainWindow() {
   });
   win.loadFile(path.join(__dirname, 'renderer', 'index.html'));
   win.setIcon(APP_ICON);
+
+  win.on('maximize',   () => { if (!win.isDestroyed()) win.webContents.send('window-maximized', true); });
+  win.on('unmaximize', () => { if (!win.isDestroyed()) win.webContents.send('window-maximized', false); });
+  win.on('restore',    () => { if (!win.isDestroyed()) win.webContents.send('window-maximized', false); });
 }
 
 function createOperatorWindow() {
@@ -2288,6 +2483,9 @@ app.whenReady().then(() => {
   // Global hotkey — Ctrl+Shift+D toggles docked panel
   globalShortcut.register('CommandOrControl+Shift+D', () => { toggleDockedPanel(); });
 
+  // Global hotkey — Ctrl+Shift+Space toggles agent overlay
+  globalShortcut.register('CommandOrControl+Shift+Space', toggleOverlayWindow);
+
   setInterval(pollTrayApprovals, 30000);
   setInterval(pollCertExpiry,    60000 * 5);
   setInterval(pollLastEvent,     30000);
@@ -2367,6 +2565,14 @@ if ($resp.value -and @($resp.value).Count -gt 0) { @($resp.value) | ConvertTo-Js
       const parsed = JSON.parse(jsonLine);
       users = Array.isArray(parsed) ? parsed : [parsed];
     } catch {}
+    // Populate shared cache so panel/overlay autocomplete benefits from Graph results
+    users.forEach(u => {
+      const upn = u.userPrincipalName || '';
+      if (upn && !_sharedUserCache.find(c => c.upn === upn)) {
+        _sharedUserCache.push({ upn, displayName: u.displayName || upn.split('@')[0] });
+      }
+    });
+    if (_sharedUserCache.length > 500) _sharedUserCache = _sharedUserCache.slice(-500);
     event.sender.send('user-search-results', { users });
   } catch (err) {
     event.sender.send('user-search-results', { users: [], error: err.message });
