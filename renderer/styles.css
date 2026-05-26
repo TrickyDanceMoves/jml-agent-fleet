@@ -650,10 +650,76 @@ body.maximized, body.maximized .app { border-radius: 0; }
 @keyframes viewfade { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; } }
 
 .view-header { display: flex; align-items: end; justify-content: space-between; gap: 18px; margin-bottom: 18px; flex-wrap: wrap; }
-.view-header h1, .h1 { font-size: 22px; font-weight: 600; letter-spacing: -.01em; margin: 0; }
-.h1 .sub { margin-left: 10px; color: var(--muted); font-size: 13px; font-weight: 400; font-family: var(--mono); }
-.head { display: flex; align-items: end; justify-content: space-between; gap: 18px; margin-bottom: 22px; flex-wrap: wrap; }
-.head .desc, .view-header .desc { color: var(--text-2); font-size: 13.5px; max-width: 620px; margin-top: 6px; line-height: 1.5; }
+.view-header h1, .h1 { font-size: 22px; font-weight: 600; letter-spacing: 0; margin: 0; }
+.h1 .sub {
+  margin-left: 10px;
+  color: var(--muted);
+  font-size: 11.5px;
+  font-weight: 500;
+  font-family: var(--mono);
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+.view > .head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 14px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid color-mix(in oklch, var(--border) 70%, transparent);
+  flex-wrap: wrap;
+}
+.head .desc, .view-header .desc {
+  color: var(--text-2);
+  font-size: 13.5px;
+  max-width: 760px;
+  margin-top: 7px;
+  line-height: 1.55;
+}
+.view > .head .row-flex {
+  align-self: center;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  background: color-mix(in oklch, var(--bg-2) 70%, transparent);
+}
+.v2-view-brief {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin: 0 0 18px;
+}
+.v2-brief-tile {
+  min-height: 96px;
+  padding: 13px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  background: linear-gradient(180deg, color-mix(in oklch, var(--surface) 92%, transparent), color-mix(in oklch, var(--bg-2) 96%, transparent));
+  box-shadow: inset 0 1px 0 color-mix(in oklch, var(--text) 4%, transparent);
+}
+.v2-brief-tile .k {
+  display: block;
+  margin-bottom: 10px;
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--violet);
+}
+.v2-brief-tile .t {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--text);
+}
+.v2-brief-tile .c {
+  display: block;
+  font-size: 12.5px;
+  line-height: 1.48;
+  color: var(--text-2);
+}
 .tenant-badge {
   font-family: var(--mono); font-size: 11px; color: var(--muted);
   padding: 4px 10px; border: 1px solid var(--border); border-radius: 99px;
@@ -2896,6 +2962,7 @@ label { font-size: 12.5px; color: var(--text-2); }
 /* Responsive guardrails */
 @media (max-width: 1180px) {
   .kpi-grid, .stats-grid { grid-template-columns: repeat(2, 1fr); }
+  .v2-view-brief { grid-template-columns: 1fr; }
   .scan-trio, .cert-trio, .int-trio { grid-template-columns: 1fr; }
   .grid-2 { grid-template-columns: 1fr; }
   .ops-cols { grid-template-columns: 1fr; }

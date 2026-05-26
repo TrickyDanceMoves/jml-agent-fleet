@@ -58,6 +58,92 @@ const TAB_TITLES = {
 
 // Tabs where the Safe/Live mode pill is meaningful — anywhere you can issue
 // or approve a write operation. Read-only views hide the pill to reduce noise.
+const PAGE_BRIEFS = {
+  approver: [
+    ['Intent', 'Plan before write', 'Every request resolves into scoped steps before the tenant is touched.'],
+    ['Guardrail', 'Reaction window', 'Sensitive actions pause between confirmed intent and committed write.'],
+    ['Control', 'Dual approval', 'Hard leavers, PIM-adjacent changes, and sensitive licenses require a second hand.']
+  ],
+  auditor: [
+    ['Scope', 'Read-only evidence', 'The Auditor can query logs, risk signals, and policy context without mutating state.'],
+    ['Boundary', 'No directory writes', 'This surface is for explanation, precedent, and traceability only.'],
+    ['Output', 'Citation-first answers', 'Responses point back to audit entries, policies, or event history.']
+  ],
+  approvals: [
+    ['Queue', 'Expiring tokens', 'Approval tokens age out quickly so stale identity decisions do not linger.'],
+    ['Risk', 'Second operator', 'High-impact requests stay blocked until a separate approver signs.'],
+    ['Audit', 'Receipt required', 'Approve and reject actions both become durable evidence.']
+  ],
+  operations: [
+    ['Run state', 'In-flight visibility', 'Operators can see active, queued, completed, and scheduled lifecycle work.'],
+    ['Safety', 'Safe by default', 'Bulk and quick actions start as what-if until an operator chooses live execution.'],
+    ['Recovery', 'Rollback context', 'Lifecycle runs keep enough state nearby to inspect outcomes and recover.']
+  ],
+  certifications: [
+    ['Campaigns', 'Entitlement reviews', 'The Certifier drives recurring access attestations for groups and licenses.'],
+    ['Revocation', 'Approval-routed', 'Sensitive removals flow through Approver instead of bypassing controls.'],
+    ['Evidence', 'Reviewer trace', 'Campaign decisions stay tied to reviewers, scope, and timestamps.']
+  ],
+  integrations: [
+    ['Origin', 'HRIS inbound', 'BambooHR, Workday, and ServiceNow events enter through a canonical lane.'],
+    ['Queue', 'Durable handoff', 'External events land in a queue before any agent decides or writes.'],
+    ['Notify', 'Teams and SIEM', 'Human alerts and downstream security records stay connected to the same event.']
+  ],
+  security: [
+    ['Threats', 'UEBA and risk', 'After-hours behavior, risky identities, and suspicious sequences surface here first.'],
+    ['Drift', 'Baseline repair', 'Policy drift is shown as a concrete diff before remediation is queued.'],
+    ['Escalation', 'On-call ready', 'Critical findings are designed to page operators, not sit as passive reports.']
+  ],
+  'audit-log': [
+    ['Integrity', 'Hash-chain verified', 'Every lifecycle operation links to the previous evidence hash.'],
+    ['Replication', 'Multi-sink chain', 'Local chain, Blob, Sentinel, SIEM, and object lock should agree.'],
+    ['Export', 'Attestation packs', 'Evidence can be packaged for audit without losing provenance.']
+  ],
+  exports: [
+    ['Channels', 'SIEM and archive', 'Audit, security, and inventory exports share the same evidence backbone.'],
+    ['Parity', 'Same chain everywhere', 'Downstream systems receive records tied to the same hash-chain state.'],
+    ['Operations', 'Retry visible', 'Failed replication should be visible and recoverable from this page.']
+  ],
+  users: [
+    ['Directory', 'Identity inventory', 'Managed users are shown with lifecycle, risk, and access-review context.'],
+    ['Signals', 'Risk beside profile', 'UEBA, Identity Protection, and drift signals stay near the person affected.'],
+    ['Action', 'Least-privilege jump', 'User-level action routes through the right agent and approval path.']
+  ],
+  graph: [
+    ['Access', 'Scoped Graph runner', 'Ad-hoc Graph calls run under fleet RBAC, not an invisible operator shortcut.'],
+    ['Logging', 'Every call recorded', 'Queries and mutations are expected to leave an audit trail.'],
+    ['Control', 'Writes need approval', 'Mutating verbs require Approver context before they proceed.']
+  ],
+  certs: [
+    ['Credentials', 'Per-agent certs', 'Each agent has its own app registration and credential lifecycle.'],
+    ['Least privilege', 'Scope matrix', 'Permissions are visible by agent so over-broad access is easy to spot.'],
+    ['Rotation', 'Provisioner managed', 'Expiring certs are detected early and routed through the rotation path.']
+  ],
+  settings: [
+    ['Tenant', 'Binding and authority', 'Tenant, operators, roles, and notification rules define who can steer the fleet.'],
+    ['Policy', 'Guardrails live here', 'Freeze windows, SoD, calendar policy, and routing rules are operational controls.'],
+    ['Audit', 'Config is evidence', 'Settings changes are treated as lifecycle events, not private preferences.']
+  ]
+};
+
+function setupPageBriefs() {
+  Object.entries(PAGE_BRIEFS).forEach(([tab, items]) => {
+    const view = document.getElementById('view-' + tab);
+    const head = view && view.querySelector(':scope > .head');
+    if (!head || view.querySelector(':scope > .v2-view-brief')) return;
+    const html = '<div class="v2-view-brief">' + items.map(([k, title, copy]) =>
+      '<div class="v2-brief-tile">' +
+        '<span class="k">' + k + '</span>' +
+        '<span class="t">' + title + '</span>' +
+        '<span class="c">' + copy + '</span>' +
+      '</div>'
+    ).join('') + '</div>';
+    head.insertAdjacentHTML('afterend', html);
+  });
+}
+
+setupPageBriefs();
+
 const TABS_WITH_MODE = new Set(['approver', 'approvals', 'operations', 'users']);
 
 function switchTab(tab) {
