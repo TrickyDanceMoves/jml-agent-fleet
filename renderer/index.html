@@ -980,6 +980,24 @@
             </div>
           </div>
 
+          <div class="v2-cert-control">
+            <div class="v2-cert-stage">
+              <span class="stage-k">Review cadence</span>
+              <span class="stage-v">Quarterly access attestation</span>
+              <span class="stage-sub">Certifier reads group membership; Approver owns any revoke writes.</span>
+            </div>
+            <div class="v2-cert-stage">
+              <span class="stage-k">Decision route</span>
+              <span class="stage-v">Approve / revoke / exception</span>
+              <span class="stage-sub">Sensitive groups require a second operator before removal.</span>
+            </div>
+            <div class="v2-cert-stage warn">
+              <span class="stage-k">Evidence</span>
+              <span class="stage-v">Audit hash + reviewer receipt</span>
+              <span class="stage-sub">Each campaign produces an exportable attestation pack.</span>
+            </div>
+          </div>
+
           <div class="panel" style="margin-bottom:14px">
             <div class="panel-h">
               <div class="ttl">Run a Campaign</div>
@@ -1392,6 +1410,43 @@
             </div>
           </div>
 
+          <div class="v2-export-chain" aria-label="Replication receipt chain">
+            <div class="export-chain-head">
+              <div>
+                <div class="ttl">Replication Receipts</div>
+                <div class="sub">Every downstream copy carries the same audit-chain root and source seal.</div>
+              </div>
+              <span class="export-chain-seal">root hash verified</span>
+            </div>
+            <div class="export-chain-hops">
+              <div class="export-hop ok">
+                <span class="hop-dot"></span>
+                <span class="hop-name">Local chain</span>
+                <span class="hop-meta">source of truth</span>
+              </div>
+              <div class="export-hop ok" id="export-hop-blob">
+                <span class="hop-dot"></span>
+                <span class="hop-name">Azure Blob</span>
+                <span class="hop-meta" id="export-hop-blob-meta">waiting for status</span>
+              </div>
+              <div class="export-hop ok" id="export-hop-sentinel">
+                <span class="hop-dot"></span>
+                <span class="hop-name">Sentinel</span>
+                <span class="hop-meta" id="export-hop-sentinel-meta">waiting for status</span>
+              </div>
+              <div class="export-hop soon">
+                <span class="hop-dot"></span>
+                <span class="hop-name">Splunk</span>
+                <span class="hop-meta">planned</span>
+              </div>
+              <div class="export-hop soon">
+                <span class="hop-dot"></span>
+                <span class="hop-name">S3 Object Lock</span>
+                <span class="hop-meta">planned</span>
+              </div>
+            </div>
+          </div>
+
           <div class="exp-grid">
             <!-- Microsoft Sentinel -->
             <div class="exp sentinel">
@@ -1498,6 +1553,24 @@
             <div class="spacer"></div>
           </div>
 
+          <div class="v2-users-overview">
+            <div class="user-signal-card">
+              <span class="sig-k">Search surface</span>
+              <span class="sig-v">Directory inventory</span>
+              <span class="sig-sub">Identity rows merge lifecycle, license, sign-in, and risk context before any operation.</span>
+            </div>
+            <div class="user-signal-card">
+              <span class="sig-k">Write guardrail</span>
+              <span class="sig-v">Mover / Leaver handoff</span>
+              <span class="sig-sub">Profile actions prefill Operations and keep irreversible work behind approval gates.</span>
+            </div>
+            <div class="user-signal-card warn">
+              <span class="sig-k">High-risk lens</span>
+              <span class="sig-v">UEBA + role holder checks</span>
+              <span class="sig-sub">Privileged identities should be reviewed before hard offboard.</span>
+            </div>
+          </div>
+
           <div class="users-shell">
             <div class="utable">
               <div class="utable-h"><span>USER</span></div>
@@ -1513,6 +1586,23 @@
                 <div id="udp-badge" class="user-detail-badge enabled">—</div>
               </div>
               <div id="udp-details"></div>
+              <div class="udp-risk-lane" id="udp-risk-lane">
+                <div class="risk-mini">
+                  <span class="risk-k">Lifecycle risk</span>
+                  <span class="risk-v" id="udp-risk-score">--</span>
+                  <span class="risk-track"><i id="udp-risk-bar" style="width:0%"></i></span>
+                </div>
+                <div class="risk-mini">
+                  <span class="risk-k">Write route</span>
+                  <span class="risk-v" id="udp-write-route">Safe preview first</span>
+                  <span class="risk-sub">Live mover/leaver actions require a fresh approval token.</span>
+                </div>
+                <div class="risk-mini">
+                  <span class="risk-k">Audit posture</span>
+                  <span class="risk-v" id="udp-audit-posture">Chain ready</span>
+                  <span class="risk-sub">Profile actions are logged with operator, subject, and mode.</span>
+                </div>
+              </div>
               <div>
                 <div class="dim-label">Licenses</div>
                 <div id="udp-licenses"></div>
@@ -1607,6 +1697,24 @@
             <div>
               <h1 class="h1">Agent Certificates <span class="sub">8 app registrations · permissions matrix</span></h1>
               <p class="desc">Per-agent app-registration certificates and tenant permissions. Each agent operates with the narrowest viable Graph scopes; expiring certs auto-rotate via the Provisioner with a 14-day pre-warning.</p>
+            </div>
+          </div>
+
+          <div class="v2-cert-ops">
+            <div class="cert-op-card">
+              <span class="op-k">Rotation queue</span>
+              <span class="op-v">1 agent inside warning window</span>
+              <span class="op-sub">Provisioner stages a replacement certificate before the current credential expires.</span>
+            </div>
+            <div class="cert-op-card">
+              <span class="op-k">Least privilege</span>
+              <span class="op-v">Permission matrix enforced</span>
+              <span class="op-sub">Privileged scopes are isolated to agents that own those duties.</span>
+            </div>
+            <div class="cert-op-card warn">
+              <span class="op-k">Rotation evidence</span>
+              <span class="op-v">Hash-chain receipt required</span>
+              <span class="op-sub">Every app-reg cert change is signed and replayable from Audit Log.</span>
             </div>
           </div>
 

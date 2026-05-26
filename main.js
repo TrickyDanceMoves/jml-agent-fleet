@@ -2331,6 +2331,7 @@ async function runCapture() {
     ['settings',       `window.api.getPolicy();`, 1800],
     ['audit-log',      `window.api.getAuditLog();`, 2200],
     ['users',          null, 600],
+    ['certs',          null, 600],
     ['graph',          null, 600],
   ];
 
@@ -2345,7 +2346,10 @@ async function runCapture() {
   }
 
   for (const [tab, ipcJs, wait] of TABS) {
-    await win.webContents.executeJavaScript(`document.querySelector('[data-tab="${tab}"]')?.click()`);
+    await win.webContents.executeJavaScript(`
+      if (typeof switchTab === 'function') switchTab(${JSON.stringify(tab)});
+      else document.querySelector('[data-tab="${tab}"]')?.click();
+    `);
     await sleep(500);
     if (ipcJs) await win.webContents.executeJavaScript(ipcJs);
     // Re-send mock approvals each time the approvals tab is visited (real IPC reads
