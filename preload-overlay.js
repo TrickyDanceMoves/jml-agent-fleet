@@ -17,4 +17,7 @@ contextBridge.exposeInMainWorld('overlayApi', {
   verifyPin:          (user, pin) => ipcRenderer.invoke('verify-operator-pin', { user, pin }),
   getCurrentOperator: () => ipcRenderer.invoke('get-current-operator'),
   setMode:            (whatif)   => ipcRenderer.send('panel-set-mode', { whatif }),
+  getConversationHistory: (agent) => ipcRenderer.invoke('get-conversation-display', { agent }),
+  onMsgMirror: (cb) => ipcRenderer.on('msg-mirror', (_, d) => cb(d)),
+  appQuit: () => ipcRenderer.send('app-quit'),
 });

@@ -315,6 +315,25 @@ let dockedKeepConsole = false;
 const PANEL_PRELOAD   = path.join(__dirname, 'preload-panel.js');
 const OVERLAY_PRELOAD = path.join(__dirname, 'preload-overlay.js');
 
+// ── Conversation display history (persisted in memory for cross-window sync) ──
+// Stores the rendered turn history per agent so overlay/docked can replay them.
+const _convHistory = { approver: [], auditor: [] };
+const CONV_HISTORY_MAX = 80; // max turns kept per agent
+
+function _pushConvTurn(agent, role, text) {
+  if (!_convHistory[agent]) return;
+  _convHistory[agent].push({ role, text, ts: Date.now() });
+  if (_convHistory[agent].length > CONV_HISTORY_MAX) _convHistory[agent].shift();
+}
+
+/** Broadcast a mirrored turn to all windows EXCEPT the originating sender */
+function _broadcastMirror(senderContents, agent, role, text) {
+  const targets = [win, overlayWin, dockedWin].filter(
+    w => w && !w.isDestroyed() && w.webContents !== senderContents
+  );
+  targets.forEach(w => w.webContents.send('msg-mirror', { agent, role, text }));
+}
+
 // ── Push live data to docked panel / overlay ─────────────────────────────────
 function pushPanelUpdate(partial) {
   if (dockedWin && !dockedWin.isDestroyed()) {
@@ -721,13 +740,33 @@ function routeBlockedLeaverToApproval(input, stage) {
   return token;
 }
 
+// Extract and parse a JSON object from PowerShell stdout that may contain
+// non-JSON header lines or pretty-printed (multi-line) ConvertTo-Json output.
+function _parseMultilineJson(raw, emptyMsg) {
+  const trimmed = raw.trim();
+  if (!trimmed) return { error: emptyMsg || 'No output from script' };
+  // Fast path: entire output is valid JSON
+  try { return JSON.parse(trimmed); } catch {}
+  // Slow path: find the { ... } block spanning multiple lines
+  const ls = trimmed.split('\n');
+  const start = ls.findIndex(l => l.trim().startsWith('{'));
+  if (start < 0) return { error: emptyMsg || 'No JSON output from script' };
+  let end = -1;
+  for (let i = ls.length - 1; i >= start; i--) {
+    if (/^\s*\}\s*$/.test(ls[i])) { end = i; break; }
+  }
+  const block = ls.slice(start, end >= 0 ? end + 1 : undefined).join('\n');
+  try { return JSON.parse(block); }
+  catch (ex) { return { error: `JSON parse error: ${ex.message}`, raw: trimmed.slice(0, 400) }; }
+}
+
 function parsePs1Output(raw) {
   const lines = raw.trim().split('\n');
   const visible = lines.filter(l => /\[(ACTION|ERROR|WARN|SKIP|WHATIF)\]/.test(l))
                        .map(l => l.replace(/^\[\d{2}:\d{2}:\d{2}\] /, '').trim());
-  const jsonLine = lines.filter(l => l.trim().startsWith('{')).pop();
-  let data = null;
-  try { if (jsonLine) data = JSON.parse(jsonLine); } catch {}
+  // Use _parseMultilineJson to handle both inline and pretty-printed ConvertTo-Json output
+  const parsed = _parseMultilineJson(raw);
+  const data = parsed && !parsed.error ? parsed : null;
   return { lines: visible, data };
 }
 
@@ -762,8 +801,7 @@ function executeTool(agent, toolName, input, whatif) {
         Department: input.department,
         JobTitle:   input.jobTitle
       });
-      const jsonLine = raw.trim().split('\n').filter(l => l.trim().startsWith('{')).pop();
-      return jsonLine ? JSON.parse(jsonLine) : { error: 'No output from recommendation script' };
+      return _parseMultilineJson(raw, 'No output from recommendation script');
     }
     case 'score_risk': {
       const raw = runPs(path.join(AGENTS_DIR, 'auditor', 'Invoke-RiskScore.ps1'), {
@@ -773,8 +811,7 @@ function executeTool(agent, toolName, input, whatif) {
         Groups:            input.groups,
         NewDepartment:     input.newDepartment
       });
-      const jsonLine = raw.trim().split('\n').filter(l => l.trim().startsWith('{')).pop();
-      return jsonLine ? JSON.parse(jsonLine) : { error: 'No output from risk score script' };
+      return _parseMultilineJson(raw, 'No output from risk score script');
     }
     case 'submit_joiner': {
       const _pf = writePayloadFile({
@@ -794,13 +831,21 @@ function executeTool(agent, toolName, input, whatif) {
         Licenses: input.licenses, Groups: input.groups, WhatIf: w
       }));
     case 'submit_mover':
-      return parsePs1Output(runPs(path.join(AGENTS_DIR, 'mover', 'Invoke-MoverProcess.ps1'), {
-        UserPrincipalName: input.userPrincipalName,
-        Department: input.newDepartment, JobTitle: input.newJobTitle,
-        Manager: input.newManager,
-        LicensesToAdd: input.licensesToAdd, LicensesToRemove: input.licensesToRemove,
-        GroupsToAdd: input.groupsToAdd, GroupsToRemove: input.groupsToRemove, WhatIf: w
-      }));
+      {
+        const _pf = writePayloadFile({
+          userPrincipalName: input.userPrincipalName,
+          department: input.newDepartment,
+          jobTitle: input.newJobTitle,
+          manager: input.newManager,
+          licensesToAdd: input.licensesToAdd,
+          licensesToRemove: input.licensesToRemove,
+          groupsToAdd: input.groupsToAdd,
+          groupsToRemove: input.groupsToRemove,
+          ticketRef: input.ticketRef
+        });
+        try { return parsePs1Output(runPs(path.join(AGENTS_DIR, 'mover', 'Invoke-MoverProcess.ps1'), { PayloadPath: _pf, WhatIf: w })); }
+        finally { try { fs.unlinkSync(_pf); } catch {} }
+      }
     case 'submit_leaver_soft':
     case 'submit_leaver_hard': {
       const _stage = toolName === 'submit_leaver_hard' ? 'Hard' : 'Soft';
@@ -840,6 +885,8 @@ async function runAgentLoop(sender, agent, userText) {
   const systemPrompt = agent === 'approver' ? buildApproverSystem(domain) : buildAuditorSystem(domain);
   const tools        = agent === 'approver' ? APPROVER_TOOLS  : AUDITOR_TOOLS;
 
+  let _fullText = ''; // accumulated across the entire response (for display history)
+
   while (true) {
     const stream = client.messages.stream({
       model: 'claude-opus-4-7',
@@ -855,6 +902,7 @@ async function runAgentLoop(sender, agent, userText) {
     stream.on('text', (text) => {
       sender.send('msg-chunk', { type: 'text', text });
       currentText += text;
+      _fullText   += text;
     });
 
     stream.on('streamEvent', (event) => {
@@ -881,7 +929,10 @@ async function runAgentLoop(sender, agent, userText) {
       let result;
       try {
         result = executeTool(agent, tool.name, input, agentState.whatif);
-        sender.send('msg-chunk', { type: 'tool_done', toolName: tool.name, success: true });
+        // Include the result for structured-data tools so the renderer can render
+        // contextual cards (e.g. score_risk → risk score card with actual reasons).
+        const sendResult = (tool.name === 'score_risk' || tool.name === 'suggest_provisioning') ? result : undefined;
+        sender.send('msg-chunk', { type: 'tool_done', toolName: tool.name, success: true, result: sendResult });
       } catch (err) {
         result = { error: err.message };
         sender.send('msg-chunk', { type: 'tool_done', toolName: tool.name, success: false });
@@ -896,14 +947,25 @@ async function runAgentLoop(sender, agent, userText) {
     }
   }
 
+  // Store and mirror the completed assistant response
+  _pushConvTurn(agent, 'assistant', _fullText);
+  _broadcastMirror(sender, agent, 'assistant', _fullText);
   sender.send('msg-complete', { agent });
 }
 
 // ── IPC handlers ──────────────────────────────────────────────────────────────
 ipcMain.on('send-message', (event, { agent, text }) => {
+  // Store and mirror the user turn before the agent responds
+  _pushConvTurn(agent, 'user', text);
+  _broadcastMirror(event.sender, agent, 'user', text);
   runAgentLoop(event.sender, agent, text).catch(err => {
     event.sender.send('msg-error', { text: err.message });
   });
+});
+
+// Return stored display history for a given agent (used on overlay/docked open)
+ipcMain.handle('get-conversation-display', (_, { agent }) => {
+  return _convHistory[agent] || [];
 });
 
 ipcMain.on('set-mode', (event, { whatif }) => {
@@ -1358,10 +1420,19 @@ ipcMain.on('run-bulk-import', async (event, { rows, whatif }) => {
           TicketRef: row.ticketRef, WhatIf: !!whatif
         });
       } else if (op === 'mover') {
-        raw = runPs(path.join(AGENTS_DIR, 'mover', 'Invoke-MoverProcess.ps1'), {
-          UserPrincipalName: row.userPrincipalName, Department: row.department,
-          JobTitle: row.jobTitle, WhatIf: !!whatif
+        const _pfMover = writePayloadFile({
+          userPrincipalName: row.userPrincipalName,
+          department: row.department,
+          jobTitle: row.jobTitle,
+          manager: row.manager,
+          licensesToAdd: row.licensesToAdd,
+          licensesToRemove: row.licensesToRemove,
+          groupsToAdd: row.groupsToAdd,
+          groupsToRemove: row.groupsToRemove,
+          ticketRef: row.ticketRef
         });
+        try { raw = runPs(path.join(AGENTS_DIR, 'mover', 'Invoke-MoverProcess.ps1'), { PayloadPath: _pfMover, WhatIf: !!whatif }); }
+        finally { try { fs.unlinkSync(_pfMover); } catch {} }
       } else {
         throw new Error('Unknown operation: ' + row.operation);
       }
@@ -1586,6 +1657,11 @@ ipcMain.on('sign-out', () => {
   currentRole     = 'viewer';
   if (win && !win.isDestroyed()) { win.close(); win = null; }
   createOperatorWindow();
+});
+
+ipcMain.on('app-quit', () => {
+  quitting = true;
+  app.quit();
 });
 
 // ── Window ────────────────────────────────────────────────────────────────────
@@ -2300,27 +2376,53 @@ async function runCapture() {
   win.webContents.send('pending-approvals', MOCK_APPROVALS);
   await sleep(400);
 
-  // Remove overflow constraints so all content is visible in tall screenshots
+  // Remove overflow constraints so all content is visible in tall screenshots.
+  // IMPORTANT: do NOT set height:auto on .content or .layout — those are flex/grid
+  // shell containers and height:auto causes .view.active{flex:1} to collapse to 0.
+  // Instead: (1) remove overflow clipping on shells, (2) expand the active view and
+  // any tab-specific scroller directly.
   const REMOVE_OVERFLOW = `
     (function(){
-      const sel = [
-        '.security-content', '.approvals-content', '.ops-content',
-        '.certifications-content', '.exports-content', '.settings-content',
-        '.audit-log-content', '.content', '.layout'
-      ];
-      sel.forEach(s => {
+      // Shell containers — remove clipping only, preserve flex/grid height
+      ['.content', '.layout'].forEach(s => {
         document.querySelectorAll(s).forEach(el => {
-          el.style.overflow = 'visible';
+          el.style.overflow  = 'visible';
           el.style.maxHeight = 'none';
-          el.style.height = 'auto';
+        });
+      });
+      // Active view — expand to full content height so all content renders.
+      // Also kill the viewfade animation (opacity starts at 0 with fill-mode:both)
+      // which can freeze at opacity=0 in software-render / --disable-gpu mode.
+      document.querySelectorAll('.view.active').forEach(el => {
+        el.style.animation = 'none';
+        el.style.opacity   = '1';
+        el.style.overflow  = 'visible';
+        el.style.maxHeight = 'none';
+        el.style.height    = 'auto';
+      });
+      // Also kill animations on ALL views to prevent residual opacity:0 state
+      document.querySelectorAll('.view').forEach(el => {
+        el.style.animation = 'none';
+      });
+      // Tab-specific inner scrollers
+      ['.security-content', '.approvals-content', '.ops-content',
+       '.certifications-content', '.exports-content', '.settings-content',
+       '.audit-log-content'].forEach(s => {
+        document.querySelectorAll(s).forEach(el => {
+          el.style.overflow  = 'visible';
+          el.style.maxHeight = 'none';
+          el.style.height    = 'auto';
         });
       });
     })();
   `;
 
   const TABS = [
-    // [tabId, ipcTriggerJs, extraWaitMs, outName]
-    ['dashboard',      `window.api.getDashboardStats(); window.api.getAgentHealth();`, 2000],
+    // [tabId, ipcTriggerJs, extraWaitMs]
+    // NOTE: dashboard/agent-health are NOT triggered via window.api — those real IPC
+    // handlers can't connect to Entra in capture mode and would overwrite mock data
+    // with error responses.  Mock data is re-sent inside the loop instead (see below).
+    ['dashboard',      null, 2000],
     ['approver',       null, 600],
     ['auditor',        null, 600],
     ['security',       `window.api.getSecurityReports(); window.api.getAgentHealth();`, 2500],
@@ -2352,9 +2454,12 @@ async function runCapture() {
     `);
     await sleep(500);
     if (ipcJs) await win.webContents.executeJavaScript(ipcJs);
-    // Re-send mock approvals each time the approvals tab is visited (real IPC reads
-    // empty PENDING_DIR in capture mode, which would wipe the pre-sent mock data)
+    // Re-send mock data that real IPC handlers would wipe in capture mode
     if (tab === 'approvals') win.webContents.send('pending-approvals', MOCK_APPROVALS);
+    if (tab === 'dashboard') {
+      win.webContents.send('dashboard-stats', MOCK_DASHBOARD);
+      win.webContents.send('agent-health',    MOCK_AGENT_HEALTH);
+    }
     await sleep(wait);
     if (TAB_INJECT[tab]) await win.webContents.executeJavaScript(TAB_INJECT[tab]);
     await win.webContents.executeJavaScript(REMOVE_OVERFLOW);
@@ -2525,10 +2630,19 @@ app.whenReady().then(() => {
             TicketRef: payload.ticketRef, WhatIf: w
           });
         } else if (opName === 'mover') {
-          raw = runPs(path.join(AGENTS_DIR, 'mover', 'Invoke-MoverProcess.ps1'), {
-            UserPrincipalName: payload.userPrincipalName, Department: payload.department,
-            JobTitle: payload.jobTitle, WhatIf: w
+          const _pfMover = writePayloadFile({
+            userPrincipalName: payload.userPrincipalName,
+            department: payload.department,
+            jobTitle: payload.jobTitle,
+            manager: payload.manager,
+            licensesToAdd: payload.licensesToAdd,
+            licensesToRemove: payload.licensesToRemove,
+            groupsToAdd: payload.groupsToAdd,
+            groupsToRemove: payload.groupsToRemove,
+            ticketRef: payload.ticketRef
           });
+          try { raw = runPs(path.join(AGENTS_DIR, 'mover', 'Invoke-MoverProcess.ps1'), { PayloadPath: _pfMover, WhatIf: w }); }
+          finally { try { fs.unlinkSync(_pfMover); } catch {} }
         }
         op.status = 'executed';
       } catch {
