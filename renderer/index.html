@@ -197,6 +197,9 @@
           <button class="win-btn docked-btn" id="btn-toggle-overlay" title="Agent Overlay (Ctrl+Shift+Space)">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="13" height="13"><rect x="2" y="8" width="20" height="13" rx="2"/><path d="M8 8V6a4 4 0 0 1 8 0v2"/><line x1="12" y1="13" x2="12" y2="17"/><line x1="10" y1="15" x2="14" y2="15"/></svg>
           </button>
+          <button class="win-btn power-btn" id="btn-power" title="Quit console (⏻)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12" stroke-linecap="round"><path d="M18.36 6.64a9 9 0 1 1-12.73 0"/><line x1="12" y1="2" x2="12" y2="12"/></svg>
+          </button>
           <span class="divider"></span>
           <button class="win-btn" id="btn-minimize" title="Minimize">&#x2212;</button>
           <button class="win-btn" id="btn-maximize" title="Maximize">&#x25A1;</button>
@@ -215,26 +218,29 @@
               Customize
             </button>
           </div>
-          <p class="v2-page-sub">Seven specialist agents handling joiners, movers, leavers, enrollment, certification and audit across your Entra tenant. Three things may need your attention.</p>
+          <p class="v2-page-sub" id="dash-page-sub">Fleet loading — gathering agent telemetry and pending actions…</p>
 
           <div class="v2-triage-strip" aria-label="Priority triage">
-            <button class="v2-triage-card crit" data-jump-tab="security">
-              <span class="label">Security / 2 critical</span>
-              <span class="title">After-hours leaver detected</span>
-              <span class="meta">robert.martinez / 05:18 / via leaver</span>
-              <span class="sub">Plus 1 leaver-then-group-add pattern</span>
+            <button class="v2-triage-card crit" data-jump-tab="security" id="triage-security">
+              <span class="label" id="triage-sec-label">Security</span>
+              <span class="title" id="triage-sec-title">After-hours leaver detected</span>
+              <span class="meta" id="triage-sec-meta">robert.martinez / 05:18 / via leaver</span>
+              <span class="sub" id="triage-sec-sub">Plus 1 leaver-then-group-add pattern</span>
+              <span class="v2-triage-cta">Triage findings <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="13" height="13"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span>
             </button>
-            <button class="v2-triage-card warn" data-jump-tab="approvals">
-              <span class="label">Approvals / 3 pending</span>
-              <span class="title">Hard leaver awaiting 2nd approval</span>
-              <span class="meta">sales-ops / expires in 22 min</span>
-              <span class="sub">Plus 2 sensitive group changes</span>
+            <button class="v2-triage-card warn" data-jump-tab="approvals" id="triage-approvals">
+              <span class="label" id="triage-appr-label">Approvals</span>
+              <span class="title" id="triage-appr-title">Hard leaver awaiting 2nd approval</span>
+              <span class="meta" id="triage-appr-meta">sales-ops / expires in 22 min</span>
+              <span class="sub" id="triage-appr-sub">Plus 2 sensitive group changes</span>
+              <span class="v2-triage-cta">Review queue <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="13" height="13"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span>
             </button>
-            <button class="v2-triage-card info" data-jump-tab="certs">
-              <span class="label">Rotations / 2 soon</span>
-              <span class="title">Mover cert expires in 14 days</span>
-              <span class="meta">jml-fleet-mover / thumbprint 7A91...</span>
-              <span class="sub">Provisioner rotation follows in 31 days</span>
+            <button class="v2-triage-card info" data-jump-tab="certs" id="triage-certs">
+              <span class="label" id="triage-certs-label">Rotations</span>
+              <span class="title" id="triage-certs-title">Mover cert expires in 14 days</span>
+              <span class="meta" id="triage-certs-meta">jml-fleet-mover / thumbprint 7A91...</span>
+              <span class="sub" id="triage-certs-sub">Provisioner rotation follows in 31 days</span>
+              <span class="v2-triage-cta">Schedule rotation <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="13" height="13"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span>
             </button>
           </div>
 
@@ -700,20 +706,6 @@
 
           <div class="v2-approver-layout">
           <div class="chat-shell">
-            <div id="mode-toggle">
-              <button class="mode-btn active" data-mode="whatif">Safe</button>
-              <button class="mode-btn" data-mode="live">Live</button>
-            </div>
-            <div class="mode-banner" id="mode-banner-whatif">
-              <span class="dot"></span> Safe mode · no changes will be committed to the directory
-            </div>
-            <div class="mode-banner hidden" id="mode-banner-live">
-              <span class="dot"></span> LIVE mode · actions will modify the tenant directory
-            </div>
-            <div class="mode-banner hidden" id="role-access-banner" style="color:var(--coral);background:oklch(0.30 0.10 24 / .14);border-color:oklch(0.45 0.16 24 / .35)">
-              <span class="dot"></span><span id="role-access-text"></span>
-            </div>
-
             <div class="chat-scroll messages" id="messages-approver">
               <div class="welcome-msg">
                 <div class="welcome-title">Approver Agent</div>
@@ -745,30 +737,84 @@
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" width="16" height="16"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
               </button>
             </div>
+            <div class="chat-cost-footer" id="chat-cost-footer" style="display:none">
+              <span id="chat-model-info">claude-sonnet-4-6</span>
+              <span id="chat-session-cost">session &#8776; &#8212;</span>
+            </div>
           </div>
 
           <aside class="v2-approver-rail">
-            <div class="v2-rail-card">
+            <!-- Lifecycle card -->
+            <div class="v2-rail-card" id="lifecycle-card">
               <div class="v2-rail-head">
                 <h3>Lifecycle</h3>
-                <span class="tag warn">Leaver / staged</span>
+                <span class="tag warn" id="lifecycle-status-tag">Leaver / staged</span>
               </div>
-              <div class="v2-lifecycle-map">
-                <div class="v2-lifecycle-state done"><div class="label">Request</div><div class="sub">captured</div></div>
-                <div class="v2-lifecycle-state done"><div class="label">Risk Score</div><div class="sub">68 / high</div></div>
-                <div class="v2-lifecycle-state active"><div class="label">Plan</div><div class="sub">soft stage ready</div></div>
-                <div class="v2-lifecycle-state"><div class="label">Reaction</div><div class="sub">2400 ms wait</div></div>
-                <div class="v2-lifecycle-state blocked"><div class="label">Hard Stage</div><div class="sub">needs 2nd approval</div></div>
+              <div class="v2-lifecycle-v2" id="lifecycle-map">
+                <!-- Populated by JS — renderLifecycleMap() -->
               </div>
             </div>
-            <div class="v2-rail-card">
+
+            <!-- Subject card (filled by JS when agent resolves a user) -->
+            <div class="v2-rail-card" id="subject-card" style="display:none">
+              <div class="v2-rail-head">
+                <h3>Subject</h3>
+              </div>
+              <div style="display:flex;gap:10px;align-items:center;margin-bottom:12px">
+                <div class="subject-avatar" id="subject-avatar">?</div>
+                <div>
+                  <div style="font-size:14px;font-weight:600" id="subject-name">&#8212;</div>
+                  <div class="mono" style="font-size:11.5px;color:var(--text-3)" id="subject-upn">&#8212;</div>
+                </div>
+              </div>
+              <div class="subject-grid" id="subject-grid"><!-- rows --></div>
+            </div>
+
+            <!-- Guardrails card -->
+            <div class="v2-rail-card" id="guardrails-card">
               <div class="v2-rail-head">
                 <h3>Guardrails</h3>
-                <span class="tag ok">Safe</span>
+                <span class="tag ok" id="guardrails-tag">Safe</span>
               </div>
-              <div class="v2-rail-kv"><span>SoD policy</span><b>No conflict</b></div>
-              <div class="v2-rail-kv"><span>Freeze window</span><b>None active</b></div>
-              <div class="v2-rail-kv"><span>Rollback window</span><b>24h soft stage</b></div>
+              <div class="guardrail-row">
+                <span class="gl-label">SoD policy</span>
+                <span class="gl-val" id="gl-sod">No conflict</span>
+              </div>
+              <div class="guardrail-row">
+                <span class="gl-label">Freeze window</span>
+                <span class="gl-val" id="gl-freeze">None active</span>
+              </div>
+              <div class="guardrail-row">
+                <span class="gl-label">Rollback window</span>
+                <span class="gl-val" id="gl-rollback">24h soft stage</span>
+              </div>
+            </div>
+
+            <!-- Operation log card (filled as operations run) -->
+            <div class="v2-rail-card" id="op-log-card" style="display:none">
+              <div class="v2-rail-head">
+                <h3>Operation Log</h3>
+                <span class="ks mono" style="font-size:10px;color:var(--text-3)">hash-chained</span>
+              </div>
+              <div id="op-log-list" style="font-size:11px;font-family:var(--mono)"><!-- rows --></div>
+            </div>
+
+            <!-- Session mode toggle (existing functionality, preserved with same IDs) -->
+            <div class="v2-rail-card">
+              <div class="v2-rail-head"><h3>Session Mode</h3></div>
+              <div id="mode-toggle">
+                <button class="mode-btn active" data-mode="whatif">Safe</button>
+                <button class="mode-btn" data-mode="live">Live</button>
+              </div>
+              <div class="mode-banner" id="mode-banner-whatif" style="margin-top:8px">
+                <span class="dot"></span> Safe mode &middot; no changes will be committed to the directory
+              </div>
+              <div class="mode-banner hidden" id="mode-banner-live" style="margin-top:8px">
+                <span class="dot"></span> LIVE mode &middot; actions will modify the tenant directory
+              </div>
+              <div class="mode-banner hidden" id="role-access-banner" style="color:var(--coral);background:oklch(0.30 0.10 24 / .14);border-color:oklch(0.45 0.16 24 / .35);margin-top:8px">
+                <span class="dot"></span><span id="role-access-text"></span>
+              </div>
             </div>
           </aside>
           </div>
@@ -788,36 +834,99 @@
             </div>
           </div>
 
-          <div class="chat-shell">
-            <div class="mode-banner aa-banner">
-              <span class="dot"></span> Read-only audit context · queries are bounded to signed log records and resolve in &lt;200 ms
-            </div>
+          <div class="v2-auditor-layout">
 
-            <div class="chat-scroll messages" id="messages-auditor">
-              <div class="welcome-msg">
-                <div class="welcome-title">Audit Agent</div>
-                <div class="welcome-body">Ask anything about the tenant directory or audit chain. I can query users, licenses, roles, groups, and JML activity.</div>
-                <div class="welcome-examples">
-                  <span class="example-chip">How many users are enabled?</span>
-                  <span class="example-chip">Show license utilization</span>
-                  <span class="example-chip">Who has admin roles?</span>
-                  <span class="example-chip">Recent joins this month</span>
-                  <span class="example-chip">Hard-stage leavers, last 30d</span>
-                  <span class="example-chip">Failed enrollments by agent</span>
+            <!-- Left: chat -->
+            <div class="chat-shell">
+              <div class="mode-banner aa-banner">
+                <span class="dot"></span> Read-only audit context · queries are bounded to signed log records and resolve in &lt;200 ms
+              </div>
+
+              <div class="chat-scroll messages" id="messages-auditor">
+                <div class="welcome-msg">
+                  <div class="welcome-title">Audit Agent</div>
+                  <div class="welcome-body">Ask anything about the tenant directory or audit chain. I can query users, licenses, roles, groups, and JML activity.</div>
+                  <div class="welcome-examples">
+                    <span class="example-chip">How many users are enabled?</span>
+                    <span class="example-chip">Show license utilization</span>
+                    <span class="example-chip">Who has admin roles?</span>
+                    <span class="example-chip">Recent joins this month</span>
+                    <span class="example-chip">Hard-stage leavers, last 30d</span>
+                    <span class="example-chip">Failed enrollments by agent</span>
+                  </div>
                 </div>
               </div>
-            </div>
 
-            <div class="compose">
-              <div class="field">
-                <span style="color:var(--muted)">⌕</span>
-                <input id="input-auditor" type="text" placeholder="Ask the audit log…  (e.g. who certified the Engineering-All group on 5/9?)" autocomplete="off" />
+              <div class="assist-bar" id="auditor-assist-bar">
+                <button class="assist-chip" data-prompt="How many users are enabled, disabled, and guest in the tenant?">◉ Identity count</button>
+                <button class="assist-chip" data-prompt="Show license utilization breakdown by SKU">⊠ License usage</button>
+                <button class="assist-chip" data-prompt="Which users currently have admin or privileged roles assigned?">⚑ Admin roles</button>
+                <button class="assist-chip" data-prompt="Show hard-stage leavers processed in the last 30 days">◣ Leaver history</button>
+                <button class="assist-chip" data-prompt="Were there any failed enrollment operations in the last 7 days?">⊞ Failed enrollments</button>
+                <button class="assist-chip" data-prompt="Are there any anomalous sign-in patterns or risky users flagged by Identity Protection?">◈ Risk signals</button>
               </div>
-              <button class="send" id="send-auditor" aria-label="Send">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" width="16" height="16"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
-              </button>
-            </div>
-          </div>
+
+              <div class="compose">
+                <div class="field">
+                  <span style="color:var(--muted)">⌕</span>
+                  <input id="input-auditor" type="text" placeholder="Ask the audit log…  (e.g. who certified the Engineering-All group on 5/9?)" autocomplete="off" />
+                </div>
+                <button class="send" id="send-auditor" aria-label="Send">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" width="16" height="16"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                </button>
+              </div>
+            </div><!-- /chat-shell -->
+
+            <!-- Right: audit rail -->
+            <aside class="v2-auditor-rail">
+
+              <!-- Scope card -->
+              <div class="v2-rail-card">
+                <div class="v2-rail-head">
+                  <h3>Scope</h3>
+                  <span class="tag ok">Read-Only</span>
+                </div>
+                <div class="aud-scope-list">
+                  <div class="aud-scope-row can"><span class="aud-scope-icon">✓</span><span>Audit log queries</span></div>
+                  <div class="aud-scope-row can"><span class="aud-scope-icon">✓</span><span>User directory reads</span></div>
+                  <div class="aud-scope-row can"><span class="aud-scope-icon">✓</span><span>Risk &amp; identity signals</span></div>
+                  <div class="aud-scope-row can"><span class="aud-scope-icon">✓</span><span>License utilization</span></div>
+                  <div class="aud-scope-row cannot"><span class="aud-scope-icon">✗</span><span>No directory mutations</span></div>
+                  <div class="aud-scope-row cannot"><span class="aud-scope-icon">✗</span><span>No PIM activation</span></div>
+                  <div class="aud-scope-row cannot"><span class="aud-scope-icon">✗</span><span>No approval writes</span></div>
+                </div>
+              </div>
+
+              <!-- Active Query card (JS-updated) -->
+              <div class="v2-rail-card" id="aud-query-card">
+                <div class="v2-rail-head">
+                  <h3>Active Query</h3>
+                  <span class="ks mono" id="aud-query-status" style="font-size:10px;color:var(--text-3)">idle</span>
+                </div>
+                <div id="aud-query-body" class="aud-idle-hint">Send a query to begin…</div>
+              </div>
+
+              <!-- Key Findings card (JS-filled on completion) -->
+              <div class="v2-rail-card" id="aud-findings-card" style="display:none">
+                <div class="v2-rail-head">
+                  <h3>Key Findings</h3>
+                  <button class="btn-text-link" id="aud-findings-clr">clear</button>
+                </div>
+                <div id="aud-findings-list"></div>
+              </div>
+
+              <!-- Jump To card -->
+              <div class="v2-rail-card">
+                <div class="v2-rail-head"><h3>Jump To</h3></div>
+                <div class="aud-jump-list">
+                  <button class="btn ghost sm" id="aud-jump-log">Full Audit Log →</button>
+                  <button class="btn ghost sm" id="aud-jump-security">Security Findings →</button>
+                  <button class="btn ghost sm" id="aud-jump-users">User Directory →</button>
+                </div>
+              </div>
+
+            </aside><!-- /v2-auditor-rail -->
+          </div><!-- /v2-auditor-layout -->
         </section>
 
         <!-- =====================================================
@@ -1109,168 +1218,136 @@
              VIEW · SECURITY
              ===================================================== -->
         <section class="view" id="view-security">
-          <div class="head">
-            <div>
-              <h1 class="h1">Security <span class="sub" id="security-last-updated"></span></h1>
-              <p class="desc">UEBA, Drift Detection and Identity Protection findings. Critical findings page the on-call rotation.</p>
+          <div class="v2-page-title">
+            <h1>Security Findings</h1>
+            <span class="meta">UEBA · drift · identity protection · last scan <b id="security-last-updated">—</b></span>
+          </div>
+          <p class="v2-page-sub">Triage inbox. Critical findings page <code class="mono">@oncall-identity</code> via Teams. Acknowledged items move to the audit log.</p>
+
+          <!-- Severity ribbon -->
+          <div class="sec-ribbon card" id="sec-ribbon">
+            <div class="sec-ribbon-counts">
+              <div class="sec-ribbon-item">
+                <span class="dot crit" style="width:10px;height:10px"></span>
+                <span class="sec-ribbon-num crit" id="sec-count-crit">—</span>
+                <span class="sec-ribbon-lbl">CRITICAL<br>NEEDS ACTION</span>
+              </div>
+              <div class="sec-ribbon-sep"></div>
+              <div class="sec-ribbon-item">
+                <span class="dot warn" style="width:10px;height:10px"></span>
+                <span class="sec-ribbon-num warn" id="sec-count-warn">—</span>
+                <span class="sec-ribbon-lbl">WARNING<br>REVIEW</span>
+              </div>
+              <div class="sec-ribbon-sep"></div>
+              <div class="sec-ribbon-item">
+                <span class="dot info" style="width:10px;height:10px"></span>
+                <span class="sec-ribbon-num info" id="sec-count-info">—</span>
+                <span class="sec-ribbon-lbl">INFO<br>FYI</span>
+              </div>
+              <div class="sec-ribbon-sep"></div>
+              <div class="sec-ribbon-item">
+                <span class="dot ok" style="width:10px;height:10px"></span>
+                <span class="sec-ribbon-num ok" id="sec-count-acked">—</span>
+                <span class="sec-ribbon-lbl">ACKED<br>LAST 24H</span>
+              </div>
             </div>
-            <div class="row-flex">
-              <button class="btn primary" id="refresh-security">Re-scan</button>
+            <div class="sec-ribbon-actions">
+              <button class="btn ghost sm" id="sec-filter-time">Last 24h ▾</button>
+              <button class="btn sm" id="refresh-security">Re-scan</button>
             </div>
           </div>
 
-          <!-- Scan trio -->
-          <div class="scan-trio">
-            <div class="scan ueba" id="sec-ueba">
-              <div class="name">Behavior Anomalies</div>
-              <div class="nums" id="sec-ueba-counts">
-                <div class="n cr"><b>—</b><span>critical</span></div>
-                <div class="n wn"><b>—</b><span>warning</span></div>
-                <div class="n in"><b>—</b><span>info</span></div>
+          <!-- Filter / bulk action bar -->
+          <div class="sec-filter-bar" id="sec-filter-bar">
+            <button class="btn sm" id="sec-filter-source">All sources ▾</button>
+            <button class="btn sm" id="sec-filter-sev">All severities ▾</button>
+            <button class="btn sm" id="sec-filter-assign">Unassigned ▾</button>
+            <div style="flex:1"></div>
+            <span class="mono sec-selection-count" id="sec-selection-count" style="display:none"></span>
+            <button class="btn sm" id="sec-btn-assign" style="display:none">Assign…</button>
+            <button class="btn sm" id="sec-btn-ack" style="display:none">Acknowledge</button>
+            <button class="btn sm danger" id="sec-btn-page" style="display:none">⚡ Page on-call</button>
+          </div>
+
+          <!-- Two-column: inbox + side rail -->
+          <div class="sec-inbox-layout" id="sec-inbox-layout">
+            <!-- Findings inbox -->
+            <div class="card sec-inbox" id="sec-inbox">
+              <div class="sec-inbox-empty" id="sec-inbox-empty">
+                <span class="count-badge ok">✓ No findings</span>
               </div>
-              <div class="last">
-                <span id="sec-ueba-meta">No report</span>
-                <span class="sec-section-badge" id="sec-ueba-badge"></span>
-              </div>
-              <div class="glow"></div>
             </div>
-            <div class="scan drift" id="sec-drift">
-              <div class="name">Config Drift</div>
-              <div class="nums" id="sec-drift-counts">
-                <div class="n cr"><b>—</b><span>critical</span></div>
-                <div class="n wn"><b>—</b><span>warning</span></div>
-                <div class="n in"><b>—</b><span>info</span></div>
+
+            <!-- Side rail -->
+            <div class="sec-rail" id="sec-rail">
+              <!-- Focused finding detail (shown when a finding is selected) -->
+              <div class="card sec-rail-card" id="sec-focused-card" style="display:none">
+                <span class="tag crit" id="sec-focused-tag" style="margin-bottom:12px;display:inline-block">FOCUSED · CRIT</span>
+                <h3 id="sec-focused-title" style="font-size:14px;margin:4px 0 6px;font-weight:600"></h3>
+                <div class="mono" style="font-size:11px;color:var(--text-3);margin-bottom:14px">
+                  rule: <span id="sec-focused-rule" style="color:var(--text-2)">—</span>
+                </div>
+                <div class="sec-focused-desc" id="sec-focused-desc"></div>
+                <div class="section-label" style="margin-top:14px;margin-bottom:6px">SIGNALS</div>
+                <div class="sec-signals" id="sec-signals"></div>
+                <div class="section-label" style="margin-top:14px;margin-bottom:6px">PIVOT</div>
+                <div style="display:flex;flex-direction:column;gap:6px" id="sec-pivot-btns">
+                  <button class="btn sm" id="sec-pivot-audit" style="justify-content:space-between">Open audit entry <span class="mono" style="color:var(--text-3)" id="sec-pivot-audit-hash">—</span></button>
+                  <button class="btn sm" id="sec-pivot-users" style="justify-content:space-between">Subject in Users <span>→</span></button>
+                  <button class="btn sm" id="sec-pivot-audit-agent" style="justify-content:space-between">Ask Audit Agent <span>✦</span></button>
+                </div>
+                <div style="border-top:1px solid var(--border);margin-top:14px;padding-top:12px;display:flex;gap:6px">
+                  <button class="btn sm" id="sec-action-assign" style="flex:1">Assign…</button>
+                  <button class="btn sm" id="sec-action-ack" style="flex:1">Acknowledge</button>
+                  <button class="btn sm danger" id="sec-action-page" title="Page on-call">⚡</button>
+                </div>
               </div>
-              <div class="last">
-                <span id="sec-drift-meta">No report</span>
-                <span class="sec-section-badge" id="sec-drift-badge"></span>
+
+              <!-- Drift remediation card -->
+              <div class="card sec-rail-card" id="sec-drift-rem-v2" style="display:none;border-color:color-mix(in oklab,var(--crit),transparent 60%)">
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+                  <span class="tag crit">DRIFT REMEDIATION</span>
+                  <span class="mono" style="font-size:10.5px;color:var(--text-3)" id="sec-drift-rem-subject">—</span>
+                </div>
+                <div style="font-size:12.5px;color:var(--text-2);margin-bottom:12px;line-height:1.55" id="sec-drift-rem-desc">—</div>
+                <div class="section-label" style="margin-bottom:6px">DIFF PREVIEW</div>
+                <div id="sec-drift-rem-diff" style="margin-bottom:12px"></div>
+                <div style="display:flex;gap:6px">
+                  <button class="btn sm" style="flex:1" id="sec-drift-full">Show full diff</button>
+                  <button class="btn primary sm" style="flex:1" id="sec-drift-restore-v2">Restore baseline</button>
+                </div>
+                <div class="mono" style="font-size:10px;color:var(--text-4);margin-top:8px;text-align:center">requires 2nd approver · 30-min token</div>
               </div>
-              <div class="glow"></div>
-            </div>
-            <div class="scan id" id="sec-risky">
-              <div class="name">Identity Risk</div>
-              <div class="nums" id="sec-risky-counts">
-                <div class="n cr"><b>—</b><span>critical</span></div>
-                <div class="n wn"><b>—</b><span>warning</span></div>
-                <div class="n in"><b>—</b><span>info</span></div>
+
+              <!-- Next scans card -->
+              <div class="card sec-rail-card" id="sec-next-scans">
+                <div class="section-label" style="margin-bottom:8px">NEXT SCANS</div>
+                <div id="sec-next-scans-list">
+                  <div class="sec-scan-row"><div><div style="font-size:12.5px">UEBA Analysis</div><div class="mono" style="font-size:10.5px;color:var(--text-4)">daily · 12:30 PM</div></div><span class="mono" style="font-size:11px;color:var(--text-3)">—</span></div>
+                  <div class="sec-scan-row"><div><div style="font-size:12.5px">Drift Detection</div><div class="mono" style="font-size:10.5px;color:var(--text-4)">weekly · Mon 05:00</div></div><span class="mono" style="font-size:11px;color:var(--text-3)">—</span></div>
+                  <div class="sec-scan-row"><div><div style="font-size:12.5px">Risky User Scan</div><div class="mono" style="font-size:10.5px;color:var(--text-4)">every 6h</div></div><span class="mono" style="font-size:11px;color:var(--text-3)">—</span></div>
+                </div>
               </div>
-              <div class="last">
-                <span id="sec-risky-meta">No report</span>
-                <span class="sec-section-badge" id="sec-risky-badge"></span>
-              </div>
-              <div class="glow"></div>
             </div>
           </div>
 
-          <!-- UEBA findings -->
-          <details class="collapse" id="sec-section-ueba" open>
-            <summary>
-              Behavior Anomalies
-              <span id="sec-ueba-summary-preview" class="collapse-summary-preview"></span>
-              <span id="sec-ueba-run" style="font-family:var(--mono);font-size:11px;color:var(--muted);font-weight:400;margin-left:auto"></span>
-            </summary>
-            <div class="collapse-body" id="sec-ueba-list">
-              <div class="loading-hint">Loading…</div>
-            </div>
-          </details>
-
-          <!-- Drift findings -->
-          <details class="collapse" id="sec-section-drift" open>
-            <summary>
-              Config Drift
-              <span id="sec-drift-summary-preview" class="collapse-summary-preview"></span>
-              <span id="sec-drift-run" style="font-family:var(--mono);font-size:11px;color:var(--muted);font-weight:400;margin-left:auto"></span>
-            </summary>
-            <div class="collapse-body" id="sec-drift-list">
-              <div class="loading-hint">Loading…</div>
-            </div>
-          </details>
-
-          <!-- Drift remediation card -->
-          <div class="drift-rem-card" id="drift-rem-card">
-            <div class="drift-rem-head">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
-              <span class="drift-rem-title">Remediate drift · MFA not required for Guests</span>
-              <span class="drift-rem-badge">1 item drifted</span>
-            </div>
-            <div class="drift-rem-diff">
-              <div class="diff-row keep"><span class="diff-gutter">&nbsp;</span><span>"conditionalAccessPolicies": [</span></div>
-              <div class="diff-row rem" ><span class="diff-gutter">&minus;</span><span>&nbsp;&nbsp;"grantControls": { "builtInControls": [] }</span></div>
-              <div class="diff-row add" ><span class="diff-gutter">+</span><span>&nbsp;&nbsp;"grantControls": { "builtInControls": ["mfa"] }</span></div>
-              <div class="diff-row keep"><span class="diff-gutter">&nbsp;</span><span>]</span></div>
-            </div>
-            <div class="drift-rem-actions">
-              <span class="note">Requires dual-approval &middot; Provisioner agent will write via PATCH /policies/conditionalAccessPolicies</span>
-              <button class="btn ghost sm" id="btn-drift-ignore">Ignore</button>
-              <button class="btn primary sm" id="btn-drift-restore">Restore baseline</button>
-            </div>
+          <!-- Hidden elements kept for backward-compat with JS handler (scan-trio IDs) -->
+          <div style="display:none">
+            <div id="sec-ueba"><div class="nums" id="sec-ueba-counts"></div></div>
+            <div id="sec-drift"><div class="nums" id="sec-drift-counts"></div></div>
+            <div id="sec-risky"><div class="nums" id="sec-risky-counts"></div></div>
+            <span id="sec-ueba-meta"></span><span id="sec-drift-meta"></span><span id="sec-risky-meta"></span>
+            <span id="sec-ueba-run"></span><span id="sec-drift-run"></span><span id="sec-risky-run"></span>
+            <span id="sec-ueba-badge"></span><span id="sec-drift-badge"></span><span id="sec-risky-badge"></span>
+            <span id="sec-ueba-summary-preview"></span><span id="sec-drift-summary-preview"></span><span id="sec-risky-summary-preview"></span>
+            <div id="sec-ueba-list"></div><div id="sec-drift-list"></div><div id="sec-risky-list"></div>
+            <div id="drift-rem-card"><button id="btn-drift-ignore"></button><button id="btn-drift-restore"></button></div>
+            <div id="agent-health-grid"></div>
+            <input id="stale-days" type="number" value="90"><button id="btn-scan-stale"></button><button id="btn-disable-stale"></button><div id="stale-results"></div>
+            <div id="cert-expiry-body"></div>
+            <input id="sod-test-upn"><input id="sod-test-group-a"><input id="sod-test-group-b"><button id="btn-test-sod"></button><div id="sod-tester-result"></div>
+            <div id="pim-roles-list"></div><button id="btn-load-pim"></button>
           </div>
-
-          <!-- Risky users -->
-          <details class="collapse" id="sec-section-risky" open>
-            <summary>
-              Identity Risk · Risky Users
-              <span id="sec-risky-summary-preview" class="collapse-summary-preview"></span>
-              <span id="sec-risky-run" style="font-family:var(--mono);font-size:11px;color:var(--muted);font-weight:400;margin-left:auto"></span>
-            </summary>
-            <div class="collapse-body" id="sec-risky-list">
-              <div class="loading-hint">Loading…</div>
-            </div>
-          </details>
-
-          <!-- Agent health -->
-          <details class="collapse" id="sec-agent-health">
-            <summary>Agent Health</summary>
-            <div class="collapse-body dense">
-              <div id="agent-health-grid"><div class="loading-hint">Loading…</div></div>
-            </div>
-          </details>
-
-          <!-- Stale Account Manager -->
-          <details class="collapse" id="sec-stale">
-            <summary>Stale Account Manager</summary>
-            <div class="collapse-body">
-              <div class="row-flex" style="margin-bottom:10px">
-                <label style="font-size:12.5px">Inactive ≥ <input id="stale-days" type="number" value="90" min="14" max="365" style="width:70px;padding:5px 8px;font-family:var(--mono)"> days</label>
-                <button class="btn" id="btn-scan-stale">Scan</button>
-                <button class="btn danger" id="btn-disable-stale" style="display:none">Disable Selected</button>
-              </div>
-              <div id="stale-results"></div>
-            </div>
-          </details>
-
-          <!-- Certificate Expiry -->
-          <details class="collapse" id="sec-cert-expiry">
-            <summary>Certificate Expiry</summary>
-            <div class="collapse-body" id="cert-expiry-body">
-              <div class="loading-hint">Expand to load.</div>
-            </div>
-          </details>
-
-          <!-- SoD Conflict Tester -->
-          <details class="collapse" id="sec-sod-tester">
-            <summary>SoD Conflict Tester</summary>
-            <div class="collapse-body">
-              <div class="qop-form" style="padding:0">
-                <div class="qop-row"><label>User UPN</label><input id="sod-test-upn" type="text" placeholder="user@tenant" autocomplete="off"></div>
-                <div class="qop-row"><label>Group A</label><input id="sod-test-group-a" type="text" placeholder="Group ID or display name"></div>
-                <div class="qop-row"><label>Group B</label><input id="sod-test-group-b" type="text" placeholder="Group ID or display name"></div>
-                <div class="qop-row" style="align-self:end"><button class="btn primary" id="btn-test-sod">Test</button></div>
-              </div>
-              <div id="sod-tester-result" class="sod-tester-result" style="display:none"></div>
-            </div>
-          </details>
-
-          <!-- PIM Roles -->
-          <details class="collapse" id="sec-pim">
-            <summary>PIM Eligible Roles</summary>
-            <div class="collapse-body dense">
-              <div style="padding:10px 14px">
-                <button class="btn" id="btn-load-pim">Load my eligible roles</button>
-              </div>
-              <div id="pim-roles-list"></div>
-            </div>
-          </details>
         </section>
 
         <!-- =====================================================

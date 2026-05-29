@@ -152,6 +152,9 @@ contextBridge.exposeInMainWorld('api', {
   // Sign out — closes main window, returns to operator select
   signOut: () => ipcRenderer.send('sign-out'),
 
+  // Hard quit — terminates the entire application process
+  appQuit: () => ipcRenderer.send('app-quit'),
+
   // Avatar file picker — uses Electron native dialog (reliable vs hidden input)
   pickImageFile: () => ipcRenderer.invoke('pick-image-file'),
 
@@ -169,4 +172,8 @@ contextBridge.exposeInMainWorld('api', {
   // Window state
   onMaximized:    (cb) => ipcRenderer.on('window-maximized', (_, v) => cb(v)),
   onOverlayState: (cb) => ipcRenderer.on('overlay-state',    (_, v) => cb(v)),
+
+  // Cross-window conversation sync
+  getConversationHistory: (agent) => ipcRenderer.invoke('get-conversation-display', { agent }),
+  onMsgMirror: (cb) => ipcRenderer.on('msg-mirror', (_, d) => cb(d)),
 });

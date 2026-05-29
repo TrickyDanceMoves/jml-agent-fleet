@@ -30,4 +30,11 @@ contextBridge.exposeInMainWorld('panelApi', {
   onAgentError:      (cb)          => ipcRenderer.on('msg-error',    (_, d) => cb(d)),
   clearAgentHistory: (agent)       => ipcRenderer.send('clear-history', { agent }),
   onSlimEdge:        (cb)          => ipcRenderer.on('slim-edge-changed', (_, e) => cb(e)),
+
+  // Conversation history & cross-window sync
+  getConversationHistory: (agent)  => ipcRenderer.invoke('get-conversation-display', { agent }),
+  onMsgMirror:       (cb)          => ipcRenderer.on('msg-mirror', (_, d) => cb(d)),
+
+  // Hard quit — terminates the entire application process
+  appQuit:           ()            => ipcRenderer.send('app-quit'),
 });

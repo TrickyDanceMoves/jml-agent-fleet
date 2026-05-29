@@ -573,6 +573,9 @@ renderDockedShortcuts();
 
 // ── Actions ───────────────────────────────────────────────────────────────────
 document.getElementById('close-btn').addEventListener('click', () => window.panelApi.close());
+document.getElementById('power-btn').addEventListener('click', () => {
+  if (confirm('Quit JML Fleet Console?')) window.panelApi.appQuit();
+});
 document.getElementById('slim-btn').addEventListener('click', () => setSlimMode(true));
 document.getElementById('open-console').addEventListener('click', () => window.panelApi.openConsole('dashboard'));
 
@@ -1192,8 +1195,13 @@ document.querySelectorAll('.ac-tab').forEach(tab => {
     document.querySelectorAll('.ac-tab').forEach(t => t.classList.remove('active'));
     tab.classList.add('active');
     _chatAgent = tab.dataset.agent;
-    acThread.innerHTML = '<div class="ac-empty">Ask the agent anything…</div>';
+    acThread.innerHTML = '';
     _chatMsgEl = null;
+    acLoadHistory(_chatAgent).then(() => {
+      if (!acThread.children.length) {
+        acThread.innerHTML = '<div class="ac-empty">Ask the agent anything…</div>';
+      }
+    });
   });
 });
 
@@ -1310,6 +1318,40 @@ window.panelApi.onAgentError((d) => {
   if (empty) empty.remove();
   acThread.appendChild(el);
   acScrollBottom();
+});
+
+// ── Conversation history helpers ───────────────────────────────────────────────
+async function acLoadHistory(agent) {
+  if (typeof window.panelApi.getConversationHistory !== 'function') return;
+  try {
+    const history = await window.panelApi.getConversationHistory(agent);
+    if (!history || !history.length) return;
+    history.forEach(({ role, text }) => {
+      if (text) acAppendMsg(role === 'assistant' ? 'assistant' : 'user', text);
+    });
+  } catch { /* ignore */ }
+}
+
+// ── Cross-window conversation mirror ──────────────────────────────────────────
+if (typeof window.panelApi.onMsgMirror === 'function') {
+  window.panelApi.onMsgMirror(({ agent, role, text }) => {
+    if (!text || agent !== _chatAgent) return;
+    if (role === 'user') {
+      acAppendMsg('user', text);
+      acShowThinking();
+    } else if (role === 'assistant') {
+      acRemoveThinking();
+      acAppendMsg('assistant', text);
+    }
+  });
+}
+
+// Load history for the default agent on panel open
+acLoadHistory(_chatAgent).then(() => {
+  // Only show the empty placeholder if no history was found
+  if (!acThread.children.length) {
+    acThread.innerHTML = '<div class="ac-empty">Ask the agent anything…</div>';
+  }
 });
 
 // ── Drag-to-reorder sections ──────────────────────────────────────────────────

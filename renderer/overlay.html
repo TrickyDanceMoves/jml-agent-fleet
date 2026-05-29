@@ -293,6 +293,29 @@
   @keyframes ov-tin  { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:none; } }
   @keyframes ov-tout { from { opacity:1; } to { opacity:0; } }
 
+  /* ── Top drag strip ── */
+  .ov-drag-strip {
+    -webkit-app-region: drag;
+    height: 10px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: grab;
+    opacity: 0;
+    transition: opacity .2s;
+  }
+  .ov-shell:hover .ov-drag-strip { opacity: 1; }
+  .ov-drag-dots {
+    -webkit-app-region: drag;
+    pointer-events: none;
+    font-size: 7px;
+    color: var(--dim);
+    letter-spacing: 3px;
+    line-height: 1;
+    margin-top: -2px;
+  }
+
   /* ── Resize handles ── */
   .ov-rz { position: fixed; z-index: 100; -webkit-app-region: no-drag; }
   .ov-rz-n  { top: 0;    left: 16px; right: 16px; height: 6px; cursor: n-resize; }
@@ -314,6 +337,8 @@
 </head>
 <body>
 <div class="ov-shell">
+
+  <div class="ov-drag-strip" aria-hidden="true"><span class="ov-drag-dots">· · · · ·</span></div>
 
   <div class="ov-approvals" id="ov-approvals"></div>
   <div class="ov-divider"   id="ov-divider"></div>

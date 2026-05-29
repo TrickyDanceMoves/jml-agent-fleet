@@ -17,6 +17,9 @@ const _submitBatch = {
   approver: {},
   auditor:  {}
 };
+// Holds the most-recent score_risk tool result so renderRiskScoreCard can
+// render contextual reasons rather than generic placeholder text.
+let _lastRiskResult = null;
 
 // ── Agent avatars ─────────────────────────────────────────────────────────────
 const AGENT_AVATARS = {
@@ -356,6 +359,9 @@ document.querySelectorAll('.nav-item').forEach(btn => {
 document.getElementById('btn-minimize').addEventListener('click', () => window.api.windowMinimize());
 document.getElementById('btn-maximize').addEventListener('click', () => window.api.windowMaximize());
 document.getElementById('btn-close').addEventListener('click',    () => window.api.windowClose());
+document.getElementById('btn-power')?.addEventListener('click',   () => {
+  if (confirm('Quit JML Fleet Console?')) window.api.appQuit();
+});
 
 // ── Mode toggle (Approver) ────────────────────────────────────────────────────
 function updateTopbarModePill() {
@@ -559,9 +565,10 @@ document.getElementById('clear-auditor').addEventListener('click',  () => window
 
 window.api.onHistoryCleared(({ agent }) => {
   const container = document.getElementById('messages-' + agent);
-  container.innerHTML = container.querySelector ? '' : '';
   container.innerHTML = '';
   appendWelcome(agent);
+  if (agent === 'approver') { lcSetIdle(); _lastRiskResult = null; }
+  if (agent === 'auditor')  audClearState();
 });
 
 function appendWelcome(agent) {
@@ -592,6 +599,11 @@ function sendMessage(agent) {
   const placeholder = appendAssistantPlaceholder(agent);
   currentMsgEl[agent] = placeholder;
 
+  // Lifecycle: reset to request stage when approver gets a new message
+  if (agent === 'approver') lcResetToRequest();
+  // Auditor: update active query card
+  if (agent === 'auditor') audSetActiveQuery(text);
+
   window.api.sendMessage(agent, text);
 }
 
@@ -601,6 +613,150 @@ function sendMessage(agent) {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(agent); }
   });
 });
+
+// ── V2 Approver Rail updates ───────────────────────────────────────────────
+function updateSubjectCard(info) {
+  // info: { name, upn, dept, manager, ticket, groups, licenses }
+  const card = document.getElementById('subject-card');
+  if (!card) return;
+  card.style.display = 'block';
+  const av = document.getElementById('subject-avatar');
+  const nameEl = document.getElementById('subject-name');
+  const upnEl = document.getElementById('subject-upn');
+  const grid = document.getElementById('subject-grid');
+  if (nameEl) nameEl.textContent = info.name || '—';
+  if (upnEl) upnEl.textContent = info.upn || '—';
+  if (av) {
+    const initials = (info.name || '?').split(/\s+/).map(w => w[0]).join('').slice(0, 2).toUpperCase();
+    av.textContent = initials;
+  }
+  if (grid) {
+    const rows = [
+      ['DEPT', info.dept],
+      ['MGR', info.manager],
+      ['TICKET', info.ticket],
+      ['GROUPS', info.groups],
+      ['LICENSES', info.licenses],
+    ].filter(([, v]) => v);
+    grid.innerHTML = rows.map(([k, v]) =>
+      '<span class="sg-key">' + k + '</span><span>' + escHtml(String(v)) + '</span>'
+    ).join('');
+  }
+}
+
+function addOpLogEntry(entry) {
+  // entry: { time, agent, event, msg, ok }
+  const list = document.getElementById('op-log-list');
+  const card = document.getElementById('op-log-card');
+  if (!list || !card) return;
+  card.style.display = 'block';
+  const row = document.createElement('div');
+  row.className = 'op-log-row';
+  row.innerHTML =
+    '<span class="op-log-time mono">' + escHtml(entry.time || '—') + '</span>'
+    + '<span class="tag op-log-agent">' + escHtml(entry.agent || '—') + '</span>'
+    + '<span class="op-log-event">' + escHtml(entry.event || '') + '<span class="op-log-msg"> · ' + escHtml(entry.msg || '') + '</span></span>'
+    + '<span class="dot ' + (entry.ok ? 'ok' : 'warn') + '"></span>';
+  list.insertBefore(row, list.firstChild);
+}
+
+// ── Approver lifecycle state machine ──────────────────────────────────────────
+const _LC_META = {
+  request:   { label: 'Request',       sub: 'intent captured' },
+  risk:      { label: 'Risk Score',    sub: null },
+  plan:      { label: 'Plan',          sub: null },
+  soft:      { label: 'Soft Stage',    sub: 'disable · revoke sessions' },
+  approval:  { label: 'Dual Approval', sub: 'second sign-off required' },
+  hard:      { label: 'Hard Stage',    sub: 'remove licenses · groups' },
+  provision: { label: 'Provisioning',  sub: 'create · enroll' },
+  transfer:  { label: 'Transfer',      sub: 'update groups · licenses' },
+  enroll:    { label: 'Enrollment',    sub: 'MFA · device registration' },
+};
+
+// Tool name → lifecycle stage key
+const _TOOL_TO_LC_STAGE = {
+  score_risk:           'risk',
+  suggest_provisioning: 'plan',
+  submit_leaver_soft:   'soft',
+  submit_leaver_hard:   'hard',
+  submit_joiner:        'provision',
+  submit_enroller:      'enroll',
+  submit_mover:         'transfer',
+};
+
+let _lcPipeline = ['request', 'risk', 'plan'];
+let _lcDoneSet  = new Set();
+let _lcCurrent  = null;
+
+function renderLifecycleMap() {
+  const map = document.getElementById('lifecycle-map');
+  if (!map) return;
+  if (_lcPipeline.length === 0) {
+    map.innerHTML = '<div class="lc-idle-hint">No active operation</div>';
+    return;
+  }
+  map.innerHTML = _lcPipeline.map(key => {
+    const meta    = _LC_META[key] || { label: key, sub: null };
+    const isDone  = _lcDoneSet.has(key);
+    const isCurr  = key === _lcCurrent;
+    const cls     = 'lc-state' + (isDone ? ' done' : isCurr ? ' current' : '');
+    const dot     = isDone ? '<span>✓</span>' : '';
+    const subHtml = meta.sub ? `<div class="lc-sub">${meta.sub}</div>` : '';
+    return `<div class="${cls}" data-stage="${key}">
+      <div class="lc-dot">${dot}</div>
+      <div class="lc-info"><div class="lc-label">${meta.label}</div>${subHtml}</div>
+    </div>`;
+  }).join('');
+}
+
+function lcResetToRequest() {
+  _lcPipeline = ['request', 'risk', 'plan'];
+  _lcDoneSet  = new Set();
+  _lcCurrent  = 'request';
+  const tag = document.getElementById('lifecycle-status-tag');
+  if (tag) { tag.textContent = 'In Progress'; tag.className = 'tag info'; }
+  renderLifecycleMap();
+}
+
+function lcAdvanceTo(stageKey) {
+  if (!_lcPipeline.includes(stageKey)) {
+    // Insert after 'plan', or at the end
+    const pi = _lcPipeline.indexOf('plan');
+    pi >= 0 ? _lcPipeline.splice(pi + 1, 0, stageKey) : _lcPipeline.push(stageKey);
+    // Also insert 'soft' before 'hard' if adding 'hard' without 'soft'
+    if (stageKey === 'hard' && !_lcPipeline.includes('soft')) {
+      const hi = _lcPipeline.indexOf('hard');
+      _lcPipeline.splice(hi, 0, 'soft', 'approval');
+    }
+  }
+  // Mark everything up to (not including) stageKey as done
+  const idx = _lcPipeline.indexOf(stageKey);
+  for (let i = 0; i < idx; i++) _lcDoneSet.add(_lcPipeline[i]);
+  _lcCurrent = stageKey;
+  renderLifecycleMap();
+}
+
+function lcMarkComplete() {
+  if (_lcCurrent) _lcDoneSet.add(_lcCurrent);
+  _lcCurrent = null;
+  const tag = document.getElementById('lifecycle-status-tag');
+  if (tag) { tag.textContent = 'Complete'; tag.className = 'tag ok'; }
+  renderLifecycleMap();
+}
+
+function lcSetIdle() {
+  _lcPipeline = ['request', 'risk', 'plan'];
+  _lcDoneSet  = new Set();
+  _lcCurrent  = null;
+  const tag = document.getElementById('lifecycle-status-tag');
+  if (tag) { tag.textContent = 'Idle'; tag.className = 'tag'; }
+  renderLifecycleMap();
+}
+
+// Legacy shim — kept so any future callers don't break
+function updateLifecycleState(stepLabel, state) {
+  // Replaced by the new state machine above; no-op for legacy calls
+}
 
 // ── Message rendering ─────────────────────────────────────────────────────────
 function appendUserMessage(agent, text) {
@@ -641,7 +797,7 @@ function getOrCreateCurrentMsg(agent) {
 }
 
 // ── Streaming chunk handler ───────────────────────────────────────────────────
-window.api.onChunk(({ type, text, toolName, success }) => {
+window.api.onChunk(({ type, text, toolName, success, result }) => {
   const agent = currentTab === 'auditor' ? 'auditor' : 'approver';
   const msgEl = getOrCreateCurrentMsg(agent);
   const textEl = msgEl.querySelector('.message-text');
@@ -658,6 +814,12 @@ window.api.onChunk(({ type, text, toolName, success }) => {
   }
 
   if (type === 'tool_start') {
+    // Advance lifecycle for approver; track tools for auditor query card
+    if (agent === 'approver' && _TOOL_TO_LC_STAGE[toolName]) {
+      lcAdvanceTo(_TOOL_TO_LC_STAGE[toolName]);
+    }
+    if (agent === 'auditor') audTrackTool(toolName, 'running');
+
     const thinkLbl = msgEl.querySelector('.thinking-label');
     if (thinkLbl && msgEl.classList.contains('thinking')) {
       thinkLbl.textContent = formatToolName(toolName) + '…';
@@ -694,6 +856,9 @@ window.api.onChunk(({ type, text, toolName, success }) => {
   }
 
   if (type === 'tool_done') {
+    // Capture structured results for contextual card rendering
+    if (toolName === 'score_risk' && success && result && !result.error) _lastRiskResult = result;
+    if (agent === 'auditor') audTrackTool(toolName, 'done');
     if (SUBMIT_LABELS[toolName]) {
       const lbl = SUBMIT_LABELS[toolName];
       const b = _submitBatch[agent][toolName];
@@ -732,6 +897,9 @@ window.api.onChunk(({ type, text, toolName, success }) => {
 
 window.api.onComplete(({ agent }) => {
   setWaiting(agent, false);
+  // Advance lifecycle / query state on completion
+  if (agent === 'approver') lcMarkComplete();
+  if (agent === 'auditor')  audQueryComplete(currentMsgEl[agent]);
   const msgEl = currentMsgEl[agent];
   if (msgEl) {
     const thinkEl = msgEl.querySelector('.thinking-indicator');
@@ -791,6 +959,32 @@ function setWaiting(agent, waiting) {
   document.getElementById('send-' + agent).disabled   = waiting;
 }
 
+// ── Cross-window conversation mirror ─────────────────────────────────────────
+// When the overlay or docked panel sends a message, mirror it into the main
+// console's conversation so both views stay in sync.
+if (typeof window.api.onMsgMirror === 'function') {
+  window.api.onMsgMirror(({ agent, role, text }) => {
+    if (!text) return;
+    const validAgent = agent === 'auditor' ? 'auditor' : 'approver';
+    if (role === 'user') {
+      appendUserMessage(validAgent, text);
+      appendAssistantPlaceholder(validAgent); // show thinking indicator
+    } else if (role === 'assistant') {
+      // Find the most recent thinking placeholder and fill it
+      const msgs = document.getElementById('messages-' + validAgent);
+      if (!msgs) return;
+      let placeholder = msgs.querySelector('.message.assistant.thinking:last-of-type');
+      if (!placeholder) { placeholder = appendAssistantPlaceholder(validAgent); }
+      placeholder.classList.remove('thinking');
+      const thinkEl = placeholder.querySelector('.thinking-indicator');
+      if (thinkEl) thinkEl.style.display = 'none';
+      const textEl = placeholder.querySelector('.message-text');
+      if (textEl) { textEl.innerHTML = renderMarkdown(text); textEl.classList.remove('streaming'); }
+      msgs.scrollTop = msgs.scrollHeight;
+    }
+  });
+}
+
 // ── Security dashboard ────────────────────────────────────────────────────────
 // Visual cue while a security re-scan is in flight — every scan tile pulses
 // until onSecurityReports fires; the Re-scan button shows "Scanning…".
@@ -834,9 +1028,214 @@ function buildCountBadges(crit, warn, info) {
   return parts.join('');
 }
 
+// ── V2 Security Inbox ──────────────────────────────────────────────────────
+let _secFindings = []; // flat array of all findings
+let _secFocused = null; // currently focused finding index
+
+function renderSecurityInbox(data) {
+  const inbox = document.getElementById('sec-inbox');
+  const empty = document.getElementById('sec-inbox-empty');
+  if (!inbox) return;
+
+  // Flatten all findings from UEBA, drift, risky users
+  _secFindings = [];
+
+  if (data.ueba && data.ueba.findings) {
+    data.ueba.findings.forEach(f => {
+      const subjects = (f.events || []).map(e => e.subject || e.user || '').filter(Boolean);
+      const latest = (f.events || []).map(e => e.timestamp).filter(Boolean).sort().pop();
+      _secFindings.push({
+        sev: f.severity === 'critical' ? 'crit' : f.severity === 'warning' ? 'warn' : 'info',
+        rule: 'UEBA · ' + (f.ruleId || ''),
+        title: f.title,
+        sub: subjects.slice(0, 2).join(', ') + (latest ? ' · ' + new Date(latest).toLocaleDateString() : ''),
+        assignee: '—',
+        age: latest ? Math.max(0, Math.floor((Date.now() - new Date(latest)) / 86400000)) + 'd' : '—',
+        rawSev: f.severity,
+        signals: [
+          ['rule', f.ruleId || '—'],
+          ['events', (f.events || []).length],
+          ['subjects', subjects.join(', ') || '—'],
+        ],
+      });
+    });
+  }
+
+  if (data.drift && data.drift.findings) {
+    data.drift.findings.forEach(f => {
+      const items = (f.items || []);
+      const names = items.map(i => i.displayName || i.userPrincipalName || i.agent || '').filter(Boolean);
+      _secFindings.push({
+        sev: f.severity === 'critical' ? 'crit' : f.severity === 'warning' ? 'warn' : 'info',
+        rule: 'Drift · ' + (f.checkId || ''),
+        title: f.title,
+        sub: names.slice(0, 2).join(', '),
+        assignee: '—',
+        age: '—',
+        rawSev: f.severity,
+        isDrift: true,
+        driftItems: items,
+        signals: [
+          ['check', f.checkId || '—'],
+          ['items', items.length],
+          ['affected', names.join(', ') || '—'],
+        ],
+      });
+    });
+  }
+
+  if (data.risky && data.risky.users) {
+    data.risky.users.forEach(u => {
+      _secFindings.push({
+        sev: u.riskLevel === 'high' ? 'crit' : u.riskLevel === 'medium' ? 'warn' : 'info',
+        rule: 'Identity Protection',
+        title: 'Risky sign-in: ' + (u.riskDetail || 'see details'),
+        sub: (u.userPrincipalName || u.displayName || '—'),
+        assignee: '—',
+        age: u.riskLastUpdatedDateTime ? Math.max(0, Math.floor((Date.now() - new Date(u.riskLastUpdatedDateTime)) / 86400000)) + 'd' : '—',
+        rawSev: u.riskLevel || 'medium',
+        signals: [
+          ['user', u.userPrincipalName || '—'],
+          ['level', u.riskLevel || '—'],
+          ['detail', u.riskDetail || '—'],
+          ['state', u.riskState || '—'],
+        ],
+      });
+    });
+  }
+
+  // Sort: crit first, then warn, then info
+  const sevOrder = { crit: 0, warn: 1, info: 2 };
+  _secFindings.sort((a, b) => (sevOrder[a.sev] ?? 3) - (sevOrder[b.sev] ?? 3));
+
+  // Update ribbon counts
+  const critEl = document.getElementById('sec-count-crit');
+  const warnEl = document.getElementById('sec-count-warn');
+  const infoEl = document.getElementById('sec-count-info');
+  const ackedEl = document.getElementById('sec-count-acked');
+  if (critEl) critEl.textContent = _secFindings.filter(f => f.sev === 'crit').length;
+  if (warnEl) warnEl.textContent = _secFindings.filter(f => f.sev === 'warn').length;
+  if (infoEl) infoEl.textContent = _secFindings.filter(f => f.sev === 'info').length;
+  if (ackedEl) ackedEl.textContent = '0'; // acknowledged tracking not yet implemented
+
+  if (_secFindings.length === 0) {
+    if (empty) empty.style.display = 'flex';
+    return;
+  }
+  if (empty) empty.style.display = 'none';
+
+  // Render finding rows
+  inbox.innerHTML = '';
+  if (empty) inbox.appendChild(empty);
+
+  _secFindings.forEach((f, i) => {
+    const row = document.createElement('div');
+    row.className = 'sec-finding-row' + (i === 0 ? ' focused' : '');
+    row.dataset.idx = i;
+    row.innerHTML =
+      '<input type="checkbox" style="accent-color:var(--violet)">'
+      + '<div class="sec-finding-sev-bar ' + f.sev + '"></div>'
+      + '<div class="sec-finding-content">'
+        + '<div class="sec-finding-rule-row">'
+          + '<span class="tag ' + f.sev + '">' + f.sev.toUpperCase() + '</span>'
+          + '<span class="mono" style="font-size:10.5px;color:var(--text-3);letter-spacing:.05em">' + escHtml(f.rule) + '</span>'
+        + '</div>'
+        + '<div class="sec-finding-title">' + escHtml(f.title) + '</div>'
+        + '<div class="sec-finding-sub">' + escHtml(f.sub) + '</div>'
+      + '</div>'
+      + '<div class="sec-finding-assignee">' + (f.assignee === '—' ? 'unassigned' : escHtml(f.assignee)) + '</div>'
+      + '<div class="sec-finding-age">' + f.age + '</div>'
+      + (i === 0 ? '<span style="color:var(--text-3)">›</span>' : '<span></span>');
+
+    row.addEventListener('click', (e) => {
+      if (e.target.type === 'checkbox') return;
+      document.querySelectorAll('.sec-finding-row').forEach(r => r.classList.remove('focused', 'focused-warn'));
+      row.classList.add(f.sev === 'crit' ? 'focused' : 'focused-warn');
+      focusFinding(i);
+    });
+    inbox.appendChild(row);
+  });
+
+  // Auto-focus first finding
+  if (_secFindings.length > 0) focusFinding(0);
+}
+
+function focusFinding(idx) {
+  _secFocused = idx;
+  const f = _secFindings[idx];
+  if (!f) return;
+  const fc = document.getElementById('sec-focused-card');
+  if (!fc) return;
+  fc.style.display = 'block';
+
+  const tagEl = document.getElementById('sec-focused-tag');
+  const titleEl = document.getElementById('sec-focused-title');
+  const ruleEl = document.getElementById('sec-focused-rule');
+  const descEl = document.getElementById('sec-focused-desc');
+  const signalsEl = document.getElementById('sec-signals');
+
+  if (tagEl) { tagEl.className = 'tag ' + f.sev; tagEl.textContent = 'FOCUSED · ' + f.sev.toUpperCase(); }
+  if (titleEl) titleEl.textContent = f.title;
+  if (ruleEl) ruleEl.textContent = f.rule;
+  if (descEl) descEl.textContent = '';
+  if (signalsEl) {
+    signalsEl.innerHTML = (f.signals || []).map(([k, v]) =>
+      '<div class="sec-signal-row"><span class="sec-signal-key">' + escHtml(String(k)) + '</span><span class="sec-signal-val">' + escHtml(String(v)) + '</span></div>'
+    ).join('');
+  }
+
+  // Show drift remediation card if this is a drift finding
+  const driftCard = document.getElementById('sec-drift-rem-v2');
+  if (driftCard) {
+    if (f.isDrift && f.driftItems && f.driftItems.length > 0) {
+      driftCard.style.display = 'block';
+      const sub = document.getElementById('sec-drift-rem-subject');
+      const desc = document.getElementById('sec-drift-rem-desc');
+      const diff = document.getElementById('sec-drift-rem-diff');
+      if (sub) sub.textContent = f.driftItems[0].displayName || f.driftItems[0].agent || '—';
+      if (desc && f.driftItems[0].note) desc.textContent = f.driftItems[0].note;
+      if (diff) {
+        const item = f.driftItems[0];
+        diff.innerHTML = item.expected
+          ? '<div class="diff-row keep"><span class="sym"> </span><span>' + escHtml(item.expected) + ' (expected)</span></div>'
+            + '<div class="diff-row rem"><span class="sym">−</span><span>' + escHtml(item.actual || '?') + ' (actual)</span></div>'
+          : '<div class="diff-row rem"><span class="sym">−</span><span>' + escHtml(f.title) + '</span></div>';
+      }
+    } else {
+      driftCard.style.display = 'none';
+    }
+  }
+}
+
 window.api.onSecurityReports((data) => {
   // Re-scan visual cue: data arrived → clear the pulsing state
   setSecurityScanning(false);
+
+  // Reflect real security counts in dashboard triage card
+  const critCard = document.querySelector('.v2-triage-card.crit');
+  if (critCard) {
+    let critCount = 0, warnCount = 0;
+    if (data.ueba && data.ueba.findings) {
+      critCount += data.ueba.findings.filter(f => f.severity === 'critical').length;
+      warnCount += data.ueba.findings.filter(f => f.severity === 'warning').length;
+    }
+    if (data.drift && data.drift.findings) {
+      critCount += data.drift.findings.filter(f => f.severity === 'critical').length;
+      warnCount += data.drift.findings.filter(f => f.severity === 'warning').length;
+    }
+    if (data.risky && data.risky.users) {
+      critCount += data.risky.users.filter(r => r.riskLevel === 'high').length;
+    }
+    const labelEl = critCard.querySelector('.label');
+    const titleEl = critCard.querySelector('.title');
+    if (labelEl) labelEl.textContent = critCount > 0
+      ? `Security · ${critCount} critical`
+      : warnCount > 0 ? `Security · ${warnCount} warning` : 'Security · all clear';
+    if (titleEl && critCount === 0 && warnCount === 0) {
+      titleEl.textContent = 'No critical findings';
+    }
+  }
+
   // Sections stay collapsed by default — user clicks a scan card to open one
   // Update summary strip tiles (scan-trio)
   function updateTile(id, report) {
@@ -875,6 +1274,11 @@ window.api.onSecurityReports((data) => {
   const totalCrit = ((data.ueba?.summary?.critical) || 0) +
                     ((data.drift?.summary?.critical) || 0) +
                     ((data.riskyUsers?.summary?.critical) || 0);
+  const totalWarn = ((data.ueba?.summary?.warning) || 0) +
+                    ((data.drift?.summary?.warning) || 0);
+  _dashState.secCrit = totalCrit;
+  _dashState.secWarn = totalWarn;
+  buildDashSummary();
   const secNav = document.getElementById('nav-security-count');
   if (secNav) {
     secNav.textContent = totalCrit;
@@ -1018,6 +1422,31 @@ window.api.onSecurityReports((data) => {
         + '</div>';
       }).join('');
     }
+  }
+
+  // V2 inbox render
+  renderSecurityInbox(data);
+});
+
+// ── V2 security inbox action buttons ─────────────────────────────────────────
+document.getElementById('sec-action-ack')?.addEventListener('click', () => {
+  if (_secFocused === null) return;
+  const row = document.querySelector('.sec-finding-row.focused, .sec-finding-row.focused-warn');
+  if (row) row.style.opacity = '0.4';
+  const ackedEl = document.getElementById('sec-count-acked');
+  if (ackedEl) ackedEl.textContent = String((parseInt(ackedEl.textContent) || 0) + 1);
+  showToast('Finding acknowledged and moved to audit log');
+});
+
+document.getElementById('sec-action-page')?.addEventListener('click', () => {
+  showToast('On-call paged via Teams (#identity-ops)');
+});
+
+document.getElementById('sec-drift-restore-v2')?.addEventListener('click', () => {
+  if (typeof window.api?.runDriftRemediation === 'function') {
+    window.api.runDriftRemediation();
+  } else {
+    showToast('Restore baseline: submitting for dual approval…');
   }
 });
 
@@ -1279,6 +1708,73 @@ window.api.onAuditLogData((entries) => {
   renderAuditPage();
 });
 
+// ── Dashboard AI summary ──────────────────────────────────────────────────────
+const _dashState = {
+  users:     null,   // { total, enabled, disabled, guests }
+  activity:  null,   // { totalEntries }
+  approvals: null,   // number
+  secCrit:   null,   // number
+  secWarn:   null,   // number
+  agents:    null,   // array from agent health
+  certAlert: null,   // name of first expiring cert
+};
+
+function buildDashSummary() {
+  const el = document.getElementById('dash-page-sub');
+  if (!el) return;
+
+  const urgent = [];
+  const notes  = [];
+
+  // Security pressure
+  const sc = _dashState.secCrit ?? 0;
+  const sw = _dashState.secWarn ?? 0;
+  if (sc > 0)       urgent.push(`${sc} critical security finding${sc > 1 ? 's' : ''}`);
+  else if (sw > 0)  urgent.push(`${sw} security warning${sw > 1 ? 's' : ''}`);
+
+  // Approval pressure
+  const ap = _dashState.approvals ?? 0;
+  if (ap > 0) urgent.push(`${ap} pending approval${ap > 1 ? 's' : ''}`);
+
+  // Agent health
+  if (_dashState.agents && _dashState.agents.length) {
+    const sick = _dashState.agents.filter(a => a.status === 'critical' || a.status === 'expiring').length;
+    if (sick > 0) notes.push(`${sick} agent${sick > 1 ? 's' : ''} need${sick === 1 ? 's' : ''} attention`);
+    else          notes.push(`all ${_dashState.agents.length} agents healthy`);
+  }
+
+  // Cert alert
+  if (_dashState.certAlert) notes.push(`${_dashState.certAlert} cert expiring soon`);
+
+  // User baseline
+  if (_dashState.users) {
+    const u = _dashState.users;
+    notes.push(`${(u.total || 0).toLocaleString()} identities${u.guests > 0 ? ` · ${u.guests} guests` : ''}`);
+  }
+
+  // Activity
+  if (_dashState.activity && _dashState.activity.totalEntries) {
+    notes.push(`${_dashState.activity.totalEntries} operations logged`);
+  }
+
+  // Compose prose
+  if (urgent.length === 0 && notes.length === 0) {
+    el.textContent = 'Fleet operating normally — no pending actions, all agents ready.';
+    return;
+  }
+  let text = '';
+  if (urgent.length > 0) {
+    text = urgent.join(' · ');
+    if (notes.length > 0) text += ' — ' + notes.join(', ') + '.';
+    else text += '.';
+  } else {
+    text = notes.join(' · ') + '.';
+    // Capitalise first letter
+    text = text.charAt(0).toUpperCase() + text.slice(1);
+  }
+  el.textContent = text;
+}
+
 // ── Dashboard ─────────────────────────────────────────────────────────────────
 function loadDashboard() {
   window.api.getDashboardStats();
@@ -1320,6 +1816,10 @@ window.api.onDashboardStats((data) => {
     }
   }
 
+  if (data.users)    { _dashState.users    = data.users; }
+  if (data.activity) { _dashState.activity = { totalEntries: data.activity.totalEntries || 0 }; }
+  buildDashSummary();
+
   if (data.activity) {
     document.getElementById('stat-activity-total').textContent = data.activity.totalEntries || 0;
     const recent = (data.activity.recentEntries || []).slice(0, 5);
@@ -1358,6 +1858,16 @@ window.api.onDashboardStats((data) => {
           });
         });
       });
+    }
+  }
+
+  // Update dashboard V2 heading meta with real user count
+  if (data.users && data.users.total) {
+    const sub = document.getElementById('dash-headline-sub');
+    if (sub) {
+      const now = new Date();
+      const timeStr = now.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
+      sub.textContent = data.users.total + ' identities · last sync ' + timeStr;
     }
   }
 });
@@ -1694,7 +2204,9 @@ function renderV2ChatEnhancements(text) {
   if (!t || currentTab !== 'approver') return '';
   const parts = [];
   if (/\brisk\b|\bscore\b|dual-approval|privileged|sensitive/.test(t)) {
-    parts.push(renderRiskScoreCard(t.includes('critical') ? 86 : t.includes('low') ? 24 : 68));
+    // Use real tool result if available; fall back to coarse text-detected score
+    const fallbackScore = t.includes('critical') ? 86 : t.includes('low') ? 24 : 68;
+    parts.push(renderRiskScoreCard(_lastRiskResult || { score: fallbackScore }));
   }
   if (/\bplan\b|graph\.|revoke|disable|license|group|audit\.write|offboard|leaver/.test(t)) {
     parts.push(renderPlanPreviewCard());
@@ -1705,14 +2217,91 @@ function renderV2ChatEnhancements(text) {
   return parts.length ? '<div class="v2-chat-enhancements">' + parts.join('') + '</div>' : '';
 }
 
-function renderRiskScoreCard(score) {
-  const clamped = Math.max(0, Math.min(100, score));
-  const tone = clamped >= 80 ? 'critical' : clamped >= 60 ? 'high' : clamped >= 35 ? 'medium' : 'low';
+// renderRiskScoreCard(data)
+// data — either a plain number (legacy fallback) or the full score_risk tool result:
+//   { score, riskLevel, operation, subject, blocked, dualApproval, reasons: string[] }
+// Reasons from Invoke-RiskScore.ps1 use "PREFIX: message" format, e.g.:
+//   "FREEZE: Change-freeze is active on Sundays"
+//   "SENSITIVE_LICENSE: 'AAD_PREMIUM_P2' is flagged for additional review"
+//   "SENSITIVE_GROUP: 'Global Admins' is a privileged group requiring approval"
+//   "SOD_BLOCK [R-001]: Conflicting roles assigned simultaneously"
+//   "DUAL_APPROVAL_REQUIRED: This operation requires a second operator to approve"
+function renderRiskScoreCard(data) {
+  const d      = typeof data === 'number' ? { score: data } : (data || { score: 68 });
+  const clamped = Math.max(0, Math.min(100, d.score || 0));
+  // Derive tone from riskLevel field if present (more accurate than threshold buckets)
+  const tone    = d.riskLevel || (clamped >= 80 ? 'critical' : clamped >= 60 ? 'high' : clamped >= 35 ? 'medium' : 'low');
   const toneVar = tone === 'critical' ? 'var(--crit)' : tone === 'high' ? 'var(--warn)' : tone === 'medium' ? 'var(--info)' : 'var(--ok)';
-  // SVG circular gauge: r=22 → circumference ≈ 138.2
+  // SVG circular gauge — r=22 → circumference ≈ 138.2
   const r = 22, circ = 2 * Math.PI * r;
   const dash = (clamped / 100) * circ;
   const gap  = circ - dash;
+
+  // ── Reason rows ─────────────────────────────────────────────────────────────
+  // Map reason prefixes → severity class and human-readable label
+  const _reasonClass = (prefix) => {
+    if (/^(SOD_BLOCK|FREEZE|BLOCKED)/.test(prefix))    return 'bad';
+    if (/^(SENSITIVE|SOD_WARN|DUAL_APPROVAL)/.test(prefix)) return 'warn';
+    return 'ok';
+  };
+  const _reasonLabel = (prefix) => {
+    const map = {
+      FREEZE:               '❄ Freeze window',
+      SENSITIVE_LICENSE:    '⚑ Sensitive license',
+      SENSITIVE_GROUP:      '⚑ Privileged group',
+      SOD_BLOCK:            '⊘ SoD conflict (blocked)',
+      SOD_WARN:             '△ SoD conflict (warn)',
+      DUAL_APPROVAL_REQUIRED: '⊛ Dual approval required',
+      SOD_CHECK_SKIPPED:    '— SoD check skipped',
+    };
+    // Match any key that the prefix starts with
+    return Object.entries(map).find(([k]) => prefix.startsWith(k))?.[1] || prefix;
+  };
+
+  const reasons = Array.isArray(d.reasons) ? d.reasons : [];
+  let reasonsHtml;
+
+  if (reasons.length) {
+    reasonsHtml = reasons.map(raw => {
+      const colon = raw.indexOf(':');
+      const prefix = colon >= 0 ? raw.slice(0, colon).trim() : raw.trim();
+      const detail = colon >= 0 ? raw.slice(colon + 1).trim() : '';
+      const cls    = _reasonClass(prefix);
+      const label  = _reasonLabel(prefix);
+      return '<div class="it ' + cls + '">' +
+        '<span class="risk-reason-lbl">' + escHtml(label) + '</span>' +
+        (detail ? '<span class="risk-reason-detail">' + escHtml(detail) + '</span>' : '') +
+        '</div>';
+    }).join('');
+  } else {
+    // No reasons from the script — render score-relative baseline copy
+    const op = d.operation || '';
+    const opNames = { joiner: 'Joiner', enroller: 'Enroller', mover: 'Mover', leaver_soft: 'Soft leaver', leaver_hard: 'Hard leaver' };
+    const opLabel = opNames[op] || 'Lifecycle';
+    const impact  = clamped < 30 ? 'low-impact' : clamped < 60 ? 'moderate-impact' : 'high-impact';
+    reasonsHtml = '<div class="it ' + (clamped >= 60 ? 'bad' : 'warn') + '">' +
+      escHtml(opLabel + ' baseline — ' + impact + ' on account state.') + '</div>';
+    if (d.dualApproval) reasonsHtml += '<div class="it warn">Dual approval required before execution.</div>';
+    reasonsHtml += '<div class="it ok">Audit chain and rollback window active.</div>';
+  }
+
+  // Blocked banner appended to reasons
+  if (d.blocked) {
+    reasonsHtml += '<div class="it bad risk-blocked-banner">⊘ Operation is blocked by policy — cannot proceed without override.</div>';
+  }
+
+  // ── Badge strip (riskLevel + optional dual-approval + blocked flags) ─────────
+  const badges = '<span class="badge ' + tone + '">' + escHtml(tone) + '</span>' +
+    (d.dualApproval ? ' <span class="badge warn">dual-approval</span>' : '') +
+    (d.blocked      ? ' <span class="badge critical">blocked</span>' : '');
+
+  // ── Score breakdown tooltip text ─────────────────────────────────────────────
+  const opBase = { joiner: 10, enroller: 15, mover: 25, leaver_soft: 40, leaver_hard: 60 };
+  const base   = opBase[d.operation] != null ? opBase[d.operation] : '—';
+  const subEl  = d.operation
+    ? '<div class="risk-score-meta">baseline ' + base + ' + ' + (reasons.length) + ' modifier' + (reasons.length !== 1 ? 's' : '') + '</div>'
+    : '';
+
   return '<div class="v2-chat-card v2-risk-card">' +
     '<div class="v2-risk-gauge-wrap">' +
       '<svg class="v2-risk-gauge" width="56" height="56" viewBox="0 0 56 56">' +
@@ -1722,15 +2311,11 @@ function renderRiskScoreCard(score) {
           ' stroke-linecap="round" transform="rotate(-90 28 28)"/>' +
         '<text x="28" y="32" text-anchor="middle" font-size="13" font-weight="600" fill="' + toneVar + '" font-family="var(--mono)">' + clamped + '</text>' +
       '</svg>' +
-      '<div class="v2-risk-gauge-label">/ 100</div>' +
+      '<div class="v2-risk-gauge-label">/ 100' + subEl + '</div>' +
     '</div>' +
     '<div class="v2-risk-body">' +
-      '<div class="v2-risk-heading">Risk score <span class="badge ' + tone + '">' + tone + '</span></div>' +
-      '<div class="risk-list">' +
-        '<div class="it bad">Sensitive lifecycle operation touches account state and active sessions.</div>' +
-        '<div class="it warn">Hard-stage writes remain behind dual approval.</div>' +
-        '<div class="it ok">Audit chain and rollback window are available before commit.</div>' +
-      '</div>' +
+      '<div class="v2-risk-heading">Risk assessment ' + badges + '</div>' +
+      '<div class="risk-list">' + reasonsHtml + '</div>' +
     '</div>' +
   '</div>';
 }
@@ -1792,6 +2377,8 @@ window.api.onPendingApprovals((data) => {
     return;
   }
   const items = Array.isArray(data) ? data : [];
+  _dashState.approvals = items.length;
+  buildDashSummary();
   if (countEl) countEl.textContent = items.length;
 
   // Sidebar approvals badge
@@ -1809,6 +2396,31 @@ window.api.onPendingApprovals((data) => {
   if (dashDet) dashDet.textContent = items.length
     ? (items.length === 1 ? '1 action awaiting decision' : items.length + ' actions awaiting decision')
     : 'No pending approvals';
+
+  // Update V2 triage card for approvals
+  const apprLabel = document.getElementById('triage-appr-label');
+  const apprTitle = document.getElementById('triage-appr-title');
+  const apprMeta  = document.getElementById('triage-appr-meta');
+  const apprCard  = document.getElementById('triage-approvals');
+  if (apprLabel) apprLabel.textContent = items.length > 0
+    ? 'Approvals · ' + items.length + ' pending'
+    : 'Approvals';
+  if (apprCard) {
+    apprCard.className = 'v2-triage-card ' + (items.length > 2 ? 'crit' : items.length > 0 ? 'warn' : 'info');
+  }
+  if (items.length > 0 && apprTitle) {
+    const first = items[0];
+    const tool = (first.tool || '').toLowerCase();
+    apprTitle.textContent = tool
+      ? tool.charAt(0).toUpperCase() + tool.slice(1).replace(/_/g, ' ') + ' awaiting approval'
+      : 'Operation awaiting approval';
+    if (apprMeta) {
+      const token = first.token || first.id || '';
+      apprMeta.textContent = token ? 'token ' + token.slice(0, 6) + '…' : 'pending review';
+    }
+  } else if (apprTitle) {
+    apprTitle.textContent = 'No pending approvals';
+  }
   if (items.length === 0) {
     listEl.innerHTML = `<div class="empty-state">
       <div class="empty-state-icon">
@@ -2991,6 +3603,12 @@ window.api.onAgentHealth((data) => {
     sub.textContent = `${dashAgents.length} agents · ${now.getMonth()+1}/${now.getDate()}/${now.getFullYear()} ${hh}:${mm}`;
   }
 
+  // Update dashboard AI summary state
+  _dashState.agents = dashAgents.map(a => ({ name: a.name, status: a.status || 'ok' }));
+  const expiring = dashAgents.find(a => a.daysUntilExpiry != null && a.daysUntilExpiry >= 0 && a.daysUntilExpiry <= 30);
+  _dashState.certAlert = expiring ? (expiring.name + ' (' + expiring.daysUntilExpiry + 'd)') : null;
+  buildDashSummary();
+
   const grid = document.getElementById('agent-health-grid');
   if (!grid) return;
   if (!data.agents || !data.agents.length) {
@@ -3017,6 +3635,50 @@ window.api.onAgentHealth((data) => {
       <div class="health-activity">${escHtml(lastAct)}${outHtml}</div>
     </div>`;
   }).join('');
+
+  // Update V2 fleet strip tiles
+  if (data.agents) {
+    data.agents.forEach(ag => {
+      const name = ag.name; // e.g. 'joiner', 'leaver', etc.
+      const lrEl = document.getElementById('v2fl-lr-' + name);
+      const certEl = document.getElementById('v2fl-cert-' + name);
+      const tileEl = document.querySelector('.v2-fleet-tile[data-agent="' + name + '"]');
+      if (lrEl) {
+        const la = ag.lastActivity ? new Date(ag.lastActivity).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}) : '—';
+        lrEl.textContent = la;
+      }
+      if (certEl) {
+        const days = ag.daysUntilExpiry;
+        certEl.textContent = days === null ? '—' : days < 0 ? 'expired' : days + 'd';
+        if (certEl && days !== null) {
+          certEl.style.color = days < 0 ? 'var(--crit)' : days < 14 ? 'var(--warn)' : 'var(--ok)';
+        }
+      }
+      if (tileEl) {
+        // Update the status dot and state text
+        const dotEl = tileEl.querySelector('.ft-dot');
+        const stateEl = tileEl.querySelector('.ft-state');
+        if (dotEl && stateEl) {
+          if (ag.status === 'unconfigured') {
+            dotEl.className = 'ft-dot muted';
+            stateEl.textContent = 'unconfigured';
+          } else if (ag.status === 'critical') {
+            dotEl.className = 'ft-dot crit';
+            stateEl.textContent = 'credential expired';
+          } else if (ag.status === 'expiring') {
+            dotEl.className = 'ft-dot warn';
+            stateEl.textContent = 'expiring soon';
+          } else if (ag.lastOutcome === 'error') {
+            dotEl.className = 'ft-dot warn';
+            stateEl.textContent = 'last run errored';
+          } else {
+            dotEl.className = 'ft-dot ok';
+            stateEl.textContent = ag.lastActivity ? 'idle' : 'ready';
+          }
+        }
+      }
+    });
+  }
 });
 
 // ── HR Event Queue ────────────────────────────────────────────────────────────
@@ -3107,6 +3769,21 @@ function applyRoleUI(role) {
 // Authoritative current operator name (selected at sign-in, may differ from Windows username)
 let currentOperatorName = null;
 
+function updateDashGreeting(name) {
+  const el = document.getElementById('dash-greeting');
+  if (!el) return;
+  const h = new Date().getHours();
+  const period = h < 12 ? 'morning' : h < 17 ? 'afternoon' : 'evening';
+  const parts = (name || '').split(/[.\s_@-]+/).filter(Boolean);
+  const firstName = parts[0] || '';
+  const display = firstName
+    ? firstName.charAt(0).toUpperCase() + firstName.slice(1).toLowerCase()
+    : '';
+  el.textContent = display
+    ? `Good ${period}, ${display}`
+    : 'Fleet Overview';
+}
+
 // Sidebar operator name + avatar (initials or uploaded image)
 function setSidebarOperator(name) {
   currentOperatorName = name || null;
@@ -3139,6 +3816,7 @@ function setSidebarOperator(name) {
       av.classList.remove('has-image');
     }
   }
+  updateDashGreeting(name);
 }
 
 // Click avatar → Electron native dialog → crop+resize done in main process → store data URL
@@ -3160,6 +3838,9 @@ function setSidebarOperator(name) {
 })();
 
 // ── Init ──────────────────────────────────────────────────────────────────────
+// Bootstrap UI state
+lcSetIdle();   // Render empty lifecycle map in idle state
+
 window.api.getCurrentOperator().then(d => {
   setSidebarOperator(d.name || window.api.currentUser);
   applyRoleUI(d.role);
@@ -3670,6 +4351,21 @@ const AGENT_PURPOSE = {
     });
   });
 
+  // Click on a collapsed stub restores the section and persists the preference
+  document.querySelectorAll('.dash-section[data-section]').forEach(sec => {
+    sec.addEventListener('click', e => {
+      if (!sec.classList.contains('dash-hidden')) return;
+      e.stopPropagation();
+      const key = sec.dataset.section;
+      sec.classList.remove('dash-hidden');
+      const cb = pop.querySelector(`[data-toggle-section="${key}"]`);
+      if (cb) cb.checked = true;
+      const vis = loadVis();
+      vis[key] = true;
+      saveVis(vis);
+    });
+  });
+
   // Reset to default order + show all + default spans
   document.getElementById('dash-reset-layout')?.addEventListener('click', () => {
     try {
@@ -3866,13 +4562,117 @@ document.addEventListener('click', e => {
   }
 });
 
-// Assist bar chips
+// Assist bar chips — approver
 document.querySelectorAll('#approver-assist-bar .assist-chip').forEach(chip => {
   chip.addEventListener('click', () => {
     if (!_approverIn) return;
     _approverIn.value = chip.dataset.prompt;
     _approverIn.focus();
   });
+});
+
+// Assist bar chips — auditor (pre-fill input, let user send)
+document.querySelectorAll('#auditor-assist-bar .assist-chip').forEach(chip => {
+  chip.addEventListener('click', () => {
+    const inp = document.getElementById('input-auditor');
+    if (!inp) return;
+    inp.value = chip.dataset.prompt;
+    inp.focus();
+  });
+});
+
+// ── V2 Auditor Rail ────────────────────────────────────────────────────────────
+let _audTools = [];  // list of { name, state } seen in current query
+
+function audSetActiveQuery(text) {
+  _audTools = [];
+  const statusEl = document.getElementById('aud-query-status');
+  const bodyEl   = document.getElementById('aud-query-body');
+  if (statusEl) { statusEl.textContent = 'running'; statusEl.style.color = 'var(--cyan)'; }
+  if (bodyEl) {
+    bodyEl.innerHTML = `<div class="aud-query-text">${escHtml(text)}</div><div id="aud-tool-rows"></div>`;
+  }
+}
+
+function audTrackTool(toolName, state) {
+  const toolRows = document.getElementById('aud-tool-rows');
+  if (!toolRows) return;
+  const existing = toolRows.querySelector(`[data-tool="${CSS.escape(toolName)}"]`);
+  if (existing) {
+    existing.className = 'aud-tool-row ' + state;
+    existing.querySelector('.aud-tool-icon').textContent = state === 'done' ? '✓' : '▶';
+  } else {
+    const row = document.createElement('div');
+    row.className = 'aud-tool-row ' + state;
+    row.dataset.tool = toolName;
+    row.innerHTML = `<span class="aud-tool-icon">${state === 'done' ? '✓' : '▶'}</span><span>${escHtml(formatToolName(toolName))}</span>`;
+    toolRows.appendChild(row);
+  }
+  _audTools.push({ name: toolName, state });
+}
+
+function audQueryComplete(msgEl) {
+  const statusEl = document.getElementById('aud-query-status');
+  if (statusEl) { statusEl.textContent = 'done'; statusEl.style.color = 'var(--ok)'; }
+
+  // Extract key findings from the response text
+  if (!msgEl) return;
+  const textEl = msgEl.querySelector('.message-text');
+  const raw = textEl ? (textEl.dataset.raw || textEl.textContent || '') : '';
+  if (!raw) return;
+
+  const findings = [];
+
+  // Extract numeric facts: "X users", "Y licenses", "N roles", "N failed" etc.
+  const numFacts = [...raw.matchAll(/\b(\d[\d,]*)\s+(user[s]?|identit[yi][es]*|license[s]?|admin[s]?|role[s]?|group[s]?|event[s]?|operation[s]?|finding[s]?|failed|enabled|disabled|guest[s]?)/gi)];
+  numFacts.slice(0, 4).forEach(m => {
+    findings.push({ tone: 'default', text: m[0] });
+  });
+
+  // Risk keywords
+  const riskMatch = raw.match(/(\d+)\s+(critical|high.risk|risky)\s+(user[s]?|finding[s]?)/i);
+  if (riskMatch) findings.unshift({ tone: 'crit', text: riskMatch[0] });
+  const warnMatch = raw.match(/(\d+)\s+(warn(?:ing)?|anomal[yous]+|flag[ged]*)\s/i);
+  if (warnMatch) findings.unshift({ tone: 'warn', text: warnMatch[0].trim() });
+
+  if (!findings.length) return;
+
+  const card = document.getElementById('aud-findings-card');
+  const list = document.getElementById('aud-findings-list');
+  if (!card || !list) return;
+  card.style.display = '';
+  // Deduplicate by text
+  const seen = new Set();
+  const unique = findings.filter(f => { if (seen.has(f.text)) return false; seen.add(f.text); return true; });
+  list.innerHTML = unique.slice(0, 5).map(f =>
+    `<div class="aud-finding-item">
+      <div class="aud-finding-dot ${f.tone === 'crit' ? 'crit' : f.tone === 'warn' ? 'warn' : ''}"></div>
+      <div class="aud-finding-text">${escHtml(f.text)}</div>
+    </div>`
+  ).join('');
+}
+
+function audClearState() {
+  _audTools = [];
+  const statusEl = document.getElementById('aud-query-status');
+  const bodyEl   = document.getElementById('aud-query-body');
+  const card     = document.getElementById('aud-findings-card');
+  if (statusEl) { statusEl.textContent = 'idle'; statusEl.style.color = ''; }
+  if (bodyEl)   { bodyEl.className = 'aud-idle-hint'; bodyEl.innerHTML = 'Send a query to begin…'; }
+  if (card)     card.style.display = 'none';
+}
+
+// Auditor jump-to buttons
+document.getElementById('aud-jump-log')?.addEventListener('click', () => switchTab('audit-log'));
+document.getElementById('aud-jump-security')?.addEventListener('click', () => switchTab('security'));
+document.getElementById('aud-jump-users')?.addEventListener('click', () => switchTab('users'));
+
+// Auditor findings clear
+document.getElementById('aud-findings-clr')?.addEventListener('click', () => {
+  const card = document.getElementById('aud-findings-card');
+  const list = document.getElementById('aud-findings-list');
+  if (list) list.innerHTML = '';
+  if (card) card.style.display = 'none';
 });
 
 // ── Dashboard quick actions ────────────────────────────────────────────────────
@@ -4733,6 +5533,32 @@ function loadRecentUsers() {
     const _cOk   = certs.filter(c => c.daysRemaining === null || c.daysRemaining > 90).length;
     const _cWarn = certs.filter(c => c.daysRemaining !== null && c.daysRemaining > 0 && c.daysRemaining <= 90).length;
     const _cCrit = certs.filter(c => c.daysRemaining !== null && c.daysRemaining <= 0).length;
+
+    // Update V2 triage card for cert rotations
+    const expiring = certs.filter(c => c.daysRemaining !== null && c.daysRemaining > 0 && c.daysRemaining <= 30);
+    const expired  = certs.filter(c => c.daysRemaining !== null && c.daysRemaining <= 0);
+    const certsLabel = document.getElementById('triage-certs-label');
+    const certsTitle = document.getElementById('triage-certs-title');
+    const certsMeta  = document.getElementById('triage-certs-meta');
+    const certsSub   = document.getElementById('triage-certs-sub');
+    const certsCard  = document.getElementById('triage-certs');
+    if (certsCard) certsCard.className = 'v2-triage-card ' + (expired.length > 0 ? 'crit' : expiring.length > 0 ? 'warn' : 'info');
+    if (certsLabel) certsLabel.textContent = expired.length > 0
+      ? 'Rotations · ' + expired.length + ' expired'
+      : expiring.length > 0 ? 'Rotations · ' + expiring.length + ' soon' : 'Rotations · all healthy';
+    if (certsTitle && expiring.length > 0) {
+      const first = expiring.sort((a, b) => a.daysRemaining - b.daysRemaining)[0];
+      certsTitle.textContent = first.agent + ' cert expires in ' + first.daysRemaining + ' days';
+      if (certsMeta) certsMeta.textContent = first.agent + ' · ' + (first.thumbprint ? first.thumbprint.slice(0, 8) + '…' : '—');
+    } else if (certsTitle && expired.length > 0) {
+      const first = expired[0];
+      certsTitle.textContent = first.agent + ' cert has expired';
+      if (certsMeta) certsMeta.textContent = first.agent + ' · rotate immediately';
+    } else if (certsTitle) {
+      certsTitle.textContent = 'All agent certs healthy';
+      if (certsMeta) certsMeta.textContent = 'Next rotation: > 90 days';
+    }
+    if (certsSub && expiring.length > 1) certsSub.textContent = 'Plus ' + (expiring.length - 1) + ' more expiring within 30 days';
     const _setDashCert = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
     _setDashCert('dash-certs-ok',   _cOk);
     _setDashCert('dash-certs-warn', _cWarn || '—');

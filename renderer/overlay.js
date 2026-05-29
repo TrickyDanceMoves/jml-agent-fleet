@@ -56,12 +56,25 @@ function showToast(msg, type = 'info') {
   setTimeout(() => el.remove(), 3200);
 }
 
+// ── Conversation history replay ────────────────────────────────────────────────
+async function loadAgentHistory(agent) {
+  if (typeof window.overlayApi.getConversationHistory !== 'function') return;
+  try {
+    const history = await window.overlayApi.getConversationHistory(agent);
+    if (!history || !history.length) return;
+    history.forEach(({ role, text }) => {
+      if (text) appendMsg(role === 'assistant' ? 'assistant' : 'user', text);
+    });
+  } catch { /* ignore */ }
+}
+
 // ── Init ──────────────────────────────────────────────────────────────────────
 window.overlayApi.onInit((d) => {
   _anchorY = d.anchorY;
   _winX    = d.winX;
   _winW    = d.winW;
   scheduleResize();
+  loadAgentHistory(_agent);
   setTimeout(() => ovInput.focus(), 80);
 });
 
@@ -120,6 +133,7 @@ document.querySelectorAll('.ov-tab').forEach(tab => {
     tab.classList.add('active');
     _agent = tab.dataset.agent;
     clearThread();
+    loadAgentHistory(_agent);
   });
 });
 
@@ -245,6 +259,20 @@ window.overlayApi.onAgentError((d) => {
   ovThread.appendChild(el);
   ovThread.scrollTop = ovThread.scrollHeight;
 });
+
+// ── Cross-window conversation mirror ──────────────────────────────────────────
+if (typeof window.overlayApi.onMsgMirror === 'function') {
+  window.overlayApi.onMsgMirror(({ agent, role, text }) => {
+    if (!text || agent !== _agent) return;
+    if (role === 'user') {
+      appendMsg('user', text);
+      showThinking();
+    } else if (role === 'assistant') {
+      removeThinking();
+      appendMsg('assistant', text);
+    }
+  });
+}
 
 // ── Confirm modal ─────────────────────────────────────────────────────────────
 function showConfirm({ title, body, okLabel = 'Confirm', primary = false }) {
