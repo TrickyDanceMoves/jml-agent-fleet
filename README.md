@@ -42,6 +42,10 @@ AI-powered identity lifecycle automation for Microsoft Entra ID. Eight agents â€
 |---|---|
 | ![Settings](docs/images/settings.png) | |
 
+| Docked Panel | Docked (Sections Collapsed) |
+|---|---|
+| ![Docked Panel](docs/images/docked-panel-full.png) | ![Docked Collapsed](docs/images/docked-panel-collapsed.png) |
+
 ## What It Does
 
 Automates identity provisioning and deprovisioning across a Microsoft 365 / Entra ID tenant, replacing manual IT processes with auditable, policy-gated agent workflows that run from a desktop operations console.
