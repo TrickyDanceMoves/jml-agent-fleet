@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'">
+<title>JML Agent Overlay</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg:      oklch(0.11 0.010 252 / 0.82);
+    --bg-2:    oklch(0.14 0.010 252 / 0.88);
+    --surface: oklch(0.17 0.010 252 / 0.92);
+    --border:  oklch(0.28 0.008 252 / 0.70);
+    --text:    oklch(0.93 0.005 252);
+    --text-2:  oklch(0.72 0.008 252);
+    --muted:   oklch(0.52 0.008 252);
+    --dim:     oklch(0.38 0.006 252);
+    --cyan:    oklch(0.80 0.14 200);
+    --coral:   oklch(0.70 0.20 24);
+    --amber:   oklch(0.78 0.16 75);
+    --emerald: oklch(0.75 0.17 155);
+    --violet:  oklch(0.68 0.18 285);
+    --sans: 'Inter', system-ui, sans-serif;
+    --mono: 'JetBrains Mono', 'Fira Code', monospace;
+  }
+  html, body { height: 100%; background: transparent; overflow: hidden; border-radius: 16px; }
+  body {
+    font-family: var(--sans);
+    color: var(--text);
+    font-size: 13px;
+    display: flex;
+    flex-direction: column;
+    user-select: none;
+    border-radius: 16px;
+    overflow: hidden;
+  }
+  .ov-shell {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    background: var(--bg);
+    backdrop-filter: blur(24px) saturate(1.5);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    overflow: hidden;
+    box-shadow: 0 24px 56px oklch(0 0 0 / 0.65),
+                0 8px 24px oklch(0 0 0 / 0.40),
+                0 1px 3px oklch(0 0 0 / 0.30),
+                inset 0 1px 0 oklch(1 0 0 / 0.06);
+  }
+
+  /* ── Approval cards ── */
+  .ov-approvals { flex-shrink: 0; padding: 10px 10px 0; display: flex; flex-direction: column; gap: 5px; overflow: hidden; transition: max-height .2s ease, padding .2s ease, opacity .2s ease; max-height: 600px; }
+  .ov-approvals:empty { display: none; }
+  .ov-approvals.chat-hidden { max-height: 0; padding: 0; opacity: 0; }
+  .ov-ap-card {
+    background: oklch(0.17 0.010 252 / 0.80); border: 1px solid var(--border);
+    border-left: 3px solid oklch(0.70 0.20 24 / 0.65); border-radius: 8px; padding: 8px 10px;
+  }
+  .ov-ap-header { display: flex; align-items: center; gap: 6px; margin-bottom: 3px; }
+  .ov-ap-action { font-size: 12px; font-weight: 600; color: var(--text); flex: 1; }
+  .ov-ap-age    { font-family: var(--mono); font-size: 9px; color: var(--muted); }
+  .ov-ap-upn    { font-family: var(--mono); font-size: 9.5px; color: var(--cyan); margin-bottom: 5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ov-ap-btns   { display: flex; gap: 5px; }
+  .ov-ap-approve {
+    flex: 1; padding: 3px 0; border-radius: 5px; font-size: 11px; font-weight: 600; cursor: pointer;
+    background: color-mix(in oklch, var(--emerald) 10%, transparent);
+    border: 1px solid color-mix(in oklch, var(--emerald) 35%, transparent);
+    color: var(--emerald); transition: background .1s;
+  }
+  .ov-ap-approve:hover { background: color-mix(in oklch, var(--emerald) 18%, transparent); }
+  .ov-ap-approve:disabled { opacity: 0.4; cursor: default; }
+  .ov-ap-reject {
+    flex: 1; padding: 3px 0; border-radius: 5px; font-size: 11px; cursor: pointer;
+    background: transparent; border: 1px solid var(--border); color: var(--muted);
+    transition: background .1s, color .1s, border-color .1s;
+  }
+  .ov-ap-reject:hover { background: color-mix(in oklch, var(--coral) 8%, transparent); color: var(--coral); border-color: color-mix(in oklch, var(--coral) 35%, transparent); }
+  .ov-ap-reject:disabled { opacity: 0.4; cursor: default; }
+  .ov-ap-more { font-size: 10.5px; color: var(--dim); text-align: center; padding: 3px 0 2px; font-family: var(--mono); }
+
+  /* ── Divider ── */
+  .ov-divider { height: 1px; background: var(--border); flex-shrink: 0; margin: 8px 10px 0; display: none; }
+  .ov-divider.show { display: block; }
+
+  /* ── Chat thread ── */
+  .ov-thread {
+    flex-shrink: 0; height: 0; overflow: hidden;
+    display: flex; flex-direction: column; gap: 4px;
+    transition: height .18s ease;
+  }
+  .ov-thread.open { height: 200px; overflow-y: auto; padding: 8px 12px 6px; }
+  .ov-thread::-webkit-scrollbar { width: 3px; }
+  .ov-thread::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+  .ov-empty { text-align: center; font-size: 11px; color: var(--dim); margin: auto; }
+  .ov-msg {
+    max-width: 90%; padding: 7px 11px; border-radius: 10px;
+    font-size: 12.5px; line-height: 1.55; word-break: break-word; white-space: pre-wrap;
+  }
+  .ov-msg.user {
+    align-self: flex-end;
+    background: color-mix(in oklch, var(--cyan) 22%, transparent);
+    border: 1px solid color-mix(in oklch, var(--cyan) 40%, transparent);
+    color: var(--text);
+  }
+  .ov-msg.assistant {
+    align-self: flex-start;
+    background: oklch(0.17 0.010 252 / 0.82); border: 1px solid var(--border); color: var(--text);
+  }
+  .ov-msg.assistant.streaming { border-color: color-mix(in oklch, var(--cyan) 30%, transparent); }
+  .ov-tool-chip {
+    align-self: flex-start; display: inline-flex; align-items: center; gap: 4px;
+    font-family: var(--mono); font-size: 9px; letter-spacing: .04em;
+    padding: 2px 7px; border-radius: 3px;
+    background: color-mix(in oklch, var(--violet) 8%, transparent);
+    border: 1px solid color-mix(in oklch, var(--violet) 28%, transparent); color: var(--violet);
+  }
+  .ov-tool-chip.done { background: color-mix(in oklch, var(--emerald) 8%, transparent); border-color: color-mix(in oklch, var(--emerald) 28%, transparent); color: var(--emerald); }
+  .ov-tool-chip.fail { background: color-mix(in oklch, var(--coral)   8%, transparent); border-color: color-mix(in oklch, var(--coral)   28%, transparent); color: var(--coral); }
+  .ov-thinking {
+    align-self: flex-start; padding: 6px 10px; border-radius: 10px;
+    background: oklch(0.17 0.010 252 / 0.82); border: 1px solid var(--border);
+    display: flex; gap: 3px; align-items: center;
+  }
+  .ov-thinking span { width: 4px; height: 4px; border-radius: 50%; background: var(--muted); animation: ov-dot 1.2s ease-in-out infinite; }
+  .ov-thinking span:nth-child(2) { animation-delay: .2s; }
+  .ov-thinking span:nth-child(3) { animation-delay: .4s; }
+  @keyframes ov-dot { 0%,80%,100%{transform:scale(.7);opacity:.35}40%{transform:scale(1);opacity:1} }
+
+  /* ── Input bar ── */
+  .ov-bar { flex-shrink: 0; padding: 9px 10px 11px; -webkit-app-region: drag; }
+  .ov-bar-top {
+    display: flex; align-items: center; gap: 5px; margin-bottom: 8px;
+    -webkit-app-region: drag;
+  }
+  .ov-tab {
+    -webkit-app-region: no-drag;
+    padding: 3px 10px; border-radius: 20px; font-size: 10.5px; font-weight: 500;
+    cursor: pointer; border: 1px solid var(--border); background: transparent; color: var(--muted);
+    font-family: var(--mono); text-transform: uppercase; letter-spacing: .05em;
+    transition: background .1s, color .1s, border-color .1s;
+  }
+  .ov-tab.active { background: color-mix(in oklch, var(--cyan) 10%, transparent); border-color: color-mix(in oklch, var(--cyan) 38%, transparent); color: var(--cyan); }
+  .ov-tab:disabled { opacity: 0.4; cursor: default; }
+  .ov-spacer { flex: 1; }
+  .ov-mode-pill {
+    -webkit-app-region: no-drag;
+    font-family: var(--mono); font-size: 9px; letter-spacing: .05em; text-transform: uppercase;
+    padding: 2px 7px; border-radius: 99px; font-weight: 600;
+  }
+  .ov-mode-pill.safe { color: var(--violet); background: color-mix(in oklch, var(--violet) 8%, transparent); border: 1px solid color-mix(in oklch, var(--violet) 25%, transparent); }
+  .ov-mode-pill.live { color: var(--coral);  background: color-mix(in oklch, var(--coral)  8%, transparent); border: 1px solid color-mix(in oklch, var(--coral)  35%, transparent); }
+  .ov-badge {
+    -webkit-app-region: no-drag;
+    font-family: var(--mono); font-size: 9.5px; font-weight: 600;
+    padding: 2px 7px; border-radius: 99px;
+    background: color-mix(in oklch, var(--coral) 10%, transparent);
+    border: 1px solid color-mix(in oklch, var(--coral) 35%, transparent);
+    color: var(--coral); display: none;
+  }
+  .ov-badge.show { display: inline-flex; }
+  .ov-clr-btn {
+    -webkit-app-region: no-drag;
+    padding: 2px 6px; border-radius: 5px; font-size: 10px; cursor: pointer;
+    background: transparent; border: 1px solid var(--border); color: var(--dim);
+    font-family: var(--mono); transition: color .1s, border-color .1s;
+  }
+  .ov-clr-btn:hover { color: var(--muted); border-color: oklch(0.36 0.008 252); }
+  .ov-close-btn {
+    -webkit-app-region: no-drag;
+    width: 20px; height: 20px; border-radius: 50%; flex-shrink: 0;
+    background: oklch(0.22 0.008 252); border: none; cursor: pointer;
+    display: grid; place-items: center; color: var(--muted); font-size: 13px;
+    transition: background .1s, color .1s;
+  }
+  .ov-close-btn:hover { background: oklch(0.30 0.008 252); color: var(--text-2); }
+  .ov-input-row { display: flex; gap: 7px; -webkit-app-region: no-drag; align-items: center; }
+  .ov-input {
+    flex: 1; padding: 10px 14px;
+    background: oklch(0.14 0.010 252 / 0.88); border: 1px solid var(--border);
+    border-radius: 10px; color: var(--text); font-size: 13px;
+    font-family: var(--sans); outline: none; transition: border-color .15s, box-shadow .15s;
+  }
+  .ov-input:focus {
+    border-color: color-mix(in oklch, var(--cyan) 50%, transparent);
+    box-shadow: 0 0 0 3px color-mix(in oklch, var(--cyan) 10%, transparent);
+  }
+  .ov-input::placeholder { color: var(--dim); }
+  .ov-input:disabled { opacity: 0.5; cursor: not-allowed; }
+  .ov-send-btn {
+    width: 38px; height: 38px; border-radius: 10px; flex-shrink: 0;
+    background: color-mix(in oklch, var(--cyan) 20%, transparent);
+    border: 1px solid color-mix(in oklch, var(--cyan) 40%, transparent);
+    color: var(--cyan); cursor: pointer; display: grid; place-items: center;
+    font-size: 17px; transition: filter .1s; box-shadow: none;
+  }
+  .ov-send-btn:hover { filter: brightness(1.08); }
+  .ov-send-btn:disabled { opacity: 0.4; cursor: default; }
+
+  /* ── Approvals toggle ── */
+  .ov-ap-toggle {
+    -webkit-app-region: no-drag;
+    width: 22px; height: 22px; border-radius: 6px; flex-shrink: 0;
+    background: transparent; border: 1px solid transparent; cursor: pointer;
+    display: grid; place-items: center; color: var(--dim); font-size: 11px;
+    transition: background .1s, color .1s, transform .2s ease;
+  }
+  .ov-ap-toggle:hover { background: oklch(0.22 0.008 252); color: var(--text-2); border-color: var(--border); }
+  .ov-ap-toggle.collapsed { transform: rotate(180deg); }
+
+  /* ── Mode pill interactive ── */
+  .ov-mode-pill { cursor: pointer; transition: filter .15s; }
+  .ov-mode-pill:hover { filter: brightness(0.88); }
+
+  /* ── Confirm modal ── */
+  .ov-confirm-overlay {
+    position: fixed; inset: 0; z-index: 250;
+    background: oklch(0 0 0 / 0.22);
+    display: flex; align-items: center; justify-content: center; padding: 14px;
+    backdrop-filter: blur(4px);
+  }
+  .ov-confirm-modal {
+    background: oklch(0.14 0.010 252 / 0.96); border: 1px solid var(--border); border-radius: 12px;
+    padding: 16px; width: 100%;
+    box-shadow: 0 8px 32px oklch(0 0 0 / 0.55);
+  }
+  .ov-confirm-title { font-size: 13px; font-weight: 600; color: var(--text); margin-bottom: 6px; }
+  .ov-confirm-body  { font-size: 11.5px; color: var(--text-2); line-height: 1.5; margin-bottom: 14px; }
+  .ov-confirm-btns  { display: flex; gap: 8px; justify-content: flex-end; }
+  .ov-confirm-cancel {
+    padding: 5px 12px; border-radius: 6px; font-size: 12px; cursor: pointer;
+    background: transparent; border: 1px solid var(--border); color: var(--text-2);
+  }
+  .ov-confirm-cancel:hover { background: var(--surface); }
+  .ov-confirm-ok {
+    padding: 5px 14px; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer;
+    background: var(--coral); border: none; color: #fff;
+  }
+  .ov-confirm-ok:hover { filter: brightness(1.08); }
+  .ov-confirm-ok.primary { background: var(--cyan); color: oklch(0.11 0.010 252); }
+
+  /* ── PIN modal ── */
+  .ov-pin-overlay {
+    position: fixed; inset: 0; z-index: 200;
+    background: oklch(0 0 0 / 0.22);
+    display: flex; align-items: center; justify-content: center; padding: 14px;
+    backdrop-filter: blur(4px);
+  }
+  .ov-pin-modal {
+    background: oklch(0.14 0.010 252 / 0.96); border: 1px solid var(--border); border-radius: 12px;
+    padding: 16px; width: 100%;
+    box-shadow: 0 8px 32px oklch(0 0 0 / 0.55);
+  }
+  .ov-pin-title   { font-size: 13px; font-weight: 600; color: var(--text); margin-bottom: 3px; }
+  .ov-pin-context { font-size: 11px; color: var(--text-2); margin-bottom: 9px; line-height: 1.4; }
+  .ov-pin-upn     { font-family: var(--mono); color: var(--cyan); display: block; margin-top: 2px; font-size: 10px; }
+  .ov-pin-input {
+    width: 100%; padding: 7px 10px; letter-spacing: .2em;
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 8px; color: var(--text); font-size: 15px;
+    font-family: var(--mono); outline: none; margin-bottom: 4px;
+  }
+  .ov-pin-input:focus { border-color: color-mix(in oklch, var(--cyan) 50%, transparent); box-shadow: 0 0 0 3px color-mix(in oklch, var(--cyan) 10%, transparent); }
+  .ov-pin-error { font-size: 10.5px; color: var(--coral); min-height: 15px; margin-bottom: 9px; }
+  .ov-pin-btns  { display: flex; gap: 8px; justify-content: flex-end; }
+  .ov-pin-cancel {
+    padding: 5px 12px; border-radius: 6px; font-size: 12px; cursor: pointer;
+    background: transparent; border: 1px solid var(--border); color: var(--text-2);
+  }
+  .ov-pin-cancel:hover { background: var(--surface); }
+  .ov-pin-submit {
+    padding: 5px 14px; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer;
+    background: var(--emerald); border: none; color: #fff;
+    box-shadow: 0 2px 8px color-mix(in oklch, var(--emerald) 35%, transparent);
+  }
+  .ov-pin-submit:hover { filter: brightness(1.08); }
+  .ov-pin-submit:disabled { opacity: 0.5; cursor: default; }
+
+  /* ── Toast ── */
+  .ov-toasts {
+    position: fixed; bottom: 8px; left: 8px; right: 8px; z-index: 300;
+    display: flex; flex-direction: column; gap: 4px; pointer-events: none;
+  }
+  .ov-toast {
+    padding: 7px 11px; border-radius: 8px; font-size: 11.5px;
+    border: 1px solid var(--border); background: oklch(0.15 0.010 252 / 0.96);
+    box-shadow: 0 4px 16px oklch(0 0 0 / 0.40);
+    animation: ov-tin .2s ease, ov-tout .3s ease 2.7s forwards;
+  }
+  .ov-toast.success { border-color: color-mix(in oklch, var(--emerald) 45%, transparent); color: var(--emerald); }
+  .ov-toast.error   { border-color: color-mix(in oklch, var(--coral)   45%, transparent); color: var(--coral); }
+  .ov-toast.info    { border-color: color-mix(in oklch, var(--cyan)    35%, transparent); color: var(--text-2); }
+  @keyframes ov-tin  { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:none; } }
+  @keyframes ov-tout { from { opacity:1; } to { opacity:0; } }
+
+  /* ── Top drag strip ── */
+  .ov-drag-strip {
+    -webkit-app-region: drag;
+    height: 10px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: grab;
+    opacity: 0;
+    transition: opacity .2s;
+  }
+  .ov-shell:hover .ov-drag-strip { opacity: 1; }
+  .ov-drag-dots {
+    -webkit-app-region: drag;
+    pointer-events: none;
+    font-size: 7px;
+    color: var(--dim);
+    letter-spacing: 3px;
+    line-height: 1;
+    margin-top: -2px;
+  }
+
+  /* ── Resize handles ── */
+  .ov-rz { position: fixed; z-index: 100; -webkit-app-region: no-drag; }
+  .ov-rz-n  { top: 0;    left: 16px; right: 16px; height: 6px; cursor: n-resize; }
+  .ov-rz-s  { bottom: 0; left: 16px; right: 16px; height: 6px; cursor: s-resize; }
+  .ov-rz-e  { right: 0;  top: 16px; bottom: 16px; width:  6px; cursor: e-resize; }
+  .ov-rz-w  { left: 0;   top: 16px; bottom: 16px; width:  6px; cursor: w-resize; }
+  .ov-rz-nw { top: 4px;    left: 4px;  width: 14px; height: 14px; cursor: nw-resize; }
+  .ov-rz-ne { top: 4px;    right: 4px; width: 14px; height: 14px; cursor: ne-resize; }
+  .ov-rz-sw { bottom: 4px; left: 4px;  width: 14px; height: 14px; cursor: sw-resize; }
+  .ov-rz-se { bottom: 4px; right: 4px; width: 14px; height: 14px; cursor: se-resize; }
+  /* bottom-right grip dots — visual only */
+  .ov-grip {
+    position: fixed; bottom: 6px; right: 6px; z-index: 110;
+    display: grid; grid-template-columns: repeat(2, 3px); gap: 2.5px;
+    pointer-events: none; opacity: 0.22;
+  }
+  .ov-grip span { width: 3px; height: 3px; border-radius: 50%; background: var(--muted); }
+</style>
+</head>
+<body>
+<div class="ov-shell">
+
+  <div class="ov-drag-strip" aria-hidden="true"><span class="ov-drag-dots">· · · · ·</span></div>
+
+  <div class="ov-approvals" id="ov-approvals"></div>
+  <div class="ov-divider"   id="ov-divider"></div>
+  <div class="ov-thread"    id="ov-thread"></div>
+
+  <div class="ov-bar">
+    <div class="ov-bar-top">
+      <button class="ov-ap-toggle" id="ov-ap-toggle" title="Toggle approvals">▾</button>
+      <button class="ov-tab active" data-agent="approver">Approver</button>
+      <button class="ov-tab"        data-agent="auditor">Auditor</button>
+      <div class="ov-spacer"></div>
+      <span class="ov-mode-pill safe" id="ov-mode-pill">Safe</span>
+      <span class="ov-badge" id="ov-badge"></span>
+      <button class="ov-clr-btn"   id="ov-clr"   title="Clear conversation">clr</button>
+      <button class="ov-close-btn" id="ov-close"  title="Close (Esc)">×</button>
+    </div>
+    <div class="ov-input-row">
+      <input class="ov-input" id="ov-input" placeholder="Ask the agent…" autocomplete="off" spellcheck="false">
+      <button class="ov-send-btn" id="ov-send">↑</button>
+    </div>
+  </div>
+
+</div>
+
+<div class="ov-confirm-overlay" id="ov-confirm-overlay" style="display:none">
+  <div class="ov-confirm-modal">
+    <div class="ov-confirm-title" id="ov-confirm-title"></div>
+    <div class="ov-confirm-body"  id="ov-confirm-body"></div>
+    <div class="ov-confirm-btns">
+      <button class="ov-confirm-cancel" id="ov-confirm-cancel">Cancel</button>
+      <button class="ov-confirm-ok"     id="ov-confirm-ok">Confirm</button>
+    </div>
+  </div>
+</div>
+
+<div class="ov-pin-overlay" id="ov-pin-overlay" style="display:none">
+  <div class="ov-pin-modal">
+    <div class="ov-pin-title">Authenticate to Approve</div>
+    <div class="ov-pin-context">Approving <span id="ov-pin-label"></span> for:<span class="ov-pin-upn" id="ov-pin-upn"></span></div>
+    <input class="ov-pin-input" id="ov-pin-input" type="password" placeholder="PIN" autocomplete="off" maxlength="32">
+    <div class="ov-pin-error" id="ov-pin-error"></div>
+    <div class="ov-pin-btns">
+      <button class="ov-pin-cancel" id="ov-pin-cancel">Cancel</button>
+      <button class="ov-pin-submit" id="ov-pin-submit">Approve</button>
+    </div>
+  </div>
+</div>
+
+<div class="ov-toasts" id="ov-toasts"></div>
+
+<div class="ov-rz ov-rz-n"  data-dir="n"></div>
+<div class="ov-rz ov-rz-s"  data-dir="s"></div>
+<div class="ov-rz ov-rz-e"  data-dir="e"></div>
+<div class="ov-rz ov-rz-w"  data-dir="w"></div>
+<div class="ov-rz ov-rz-nw" data-dir="nw"></div>
+<div class="ov-rz ov-rz-ne" data-dir="ne"></div>
+<div class="ov-rz ov-rz-sw" data-dir="sw"></div>
+<div class="ov-rz ov-rz-se" data-dir="se"></div>
+<div class="ov-grip" aria-hidden="true"><span></span><span></span><span></span><span></span></div>
+
+<script src="overlay.js"></script>
+</body>
+</html>

@@ -1,0 +1,22 @@
+{
+  "eventId": "22222222-2222-4222-8222-222222222222",
+  "eventType": "transfer",
+  "effectiveDate": "2026-06-20",
+  "source": "api",
+  "ticketRef": "REQ-1002",
+  "employee": {
+    "employeeId": "E1002",
+    "email": "riley.chen@contoso.com",
+    "department": "Sales",
+    "jobTitle": "Account Executive",
+    "officeLocation": "New York"
+  },
+  "changes": {
+    "previousDepartment": "Sales",
+    "newDepartment": "Customer Success",
+    "previousTitle": "Account Executive",
+    "newTitle": "Customer Success Manager",
+    "groupsToAdd": ["Customer Success"],
+    "groupsToRemove": ["Sales"]
+  }
+}

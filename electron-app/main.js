@@ -1,7 +1,7 @@
 'use strict';
 
-const { app, BrowserWindow, ipcMain } = require('electron');
-const { execFileSync, spawnSync }      = require('child_process');
+const { app, BrowserWindow, ipcMain, dialog, nativeImage, Tray, Menu, Notification, globalShortcut, screen, shell } = require('electron');
+const { execFileSync, execFile, spawnSync } = require('child_process');
 const path  = require('path');
 const fs    = require('fs');
 const os    = require('os');
@@ -9,8 +9,12 @@ const os    = require('os');
 const AGENTS_DIR    = app.isPackaged
   ? path.join(process.resourcesPath, 'agents')
   : path.join(__dirname, '..');
+const APP_ICON      = nativeImage.createFromPath(path.join(__dirname, 'Assets', 'icon-rounded.png'));
+const TRAY_ICON     = nativeImage.createFromPath(path.join(__dirname, 'Assets', 'tray-icon.png'));
 const REPORTS_DIR   = path.join(__dirname, '..', 'auditor', 'reports');
-const TENANT_DOMAIN = 'contoso.onmicrosoft.com';
+const TENANT_DOMAIN   = 'contoso.onmicrosoft.com';
+const SETUP_FILE      = path.join(AGENTS_DIR, 'approver', 'setup.json');
+const INT_CONFIG_FILE = path.join(AGENTS_DIR, 'approver', 'integrations.config.json');
 
 // Stamp every child process with the console operator identity so Write-AuditEntry picks it up
 process.env.JML_CONSOLE_OPERATOR = os.userInfo().username;
@@ -27,6 +31,10 @@ const SOD_FILE       = path.join(AGENTS_DIR, 'shared', 'sod-policy.json');
 const OPERATORS_FILE = path.join(AGENTS_DIR, 'approver', 'operators.json');
 const OPERATOR_AUTH_FILE = path.join(AGENTS_DIR, 'approver', 'operator-auth.json');
 const OPERATOR_ACTIVITY_FILE = path.join(AGENTS_DIR, 'approver', 'operator-activity.jsonl');
+const PANEL_BOUNDS_FILE      = path.join(__dirname, 'panel-bounds.json');
+
+function loadPanelBounds() { try { return JSON.parse(fs.readFileSync(PANEL_BOUNDS_FILE, 'utf8')); } catch { return null; } }
+function savePanelBounds(b) { try { fs.writeFileSync(PANEL_BOUNDS_FILE, JSON.stringify(b)); } catch {} }
 const CERT_SCRIPT    = path.join(AGENTS_DIR, 'certifier', 'Invoke-CertificationCampaign.ps1');
 const AGENT_DIRS     = ['joiner','mover','leaver','enroller','approver','provisioner','auditor'];
 
@@ -37,12 +45,26 @@ const state = {
 };
 
 // ── System prompts ────────────────────────────────────────────────────────────
-const APPROVER_SYSTEM = `
+// Reads PrimaryDomain from the first available agent config; falls back to TENANT_DOMAIN.
+function getActiveTenantDomain() {
+  for (const agent of AGENT_DIRS) {
+    try {
+      const cfgPath = path.join(AGENTS_DIR, agent, 'config.json');
+      if (fs.existsSync(cfgPath)) {
+        const cfg = readJson(cfgPath);
+        if (cfg.PrimaryDomain) return cfg.PrimaryDomain;
+      }
+    } catch {}
+  }
+  return TENANT_DOMAIN;
+}
+
+function buildApproverSystem(domain) { return `
 You are the Approver Agent for a JML identity lifecycle management system.
 You are the intelligent gatekeeper for identity change requests in Microsoft Entra ID.
 
-Tenant: ${TENANT_DOMAIN}
-UPN format: firstname.lastname@${TENANT_DOMAIN}
+Tenant: ${domain}
+UPN format: firstname.lastname@${domain}
 
 Request types:
 JOINER: givenName, surname, userPrincipalName (auto-generate from name), department, jobTitle, usageLocation (2-letter ISO), manager?, licenses?, groups?
@@ -54,7 +76,7 @@ Rules:
 - Never invent or guess values
 - Always confirm full details before calling a tool
 - For leavers, explain the two-stage process and confirm each stage
-- Auto-generate UPNs as firstname.lastname@${TENANT_DOMAIN}
+- Auto-generate UPNs as firstname.lastname@${domain}
 
 AI-ASSISTED PROVISIONING:
 
@@ -74,14 +96,14 @@ the full operation details. Then:
 In WHATIF mode score_risk is informational — show it but don't gate on it.
 
 FORMATTING RULES (always follow):
-- Always write UPNs in full (e.g. sarah.chen@${TENANT_DOMAIN}). Never abbreviate to "..." or truncate the domain.
+- Always write UPNs in full (e.g. sarah.chen@${domain}). Never abbreviate to "..." or truncate the domain.
 - Do not use # or ## markdown headings in responses. Use **bold** labels or plain prose instead.
 - Keep responses concise. Lead with the result, add context below.
-`.trim();
+`.trim(); }
 
-const AUDITOR_SYSTEM = `
+function buildAuditorSystem(domain) { return `
 You are the JML Audit Agent -- a read-only intelligence layer over Microsoft Entra ID.
-Tenant: ${TENANT_DOMAIN}
+Tenant: ${domain}
 
 You NEVER suggest or make changes to the directory. Strictly observational.
 
@@ -97,7 +119,7 @@ You have two roles:
    WORKFLOW: New hire → Joiner (creates account) → Enroller (licenses + devices) → Mover (if role changes) → Leaver (offboarding)
 
    JOINER requires: First name, last name, department, job title, usage location (2-letter country code, e.g. US).
-   UPN is auto-generated as firstname.lastname@${TENANT_DOMAIN}. Optional: manager UPN, license SKUs, group names.
+   UPN is auto-generated as firstname.lastname@${domain}. Optional: manager UPN, license SKUs, group names.
 
    ENROLLER: Run after Joiner completes. Needs only the UPN. Assigns enrollment licenses, adds to onboarding groups, inventories registered devices.
 
@@ -121,11 +143,11 @@ You have two roles:
    FREEZE WINDOWS: Identity changes are blocked on weekends (Saturday and Sunday, all day).
 
 FORMATTING RULES (always follow):
-- Always write UPNs in full (e.g. sarah.chen@${TENANT_DOMAIN}). Never abbreviate to "..." or truncate the domain.
+- Always write UPNs in full (e.g. sarah.chen@${domain}). Never abbreviate to "..." or truncate the domain.
 - Do not use # or ## markdown headings. Use **bold** labels or plain prose to organize information.
 - Tables are fine. Bullets are fine. Headings are not needed for data responses.
 - Keep responses concise and direct. Lead with the answer, details below.
-`.trim();
+`.trim(); }
 
 // ── Tool definitions ──────────────────────────────────────────────────────────
 const APPROVER_TOOLS = [
@@ -264,13 +286,487 @@ function runPs(scriptPath, params = {}) {
   return execFileSync('powershell', args, { encoding: 'utf8', timeout: 120000 });
 }
 
+function runPsAsync(scriptPath, params = {}) {
+  return new Promise((resolve, reject) => {
+    if (!fs.existsSync(scriptPath)) { reject(new Error('Script not found: ' + scriptPath)); return; }
+    const args = ['-NonInteractive', '-File', scriptPath];
+    for (const [k, v] of Object.entries(params)) {
+      if (v === null || v === undefined) continue;
+      if (typeof v === 'boolean') { if (v) args.push('-' + k); }
+      else if (Array.isArray(v))  { args.push('-' + k, v.join(',')); }
+      else                        { args.push('-' + k, String(v)); }
+    }
+    execFile('powershell', args, { encoding: 'utf8', timeout: 120000 }, (err, stdout) => {
+      if (err) reject(err); else resolve(stdout);
+    });
+  });
+}
+
+// ── System tray + toast notifications ────────────────────────────────────────
+let tray              = null;
+let dockedWin         = null;
+let overlayWin        = null;
+let overlayAnchorY    = null;
+let paletteWin        = null;
+let quitting          = false;
+let dockedKeepConsole = false;
+
+// ── Panel/palette preload path ────────────────────────────────────────────────
+const PANEL_PRELOAD   = path.join(__dirname, 'preload-panel.js');
+const OVERLAY_PRELOAD = path.join(__dirname, 'preload-overlay.js');
+
+// ── Conversation display history (persisted in memory for cross-window sync) ──
+// Stores the rendered turn history per agent so overlay/docked can replay them.
+const _convHistory = { approver: [], auditor: [] };
+const CONV_HISTORY_MAX = 80; // max turns kept per agent
+
+function _pushConvTurn(agent, role, text) {
+  if (!_convHistory[agent]) return;
+  _convHistory[agent].push({ role, text, ts: Date.now() });
+  if (_convHistory[agent].length > CONV_HISTORY_MAX) _convHistory[agent].shift();
+}
+
+/** Broadcast a mirrored turn to all windows EXCEPT the originating sender */
+function _broadcastMirror(senderContents, agent, role, text) {
+  const targets = [win, overlayWin, dockedWin].filter(
+    w => w && !w.isDestroyed() && w.webContents !== senderContents
+  );
+  targets.forEach(w => w.webContents.send('msg-mirror', { agent, role, text }));
+}
+
+// ── Push live data to docked panel / overlay ─────────────────────────────────
+function pushPanelUpdate(partial) {
+  if (dockedWin && !dockedWin.isDestroyed()) {
+    dockedWin.webContents.send('panel-update', partial);
+  }
+  // Mirror approval/mode data to overlay
+  if (overlayWin && !overlayWin.isDestroyed()) {
+    const mirror = {};
+    if (partial.pendingList !== undefined) mirror.pendingList = partial.pendingList;
+    if (partial.approvals   !== undefined) mirror.approvals   = partial.approvals;
+    if (partial.mode        !== undefined) mirror.mode        = partial.mode;
+    if (Object.keys(mirror).length) overlayWin.webContents.send('overlay-update', mirror);
+  }
+}
+
+function pushOverlayUpdate(partial) {
+  if (overlayWin && !overlayWin.isDestroyed()) {
+    overlayWin.webContents.send('overlay-update', partial);
+  }
+}
+
+// ── Cert expiry polling ───────────────────────────────────────────────────────
+const _certAlerted = new Set();
+function pollCertExpiry() {
+  try {
+    const agents = ['joiner','mover','leaver','enroller','approver','auditor'];
+    const certs  = agents.map(ag => {
+      try {
+        const cfg = readJson(path.join(AGENTS_DIR, ag, 'config.json'));
+        const exp = cfg.CertExpiry || cfg.certExpiry;
+        const days = exp ? Math.ceil((new Date(exp) - Date.now()) / 86400000) : null;
+        return { agent: ag, daysLeft: days };
+      } catch { return { agent: ag, daysLeft: null }; }
+    });
+    // Send to docked panel
+    pushPanelUpdate({ certs });
+    // Toast when a cert is within 30 days and we haven't alerted yet
+    certs.forEach(c => {
+      if (c.daysLeft != null && c.daysLeft <= 30 && !_certAlerted.has(c.agent)) {
+        _certAlerted.add(c.agent);
+        sendToast(
+          'Cert Expiring — ' + c.agent,
+          `The ${c.agent} agent certificate expires in ${c.daysLeft} day${c.daysLeft !== 1 ? 's' : ''}. Renew via Agent Certs.`
+        );
+      }
+    });
+  } catch {}
+}
+
+// ── Last-event polling ────────────────────────────────────────────────────────
+let _lastEventTs = null;
+function pollLastEvent() {
+  try {
+    const logDirs = ['joiner','mover','leaver','enroller','approver','auditor'].map(ag =>
+      path.join(AGENTS_DIR, ag, 'logs')
+    );
+    const allEvents = [];
+    for (const dir of logDirs) {
+      if (!fs.existsSync(dir)) continue;
+      const files = fs.readdirSync(dir).filter(f => f.endsWith('.jsonl')).sort().reverse().slice(0, 2);
+      for (const f of files) {
+        const lines = fs.readFileSync(path.join(dir, f), 'utf8').trim().split('\n').filter(Boolean);
+        for (let i = lines.length - 1; i >= 0 && allEvents.length < 20; i--) {
+          try { allEvents.push(JSON.parse(lines[i])); } catch {}
+        }
+      }
+    }
+    const recent = allEvents
+      .filter(e => e && e.timestamp)
+      .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
+      .slice(0, 3);
+    if (recent.length && recent[0].timestamp !== _lastEventTs) {
+      _lastEventTs = recent[0].timestamp;
+      pushPanelUpdate({ recentEvents: recent });
+    }
+  } catch {}
+}
+
+async function pollHrQueue() {
+  try {
+    const { QueueServiceClient } = require('@azure/storage-queue');
+    const qClient = QueueServiceClient.fromConnectionString('UseDevelopmentStorage=true');
+    const queue   = qClient.getQueueClient('jml-hr-events');
+    const props   = await queue.getProperties();
+    const count   = props.approximateMessageCount || 0;
+    let oldestMin = null;
+    if (count > 0) {
+      try {
+        const peek = await queue.peekMessages({ numberOfMessages: 1 });
+        const msg  = peek.peekedMessageItems && peek.peekedMessageItems[0];
+        if (msg && msg.insertedOn) {
+          oldestMin = Math.round((Date.now() - new Date(msg.insertedOn)) / 60000);
+        }
+      } catch {}
+    }
+    pushPanelUpdate({ hrQueue: { count, oldestMin } });
+  } catch { /* Azurite not running — leave last known panel state intact */ }
+}
+
+function showMainWindow() {
+  if (win && !win.isDestroyed()) { win.show(); win.focus(); }
+}
+
+function buildTrayMenu() {
+  const pendingCount = fs.existsSync(PENDING_DIR)
+    ? fs.readdirSync(PENDING_DIR).filter(f => f.endsWith('.json')).length : 0;
+  return Menu.buildFromTemplate([
+    { label: 'Show Console',  click: showMainWindow },
+    { label: pendingCount > 0 ? `Approvals — ${pendingCount} pending` : 'Approvals', click: () => { showMainWindow(); } },
+    { type: 'separator' },
+    { label: dockedWin && !dockedWin.isDestroyed() ? 'Hide Docked Panel' : 'Show Docked Panel',
+      click: () => {
+        if (dockedWin && !dockedWin.isDestroyed()) {
+          dockedWin.isVisible() ? dockedWin.hide() : dockedWin.show();
+        } else { createDockedPanel(); }
+      }
+    },
+    { label: 'Agent Overlay (Ctrl+Shift+Space)', click: toggleOverlayWindow },
+    { type: 'separator' },
+    { label: 'Quit JML Console', click: () => {
+      const choice = dialog.showMessageBoxSync({
+        type: 'question', buttons: ['Quit', 'Cancel'],
+        defaultId: 1, cancelId: 1,
+        title: 'Quit JML Console',
+        message: 'Are you sure you want to quit?',
+        detail: 'The app will stop running and tray notifications will be disabled.'
+      });
+      if (choice === 0) { quitting = true; app.quit(); }
+    }}
+  ]);
+}
+
+function createTray() {
+  tray = new Tray(TRAY_ICON);
+  tray.setToolTip('JML Fleet Console');
+  tray.setContextMenu(buildTrayMenu());
+  tray.on('click', () => { tray.setContextMenu(buildTrayMenu()); });
+  tray.on('double-click', showMainWindow);
+}
+
+function pushFreshPanelData() {
+  try {
+    const files = fs.existsSync(PENDING_DIR)
+      ? fs.readdirSync(PENDING_DIR).filter(f => f.endsWith('.json')) : [];
+    const count = files.length;
+    let oldestApproval = null;
+    files.forEach(f => {
+      try {
+        const d = readJson(path.join(PENDING_DIR, f));
+        const ts = d.requestedAt || d.timestamp || d.submittedAt;
+        if (ts && (!oldestApproval || new Date(ts) < new Date(oldestApproval))) oldestApproval = ts;
+      } catch {}
+    });
+    pushPanelUpdate({
+      approvals: count, oldestApproval,
+      mode: state.approver.whatif ? 'safe' : 'live',
+      keepConsole: dockedKeepConsole
+    });
+  } catch {}
+  pollCertExpiry();
+  pollLastEvent();
+  pollHrQueue();
+}
+
+function createDockedPanel() {
+  if (dockedWin && !dockedWin.isDestroyed()) { dockedWin.show(); dockedWin.focus(); return; }
+  const { x: wa_x, y: wa_y, width: wa_w, height: wa_h } = screen.getPrimaryDisplay().workArea;
+  const saved = loadPanelBounds();
+  const W = saved ? Math.max(220, Math.min(640, saved.width))               : 280;
+  const H = saved ? Math.max(220, Math.min(wa_h - 20, saved.height))        : Math.min(600, wa_h - 40);
+  const X = saved ? Math.max(wa_x, Math.min(wa_x + wa_w - W, saved.x))     : wa_x + wa_w - W - 8;
+  const Y = saved ? Math.max(wa_y, Math.min(wa_y + wa_h - H, saved.y))     : wa_y + Math.round((wa_h - H) / 2);
+  dockedWin = new BrowserWindow({
+    width: W, height: H, x: X, y: Y,
+    frame: false, resizable: false,
+    alwaysOnTop: true, skipTaskbar: true,
+    transparent: true,
+    icon: APP_ICON,
+    backgroundColor: '#00000000',
+    webPreferences: { preload: PANEL_PRELOAD, contextIsolation: true, nodeIntegration: false, sandbox: false }
+  });
+  dockedWin.setContentProtection(true);
+  dockedWin.loadFile(path.join(__dirname, 'renderer', 'docked.html'));
+  dockedWin.on('closed', () => { dockedWin = null; });
+  dockedWin.on('moved', () => {
+    if (!dockedWin || dockedWin.isDestroyed()) return;
+    const [wx, wy] = dockedWin.getPosition();
+    const [ww, wh] = dockedWin.getSize();
+    const { x: wa_x, y: wa_y, width: wa_w, height: wa_h } = screen.getPrimaryDisplay().workArea;
+
+    // ── Slim mode: detect nearest edge and snap + reorient ──
+    if (ww <= 220 || wh <= 160) {
+      const cx = wx + ww / 2;
+      const cy = wy + wh / 2;
+      const dRight  = Math.abs(cx - (wa_x + wa_w));
+      const dLeft   = Math.abs(cx - wa_x);
+      const dTop    = Math.abs(cy - wa_y);
+      const dBottom = Math.abs(cy - (wa_y + wa_h));
+      const minD = Math.min(dRight, dLeft, dTop, dBottom);
+
+      let edge, nx, ny, nw, nh;
+      const clampX = (w) => Math.max(wa_x, Math.min(wa_x + wa_w - w, Math.round(cx - w / 2)));
+      const clampY = (h) => Math.max(wa_y, Math.min(wa_y + wa_h - h, Math.round(cy - h / 2)));
+
+      if (minD === dRight)  { edge = 'right';  nw = 200; nh = 220; nx = wa_x + wa_w - nw; ny = clampY(nh); }
+      else if (minD === dLeft)   { edge = 'left';   nw = 200; nh = 220; nx = wa_x;              ny = clampY(nh); }
+      else if (minD === dTop)    { edge = 'top';    nw = 300; nh = 160; nx = clampX(nw);         ny = wa_y;       }
+      else                       { edge = 'bottom'; nw = 300; nh = 160; nx = clampX(nw);         ny = wa_y + wa_h - nh; }
+
+      // Overlay collision avoidance: offset slim pill if overlay is parked at the same edge
+      if (overlayWin && !overlayWin.isDestroyed() && overlayWin.isVisible()) {
+        const [ov_x, ov_y] = overlayWin.getPosition();
+        const [ov_w, ov_h] = overlayWin.getSize();
+        const ov_r = ov_x + ov_w, ov_b = ov_y + ov_h;
+        const OV_GAP = 8;
+        if ((edge === 'right' && ov_r >= wa_x + wa_w - 20) ||
+            (edge === 'left'  && ov_x <= wa_x + 20)) {
+          if (ny < ov_b + OV_GAP && ny + nh > ov_y - OV_GAP) {
+            const spaceAbove = ov_y - OV_GAP - wa_y;
+            const spaceBelow = (wa_y + wa_h) - (ov_b + OV_GAP);
+            if (spaceAbove >= nh)        ny = ov_y - OV_GAP - nh;
+            else if (spaceBelow >= nh)   ny = ov_b + OV_GAP;
+            ny = Math.max(wa_y, Math.min(wa_y + wa_h - nh, ny));
+          }
+        } else if ((edge === 'top'    && ov_y <= wa_y + 20) ||
+                   (edge === 'bottom' && ov_b >= wa_y + wa_h - 20)) {
+          if (nx < ov_r + OV_GAP && nx + nw > ov_x - OV_GAP) {
+            const spaceLeft  = ov_x - OV_GAP - wa_x;
+            const spaceRight = (wa_x + wa_w) - (ov_r + OV_GAP);
+            if (spaceLeft >= nw)         nx = ov_x - OV_GAP - nw;
+            else if (spaceRight >= nw)   nx = ov_r + OV_GAP;
+            nx = Math.max(wa_x, Math.min(wa_x + wa_w - nw, nx));
+          }
+        }
+      }
+      dockedWin.setBounds({ x: nx, y: ny, width: nw, height: nh }, false);
+      dockedWin.webContents.send('slim-edge-changed', edge);
+      return;
+    }
+
+    // ── Normal mode: snap to nearby edges ──
+    const SNAP = 18;
+    let nx = wx, ny = wy;
+    if (Math.abs(wx - wa_x) <= SNAP)                   nx = wa_x;
+    if (Math.abs(wx + ww - (wa_x + wa_w)) <= SNAP)     nx = wa_x + wa_w - ww;
+    if (Math.abs(wy - wa_y) <= SNAP)                   ny = wa_y;
+    if (Math.abs(wy + wh - (wa_y + wa_h)) <= SNAP)     ny = wa_y + wa_h - wh;
+    if (nx !== wx || ny !== wy) {
+      dockedWin.setPosition(nx, ny);
+      savePanelBounds({ x: nx, y: ny, width: ww, height: wh });
+    }
+  });
+  dockedWin.webContents.once('did-finish-load', () => {
+    pushFreshPanelData();
+    // Overlay rich sample data so the panel shows meaningful content in dev
+    setTimeout(() => pushPanelUpdate(buildMockPanelData()), 300);
+  });
+}
+
+function createOverlayWindow() {
+  if (overlayWin && !overlayWin.isDestroyed()) { overlayWin.show(); overlayWin.focus(); return; }
+  const { x: wa_x, y: wa_y, width: wa_w, height: wa_h } = screen.getPrimaryDisplay().workArea;
+  const W = 460;
+  const H = 88;
+  overlayAnchorY = wa_y + Math.round(wa_h * 0.72);
+  const X = wa_x + Math.round((wa_w - W) / 2);
+  const Y = overlayAnchorY - H;
+  overlayWin = new BrowserWindow({
+    width: W, height: H, x: X, y: Y,
+    frame: false, resizable: true,
+    alwaysOnTop: true, skipTaskbar: true,
+    transparent: true, backgroundColor: '#00000000',
+    webPreferences: { preload: OVERLAY_PRELOAD, contextIsolation: true, nodeIntegration: false, sandbox: false }
+  });
+  overlayWin.setContentProtection(true);
+  overlayWin.setMinimumSize(300, 88);
+  overlayWin.loadFile(path.join(__dirname, 'renderer', 'overlay.html'));
+  overlayWin.on('closed', () => { overlayWin = null; overlayAnchorY = null; });
+  overlayWin.on('moved', () => {
+    if (!overlayWin || overlayWin.isDestroyed()) return;
+    const [wx, wy] = overlayWin.getPosition();
+    const [ww, wh] = overlayWin.getSize();
+    const { x: wa_x, y: wa_y, width: wa_w, height: wa_h } = screen.getPrimaryDisplay().workArea;
+    const SNAP = 24;
+    let nx = wx, ny = wy;
+    if (Math.abs(wx - wa_x) <= SNAP)               nx = wa_x;
+    if (Math.abs(wx + ww - (wa_x + wa_w)) <= SNAP) nx = wa_x + wa_w - ww;
+    if (Math.abs(wy - wa_y) <= SNAP)               ny = wa_y;
+    if (Math.abs(wy + wh - (wa_y + wa_h)) <= SNAP) ny = wa_y + wa_h - wh;
+    if (nx !== wx || ny !== wy) overlayWin.setPosition(nx, ny);
+  });
+  overlayWin.webContents.once('did-finish-load', () => {
+    overlayWin.webContents.send('overlay-init', { anchorY: overlayAnchorY, winX: X, winW: W });
+    // Push current approval state
+    try {
+      const files = fs.existsSync(PENDING_DIR) ? fs.readdirSync(PENDING_DIR).filter(f => f.endsWith('.json')) : [];
+      const pendingList = files.map(f => {
+        try {
+          const d = readJson(path.join(PENDING_DIR, f));
+          return { id: d.id || f.replace('.json',''), tool: d.tool, severity: d.severity,
+            requestedBy: d.requestedBy, requestedByRole: d.requestedByRole,
+            requestedAt: d.requestedAt, input: d.input };
+        } catch { return null; }
+      }).filter(Boolean);
+      pushOverlayUpdate({ approvals: files.length, pendingList, mode: state.approver.whatif ? 'safe' : 'live' });
+    } catch {}
+  });
+}
+
+function toggleOverlayWindow() {
+  const sendOverlayState = (v) => { if (win && !win.isDestroyed()) win.webContents.send('overlay-state', v); };
+  if (!overlayWin || overlayWin.isDestroyed()) { createOverlayWindow(); sendOverlayState(true); return; }
+  if (overlayWin.isVisible()) { overlayWin.hide(); sendOverlayState(false); } else { overlayWin.show(); overlayWin.focus(); sendOverlayState(true); }
+}
+
+function createPaletteWindow() {
+  if (paletteWin && !paletteWin.isDestroyed()) {
+    paletteWin.show(); paletteWin.focus(); return;
+  }
+  const { x: pw_x, y: pw_y, width: pw_w, height: pw_h } = screen.getPrimaryDisplay().workArea;
+  const W = 600, H = 460;
+  paletteWin = new BrowserWindow({
+    width: W, height: H,
+    x: pw_x + Math.round((pw_w - W) / 2), y: pw_y + Math.round(pw_h * 0.18),
+    frame: false, resizable: false,
+    alwaysOnTop: true, skipTaskbar: true,
+    transparent: true,
+    icon: APP_ICON,
+    backgroundColor: '#00000000',
+    webPreferences: { preload: PANEL_PRELOAD, contextIsolation: true, nodeIntegration: false, sandbox: false }
+  });
+  paletteWin.loadFile(path.join(__dirname, 'renderer', 'palette.html'));
+  paletteWin.on('blur', () => { if (paletteWin && !paletteWin.isDestroyed()) paletteWin.close(); });
+  paletteWin.on('closed', () => { paletteWin = null; });
+}
+
+function sendToast(title, body) {
+  if (!Notification.isSupported()) return;
+  const n = new Notification({ title, body, icon: APP_ICON, silent: false });
+  n.on('click', showMainWindow);
+  n.show();
+}
+
+let _lastApprovalCount = -1;
+function pollTrayApprovals() {
+  try {
+    const count = fs.existsSync(PENDING_DIR)
+      ? fs.readdirSync(PENDING_DIR).filter(f => f.endsWith('.json')).length
+      : 0;
+    if (_lastApprovalCount >= 0 && count > _lastApprovalCount) {
+      const diff = count - _lastApprovalCount;
+      sendToast(
+        'Pending Approval' + (diff > 1 ? 's' : ''),
+        diff + ' new approval request' + (diff > 1 ? 's' : '') + ' awaiting admin sign-off.'
+      );
+    }
+    _lastApprovalCount = count;
+    tray && tray.setToolTip('JML Fleet Console' + (count ? ' · ' + count + ' pending' : ''));
+    let oldestApproval = null;
+    if (count > 0) {
+      const files = fs.readdirSync(PENDING_DIR).filter(f => f.endsWith('.json'));
+      files.forEach(f => {
+        try {
+          const d = readJson(path.join(PENDING_DIR, f));
+          const ts = d.requestedAt || d.timestamp || d.submittedAt;
+          if (ts && (!oldestApproval || new Date(ts) < new Date(oldestApproval))) oldestApproval = ts;
+        } catch {}
+      });
+    }
+    // Build trimmed list for panel cards
+    let pendingList = [];
+    if (count > 0) {
+      const files2 = fs.readdirSync(PENDING_DIR).filter(f => f.endsWith('.json'));
+      pendingList = files2.map(f => {
+        try {
+          const d = readJson(path.join(PENDING_DIR, f));
+          return { id: d.id || f.replace('.json',''), tool: d.tool, severity: d.severity,
+                   requestedBy: d.requestedBy, requestedByRole: d.requestedByRole,
+                   requestedAt: d.requestedAt || d.timestamp,
+                   input: { userPrincipalName: d.input?.userPrincipalName } };
+        } catch { return null; }
+      }).filter(Boolean).sort((a,b) => new Date(a.requestedAt) - new Date(b.requestedAt));
+    }
+    pushPanelUpdate({ approvals: count, oldestApproval, pendingList });
+  } catch {}
+}
+
+function routeBlockedLeaverToApproval(input, stage) {
+  if (!fs.existsSync(PENDING_DIR)) fs.mkdirSync(PENDING_DIR, { recursive: true });
+  const token = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  const record = {
+    id: token, token,
+    tool: 'submit_leaver_' + stage.toLowerCase(),
+    severity: 'crit',
+    requestedBy: currentOperator || 'helpdesk',
+    requestedByRole: currentRole,
+    requestedAt: new Date().toISOString(),
+    input: { userPrincipalName: input.userPrincipalName, stage, ticketRef: input.ticketRef || '' },
+    note: 'User holds privileged Entra directory roles — admin approval required to proceed.',
+    status: 'pending'
+  };
+  fs.writeFileSync(path.join(PENDING_DIR, token + '.json'), JSON.stringify(record, null, 2), 'utf8');
+  sendToast('Admin Approval Required', (input.userPrincipalName || 'User') + ' holds privileged directory roles — leaver queued for admin sign-off.');
+  return token;
+}
+
+// Extract and parse a JSON object from PowerShell stdout that may contain
+// non-JSON header lines or pretty-printed (multi-line) ConvertTo-Json output.
+function _parseMultilineJson(raw, emptyMsg) {
+  const trimmed = raw.trim();
+  if (!trimmed) return { error: emptyMsg || 'No output from script' };
+  // Fast path: entire output is valid JSON
+  try { return JSON.parse(trimmed); } catch {}
+  // Slow path: find the { ... } block spanning multiple lines
+  const ls = trimmed.split('\n');
+  const start = ls.findIndex(l => l.trim().startsWith('{'));
+  if (start < 0) return { error: emptyMsg || 'No JSON output from script' };
+  let end = -1;
+  for (let i = ls.length - 1; i >= start; i--) {
+    if (/^\s*\}\s*$/.test(ls[i])) { end = i; break; }
+  }
+  const block = ls.slice(start, end >= 0 ? end + 1 : undefined).join('\n');
+  try { return JSON.parse(block); }
+  catch (ex) { return { error: `JSON parse error: ${ex.message}`, raw: trimmed.slice(0, 400) }; }
+}
+
 function parsePs1Output(raw) {
   const lines = raw.trim().split('\n');
   const visible = lines.filter(l => /\[(ACTION|ERROR|WARN|SKIP|WHATIF)\]/.test(l))
                        .map(l => l.replace(/^\[\d{2}:\d{2}:\d{2}\] /, '').trim());
-  const jsonLine = lines.filter(l => l.trim().startsWith('{')).pop();
-  let data = null;
-  try { if (jsonLine) data = JSON.parse(jsonLine); } catch {}
+  // Use _parseMultilineJson to handle both inline and pretty-printed ConvertTo-Json output
+  const parsed = _parseMultilineJson(raw);
+  const data = parsed && !parsed.error ? parsed : null;
   return { lines: visible, data };
 }
 
@@ -305,8 +801,7 @@ function executeTool(agent, toolName, input, whatif) {
         Department: input.department,
         JobTitle:   input.jobTitle
       });
-      const jsonLine = raw.trim().split('\n').filter(l => l.trim().startsWith('{')).pop();
-      return jsonLine ? JSON.parse(jsonLine) : { error: 'No output from recommendation script' };
+      return _parseMultilineJson(raw, 'No output from recommendation script');
     }
     case 'score_risk': {
       const raw = runPs(path.join(AGENTS_DIR, 'auditor', 'Invoke-RiskScore.ps1'), {
@@ -316,8 +811,7 @@ function executeTool(agent, toolName, input, whatif) {
         Groups:            input.groups,
         NewDepartment:     input.newDepartment
       });
-      const jsonLine = raw.trim().split('\n').filter(l => l.trim().startsWith('{')).pop();
-      return jsonLine ? JSON.parse(jsonLine) : { error: 'No output from risk score script' };
+      return _parseMultilineJson(raw, 'No output from risk score script');
     }
     case 'submit_joiner': {
       const _pf = writePayloadFile({
@@ -337,21 +831,40 @@ function executeTool(agent, toolName, input, whatif) {
         Licenses: input.licenses, Groups: input.groups, WhatIf: w
       }));
     case 'submit_mover':
-      return parsePs1Output(runPs(path.join(AGENTS_DIR, 'mover', 'Invoke-MoverProcess.ps1'), {
-        UserPrincipalName: input.userPrincipalName,
-        Department: input.newDepartment, JobTitle: input.newJobTitle,
-        Manager: input.newManager,
-        LicensesToAdd: input.licensesToAdd, LicensesToRemove: input.licensesToRemove,
-        GroupsToAdd: input.groupsToAdd, GroupsToRemove: input.groupsToRemove, WhatIf: w
-      }));
+      {
+        const _pf = writePayloadFile({
+          userPrincipalName: input.userPrincipalName,
+          department: input.newDepartment,
+          jobTitle: input.newJobTitle,
+          manager: input.newManager,
+          licensesToAdd: input.licensesToAdd,
+          licensesToRemove: input.licensesToRemove,
+          groupsToAdd: input.groupsToAdd,
+          groupsToRemove: input.groupsToRemove,
+          ticketRef: input.ticketRef
+        });
+        try { return parsePs1Output(runPs(path.join(AGENTS_DIR, 'mover', 'Invoke-MoverProcess.ps1'), { PayloadPath: _pf, WhatIf: w })); }
+        finally { try { fs.unlinkSync(_pf); } catch {} }
+      }
     case 'submit_leaver_soft':
-      return parsePs1Output(runPs(path.join(AGENTS_DIR, 'leaver', 'Invoke-LeaverProcess.ps1'), {
-        UserPrincipalName: input.userPrincipalName, Stage: 'Soft', WhatIf: w
-      }));
-    case 'submit_leaver_hard':
-      return parsePs1Output(runPs(path.join(AGENTS_DIR, 'leaver', 'Invoke-LeaverProcess.ps1'), {
-        UserPrincipalName: input.userPrincipalName, Stage: 'Hard', WhatIf: w
-      }));
+    case 'submit_leaver_hard': {
+      const _stage = toolName === 'submit_leaver_hard' ? 'Hard' : 'Soft';
+      try {
+        return parsePs1Output(runPs(path.join(AGENTS_DIR, 'leaver', 'Invoke-LeaverProcess.ps1'), {
+          UserPrincipalName: input.userPrincipalName, Stage: _stage, WhatIf: w, OperatorRole: currentRole
+        }));
+      } catch (_lErr) {
+        const _stdout = _lErr.stdout || _lErr.message || '';
+        if (currentRole === 'helpdesk' && !w && _stdout.includes('BLOCKED: Operator role')) {
+          const _tok = routeBlockedLeaverToApproval(input, _stage);
+          return { approvalQueued: true, token: _tok, message: 'User holds privileged Entra directory roles. Approval request submitted — an admin operator must approve from the Approvals tab before this leaver executes.' };
+        }
+        if (currentRole === 'helpdesk' && w && _stdout.includes('BLOCKED: Operator role')) {
+          return { approvalRequired: true, message: 'This user holds privileged Entra directory roles. In Live mode, this leaver would be routed to the Approvals tab for admin sign-off.' };
+        }
+        throw _lErr;
+      }
+    }
     default:
       return { error: 'Unknown tool: ' + toolName };
   }
@@ -368,8 +881,11 @@ async function runAgentLoop(sender, agent, userText) {
   const agentState = state[agent];
   agentState.messages.push({ role: 'user', content: userText });
 
-  const systemPrompt = agent === 'approver' ? APPROVER_SYSTEM : AUDITOR_SYSTEM;
+  const domain       = getActiveTenantDomain();
+  const systemPrompt = agent === 'approver' ? buildApproverSystem(domain) : buildAuditorSystem(domain);
   const tools        = agent === 'approver' ? APPROVER_TOOLS  : AUDITOR_TOOLS;
+
+  let _fullText = ''; // accumulated across the entire response (for display history)
 
   while (true) {
     const stream = client.messages.stream({
@@ -386,6 +902,7 @@ async function runAgentLoop(sender, agent, userText) {
     stream.on('text', (text) => {
       sender.send('msg-chunk', { type: 'text', text });
       currentText += text;
+      _fullText   += text;
     });
 
     stream.on('streamEvent', (event) => {
@@ -412,7 +929,10 @@ async function runAgentLoop(sender, agent, userText) {
       let result;
       try {
         result = executeTool(agent, tool.name, input, agentState.whatif);
-        sender.send('msg-chunk', { type: 'tool_done', toolName: tool.name, success: true });
+        // Include the result for structured-data tools so the renderer can render
+        // contextual cards (e.g. score_risk → risk score card with actual reasons).
+        const sendResult = (tool.name === 'score_risk' || tool.name === 'suggest_provisioning') ? result : undefined;
+        sender.send('msg-chunk', { type: 'tool_done', toolName: tool.name, success: true, result: sendResult });
       } catch (err) {
         result = { error: err.message };
         sender.send('msg-chunk', { type: 'tool_done', toolName: tool.name, success: false });
@@ -427,19 +947,95 @@ async function runAgentLoop(sender, agent, userText) {
     }
   }
 
+  // Store and mirror the completed assistant response
+  _pushConvTurn(agent, 'assistant', _fullText);
+  _broadcastMirror(sender, agent, 'assistant', _fullText);
   sender.send('msg-complete', { agent });
 }
 
 // ── IPC handlers ──────────────────────────────────────────────────────────────
 ipcMain.on('send-message', (event, { agent, text }) => {
+  // Store and mirror the user turn before the agent responds
+  _pushConvTurn(agent, 'user', text);
+  _broadcastMirror(event.sender, agent, 'user', text);
   runAgentLoop(event.sender, agent, text).catch(err => {
     event.sender.send('msg-error', { text: err.message });
   });
 });
 
+// Return stored display history for a given agent (used on overlay/docked open)
+ipcMain.handle('get-conversation-display', (_, { agent }) => {
+  return _convHistory[agent] || [];
+});
+
 ipcMain.on('set-mode', (event, { whatif }) => {
   state.approver.whatif = whatif;
+  pushPanelUpdate({ mode: whatif ? 'safe' : 'live' });
 });
+
+ipcMain.on('panel-pref', (_, prefs) => {
+  if (typeof prefs.keepConsole === 'boolean') dockedKeepConsole = prefs.keepConsole;
+});
+
+ipcMain.on('panel-set-mode', (_, { whatif }) => {
+  state.approver.whatif = whatif;
+  pushPanelUpdate({ mode: whatif ? 'safe' : 'live' });
+  if (win && !win.isDestroyed()) win.webContents.send('mode-changed', { whatif });
+});
+
+ipcMain.handle('panel-resize', (_, { width }) => {
+  if (!dockedWin || dockedWin.isDestroyed()) return;
+  const { x: wa_x, width: wa_w } = screen.getPrimaryDisplay().workArea;
+  const W = Math.max(220, Math.min(640, Math.round(width)));
+  const H = dockedWin.getSize()[1];
+  const X = wa_x + wa_w - W - 8;
+  const Y = dockedWin.getPosition()[1];
+  dockedWin.setSize(W, H);
+  dockedWin.setPosition(X, Y);
+  savePanelBounds({ x: X, y: Y, width: W, height: H });
+});
+
+ipcMain.handle('panel-resize-to', (_, { x, y, width, height }) => {
+  if (!dockedWin || dockedWin.isDestroyed()) return;
+  const { x: wa_x, y: wa_y, width: wa_w, height: wa_h } = screen.getPrimaryDisplay().workArea;
+  const W = Math.max(220, Math.min(640, Math.round(width)));
+  const H = Math.max(220, Math.min(900, Math.round(height)));
+  const X = Math.max(wa_x, Math.min(wa_x + wa_w - W, Math.round(x)));
+  const Y = Math.max(wa_y, Math.min(wa_y + wa_h - H, Math.round(y)));
+  dockedWin.setBounds({ x: X, y: Y, width: W, height: H }, false);
+});
+
+ipcMain.handle('panel-slim-resize', (_, { x, y, width, height, edge }) => {
+  if (!dockedWin || dockedWin.isDestroyed()) return;
+  const { x: wa_x, y: wa_y, width: wa_w, height: wa_h } = screen.getPrimaryDisplay().workArea;
+  const W = Math.max(24, Math.min(640, Math.round(width)));
+  const H = Math.max(24, Math.min(wa_h, Math.round(height)));
+  // Snap flush to the specified edge, or right edge by default
+  let X, Y;
+  const clampX = Math.max(wa_x, Math.min(wa_x + wa_w - W, Math.round(x)));
+  const clampY = Math.max(wa_y, Math.min(wa_y + wa_h - H, Math.round(y)));
+  if (edge === 'left')        { X = wa_x;              Y = clampY; }
+  else if (edge === 'top')    { X = clampX;             Y = wa_y;   }
+  else if (edge === 'bottom') { X = clampX;             Y = wa_y + wa_h - H; }
+  else                        { X = wa_x + wa_w - W;   Y = clampY; } // right (default)
+  dockedWin.setBounds({ x: X, y: Y, width: W, height: H }, false);
+});
+
+ipcMain.handle('overlay-resize-to', (_, { x, y, width, height }) => {
+  if (!overlayWin || overlayWin.isDestroyed()) return;
+  const { x: wa_x, y: wa_y, width: wa_w, height: wa_h } = screen.getPrimaryDisplay().workArea;
+  const W = Math.max(300, Math.min(800, Math.round(width)));
+  const H = Math.max(88, Math.min(700, Math.round(height)));
+  const X = Math.max(wa_x, Math.min(wa_x + wa_w - W, Math.round(x)));
+  const Y = Math.max(wa_y, Math.min(wa_y + wa_h - H, Math.round(y)));
+  overlayWin.setBounds({ x: X, y: Y, width: W, height: H }, false);
+});
+
+ipcMain.on('overlay-close', () => {
+  if (overlayWin && !overlayWin.isDestroyed()) overlayWin.hide();
+});
+
+ipcMain.on('toggle-overlay', toggleOverlayWindow);
 
 ipcMain.on('clear-history', (event, { agent }) => {
   state[agent].messages = [];
@@ -454,14 +1050,16 @@ ipcMain.on('get-audit-log', (event) => {
   event.sender.send('audit-log-data', entries.reverse());
 });
 
-ipcMain.on('get-dashboard-stats', (event) => {
+ipcMain.on('get-dashboard-stats', async (event) => {
   try {
     const script = path.join(AGENTS_DIR, 'auditor', 'Invoke-AuditorQuery.ps1');
     if (!fs.existsSync(script)) { event.sender.send('dashboard-stats', { error: 'Auditor not configured' }); return; }
-    const userRaw     = runPs(script, { QueryType: 'UserSummary' });
-    const licenseRaw  = runPs(script, { QueryType: 'LicenseReport' });
-    const activityRaw = runPs(script, { QueryType: 'JMLActivity', TopN: '5' });
     const parseJ = raw => { const l = raw.trim().split('\n').filter(l => l.trim().startsWith('{')).pop(); return l ? JSON.parse(l) : {}; };
+    const [userRaw, licenseRaw, activityRaw] = await Promise.all([
+      runPsAsync(script, { QueryType: 'UserSummary' }),
+      runPsAsync(script, { QueryType: 'LicenseReport' }),
+      runPsAsync(script, { QueryType: 'JMLActivity', TopN: '5' })
+    ]);
     event.sender.send('dashboard-stats', {
       users:    parseJ(userRaw),
       licenses: parseJ(licenseRaw),
@@ -501,22 +1099,24 @@ ipcMain.on('get-exports-status', (event) => {
   });
 });
 
-ipcMain.on('run-blob-export', (event) => {
+ipcMain.on('run-blob-export', async (event) => {
   const script = path.join(AGENTS_DIR, 'auditor', 'Invoke-BlobExport.ps1');
   try {
-    runPs(script);
-    const status = readJson(path.join(REPORTS_DIR, 'blob-export-status.json'));
+    await runPsAsync(script);
+    const statusPath = path.join(REPORTS_DIR, 'blob-export-status.json');
+    const status = fs.existsSync(statusPath) ? readJson(statusPath) : null;
     event.sender.send('export-run-result', { type: 'blob', ok: true, status });
   } catch (err) {
     event.sender.send('export-run-result', { type: 'blob', ok: false, error: err.message });
   }
 });
 
-ipcMain.on('run-sentinel-ingest', (event) => {
+ipcMain.on('run-sentinel-ingest', async (event) => {
   const script = path.join(AGENTS_DIR, 'auditor', 'Invoke-SentinelIngest.ps1');
   try {
-    runPs(script);
-    const status = readJson(path.join(REPORTS_DIR, 'sentinel-status.json'));
+    await runPsAsync(script);
+    const statusPath = path.join(REPORTS_DIR, 'sentinel-ingest-status.json');
+    const status = fs.existsSync(statusPath) ? readJson(statusPath) : null;
     event.sender.send('export-run-result', { type: 'sentinel', ok: true, status });
   } catch (err) {
     event.sender.send('export-run-result', { type: 'sentinel', ok: false, error: err.message });
@@ -534,6 +1134,188 @@ function saveScheduled(ops) {
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
   fs.writeFileSync(SCHEDULED_FILE, JSON.stringify(ops, null, 2), 'utf8');
 }
+
+// ── Docked panel / palette IPC ────────────────────────────────────────────────
+function toggleDockedPanel() {
+  const sendState = (v) => { if (win && !win.isDestroyed()) win.webContents.send('docked-panel-state', v); };
+  if (!dockedWin || dockedWin.isDestroyed()) {
+    createDockedPanel();
+    if (!dockedKeepConsole && win && !win.isDestroyed()) win.hide();
+    sendState(true);
+    return true;
+  }
+  if (dockedWin.isVisible()) {
+    dockedWin.hide();
+    sendState(false);
+    showMainWindow();
+    return false;
+  } else {
+    dockedWin.show(); dockedWin.focus();
+    if (!dockedKeepConsole && win && !win.isDestroyed()) win.hide();
+    sendState(true);
+    return true;
+  }
+}
+ipcMain.handle('toggle-docked-panel', toggleDockedPanel);
+
+ipcMain.on('panel-open-console', (event, tab) => {
+  if (dockedWin && !dockedWin.isDestroyed()) {
+    dockedWin.hide();
+    if (win && !win.isDestroyed()) win.webContents.send('docked-panel-state', false);
+  }
+  showMainWindow();
+  if (win && !win.isDestroyed() && tab) {
+    win.webContents.executeJavaScript(`
+      if (typeof switchTab === 'function') switchTab(${JSON.stringify(tab)});
+    `).catch(() => {});
+  }
+});
+
+ipcMain.on('palette-dismiss', () => {
+  if (paletteWin && !paletteWin.isDestroyed()) paletteWin.close();
+  if (dockedWin  && !dockedWin.isDestroyed() && dockedWin.isVisible()) {
+    dockedWin.hide();
+    if (win && !win.isDestroyed()) win.webContents.send('docked-panel-state', false);
+    showMainWindow();
+  }
+});
+
+ipcMain.on('panel-run-action', (event, { type, upn }) => {
+  showMainWindow();
+  if (!win || win.isDestroyed()) return;
+  let js;
+  if (type === 'joiner') {
+    js = `
+      if (typeof switchTab === 'function') switchTab('approver');
+      setTimeout(() => {
+        const i = document.getElementById('input-approver');
+        if (i) { i.value = 'Onboard a new hire: '; i.focus(); }
+      }, 200);`;
+  } else if (type === 'move') {
+    js = `
+      if (typeof switchTab === 'function') switchTab('operations');
+      setTimeout(() => {
+        const det = document.getElementById('ops-quick-mover');
+        if (det) det.setAttribute('open','');
+        const upnEl = document.getElementById('qm-upn');
+        if (upnEl) upnEl.value = ${JSON.stringify(upn || '')};
+        if (upnEl && upnEl.value) upnEl.focus();
+      }, 200);`;
+  } else {
+    const stage = type === 'hard-leave' ? 'Hard' : 'Soft';
+    js = `
+      if (typeof switchTab === 'function') switchTab('operations');
+      setTimeout(() => {
+        const det = document.getElementById('ops-quick-leaver');
+        if (det) det.setAttribute('open','');
+        const upnEl = document.getElementById('ql-upn');
+        if (upnEl) upnEl.value = ${JSON.stringify(upn || '')};
+        const r = document.querySelector('input[name="ql-stage"][value="${stage}"]');
+        if (r) r.checked = true;
+      }, 200);`;
+  }
+  win.webContents.executeJavaScript(js).catch(() => {});
+});
+
+ipcMain.on('panel-close', () => {
+  if (dockedWin && !dockedWin.isDestroyed()) {
+    dockedWin.hide();
+    if (win && !win.isDestroyed()) win.webContents.send('docked-panel-state', false);
+  }
+  if (!dockedKeepConsole) showMainWindow();
+});
+
+ipcMain.on('panel-save-bounds', (_, bounds) => { savePanelBounds(bounds); });
+
+ipcMain.on('panel-request-refresh', () => { pushFreshPanelData(); });
+
+ipcMain.handle('panel-approve-pending', (event, { id, writeToken }) => {
+  const role = (currentRole || 'viewer').toLowerCase();
+  if (role === 'viewer' || role === 'guest') return { ok: false, error: 'Read-only role — blocked' };
+  if (!writeToken) return { ok: false, error: 'PIN verification required' };
+  const check = consumeWriteToken(writeToken, currentOperator);
+  if (!check.ok) return { ok: false, error: 'Invalid write token: ' + check.reason };
+  try {
+    const file = path.join(PENDING_DIR, id + '.json');
+    if (!fs.existsSync(file)) return { ok: false, error: 'Request not found' };
+    const op   = readJson(file);
+    const inp  = op.input || op;
+    const tool = (op.tool || '').toLowerCase();
+    let raw;
+    if (tool === 'submit_joiner') {
+      const pf = writePayloadFile({ givenName: inp.givenName, surname: inp.surname, userPrincipalName: inp.userPrincipalName, department: inp.department, jobTitle: inp.jobTitle, usageLocation: inp.usageLocation });
+      try { raw = runPs(path.join(AGENTS_DIR, 'joiner', 'Invoke-JoinerProcess.ps1'), { PayloadPath: pf }); }
+      finally { try { fs.unlinkSync(pf); } catch {} }
+    } else {
+      const stage = inp.stage || (tool.includes('hard') ? 'Hard' : 'Soft');
+      const params = { UserPrincipalName: inp.userPrincipalName, Stage: stage, OperatorRole: 'admin' };
+      if (inp.ticketRef) params.TicketRef = inp.ticketRef;
+      raw = runPs(path.join(AGENTS_DIR, 'leaver', 'Invoke-LeaverProcess.ps1'), params);
+    }
+    parsePs1Output(raw);
+    fs.unlinkSync(file);
+    sendToast('Approval Executed', (inp.userPrincipalName || id) + ' completed successfully.');
+    setTimeout(pollTrayApprovals, 400);
+    return { ok: true, upn: inp.userPrincipalName };
+  } catch (err) {
+    sendToast('Approval Failed', err.message);
+    return { ok: false, error: err.message };
+  }
+});
+
+ipcMain.handle('panel-reject-pending', (_, { id }) => {
+  try {
+    const file = path.join(PENDING_DIR, id + '.json');
+    let upn = '';
+    try { upn = readJson(file).input?.userPrincipalName || ''; } catch {}
+    if (fs.existsSync(file)) fs.unlinkSync(file);
+    sendToast('Approval Rejected', (upn || id) + ' rejected and removed from the queue.');
+    setTimeout(pollTrayApprovals, 400);
+    return { ok: true, upn };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+});
+
+// Shared user cache — populated by Graph searches from main window, queried by panel/overlay
+let _sharedUserCache = [];
+
+ipcMain.handle('search-users', async (event, query) => {
+  const q = (query || '').toLowerCase().trim();
+  if (!q || q.length < 2) return [];
+
+  // 1. Check shared Graph cache first (fast, no PS overhead)
+  const fromCache = _sharedUserCache.filter(u =>
+    u.upn.toLowerCase().includes(q) || (u.displayName || '').toLowerCase().includes(q)
+  ).slice(0, 8);
+  if (fromCache.length) return fromCache;
+
+  // 2. Fallback: search recent audit log entries
+  try {
+    const entries = [];
+    const logDirs = ['joiner','mover','leaver','enroller'].map(ag => path.join(AGENTS_DIR, ag, 'logs'));
+    const seen = new Set();
+    for (const dir of logDirs) {
+      if (!fs.existsSync(dir)) continue;
+      const files = fs.readdirSync(dir).filter(f => f.endsWith('.jsonl')).sort().reverse().slice(0, 2);
+      for (const f of files) {
+        const lines = fs.readFileSync(path.join(dir, f), 'utf8').trim().split('\n').filter(Boolean);
+        for (const line of lines) {
+          try {
+            const e = JSON.parse(line);
+            const upn = e.subject || e.userPrincipalName || '';
+            if (!upn || seen.has(upn)) continue;
+            if (upn.toLowerCase().includes(q)) {
+              seen.add(upn);
+              entries.push({ upn, displayName: e.displayName || upn.split('@')[0] });
+            }
+          } catch {}
+        }
+      }
+    }
+    return entries.slice(0, 8);
+  } catch { return []; }
+});
 
 // ── Approvals tab ─────────────────────────────────────────────────────────────
 ipcMain.on('get-pending-approvals', (event) => {
@@ -589,14 +1371,16 @@ ipcMain.on('approve-pending', (event, payload) => {
       finally { try { fs.unlinkSync(pf); } catch {} }
     } else {
       const stage = inp.stage || (tool.includes('hard') ? 'Hard' : 'Soft');
-      const params = { UserPrincipalName: inp.userPrincipalName, Stage: stage };
+      const params = { UserPrincipalName: inp.userPrincipalName, Stage: stage, OperatorRole: 'admin' };
       if (inp.ticketRef) params.TicketRef = inp.ticketRef;
       raw = runPs(path.join(AGENTS_DIR, 'leaver', 'Invoke-LeaverProcess.ps1'), params);
     }
     const result = parsePs1Output(raw);
     fs.unlinkSync(file);
+    sendToast('Approval Executed', (inp.userPrincipalName || 'Operation') + ' leaver completed successfully.');
     event.sender.send('approve-result', { ok: true, result });
   } catch (err) {
+    sendToast('Approval Failed', err.message);
     event.sender.send('approve-result', { ok: false, error: err.message });
   }
 });
@@ -604,7 +1388,10 @@ ipcMain.on('approve-pending', (event, payload) => {
 ipcMain.on('reject-pending', (event, { id }) => {
   try {
     const file = path.join(PENDING_DIR, id + '.json');
+    let upn = '';
+    try { upn = readJson(file).input?.userPrincipalName || ''; } catch {}
     if (fs.existsSync(file)) fs.unlinkSync(file);
+    sendToast('Approval Rejected', (upn || 'Request') + ' was rejected and removed from the queue.');
     event.sender.send('reject-result', { ok: true });
   } catch (err) {
     event.sender.send('reject-result', { ok: false, error: err.message });
@@ -633,10 +1420,19 @@ ipcMain.on('run-bulk-import', async (event, { rows, whatif }) => {
           TicketRef: row.ticketRef, WhatIf: !!whatif
         });
       } else if (op === 'mover') {
-        raw = runPs(path.join(AGENTS_DIR, 'mover', 'Invoke-MoverProcess.ps1'), {
-          UserPrincipalName: row.userPrincipalName, Department: row.department,
-          JobTitle: row.jobTitle, WhatIf: !!whatif
+        const _pfMover = writePayloadFile({
+          userPrincipalName: row.userPrincipalName,
+          department: row.department,
+          jobTitle: row.jobTitle,
+          manager: row.manager,
+          licensesToAdd: row.licensesToAdd,
+          licensesToRemove: row.licensesToRemove,
+          groupsToAdd: row.groupsToAdd,
+          groupsToRemove: row.groupsToRemove,
+          ticketRef: row.ticketRef
         });
+        try { raw = runPs(path.join(AGENTS_DIR, 'mover', 'Invoke-MoverProcess.ps1'), { PayloadPath: _pfMover, WhatIf: !!whatif }); }
+        finally { try { fs.unlinkSync(_pfMover); } catch {} }
       } else {
         throw new Error('Unknown operation: ' + row.operation);
       }
@@ -728,6 +1524,22 @@ ipcMain.on('get-operators', (event) => {
 
 ipcMain.on('save-operators', (event, { operators, roles }) => {
   try {
+    if (currentRole !== 'admin') {
+      const existing = fs.existsSync(OPERATORS_FILE) ? readJson(OPERATORS_FILE) : {};
+      const existingOps = existing.operators || {};
+      for (const [user, role] of Object.entries(existingOps)) {
+        if (role === 'admin' && (operators || {})[user] !== 'admin') {
+          event.sender.send('operators-saved', { ok: false, error: 'Non-admin operators cannot remove or demote admin accounts.' });
+          return;
+        }
+      }
+      for (const [user, role] of Object.entries(operators || {})) {
+        if (role === 'admin' && existingOps[user] !== 'admin') {
+          event.sender.send('operators-saved', { ok: false, error: 'Non-admin operators cannot add admin accounts.' });
+          return;
+        }
+      }
+    }
     const existing = fs.existsSync(OPERATORS_FILE) ? readJson(OPERATORS_FILE) : {};
     const updated  = Object.assign({}, existing, { operators, roles });
     fs.writeFileSync(OPERATORS_FILE, JSON.stringify(updated, null, 2), 'utf8');
@@ -835,19 +1647,44 @@ ipcMain.on('get-hr-queue', async (event) => {
 
 ipcMain.on('window-minimize', () => { if (win) win.minimize(); });
 ipcMain.on('window-maximize', () => { if (win) { win.isMaximized() ? win.unmaximize() : win.maximize(); } });
-ipcMain.on('window-close',    () => { app.quit(); });
+ipcMain.on('window-close', () => {
+  if (win && !win.isDestroyed()) win.hide();
+  if (!dockedWin || dockedWin.isDestroyed()) { createDockedPanel(); }
+  else if (!dockedWin.isVisible()) { dockedWin.show(); }
+});
+ipcMain.on('sign-out', () => {
+  currentOperator = null;
+  currentRole     = 'viewer';
+  if (win && !win.isDestroyed()) { win.close(); win = null; }
+  createOperatorWindow();
+});
+
+ipcMain.on('app-quit', () => {
+  quitting = true;
+  app.quit();
+});
 
 // ── Window ────────────────────────────────────────────────────────────────────
 let win;
 let operatorWin;
+let setupWin;
 let currentOperator = os.userInfo().username;
 let currentRole     = 'admin';
 
-function createMainWindow() {
-  win = new BrowserWindow({
-    width: 1200, height: 780,
-    minWidth: 900, minHeight: 600,
+function isFirstRun() {
+  try {
+    if (!fs.existsSync(SETUP_FILE)) return true;
+    return !readJson(SETUP_FILE).firstRunComplete;
+  } catch { return true; }
+}
+
+function createSetupWindow() {
+  setupWin = new BrowserWindow({
+    width: 460, height: 640,
+    resizable: false,
     frame: false,
+    center: true,
+    icon: APP_ICON,
     backgroundColor: '#11131a',
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
@@ -856,7 +1693,31 @@ function createMainWindow() {
       sandbox: false
     }
   });
+  setupWin.loadFile(path.join(__dirname, 'renderer', 'setup.html'));
+}
+
+function createMainWindow() {
+  win = new BrowserWindow({
+    width: 1200, height: 780,
+    minWidth: 900, minHeight: 600,
+    frame: false,
+    icon: APP_ICON,
+    transparent: true,
+    backgroundColor: '#00000000',
+    backgroundMaterial: 'mica',
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.js'),
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: false
+    }
+  });
   win.loadFile(path.join(__dirname, 'renderer', 'index.html'));
+  win.setIcon(APP_ICON);
+
+  win.on('maximize',   () => { if (!win.isDestroyed()) win.webContents.send('window-maximized', true); });
+  win.on('unmaximize', () => { if (!win.isDestroyed()) win.webContents.send('window-maximized', false); });
+  win.on('restore',    () => { if (!win.isDestroyed()) win.webContents.send('window-maximized', false); });
 }
 
 function createOperatorWindow() {
@@ -865,6 +1726,7 @@ function createOperatorWindow() {
     resizable: false,
     frame: false,
     center: true,
+    icon: APP_ICON,
     backgroundColor: '#11131a',
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
@@ -1016,6 +1878,40 @@ ipcMain.handle('save-tenant-config', (event, { tenantId, primaryDomain, region, 
 });
 
 // Read recent operator activity (most recent first). Used by Settings → Operators audit view.
+const ALLOWED_EXTERNAL_HOSTS = [
+  'portal.azure.com', 'aad.portal.azure.com', 'entra.microsoft.com',
+  'compliance.microsoft.com', 'learn.microsoft.com', 'admin.microsoft.com',
+];
+ipcMain.handle('open-external', (_, url) => {
+  try {
+    const { protocol, hostname } = new URL(url);
+    if (protocol !== 'https:') return;
+    if (!ALLOWED_EXTERNAL_HOSTS.some(h => hostname === h || hostname.endsWith('.' + h))) return;
+    return shell.openExternal(url);
+  } catch { return; }
+});
+
+ipcMain.handle('pick-image-file', async () => {
+  const { canceled, filePaths } = await dialog.showOpenDialog({
+    properties: ['openFile'],
+    filters: [{ name: 'Images', extensions: ['jpg', 'jpeg', 'png', 'gif', 'webp'] }]
+  });
+  if (canceled || !filePaths.length) return null;
+  try {
+    const { nativeImage } = require('electron');
+    const img     = nativeImage.createFromPath(filePaths[0]);
+    if (img.isEmpty()) return null;
+    const size    = img.getSize();
+    const min     = Math.min(size.width, size.height);
+    const cropped = img.crop({
+      x: Math.floor((size.width  - min) / 2),
+      y: Math.floor((size.height - min) / 2),
+      width: min, height: min
+    });
+    return cropped.resize({ width: 96, height: 96 }).toDataURL();
+  } catch { return null; }
+});
+
 ipcMain.handle('get-operator-activity', (event, { limit }) => {
   try {
     if (!fs.existsSync(OPERATOR_ACTIVITY_FILE)) return { entries: [] };
@@ -1036,11 +1932,14 @@ let _signinState = { status: 'idle', deviceCode: '', verificationUrl: '', tenant
 function spawnSigninProcess() {
   const { spawn } = require('child_process');
   _signinState = { status: 'pending', deviceCode: '', verificationUrl: '', tenantId: '', account: '', error: '' };
+  // 6>&1 redirects the Information stream (Write-Host / stream 6) to stdout so
+  // the device-code message from Connect-MgGraph is captured by Node.js.
   const script = `
     $ErrorActionPreference = 'Stop'
+    $InformationPreference = 'Continue'
     try {
       Import-Module Microsoft.Graph.Authentication -ErrorAction Stop
-      Connect-MgGraph -Scopes "Application.ReadWrite.All","User.Read.All","Directory.ReadWrite.All" -UseDeviceAuthentication -NoWelcome | Out-Null
+      Connect-MgGraph -Scopes "Application.ReadWrite.All","User.Read.All","Directory.ReadWrite.All" -UseDeviceAuthentication -NoWelcome 6>&1
       $ctx = Get-MgContext
       @{ status='success'; tenantId=$ctx.TenantId; account=$ctx.Account } | ConvertTo-Json -Compress
     } catch {
@@ -1049,15 +1948,23 @@ function spawnSigninProcess() {
   `;
   const p = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', script]);
   let buf = '';
-  p.stdout.on('data', d => {
-    buf += d.toString();
-    // Device-code message arrives early; extract URL + code from it.
-    const m = buf.match(/(https:\/\/microsoft\.com\/devicelogin)[^]*?code\s+([A-Z0-9]+)/i);
-    if (m && !_signinState.deviceCode) {
-      _signinState.verificationUrl = m[1];
-      _signinState.deviceCode = m[2];
+
+  // Parse the running buffer for device-code info and/or final result.
+  // Called on every chunk from both stdout and stderr.
+  function parseBuf() {
+    if (!_signinState.deviceCode) {
+      // Support both common orderings of the device-code message:
+      //   "…open the page https://…/devicelogin … code XXXXXXXX …"
+      //   "…enter the code XXXXXXXX … https://…/devicelogin …"
+      const m1 = buf.match(/https:\/\/microsoft\.com\/devicelogin[^]*?code\s+([A-Z0-9]{8,})/i);
+      const m2 = buf.match(/code\s+([A-Z0-9]{8,})[^]*?(https:\/\/microsoft\.com\/devicelogin)/i);
+      const code = (m1 && m1[1]) || (m2 && m2[1]);
+      if (code) {
+        _signinState.deviceCode = code;
+        _signinState.verificationUrl = 'https://microsoft.com/devicelogin';
+      }
     }
-    // Final JSON line marks completion
+    // Final JSON line marks auth completion
     const finalLine = buf.split(/\r?\n/).reverse().find(l => l.trim().startsWith('{'));
     if (finalLine) {
       try {
@@ -1067,10 +1974,12 @@ function spawnSigninProcess() {
         } else if (j.status === 'error') {
           _signinState.status = 'error'; _signinState.error = j.error;
         }
-      } catch (_) { /* not yet complete */ }
+      } catch (_) { /* partial line – wait for more data */ }
     }
-  });
-  p.stderr.on('data', d => { buf += d.toString(); });
+  }
+
+  p.stdout.on('data', d => { buf += d.toString(); parseBuf(); });
+  p.stderr.on('data', d => { buf += d.toString(); parseBuf(); });
   p.on('close', () => {
     if (_signinState.status === 'pending') _signinState.status = 'error', _signinState.error = 'signin terminated without result';
     _signinProc = null;
@@ -1270,6 +2179,61 @@ const MOCK_CERT_EXPIRY = [
   { agent:'provisioner', thumbprint:null,             expiry: null, daysLeft: null },
   { agent:'auditor',     thumbprint:'F6A1B2C3D4E5',  expiry: new Date(Date.now()+86400000*312).toISOString(), daysLeft:312 }
 ];
+// ── Docked panel sample data (dev / demo) ─────────────────────────────────────
+function buildMockPanelData() { return {
+  approvals: 3,
+  oldestApproval: new Date(Date.now() - 2 * 3600000).toISOString(),
+  certs: [
+    { agent: 'joiner',      daysLeft: 72  },
+    { agent: 'mover',       daysLeft: 38  },
+    { agent: 'leaver',      daysLeft: 11  },
+    { agent: 'enroller',    daysLeft: 6   },
+    { agent: 'approver',    daysLeft: null },
+    { agent: 'provisioner', daysLeft: 94  },
+    { agent: 'auditor',     daysLeft: 25  },
+  ],
+  recentEvents: [
+    { agent: 'leaver',  subject: 'jane.doe@contoso.com',   outcome: 'success', timestamp: new Date(Date.now() -  5 * 60000).toISOString(), whatif: false },
+    { agent: 'joiner',  subject: 'mark.weber@contoso.com', outcome: 'success', timestamp: new Date(Date.now() - 22 * 60000).toISOString(), whatif: true  },
+    { agent: 'mover',   subject: 'alex.chen@contoso.com',  outcome: 'partial', timestamp: new Date(Date.now() - 58 * 60000).toISOString(), whatif: false },
+  ],
+  hrQueue: { count: 2, oldestMin: 45 },
+  pendingList: [
+    { id: 'INC-1020', tool: 'submit_leaver_hard', severity: 'crit', requestedBy: 'admin', requestedByRole: 'helpdesk', requestedAt: new Date(Date.now() - 2*3600000).toISOString(), input: { userPrincipalName: 'robert.martinez@contoso.com' } },
+    { id: 'INC-1025', tool: 'submit_joiner',      severity: 'info', requestedBy: 'helpdesk1', requestedByRole: 'helpdesk', requestedAt: new Date(Date.now() - 45*60000).toISOString(), input: { userPrincipalName: 'alex.nguyen@contoso.com' } },
+  ],
+}; }
+const MOCK_APPROVALS = [
+  {
+    id: 'INC-1020', token: 'INC-1020',
+    tool: 'submit_leaver_hard', severity: 'crit',
+    requestedBy: 'admin', requestedByRole: 'helpdesk',
+    requestedAt: new Date(Date.now()-86400000*1).toISOString(),
+    status: 'pending',
+    input: {
+      userPrincipalName: 'robert.martinez@contoso.onmicrosoft.com',
+      stage: 'Hard', ticketRef: 'INC-1020',
+      givenName: 'Robert', surname: 'Martinez',
+    },
+    note: 'User holds privileged Entra directory roles — admin approval required to proceed.'
+  },
+  {
+    id: 'INC-1025', token: 'INC-1025',
+    tool: 'submit_joiner', severity: 'info',
+    requestedBy: 'helpdesk1', requestedByRole: 'helpdesk',
+    requestedAt: new Date(Date.now()-3600000*2).toISOString(),
+    status: 'pending',
+    input: {
+      userPrincipalName: 'alex.nguyen@contoso.onmicrosoft.com',
+      stage: 'Provision', ticketRef: 'INC-1025',
+      givenName: 'Alex', surname: 'Nguyen',
+      department: 'Engineering', jobTitle: 'Software Engineer',
+      licenses: ['Microsoft 365 E3'],
+      groups: ['Engineering-All', 'Dev-Team'],
+    },
+    note: 'New hire provisioning — license assignment pending admin sign-off.'
+  }
+];
 
 // JS injected into renderer for tabs that show empty state by default
 const TAB_INJECT = {
@@ -1322,6 +2286,19 @@ const TAB_INJECT = {
           Robert Martinez is also <strong>confirmedCompromised</strong> in Identity Protection. Sessions were auto-revoked.
         </div></div></div>
       \`;
+      // Add action chips to the last assistant message (mirrors P4 in onComplete)
+      const lastMsg = c.querySelector('.message.assistant:last-of-type .message-text');
+      if (lastMsg && !lastMsg.querySelector('.auditor-finding-actions')) {
+        const wrap = document.createElement('div');
+        wrap.className = 'auditor-finding-actions';
+        [['→ Security','security'],['→ Operations','operations'],['→ Audit Log','audit-log']].forEach(([label, tab]) => {
+          const btn = document.createElement('button');
+          btn.className = 'auditor-action-chip';
+          btn.textContent = label;
+          wrap.appendChild(btn);
+        });
+        lastMsg.appendChild(wrap);
+      }
       c.scrollTop = c.scrollHeight;
     })();
   `,
@@ -1388,8 +2365,8 @@ async function runCapture() {
   createOperatorWindow();
   await new Promise(r => operatorWin.webContents.once('did-finish-load', r));
   await sleep(1000);
-  const selImg = await operatorWin.webContents.capturePage();
-  fs.writeFileSync(path.join(CAPTURE_OUT, 'operator-select.png'), selImg.toPNG());
+  let selImg; for (let a=0;a<3;a++){try{selImg=await operatorWin.webContents.capturePage();break;}catch(e){await sleep(600);}}
+  if (selImg) fs.writeFileSync(path.join(CAPTURE_OUT, 'operator-select.png'), selImg.toPNG());
   console.log('Captured: operator-select');
   operatorWin.close(); operatorWin = null;
 
@@ -1397,6 +2374,7 @@ async function runCapture() {
   win = new BrowserWindow({
     width: 1440, height: 1800,
     frame: false,
+    icon: APP_ICON,
     backgroundColor: '#11131a',
     webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, nodeIntegration: false, sandbox: false }
   });
@@ -1407,40 +2385,68 @@ async function runCapture() {
   // Pre-send mock data so dashboard/certs show content without Graph connection
   win.webContents.send('dashboard-stats',  MOCK_DASHBOARD);
   win.webContents.send('agent-health',     MOCK_AGENT_HEALTH);
-  win.webContents.send('cert-expiry-data', MOCK_CERT_EXPIRY);
+  win.webContents.send('cert-expiry', { certs: MOCK_CERT_EXPIRY.map(c => ({ ...c, daysRemaining: c.daysLeft })) });
+  win.webContents.send('pending-approvals', MOCK_APPROVALS);
   await sleep(400);
 
-  // Remove overflow constraints so all content is visible in tall screenshots
+  // Remove overflow constraints so all content is visible in tall screenshots.
+  // IMPORTANT: do NOT set height:auto on .content or .layout — those are flex/grid
+  // shell containers and height:auto causes .view.active{flex:1} to collapse to 0.
+  // Instead: (1) remove overflow clipping on shells, (2) expand the active view and
+  // any tab-specific scroller directly.
   const REMOVE_OVERFLOW = `
     (function(){
-      const sel = [
-        '.security-content', '.approvals-content', '.ops-content',
-        '.certifications-content', '.exports-content', '.settings-content',
-        '.audit-log-content', '.content', '.layout'
-      ];
-      sel.forEach(s => {
+      // Shell containers — remove clipping only, preserve flex/grid height
+      ['.content', '.layout'].forEach(s => {
         document.querySelectorAll(s).forEach(el => {
-          el.style.overflow = 'visible';
+          el.style.overflow  = 'visible';
           el.style.maxHeight = 'none';
-          el.style.height = 'auto';
+        });
+      });
+      // Active view — expand to full content height so all content renders.
+      // Also kill the viewfade animation (opacity starts at 0 with fill-mode:both)
+      // which can freeze at opacity=0 in software-render / --disable-gpu mode.
+      document.querySelectorAll('.view.active').forEach(el => {
+        el.style.animation = 'none';
+        el.style.opacity   = '1';
+        el.style.overflow  = 'visible';
+        el.style.maxHeight = 'none';
+        el.style.height    = 'auto';
+      });
+      // Also kill animations on ALL views to prevent residual opacity:0 state
+      document.querySelectorAll('.view').forEach(el => {
+        el.style.animation = 'none';
+      });
+      // Tab-specific inner scrollers
+      ['.security-content', '.approvals-content', '.ops-content',
+       '.certifications-content', '.exports-content', '.settings-content',
+       '.audit-log-content'].forEach(s => {
+        document.querySelectorAll(s).forEach(el => {
+          el.style.overflow  = 'visible';
+          el.style.maxHeight = 'none';
+          el.style.height    = 'auto';
         });
       });
     })();
   `;
 
   const TABS = [
-    // [tabId, ipcTriggerJs, extraWaitMs, outName]
-    ['dashboard',      `window.api.getDashboardStats(); window.api.getAgentHealth();`, 2000],
+    // [tabId, ipcTriggerJs, extraWaitMs]
+    // NOTE: dashboard/agent-health are NOT triggered via window.api — those real IPC
+    // handlers can't connect to Entra in capture mode and would overwrite mock data
+    // with error responses.  Mock data is re-sent inside the loop instead (see below).
+    ['dashboard',      null, 2000],
     ['approver',       null, 600],
     ['auditor',        null, 600],
     ['security',       `window.api.getSecurityReports(); window.api.getAgentHealth();`, 2500],
     ['exports',        `window.api.getExportsStatus();`, 2000],
-    ['approvals',      `window.api.getPendingApprovals();`, 2000],
+    ['approvals',      null, 2000],
     ['operations',     `window.api.getScheduledOps();`, 1800],
     ['certifications', `window.api.getCertHistory();`, 1800],
     ['settings',       `window.api.getPolicy();`, 1800],
     ['audit-log',      `window.api.getAuditLog();`, 2200],
     ['users',          null, 600],
+    ['certs',          null, 600],
     ['graph',          null, 600],
   ];
 
@@ -1448,25 +2454,121 @@ async function runCapture() {
   await win.webContents.executeJavaScript(`document.querySelector('[data-tab="approver"]')?.click()`);
   await sleep(800);
   {
-    const img = await win.webContents.capturePage();
-    fs.writeFileSync(path.join(CAPTURE_OUT, 'jml-fleet-input.png'), img.toPNG());
-    console.log('Captured: jml-fleet-input');
+    win.webContents.invalidate();
+    await sleep(600);
+    let img; for (let a=0;a<3;a++){try{img=await win.webContents.capturePage();break;}catch(e){await sleep(600);}}
+    if (img) { fs.writeFileSync(path.join(CAPTURE_OUT, 'jml-fleet-input.png'), img.toPNG()); console.log('Captured: jml-fleet-input'); }
   }
 
   for (const [tab, ipcJs, wait] of TABS) {
-    await win.webContents.executeJavaScript(`document.querySelector('[data-tab="${tab}"]')?.click()`);
-    await sleep(300);
+    await win.webContents.executeJavaScript(`
+      if (typeof switchTab === 'function') switchTab(${JSON.stringify(tab)});
+      else document.querySelector('[data-tab="${tab}"]')?.click();
+    `);
+    await sleep(500);
     if (ipcJs) await win.webContents.executeJavaScript(ipcJs);
+    // Re-send mock data that real IPC handlers would wipe in capture mode
+    if (tab === 'approvals') win.webContents.send('pending-approvals', MOCK_APPROVALS);
+    if (tab === 'dashboard') {
+      win.webContents.send('dashboard-stats', MOCK_DASHBOARD);
+      win.webContents.send('agent-health',    MOCK_AGENT_HEALTH);
+    }
     await sleep(wait);
     if (TAB_INJECT[tab]) await win.webContents.executeJavaScript(TAB_INJECT[tab]);
     await win.webContents.executeJavaScript(REMOVE_OVERFLOW);
-    await sleep(400);
-    const img = await win.webContents.capturePage();
+    // Force a fresh paint before capture (especially needed in --disable-gpu / software render mode)
+    win.webContents.invalidate();
+    await sleep(800);
+    let img;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try { img = await win.webContents.capturePage(); break; }
+      catch (e) { console.warn(`capturePage attempt ${attempt + 1} failed: ${e.message}`); await sleep(600); }
+    }
+    if (!img) { console.error('capturePage failed for', tab, '- skipping'); continue; }
     fs.writeFileSync(path.join(CAPTURE_OUT, tab + '.png'), img.toPNG());
     console.log('Captured:', tab);
   }
   app.quit();
 }
+
+// ── First-run setup ───────────────────────────────────────────────────────────
+ipcMain.handle('complete-first-run', (event, { winAuth, tenantId, primaryDomain } = {}) => {
+  try {
+    fs.writeFileSync(SETUP_FILE, JSON.stringify({
+      firstRunComplete: true, completedAt: new Date().toISOString(), skipped: false
+    }, null, 2), 'utf8');
+
+    if (winAuth) {
+      const username = os.userInfo().username;
+      let opsData = {};
+      try { opsData = readJson(OPERATORS_FILE); } catch {}
+      if (!opsData.operators) opsData.operators = {};
+      if (!opsData.operators[username]) opsData.operators[username] = 'admin';
+      fs.writeFileSync(OPERATORS_FILE, JSON.stringify(opsData, null, 2), 'utf8');
+      const authData = readOperatorAuth();
+      if (!authData[username]) authData[username] = { mode: 'windows', updatedAt: new Date().toISOString() };
+      writeOperatorAuth(authData);
+    }
+
+    if (tenantId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(tenantId)) {
+      for (const agent of AGENT_DIRS) {
+        const cfgPath = path.join(AGENTS_DIR, agent, 'config.json');
+        if (!fs.existsSync(cfgPath)) continue;
+        try {
+          const cfg = readJson(cfgPath);
+          cfg.TenantId = tenantId;
+          if (primaryDomain) cfg.PrimaryDomain = String(primaryDomain).slice(0, 200);
+          fs.writeFileSync(cfgPath, JSON.stringify(cfg, null, 2), 'utf8');
+        } catch {}
+      }
+    }
+
+    if (setupWin && !setupWin.isDestroyed()) { setupWin.close(); setupWin = null; }
+    createOperatorWindow();
+    return { ok: true };
+  } catch (e) { return { ok: false, error: e.message }; }
+});
+
+ipcMain.handle('skip-first-run', () => {
+  try {
+    fs.writeFileSync(SETUP_FILE, JSON.stringify({
+      firstRunComplete: true, completedAt: new Date().toISOString(), skipped: true
+    }, null, 2), 'utf8');
+    if (setupWin && !setupWin.isDestroyed()) { setupWin.close(); setupWin = null; }
+    createOperatorWindow();
+    return { ok: true };
+  } catch (e) { return { ok: false, error: e.message }; }
+});
+
+// ── Integrations config ───────────────────────────────────────────────────────
+const INT_CONFIG_DEFAULTS = {
+  bamboohr: { enabled: false, label: '' },
+  teams:    { enabled: false, channel: '', oncallHandle: '' },
+  sentinel: { enabled: false, workspaceName: '', tableName: '' }
+};
+
+ipcMain.handle('get-integrations-config', () => {
+  try {
+    if (!fs.existsSync(INT_CONFIG_FILE)) return { ok: true, config: INT_CONFIG_DEFAULTS };
+    return { ok: true, config: readJson(INT_CONFIG_FILE) };
+  } catch { return { ok: true, config: INT_CONFIG_DEFAULTS }; }
+});
+
+ipcMain.handle('save-integrations-config', (event, { config } = {}) => {
+  if (currentRole !== 'admin') return { ok: false, error: 'admin role required' };
+  const str = (v, max = 200) => typeof v === 'string' ? v.slice(0, max) : '';
+  const c = config || {};
+  const sanitized = {
+    bamboohr: { enabled: !!(c.bamboohr && c.bamboohr.enabled), label: str(c.bamboohr && c.bamboohr.label) },
+    teams:    { enabled: !!(c.teams && c.teams.enabled), channel: str(c.teams && c.teams.channel), oncallHandle: str(c.teams && c.teams.oncallHandle) },
+    sentinel: { enabled: !!(c.sentinel && c.sentinel.enabled), workspaceName: str(c.sentinel && c.sentinel.workspaceName), tableName: str(c.sentinel && c.sentinel.tableName) }
+  };
+  try {
+    fs.writeFileSync(INT_CONFIG_FILE, JSON.stringify(sanitized, null, 2), 'utf8');
+    logOperatorActivity('integrations.config.saved', {});
+    return { ok: true };
+  } catch (e) { return { ok: false, error: e.message }; }
+});
 
 function ensureDataDirs() {
   const dirs = [
@@ -1485,9 +2587,35 @@ function ensureDataDirs() {
 }
 
 app.whenReady().then(() => {
-  if (CAPTURE_MODE) { runCapture(); return; }
+  app.setAppUserModelId('com.jml.console');
+  if (CAPTURE_MODE) { runCapture().catch(e => { console.error('Capture error:', e); app.quit(); process.exitCode = 1; }); return; }
+  createTray();
   ensureDataDirs();
-  createOperatorWindow();
+  if (isFirstRun()) { createSetupWindow(); } else { createOperatorWindow(); }
+
+  // Global hotkey — Ctrl+Shift+J summons palette
+  globalShortcut.register('CommandOrControl+Shift+J', () => {
+    if (paletteWin && !paletteWin.isDestroyed()) {
+      paletteWin.close();
+    } else {
+      createPaletteWindow();
+    }
+  });
+
+  // Global hotkey — Ctrl+Shift+D toggles docked panel
+  globalShortcut.register('CommandOrControl+Shift+D', () => { toggleDockedPanel(); });
+
+  // Global hotkey — Ctrl+Shift+Space toggles agent overlay
+  globalShortcut.register('CommandOrControl+Shift+Space', toggleOverlayWindow);
+
+  setInterval(pollTrayApprovals, 30000);
+  setInterval(pollCertExpiry,    60000 * 5);
+  setInterval(pollLastEvent,     30000);
+  setInterval(() => pollHrQueue(), 60000);
+  pollTrayApprovals();
+  pollCertExpiry();
+  pollLastEvent();
+  pollHrQueue();
 
   setInterval(() => {
     const ops  = loadScheduled();
@@ -1515,10 +2643,19 @@ app.whenReady().then(() => {
             TicketRef: payload.ticketRef, WhatIf: w
           });
         } else if (opName === 'mover') {
-          raw = runPs(path.join(AGENTS_DIR, 'mover', 'Invoke-MoverProcess.ps1'), {
-            UserPrincipalName: payload.userPrincipalName, Department: payload.department,
-            JobTitle: payload.jobTitle, WhatIf: w
+          const _pfMover = writePayloadFile({
+            userPrincipalName: payload.userPrincipalName,
+            department: payload.department,
+            jobTitle: payload.jobTitle,
+            manager: payload.manager,
+            licensesToAdd: payload.licensesToAdd,
+            licensesToRemove: payload.licensesToRemove,
+            groupsToAdd: payload.groupsToAdd,
+            groupsToRemove: payload.groupsToRemove,
+            ticketRef: payload.ticketRef
           });
+          try { raw = runPs(path.join(AGENTS_DIR, 'mover', 'Invoke-MoverProcess.ps1'), { PayloadPath: _pfMover, WhatIf: w }); }
+          finally { try { fs.unlinkSync(_pfMover); } catch {} }
         }
         op.status = 'executed';
       } catch {
@@ -1531,7 +2668,8 @@ app.whenReady().then(() => {
   }, 60000);
 });
 
-app.on('window-all-closed', () => app.quit());
+app.on('window-all-closed', () => { if (quitting) app.quit(); });
+app.on('will-quit', () => { globalShortcut.unregisterAll(); });
 
 // ── Feature: User Lookup ──────────────────────────────────────────────────────
 ipcMain.on('search-users', (event, { query }) => {
@@ -1558,6 +2696,14 @@ if ($resp.value -and @($resp.value).Count -gt 0) { @($resp.value) | ConvertTo-Js
       const parsed = JSON.parse(jsonLine);
       users = Array.isArray(parsed) ? parsed : [parsed];
     } catch {}
+    // Populate shared cache so panel/overlay autocomplete benefits from Graph results
+    users.forEach(u => {
+      const upn = u.userPrincipalName || '';
+      if (upn && !_sharedUserCache.find(c => c.upn === upn)) {
+        _sharedUserCache.push({ upn, displayName: u.displayName || upn.split('@')[0] });
+      }
+    });
+    if (_sharedUserCache.length > 500) _sharedUserCache = _sharedUserCache.slice(-500);
     event.sender.send('user-search-results', { users });
   } catch (err) {
     event.sender.send('user-search-results', { users: [], error: err.message });
@@ -1627,11 +2773,18 @@ ipcMain.on('run-quick-leaver', (event, payload) => {
   try {
     const raw    = runPs(path.join(AGENTS_DIR, 'leaver', 'Invoke-LeaverProcess.ps1'), {
       UserPrincipalName: upn, Stage: stage || 'Soft',
-      TicketRef: reason || '', WhatIf: !!whatif
+      TicketRef: reason || '', WhatIf: !!whatif, OperatorRole: currentRole
     });
     const result = parsePs1Output(raw);
     event.sender.send('quick-op-result', { type: 'leaver', lines: result.lines, data: result.data });
   } catch (err) {
+    const stdout = err.stdout || err.message || '';
+    if (currentRole === 'helpdesk' && !whatif && stdout.includes('BLOCKED: Operator role')) {
+      const tok = routeBlockedLeaverToApproval({ userPrincipalName: upn, ticketRef: reason }, stage || 'Soft');
+      event.sender.send('quick-op-result', { type: 'leaver', approvalQueued: true, token: tok,
+        lines: ['[APPROVAL] User holds privileged Entra directory roles — approval request submitted for admin review.'] });
+      return;
+    }
     event.sender.send('quick-op-result', { type: 'leaver', lines: [err.message], data: null, error: true });
   }
 });
@@ -1780,12 +2933,16 @@ $result | ConvertTo-Json -Depth 3 -Compress
 });
 
 // ── Feature: Graph Query Runner ───────────────────────────────────────────────
-ipcMain.on('run-graph-query', (event, { method, url, body }) => {
+ipcMain.on('run-graph-query', (event, payload) => {
   try {
+    const { method, url, body } = payload || {};
+    const verb = String(method || 'GET').toUpperCase();
+    if (!url) { event.sender.send('graph-query-result', { ok: false, error: 'Graph URL is required' }); return; }
+    if (/^(POST|PATCH|DELETE)$/.test(verb) && !requireWriteToken(event, payload, 'graph-query-result')) return;
     const cfgPath = path.join(AGENTS_DIR, 'auditor', 'config.json');
     const safeUrl  = url.replace(/'/g, "''");
     const safeBody = body ? JSON.stringify(body) : '';
-    const bodyBlock = (method === 'POST' || method === 'PATCH') && safeBody
+    const bodyBlock = (verb === 'POST' || verb === 'PATCH') && safeBody
       ? `-Body ('${safeBody.replace(/'/g, "''")}' | ConvertFrom-Json)`
       : '';
     const ps = `
@@ -1796,7 +2953,7 @@ $cfg = [System.IO.File]::ReadAllText('${cfgPath.replace(/'/g, "''")}') | Convert
 $agentsRoot = '${AGENTS_DIR}'
 . (Join-Path $agentsRoot 'shared\\Helpers.ps1')
 Connect-AgentGraph -Config $cfg
-$resp = Invoke-GraphWithRetry -Method ${method} -Uri '${safeUrl}' ${bodyBlock}
+$resp = Invoke-GraphWithRetry -Method ${verb} -Uri '${safeUrl}' ${bodyBlock}
 $resp | ConvertTo-Json -Depth 6 -Compress
 `;
     const raw = execFileSync('powershell', ['-NonInteractive', '-Command', ps], { encoding: 'utf8', timeout: 60000 }).split(String.fromCharCode(0xFEFF)).join('');

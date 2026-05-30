@@ -1,0 +1,10 @@
+{
+  "eventId": "44444444-4444-4444-8444-444444444444",
+  "eventType": "terminate",
+  "effectiveDate": "2026-06-30",
+  "source": "api",
+  "employee": {
+    "employeeId": "E1004",
+    "email": "jordan.case@contoso.com"
+  }
+}

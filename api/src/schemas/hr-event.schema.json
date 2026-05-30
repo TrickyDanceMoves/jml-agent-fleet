@@ -30,7 +30,7 @@
     },
     "employee": {
       "type": "object",
-      "required": ["firstName", "lastName", "email"],
+      "required": ["email"],
       "properties": {
         "employeeId":     { "type": "string" },
         "firstName":      { "type": "string", "minLength": 1 },

@@ -1,0 +1,20 @@
+{
+  "eventId": "11111111-1111-4111-8111-111111111111",
+  "eventType": "hire",
+  "effectiveDate": "2026-06-15",
+  "source": "api",
+  "ticketRef": "REQ-1001",
+  "employee": {
+    "employeeId": "E1001",
+    "firstName": "Avery",
+    "lastName": "Stone",
+    "email": "avery.stone@contoso.com",
+    "department": "Engineering",
+    "jobTitle": "Software Engineer",
+    "usageLocation": "US",
+    "manager": "morgan.lee@contoso.com",
+    "officeLocation": "Chicago",
+    "groups": ["All-Staff", "Engineering"],
+    "licenses": ["Microsoft_Entra_Suite"]
+  }
+}

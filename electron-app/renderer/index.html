@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; script-src 'self'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; script-src 'self'; img-src 'self' data:">
   <link rel="stylesheet" href="styles.css">
   <title>JML Fleet · Identity Console</title>
 </head>
@@ -31,81 +31,91 @@
 
         <div class="side-tag">
           <span class="tenant-dot"></span>
-          <span class="sidebar-tenant">contoso.onmicrosoft.com</span>
+          <span class="sidebar-tenant" id="sidebar-tenant-domain">—</span>
         </div>
 
         <nav class="nav-items">
-          <!-- OVERVIEW -->
-          <div class="nav-section">Overview</div>
-          <button class="nav-item active" data-tab="dashboard">
+          <!-- FOCUS -->
+          <div class="nav-section">Focus</div>
+          <button class="nav-item active" data-tab="dashboard" title="Dashboard">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
             <span>Dashboard</span>
           </button>
 
-          <!-- DISPATCH -->
-          <div class="nav-section">Dispatch</div>
-          <button class="nav-item" data-tab="approver">
+          <!-- RUN -->
+          <div class="nav-section">Run</div>
+          <button class="nav-item" data-tab="approver" title="Approver Agent">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 2L3 7v10l9 5 9-5V7L12 2z"/><path d="M9 12l2 2 4-4"/></svg>
             <span>Approver Agent</span>
           </button>
-          <button class="nav-item" data-tab="auditor">
+          <button class="nav-item" data-tab="auditor" title="Audit Agent">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>
             <span>Audit Agent</span>
           </button>
-          <button class="nav-item" data-tab="graph">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
-            <span>Graph Runner</span>
+          <button class="nav-item" data-tab="operations" title="Operations">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14"/></svg>
+            <span>Operations</span>
           </button>
-
-          <!-- OPERATE -->
-          <div class="nav-section">Operate</div>
-          <button class="nav-item" data-tab="approvals">
+          <button class="nav-item" data-tab="approvals" title="Approvals">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
             <span>Approvals</span>
             <span class="count empty" id="nav-approvals-count">0</span>
           </button>
-          <button class="nav-item" data-tab="operations">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14"/></svg>
-            <span>Operations</span>
-          </button>
-          <button class="nav-item" data-tab="certifications">
+          <button class="nav-item" data-tab="certifications" title="Access Reviews">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/></svg>
             <span>Access Reviews</span>
-          </button>
-          <button class="nav-item" data-tab="integrations">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1"/><path d="M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1"/></svg>
-            <span>Integrations</span>
           </button>
 
           <!-- GOVERN -->
           <div class="nav-section">Govern</div>
-          <button class="nav-item" data-tab="security">
+          <button class="nav-item" data-tab="security" title="Security">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
             <span>Security</span>
             <span class="count empty" id="nav-security-count">0</span>
           </button>
-          <button class="nav-item" data-tab="audit-log">
+          <button class="nav-item" data-tab="audit-log" title="Audit Log">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><line x1="10" y1="9" x2="8" y2="9"/></svg>
             <span>Audit Log</span>
           </button>
-          <button class="nav-item" data-tab="exports">
+          <button class="nav-item" data-tab="exports" title="Exports">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
             <span>Exports</span>
           </button>
 
           <!-- DATA -->
           <div class="nav-section">Data</div>
-          <button class="nav-item" data-tab="users">
+          <button class="nav-item" data-tab="users" title="Users">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
             <span>Users</span>
           </button>
-          <button class="nav-item" data-tab="certs">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="6"/><path d="M9 14l-2 8 5-3 5 3-2-8"/></svg>
-            <span>Certs</span>
+          <button class="nav-item" data-tab="graph" title="Graph Runner">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+            <span>Graph Runner</span>
           </button>
-          <button class="nav-item" data-tab="settings">
+          <button class="nav-item" data-tab="integrations" title="Integrations">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1"/><path d="M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1"/></svg>
+            <span>Integrations</span>
+          </button>
+          <button class="nav-item" data-tab="certs" title="Agent Certs">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="6"/><path d="M9 14l-2 8 5-3 5 3-2-8"/></svg>
+            <span>Agent Certs</span>
+          </button>
+
+          <!-- CONFIGURE -->
+          <div class="nav-section">Configure</div>
+          <button class="nav-item" data-tab="settings" title="Settings">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
             <span>Settings</span>
+          </button>
+
+          <div class="nav-docked-divider"></div>
+          <button class="nav-docked-toggle" title="Toggle docked panel (Ctrl+Shift+D)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" width="13" height="13"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="15" y1="3" x2="15" y2="21"/></svg>
+            <span>Docked</span>
+          </button>
+          <button class="nav-overlay-toggle" title="Agent Overlay (Ctrl+Shift+Space)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" width="13" height="13"><rect x="2" y="7" width="20" height="13" rx="2"/><path d="M8 7V5a2 2 0 0 1 4 0v2M12 12v4M10 14h4"/></svg>
+            <span>Overlay</span>
           </button>
         </nav>
 
@@ -137,54 +147,231 @@
       <!-- ============ MAIN ============ -->
       <main class="content">
 
-        <!-- Top bar (drag region · crumbs · mode pill · controls · window buttons) -->
+        <!-- Top bar (drag region · brand · crumbs · mode pill · tenant chip · controls · window buttons) -->
         <div class="topbar">
+          <!-- Brand (mirrors sidebar brand, anchors the bar) -->
+          <div class="brand-tb">
+            <div class="brand-mark-sm"></div>
+            <span class="tb-name">JML Fleet</span>
+            <span class="tb-sub">Console</span>
+          </div>
           <div class="crumbs">
-            <span>Console</span>
             <span class="sep">/</span>
             <span class="cur" id="crumb-cur">Dashboard</span>
           </div>
           <span class="mode-pill" id="topbar-mode-pill">
-            <span class="dot"></span> Safe Mode
+            <span class="dot"></span> SAFE &middot; NO COMMIT
           </span>
           <div class="spacer"></div>
-          <div class="topbar-controls">
-            <button class="win-btn help-btn" id="btn-help" title="Quick Reference">?</button>
-            <div class="notif-bell-wrap" id="notif-bell-wrap">
-              <button class="notif-bell-btn" id="btn-notif-bell" title="Notifications">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="14" height="14"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
-                <span class="notif-badge" id="notif-badge" style="display:none">0</span>
-              </button>
-              <div class="notif-dropdown" id="notif-dropdown" style="display:none">
-                <div class="notif-dropdown-header">
-                  <span class="notif-dropdown-title">Notifications</span>
-                  <button class="btn-text-link" id="btn-notif-clear-all">Clear all</button>
-                </div>
-                <div class="notif-list" id="notif-list"><div class="loading-hint">No notifications.</div></div>
-              </div>
-            </div>
-            <span class="divider"></span>
-            <button class="win-btn" id="btn-minimize" title="Minimize">&#x2212;</button>
-            <button class="win-btn" id="btn-maximize" title="Maximize">&#x25A1;</button>
-            <button class="win-btn close" id="btn-close" title="Close">&#x2715;</button>
+          <!-- Tenant chip -->
+          <div class="tenant-chip" id="topbar-tenant-chip" title="Tenant">
+            <span class="dot"></span>
+            <span id="topbar-tenant-domain">—</span>
           </div>
+          <!-- Icon actions -->
+          <button class="iconbtn" id="btn-help" title="Quick Reference">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" width="15" height="15" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 0 1 5 0c0 2-2.5 2.5-2.5 4"/><circle cx="12" cy="17" r="0.6" fill="currentColor"/></svg>
+          </button>
+          <div class="notif-bell-wrap" id="notif-bell-wrap">
+            <button class="iconbtn" id="btn-notif-bell" title="Notifications" style="position:relative">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" width="15" height="15" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg>
+              <span class="notif-badge" id="notif-badge" style="display:none">0</span>
+            </button>
+            <div class="notif-dropdown" id="notif-dropdown" style="display:none">
+              <div class="notif-dropdown-header">
+                <span class="notif-dropdown-title">Notifications</span>
+                <button class="btn-text-link" id="btn-notif-clear-all">Clear all</button>
+              </div>
+              <div class="notif-list" id="notif-list"><div class="loading-hint">No notifications.</div></div>
+            </div>
+          </div>
+          <span class="divider"></span>
+          <button class="win-btn azure-btn" id="btn-azure" title="Open Azure Portal">
+            <svg viewBox="0 0 24 24" fill="currentColor" width="13" height="13">
+              <path d="M13.5 3.5L5 20.5h4l2-5.5h3.5L19 20.5h4L13.5 3.5zm0 5.5 2.1 5.5h-4.2z"/>
+            </svg>
+          </button>
+          <button class="win-btn docked-btn" id="btn-toggle-docked" title="Toggle docked panel (Ctrl+Shift+D)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="13" height="13"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="15" y1="3" x2="15" y2="21"/></svg>
+          </button>
+          <button class="win-btn docked-btn" id="btn-toggle-overlay" title="Agent Overlay (Ctrl+Shift+Space)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="13" height="13"><rect x="2" y="8" width="20" height="13" rx="2"/><path d="M8 8V6a4 4 0 0 1 8 0v2"/><line x1="12" y1="13" x2="12" y2="17"/><line x1="10" y1="15" x2="14" y2="15"/></svg>
+          </button>
+          <button class="win-btn power-btn" id="btn-power" title="Quit console (⏻)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12" stroke-linecap="round"><path d="M18.36 6.64a9 9 0 1 1-12.73 0"/><line x1="12" y1="2" x2="12" y2="12"/></svg>
+          </button>
+          <span class="divider"></span>
+          <button class="win-btn" id="btn-minimize" title="Minimize">&#x2212;</button>
+          <button class="win-btn" id="btn-maximize" title="Maximize">&#x25A1;</button>
+          <button class="win-btn close" id="btn-close" title="Close">&#x2715;</button>
         </div>
 
         <!-- =====================================================
              VIEW · DASHBOARD
              ===================================================== -->
         <section class="view active" id="view-dashboard">
-          <div class="head">
-            <div>
-              <h1 class="h1">Fleet Overview <span class="sub" id="dash-headline-sub"></span></h1>
-              <p class="desc">Seven specialist agents handling joiners, movers, leavers, enrollment, certification and audit across your Entra tenant.</p>
+          <div class="v2-page-title">
+            <h1 id="dash-greeting">Fleet Overview</h1>
+            <span class="meta"><b id="dash-fleet-agent-count">7 agents</b> · <span id="dash-headline-sub">loading…</span></span>
+            <button class="btn ghost" id="btn-customize-dashboard" title="Show/hide dashboard sections" style="margin-left:auto;font-size:12px">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="12" height="12"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+              Customize
+            </button>
+          </div>
+          <p class="v2-page-sub" id="dash-page-sub">Fleet loading — gathering agent telemetry and pending actions…</p>
+
+          <div class="v2-triage-strip" aria-label="Priority triage">
+            <button class="v2-triage-card crit" data-jump-tab="security" id="triage-security">
+              <span class="label" id="triage-sec-label">Security</span>
+              <span class="title" id="triage-sec-title">After-hours leaver detected</span>
+              <span class="meta" id="triage-sec-meta">robert.martinez / 05:18 / via leaver</span>
+              <span class="sub" id="triage-sec-sub">Plus 1 leaver-then-group-add pattern</span>
+              <span class="v2-triage-cta">Triage findings <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="13" height="13"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span>
+            </button>
+            <button class="v2-triage-card warn" data-jump-tab="approvals" id="triage-approvals">
+              <span class="label" id="triage-appr-label">Approvals</span>
+              <span class="title" id="triage-appr-title">Hard leaver awaiting 2nd approval</span>
+              <span class="meta" id="triage-appr-meta">sales-ops / expires in 22 min</span>
+              <span class="sub" id="triage-appr-sub">Plus 2 sensitive group changes</span>
+              <span class="v2-triage-cta">Review queue <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="13" height="13"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span>
+            </button>
+            <button class="v2-triage-card info" data-jump-tab="certs" id="triage-certs">
+              <span class="label" id="triage-certs-label">Rotations</span>
+              <span class="title" id="triage-certs-title">Mover cert expires in 14 days</span>
+              <span class="meta" id="triage-certs-meta">jml-fleet-mover / thumbprint 7A91...</span>
+              <span class="sub" id="triage-certs-sub">Provisioner rotation follows in 31 days</span>
+              <span class="v2-triage-cta">Schedule rotation <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="13" height="13"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span>
+            </button>
+          </div>
+
+          <div class="v2-hris-lane" aria-label="HRIS inbound identity events">
+            <div class="lane-head">
+              <span class="dot info"></span>
+              <span class="section-label" style="margin:0">Inbound / identity work origin</span>
+              <span class="ks" id="hris-lane-meta">no events in window</span>
             </div>
-            <div class="row-flex">
-              <span class="tenant-badge">contoso.onmicrosoft.com</span>
-              <button class="btn ghost" id="btn-customize-dashboard" title="Show/hide dashboard sections">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="13" height="13"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-                Customize
-              </button>
+            <div class="v2-hris-grid" id="hris-events-grid">
+              <div class="loading-hint" style="grid-column:1/-1;padding:16px 0;color:var(--text-4);font-size:12px">No inbound HRIS events. Events from BambooHR, Workday, or ServiceNow will appear here when received.</div>
+            </div>
+          </div>
+
+          <!-- V2 Fleet Status Strip -->
+          <div class="v2-fleet-hdr">
+            <span class="fleet-lbl">Fleet &middot; <span id="v2-fleet-health-lbl">7 agents</span></span>
+            <span class="fleet-meta">auto-refresh 5s</span>
+          </div>
+          <div class="v2-fleet-strip" id="v2-fleet-strip">
+            <div class="v2-fleet-tile" data-agent="joiner">
+              <div class="ft-top"><span class="ft-name">Joiner</span><span class="ft-dot ok"></span></div>
+              <div class="ft-state">idle</div>
+              <div class="ft-divider"></div>
+              <div class="ft-row"><span>last</span><span id="v2fl-lr-joiner">—</span></div>
+              <div class="ft-row"><span>cert</span><span id="v2fl-cert-joiner">—</span></div>
+            </div>
+            <div class="v2-fleet-tile" data-agent="mover">
+              <div class="ft-top"><span class="ft-name">Mover</span><span class="ft-dot ok"></span></div>
+              <div class="ft-state">idle</div>
+              <div class="ft-divider"></div>
+              <div class="ft-row"><span>last</span><span id="v2fl-lr-mover">—</span></div>
+              <div class="ft-row"><span>cert</span><span id="v2fl-cert-mover">—</span></div>
+            </div>
+            <div class="v2-fleet-tile" data-agent="leaver">
+              <div class="ft-top"><span class="ft-name">Leaver</span><span class="ft-dot ok"></span></div>
+              <div class="ft-state">idle</div>
+              <div class="ft-divider"></div>
+              <div class="ft-row"><span>last</span><span id="v2fl-lr-leaver">—</span></div>
+              <div class="ft-row"><span>cert</span><span id="v2fl-cert-leaver">—</span></div>
+            </div>
+            <div class="v2-fleet-tile" data-agent="enroller">
+              <div class="ft-top"><span class="ft-name">Enroller</span><span class="ft-dot idle"></span></div>
+              <div class="ft-state">idle</div>
+              <div class="ft-divider"></div>
+              <div class="ft-row"><span>last</span><span id="v2fl-lr-enroller">—</span></div>
+              <div class="ft-row"><span>cert</span><span id="v2fl-cert-enroller">—</span></div>
+            </div>
+            <div class="v2-fleet-tile" data-agent="approver">
+              <div class="ft-top"><span class="ft-name">Approver</span><span class="ft-dot info"></span></div>
+              <div class="ft-state">waiting</div>
+              <div class="ft-detail info" id="v2fl-detail-approver">0 in queue</div>
+              <div class="ft-divider"></div>
+              <div class="ft-row"><span>last</span><span id="v2fl-lr-approver">now</span></div>
+              <div class="ft-row"><span>cert</span><span id="v2fl-cert-approver">—</span></div>
+            </div>
+            <div class="v2-fleet-tile" data-agent="provisioner">
+              <div class="ft-top"><span class="ft-name">Provisioner</span><span class="ft-dot idle"></span></div>
+              <div class="ft-state">standby</div>
+              <div class="ft-divider"></div>
+              <div class="ft-row"><span>last</span><span id="v2fl-lr-provisioner">—</span></div>
+              <div class="ft-row"><span>cert</span><span>∞</span></div>
+            </div>
+            <div class="v2-fleet-tile" data-agent="auditor">
+              <div class="ft-top"><span class="ft-name">Auditor</span><span class="ft-dot ok"></span></div>
+              <div class="ft-state">active</div>
+              <div class="ft-detail ok">streaming</div>
+              <div class="ft-divider"></div>
+              <div class="ft-row"><span>last</span><span id="v2fl-lr-auditor">—</span></div>
+              <div class="ft-row"><span>cert</span><span id="v2fl-cert-auditor">—</span></div>
+            </div>
+          </div>
+
+          <!-- V2 Bottom Row: Live Ops + Telemetry -->
+          <div class="v2-bottom-row">
+            <!-- Live Operations Card -->
+            <div class="v2-liveops-card">
+              <div class="card-head">
+                <span class="ft-dot ok" style="width:7px;height:7px;border-radius:50%;display:inline-block;background:var(--ok);box-shadow:0 0 6px var(--ok)"></span>
+                <h3>Live Operations</h3>
+                <span class="ks">streaming</span>
+                <div class="actions">
+                  <button class="btn ghost sm">Pause</button>
+                  <button class="btn ghost sm" id="dash-open-ops">Open queue</button>
+                </div>
+              </div>
+              <div id="v2-liveops-body">
+                <div class="v2-liveops-row">
+                  <span class="lr-ts">—</span>
+                  <span style="color:var(--muted);font-size:11px">no operations in flight</span>
+                  <span></span><span></span><span></span><span></span>
+                </div>
+              </div>
+            </div>
+            <!-- Telemetry Card -->
+            <div class="v2-telemetry-card">
+              <div class="tc-head">
+                <h3>7-Day Telemetry</h3>
+                <span class="tc-range" id="v2-telemetry-range">—</span>
+              </div>
+              <div class="tc-section-lbl">
+                <span>JML OPERATIONS</span>
+                <span id="v2-telemetry-ops-total">— · —</span>
+              </div>
+              <div class="v2-bar-chart" id="v2-bar-chart">
+                <div class="bar" style="height:45%"></div>
+                <div class="bar" style="height:30%"></div>
+                <div class="bar" style="height:80%"></div>
+                <div class="bar" style="height:42%"></div>
+                <div class="bar" style="height:22%"></div>
+                <div class="bar" style="height:15%"></div>
+                <div class="bar" style="height:65%"></div>
+              </div>
+              <div class="v2-bar-days">
+                <span>M</span><span>T</span><span>W</span><span>T</span><span>F</span><span>S</span><span>S</span>
+              </div>
+              <div class="v2-lic-divider"></div>
+              <div class="tc-section-lbl" style="margin-bottom:10px">
+                <span>LICENSE HEADROOM</span>
+                <span id="v2-lic-headroom">— / — used</span>
+              </div>
+              <div id="v2-lic-bars">
+                <div class="v2-lic-row">
+                  <div class="lrl"><span>M365_E5</span><span id="v2-lic-m365" style="color:var(--muted)">—/—</span></div>
+                  <div class="v2-lic-track"><div class="v2-lic-fill ok" style="width:16%"></div></div>
+                </div>
+                <div class="v2-lic-row" style="margin-top:6px">
+                  <div class="lrl"><span>AAD_PREMIUM_P2</span><span id="v2-lic-aad" style="color:var(--muted)">—/—</span></div>
+                  <div class="v2-lic-track"><div class="v2-lic-fill ok" style="width:12%"></div></div>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -195,13 +382,9 @@
               <button class="win-btn" id="dash-customize-close">&#x2715;</button>
             </div>
             <div class="dc-body">
-              <div class="dc-sec">Sections</div>
-              <label class="dc-row"><input type="checkbox" data-toggle-section="kpi" checked> KPI strip <span class="dc-hint">Identities · Licenses · Operations · Approvals</span></label>
-              <label class="dc-row"><input type="checkbox" data-toggle-section="fleet" checked> Agent Fleet <span class="dc-hint">7-agent status grid</span></label>
-              <label class="dc-row"><input type="checkbox" data-toggle-section="activity" checked> Recent Activity <span class="dc-hint">Last 7 days of operations</span></label>
+              <div class="dc-sec">Supporting Widgets</div>
               <label class="dc-row"><input type="checkbox" data-toggle-section="security" checked> Security at a Glance <span class="dc-hint">UEBA · Drift · Identity Protection</span></label>
               <label class="dc-row"><input type="checkbox" data-toggle-section="actions" checked> Quick Actions <span class="dc-hint">Joiner · Mover · Leaver · Audit Query</span></label>
-              <div class="dc-sec" style="margin-top:14px">Optional Widgets</div>
               <label class="dc-row"><input type="checkbox" data-toggle-section="integrations"> Integrations <span class="dc-hint">HRIS · Teams · Sentinel</span></label>
               <label class="dc-row"><input type="checkbox" data-toggle-section="reviews"> Access Reviews <span class="dc-hint">Active campaigns</span></label>
               <label class="dc-row"><input type="checkbox" data-toggle-section="audit"> Audit Log <span class="dc-hint">Chain head · last seal</span></label>
@@ -211,6 +394,14 @@
               <div class="dc-sec" style="margin-top:14px">Layout</div>
               <button class="dc-action" id="dash-reset-layout">Reset to default order</button>
             </div>
+          </div>
+
+          <div class="v2-supporting-head">
+            <div>
+              <span class="eyebrow">Supporting workflows</span>
+              <h2>Review, act, and drill into evidence</h2>
+            </div>
+            <span class="v2-supporting-meta">legacy widgets trimmed to non-duplicative work surfaces</span>
           </div>
 
           <div id="dash-sections" class="dash-grid">
@@ -265,14 +456,46 @@
                 <button class="btn-text-link" id="dash-open-fleet">VIEW ALL →</button>
               </div>
               <div class="agent-grid" id="dash-agent-grid">
-                <div class="agent" data-st="idle" data-agent="joiner"><div class="row"><div class="ico-sq">◢</div><div class="name">Joiner</div><div class="role">JOINER</div></div><div class="status"><span class="d"></span><span class="status-text">idle</span></div><div class="meter"><i></i></div><div class="foot"><span class="cert-line">cert —</span><span class="ok">ready</span></div></div>
-                <div class="agent" data-st="idle" data-agent="mover"><div class="row"><div class="ico-sq">⇆</div><div class="name">Mover</div><div class="role">MOVER</div></div><div class="status"><span class="d"></span><span class="status-text">idle</span></div><div class="meter"><i></i></div><div class="foot"><span class="cert-line">cert —</span><span class="ok">ready</span></div></div>
-                <div class="agent" data-st="idle" data-agent="leaver"><div class="row"><div class="ico-sq">◣</div><div class="name">Leaver</div><div class="role">LEAVER</div></div><div class="status"><span class="d"></span><span class="status-text">idle</span></div><div class="meter"><i></i></div><div class="foot"><span class="cert-line">cert —</span><span class="ok">ready</span></div></div>
-                <div class="agent" data-st="idle" data-agent="enroller"><div class="row"><div class="ico-sq">⊞</div><div class="name">Enroller</div><div class="role">ENROLLER</div></div><div class="status"><span class="d"></span><span class="status-text">idle</span></div><div class="meter"><i></i></div><div class="foot"><span class="cert-line">cert —</span><span class="ok">ready</span></div></div>
-                <div class="agent" data-st="idle" data-agent="certifier"><div class="row"><div class="ico-sq">◈</div><div class="name">Certifier</div><div class="role">CERTIFIER</div></div><div class="status"><span class="d"></span><span class="status-text">idle</span></div><div class="meter"><i></i></div><div class="foot"><span class="cert-line">cert —</span><span class="ok">ready</span></div></div>
-                <div class="agent" data-st="waiting" data-agent="approver"><div class="row"><div class="ico-sq">◇</div><div class="name">Approver</div><div class="role">APPROVER</div></div><div class="status"><span class="d"></span><span class="status-text">waiting</span></div><div class="meter"><i></i></div><div class="foot"><span class="cert-line">cert —</span><span class="ok">healthy</span></div></div>
-                <div class="agent" data-st="standby" data-agent="provisioner"><div class="row"><div class="ico-sq">⚙</div><div class="name">Provisioner</div><div class="role">PROVIS.</div></div><div class="status"><span class="d"></span><span class="status-text">standby</span></div><div class="meter"><i></i></div><div class="foot"><span class="cert-line">no expiry</span><span class="ok">healthy</span></div></div>
-                <div class="agent" data-st="active" data-agent="auditor"><div class="row"><div class="ico-sq">◌</div><div class="name">Auditor</div><div class="role">AUDITOR</div></div><div class="status"><span class="d"></span><span class="status-text">active</span></div><div class="meter"><i></i></div><div class="foot"><span class="cert-line">cert —</span><span class="ok">streaming</span></div></div>
+                <div class="agent" data-st="idle" data-agent="joiner">
+                  <div class="agent-card-top"><div class="ico-sq">◢</div><div class="agent-card-info"><div class="name">Joiner</div><div class="agent-last-run" id="fleet-lr-joiner">—</div></div><span class="agent-st-pill">idle</span></div>
+                  <div class="meter"><i></i></div>
+                  <div class="foot"><span class="cert-line" id="fleet-cert-joiner">cert —</span><span class="ok">ready</span></div>
+                </div>
+                <div class="agent" data-st="idle" data-agent="mover">
+                  <div class="agent-card-top"><div class="ico-sq">⇆</div><div class="agent-card-info"><div class="name">Mover</div><div class="agent-last-run" id="fleet-lr-mover">—</div></div><span class="agent-st-pill">idle</span></div>
+                  <div class="meter"><i></i></div>
+                  <div class="foot"><span class="cert-line" id="fleet-cert-mover">cert —</span><span class="ok">ready</span></div>
+                </div>
+                <div class="agent" data-st="idle" data-agent="leaver">
+                  <div class="agent-card-top"><div class="ico-sq">◣</div><div class="agent-card-info"><div class="name">Leaver</div><div class="agent-last-run" id="fleet-lr-leaver">—</div></div><span class="agent-st-pill">idle</span></div>
+                  <div class="meter"><i></i></div>
+                  <div class="foot"><span class="cert-line" id="fleet-cert-leaver">cert —</span><span class="ok">ready</span></div>
+                </div>
+                <div class="agent" data-st="idle" data-agent="enroller">
+                  <div class="agent-card-top"><div class="ico-sq">⊞</div><div class="agent-card-info"><div class="name">Enroller</div><div class="agent-last-run" id="fleet-lr-enroller">—</div></div><span class="agent-st-pill">idle</span></div>
+                  <div class="meter"><i></i></div>
+                  <div class="foot"><span class="cert-line" id="fleet-cert-enroller">cert —</span><span class="ok">ready</span></div>
+                </div>
+                <div class="agent" data-st="idle" data-agent="certifier">
+                  <div class="agent-card-top"><div class="ico-sq">◈</div><div class="agent-card-info"><div class="name">Certifier</div><div class="agent-last-run" id="fleet-lr-certifier">—</div></div><span class="agent-st-pill">idle</span></div>
+                  <div class="meter"><i></i></div>
+                  <div class="foot"><span class="cert-line" id="fleet-cert-certifier">cert —</span><span class="ok">ready</span></div>
+                </div>
+                <div class="agent" data-st="waiting" data-agent="approver">
+                  <div class="agent-card-top"><div class="ico-sq">◇</div><div class="agent-card-info"><div class="name">Approver</div><div class="agent-last-run" id="fleet-lr-approver">—</div></div><span class="agent-st-pill">waiting</span></div>
+                  <div class="meter"><i></i></div>
+                  <div class="foot"><span class="cert-line" id="fleet-cert-approver">cert —</span><span class="ok">healthy</span></div>
+                </div>
+                <div class="agent" data-st="standby" data-agent="provisioner">
+                  <div class="agent-card-top"><div class="ico-sq">⚙</div><div class="agent-card-info"><div class="name">Provisioner</div><div class="agent-last-run" id="fleet-lr-provisioner">—</div></div><span class="agent-st-pill">standby</span></div>
+                  <div class="meter"><i></i></div>
+                  <div class="foot"><span class="cert-line" id="fleet-cert-provisioner">no expiry</span><span class="ok">healthy</span></div>
+                </div>
+                <div class="agent" data-st="active" data-agent="auditor">
+                  <div class="agent-card-top"><div class="ico-sq">◌</div><div class="agent-card-info"><div class="name">Auditor</div><div class="agent-last-run" id="fleet-lr-auditor">—</div></div><span class="agent-st-pill">active</span></div>
+                  <div class="meter"><i></i></div>
+                  <div class="foot"><span class="cert-line" id="fleet-cert-auditor">cert —</span><span class="ok">streaming</span></div>
+                </div>
               </div>
             </div>
           </div>
@@ -301,21 +524,21 @@
                 <div class="dash-sec-icon">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M8 11h8M12 7v8"/></svg>
                 </div>
-                <div class="dash-sec-label">Behavioral · UEBA</div>
+                <div class="dash-sec-label">Behavior Anomalies</div>
                 <div class="dash-sec-counts" id="dash-ueba-counts"><span class="count-badge loading">—</span></div>
               </button>
               <button class="dash-sec-tile dash-sec-drift" id="dash-tile-drift">
                 <div class="dash-sec-icon">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
                 </div>
-                <div class="dash-sec-label">Configuration · Drift</div>
+                <div class="dash-sec-label">Config Drift</div>
                 <div class="dash-sec-counts" id="dash-drift-counts"><span class="count-badge loading">—</span></div>
               </button>
               <button class="dash-sec-tile dash-sec-risky" id="dash-tile-risky">
                 <div class="dash-sec-icon">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/><line x1="18" y1="8" x2="23" y2="13"/><line x1="23" y1="8" x2="18" y2="13"/></svg>
                 </div>
-                <div class="dash-sec-label">Compromised · Identity</div>
+                <div class="dash-sec-label">Identity Risk</div>
                 <div class="dash-sec-counts" id="dash-risky-counts"><span class="count-badge loading">—</span></div>
               </button>
             </div>
@@ -457,21 +680,8 @@
             </div>
           </div>
 
+          <div class="v2-approver-layout">
           <div class="chat-shell">
-            <div id="mode-toggle">
-              <button class="mode-btn active" data-mode="whatif">Safe</button>
-              <button class="mode-btn" data-mode="live">Live</button>
-            </div>
-            <div class="mode-banner" id="mode-banner-whatif">
-              <span class="dot"></span> Safe mode · no changes will be committed to the directory
-            </div>
-            <div class="mode-banner hidden" id="mode-banner-live">
-              <span class="dot"></span> LIVE mode · actions will modify the tenant directory
-            </div>
-            <div class="mode-banner hidden" id="role-access-banner" style="color:var(--coral);background:oklch(0.30 0.10 24 / .14);border-color:oklch(0.45 0.16 24 / .35)">
-              <span class="dot"></span><span id="role-access-text"></span>
-            </div>
-
             <div class="chat-scroll messages" id="messages-approver">
               <div class="welcome-msg">
                 <div class="welcome-title">Approver Agent</div>
@@ -503,6 +713,86 @@
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" width="16" height="16"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
               </button>
             </div>
+            <div class="chat-cost-footer" id="chat-cost-footer" style="display:none">
+              <span id="chat-model-info">claude-sonnet-4-6</span>
+              <span id="chat-session-cost">session &#8776; &#8212;</span>
+            </div>
+          </div>
+
+          <aside class="v2-approver-rail">
+            <!-- Lifecycle card -->
+            <div class="v2-rail-card" id="lifecycle-card">
+              <div class="v2-rail-head">
+                <h3>Lifecycle</h3>
+                <span class="tag warn" id="lifecycle-status-tag">Leaver / staged</span>
+              </div>
+              <div class="v2-lifecycle-v2" id="lifecycle-map">
+                <!-- Populated by JS — renderLifecycleMap() -->
+              </div>
+            </div>
+
+            <!-- Subject card (filled by JS when agent resolves a user) -->
+            <div class="v2-rail-card" id="subject-card" style="display:none">
+              <div class="v2-rail-head">
+                <h3>Subject</h3>
+              </div>
+              <div style="display:flex;gap:10px;align-items:center;margin-bottom:12px">
+                <div class="subject-avatar" id="subject-avatar">?</div>
+                <div>
+                  <div style="font-size:14px;font-weight:600" id="subject-name">&#8212;</div>
+                  <div class="mono" style="font-size:11.5px;color:var(--text-3)" id="subject-upn">&#8212;</div>
+                </div>
+              </div>
+              <div class="subject-grid" id="subject-grid"><!-- rows --></div>
+            </div>
+
+            <!-- Guardrails card -->
+            <div class="v2-rail-card" id="guardrails-card">
+              <div class="v2-rail-head">
+                <h3>Guardrails</h3>
+                <span class="tag ok" id="guardrails-tag">Safe</span>
+              </div>
+              <div class="guardrail-row">
+                <span class="gl-label">SoD policy</span>
+                <span class="gl-val" id="gl-sod">No conflict</span>
+              </div>
+              <div class="guardrail-row">
+                <span class="gl-label">Freeze window</span>
+                <span class="gl-val" id="gl-freeze">None active</span>
+              </div>
+              <div class="guardrail-row">
+                <span class="gl-label">Rollback window</span>
+                <span class="gl-val" id="gl-rollback">24h soft stage</span>
+              </div>
+            </div>
+
+            <!-- Operation log card (filled as operations run) -->
+            <div class="v2-rail-card" id="op-log-card" style="display:none">
+              <div class="v2-rail-head">
+                <h3>Operation Log</h3>
+                <span class="ks mono" style="font-size:10px;color:var(--text-3)">hash-chained</span>
+              </div>
+              <div id="op-log-list" style="font-size:11px;font-family:var(--mono)"><!-- rows --></div>
+            </div>
+
+            <!-- Session mode toggle (existing functionality, preserved with same IDs) -->
+            <div class="v2-rail-card">
+              <div class="v2-rail-head"><h3>Session Mode</h3></div>
+              <div id="mode-toggle">
+                <button class="mode-btn active" data-mode="whatif">Safe</button>
+                <button class="mode-btn" data-mode="live">Live</button>
+              </div>
+              <div class="mode-banner" id="mode-banner-whatif" style="margin-top:8px">
+                <span class="dot"></span> Safe mode &middot; no changes will be committed to the directory
+              </div>
+              <div class="mode-banner hidden" id="mode-banner-live" style="margin-top:8px">
+                <span class="dot"></span> LIVE mode &middot; actions will modify the tenant directory
+              </div>
+              <div class="mode-banner hidden" id="role-access-banner" style="color:var(--coral);background:oklch(0.30 0.10 24 / .14);border-color:oklch(0.45 0.16 24 / .35);margin-top:8px">
+                <span class="dot"></span><span id="role-access-text"></span>
+              </div>
+            </div>
+          </aside>
           </div>
         </section>
 
@@ -520,36 +810,99 @@
             </div>
           </div>
 
-          <div class="chat-shell">
-            <div class="mode-banner aa-banner">
-              <span class="dot"></span> Read-only audit context · queries are bounded to signed log records and resolve in &lt;200 ms
-            </div>
+          <div class="v2-auditor-layout">
 
-            <div class="chat-scroll messages" id="messages-auditor">
-              <div class="welcome-msg">
-                <div class="welcome-title">Audit Agent</div>
-                <div class="welcome-body">Ask anything about the tenant directory or audit chain. I can query users, licenses, roles, groups, and JML activity.</div>
-                <div class="welcome-examples">
-                  <span class="example-chip">How many users are enabled?</span>
-                  <span class="example-chip">Show license utilization</span>
-                  <span class="example-chip">Who has admin roles?</span>
-                  <span class="example-chip">Recent joins this month</span>
-                  <span class="example-chip">Hard-stage leavers, last 30d</span>
-                  <span class="example-chip">Failed enrollments by agent</span>
+            <!-- Left: chat -->
+            <div class="chat-shell">
+              <div class="mode-banner aa-banner">
+                <span class="dot"></span> Read-only audit context · queries are bounded to signed log records and resolve in &lt;200 ms
+              </div>
+
+              <div class="chat-scroll messages" id="messages-auditor">
+                <div class="welcome-msg">
+                  <div class="welcome-title">Audit Agent</div>
+                  <div class="welcome-body">Ask anything about the tenant directory or audit chain. I can query users, licenses, roles, groups, and JML activity.</div>
+                  <div class="welcome-examples">
+                    <span class="example-chip">How many users are enabled?</span>
+                    <span class="example-chip">Show license utilization</span>
+                    <span class="example-chip">Who has admin roles?</span>
+                    <span class="example-chip">Recent joins this month</span>
+                    <span class="example-chip">Hard-stage leavers, last 30d</span>
+                    <span class="example-chip">Failed enrollments by agent</span>
+                  </div>
                 </div>
               </div>
-            </div>
 
-            <div class="compose">
-              <div class="field">
-                <span style="color:var(--muted)">⌕</span>
-                <input id="input-auditor" type="text" placeholder="Ask the audit log…  (e.g. who certified the Engineering-All group on 5/9?)" autocomplete="off" />
+              <div class="assist-bar" id="auditor-assist-bar">
+                <button class="assist-chip" data-prompt="How many users are enabled, disabled, and guest in the tenant?">◉ Identity count</button>
+                <button class="assist-chip" data-prompt="Show license utilization breakdown by SKU">⊠ License usage</button>
+                <button class="assist-chip" data-prompt="Which users currently have admin or privileged roles assigned?">⚑ Admin roles</button>
+                <button class="assist-chip" data-prompt="Show hard-stage leavers processed in the last 30 days">◣ Leaver history</button>
+                <button class="assist-chip" data-prompt="Were there any failed enrollment operations in the last 7 days?">⊞ Failed enrollments</button>
+                <button class="assist-chip" data-prompt="Are there any anomalous sign-in patterns or risky users flagged by Identity Protection?">◈ Risk signals</button>
               </div>
-              <button class="send" id="send-auditor" aria-label="Send">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" width="16" height="16"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
-              </button>
-            </div>
-          </div>
+
+              <div class="compose">
+                <div class="field">
+                  <span style="color:var(--muted)">⌕</span>
+                  <input id="input-auditor" type="text" placeholder="Ask the audit log…  (e.g. who certified the Engineering-All group on 5/9?)" autocomplete="off" />
+                </div>
+                <button class="send" id="send-auditor" aria-label="Send">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" width="16" height="16"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                </button>
+              </div>
+            </div><!-- /chat-shell -->
+
+            <!-- Right: audit rail -->
+            <aside class="v2-auditor-rail">
+
+              <!-- Scope card -->
+              <div class="v2-rail-card">
+                <div class="v2-rail-head">
+                  <h3>Scope</h3>
+                  <span class="tag ok">Read-Only</span>
+                </div>
+                <div class="aud-scope-list">
+                  <div class="aud-scope-row can"><span class="aud-scope-icon">✓</span><span>Audit log queries</span></div>
+                  <div class="aud-scope-row can"><span class="aud-scope-icon">✓</span><span>User directory reads</span></div>
+                  <div class="aud-scope-row can"><span class="aud-scope-icon">✓</span><span>Risk &amp; identity signals</span></div>
+                  <div class="aud-scope-row can"><span class="aud-scope-icon">✓</span><span>License utilization</span></div>
+                  <div class="aud-scope-row cannot"><span class="aud-scope-icon">✗</span><span>No directory mutations</span></div>
+                  <div class="aud-scope-row cannot"><span class="aud-scope-icon">✗</span><span>No PIM activation</span></div>
+                  <div class="aud-scope-row cannot"><span class="aud-scope-icon">✗</span><span>No approval writes</span></div>
+                </div>
+              </div>
+
+              <!-- Active Query card (JS-updated) -->
+              <div class="v2-rail-card" id="aud-query-card">
+                <div class="v2-rail-head">
+                  <h3>Active Query</h3>
+                  <span class="ks mono" id="aud-query-status" style="font-size:10px;color:var(--text-3)">idle</span>
+                </div>
+                <div id="aud-query-body" class="aud-idle-hint">Send a query to begin…</div>
+              </div>
+
+              <!-- Key Findings card (JS-filled on completion) -->
+              <div class="v2-rail-card" id="aud-findings-card" style="display:none">
+                <div class="v2-rail-head">
+                  <h3>Key Findings</h3>
+                  <button class="btn-text-link" id="aud-findings-clr">clear</button>
+                </div>
+                <div id="aud-findings-list"></div>
+              </div>
+
+              <!-- Jump To card -->
+              <div class="v2-rail-card">
+                <div class="v2-rail-head"><h3>Jump To</h3></div>
+                <div class="aud-jump-list">
+                  <button class="btn ghost sm" id="aud-jump-log">Full Audit Log →</button>
+                  <button class="btn ghost sm" id="aud-jump-security">Security Findings →</button>
+                  <button class="btn ghost sm" id="aud-jump-users">User Directory →</button>
+                </div>
+              </div>
+
+            </aside><!-- /v2-auditor-rail -->
+          </div><!-- /v2-auditor-layout -->
         </section>
 
         <!-- =====================================================
@@ -757,44 +1110,47 @@
               <div class="top">
                 <div class="logo">BB</div>
                 <div class="nm"><span class="n">BambooHR</span><span class="s">HRIS · webhook</span></div>
-                <span class="health">live</span>
+                <span class="health int-health-offline" id="int-bamboo-health">offline</span>
+                <button class="btn ghost int-admin-only" data-int="bamboo" style="display:none;padding:3px 10px;font-size:11px;margin-left:4px">Edit</button>
               </div>
               <div class="grid">
                 <span class="k">Endpoint</span><span class="v">/api/webhooks/bamboohr</span>
-                <span class="k">Secret</span><span class="v">••••• rotate</span>
+                <span class="k">Secret</span><span class="v" id="int-bamboo-secret">not configured</span>
                 <span class="k">Events / 24h</span><span class="v" id="int-bamboo-events">—</span>
                 <span class="k">Last event</span><span class="v" id="int-bamboo-last">—</span>
                 <span class="k">Mapped</span><span class="v">14 / 14</span>
-                <span class="k">Failure</span><span class="v" style="color:var(--emerald)" id="int-bamboo-fail">0.00 %</span>
+                <span class="k">Failure</span><span class="v" style="color:var(--emerald)" id="int-bamboo-fail">—</span>
               </div>
             </div>
             <div class="int teams">
               <div class="top">
                 <div class="logo">MT</div>
                 <div class="nm"><span class="n">Microsoft Teams</span><span class="s">notifications · webhook</span></div>
-                <span class="health">live</span>
+                <span class="health int-health-offline" id="int-teams-health">offline</span>
+                <button class="btn ghost int-admin-only" data-int="teams" style="display:none;padding:3px 10px;font-size:11px;margin-left:4px">Edit</button>
               </div>
               <div class="grid">
-                <span class="k">Channel</span><span class="v">#identity-ops</span>
+                <span class="k">Channel</span><span class="v" id="int-teams-channel">—</span>
                 <span class="k">Card</span><span class="v">Adaptive 1.5</span>
                 <span class="k">Sent / 24h</span><span class="v" id="int-teams-sent">—</span>
-                <span class="k">Failure</span><span class="v" style="color:var(--emerald)" id="int-teams-fail">0.00 %</span>
+                <span class="k">Failure</span><span class="v" style="color:var(--emerald)" id="int-teams-fail">—</span>
                 <span class="k">Triggers</span><span class="v">approval · fail · drift</span>
-                <span class="k">On crit</span><span class="v">@oncall-identity</span>
+                <span class="k">On crit</span><span class="v" id="int-teams-oncall">—</span>
               </div>
             </div>
             <div class="int sentinel">
               <div class="top">
                 <div class="logo">MS</div>
                 <div class="nm"><span class="n">Sentinel Pipeline</span><span class="s">DCR · Log Analytics</span></div>
-                <span class="health">live</span>
+                <span class="health int-health-offline" id="int-sentinel-health">offline</span>
+                <button class="btn ghost int-admin-only" data-int="sentinel" style="display:none;padding:3px 10px;font-size:11px;margin-left:4px">Edit</button>
               </div>
               <div class="grid">
-                <span class="k">Workspace</span><span class="v" id="int-sentinel-ws">jml-fleet-ws</span>
-                <span class="k">Table</span><span class="v">JmlFleet_CL</span>
+                <span class="k">Workspace</span><span class="v" id="int-sentinel-ws">—</span>
+                <span class="k">Table</span><span class="v" id="int-sentinel-table">—</span>
                 <span class="k">Records / 24h</span><span class="v" id="int-sentinel-records">—</span>
                 <span class="k">Lag</span><span class="v" id="int-sentinel-lag">—</span>
-                <span class="k">Rules</span><span class="v">7 active</span>
+                <span class="k">Rules</span><span class="v" id="int-sentinel-rules">—</span>
                 <span class="k">Incidents</span><span class="v" id="int-sentinel-incidents">—</span>
               </div>
             </div>
@@ -838,142 +1194,136 @@
              VIEW · SECURITY
              ===================================================== -->
         <section class="view" id="view-security">
-          <div class="head">
-            <div>
-              <h1 class="h1">Security <span class="sub" id="security-last-updated"></span></h1>
-              <p class="desc">UEBA, Drift Detection and Identity Protection findings. Critical findings page the on-call rotation.</p>
+          <div class="v2-page-title">
+            <h1>Security Findings</h1>
+            <span class="meta">UEBA · drift · identity protection · last scan <b id="security-last-updated">—</b></span>
+          </div>
+          <p class="v2-page-sub">Triage inbox. Critical findings page <code class="mono">@oncall-identity</code> via Teams. Acknowledged items move to the audit log.</p>
+
+          <!-- Severity ribbon -->
+          <div class="sec-ribbon card" id="sec-ribbon">
+            <div class="sec-ribbon-counts">
+              <div class="sec-ribbon-item">
+                <span class="dot crit" style="width:10px;height:10px"></span>
+                <span class="sec-ribbon-num crit" id="sec-count-crit">—</span>
+                <span class="sec-ribbon-lbl">CRITICAL<br>NEEDS ACTION</span>
+              </div>
+              <div class="sec-ribbon-sep"></div>
+              <div class="sec-ribbon-item">
+                <span class="dot warn" style="width:10px;height:10px"></span>
+                <span class="sec-ribbon-num warn" id="sec-count-warn">—</span>
+                <span class="sec-ribbon-lbl">WARNING<br>REVIEW</span>
+              </div>
+              <div class="sec-ribbon-sep"></div>
+              <div class="sec-ribbon-item">
+                <span class="dot info" style="width:10px;height:10px"></span>
+                <span class="sec-ribbon-num info" id="sec-count-info">—</span>
+                <span class="sec-ribbon-lbl">INFO<br>FYI</span>
+              </div>
+              <div class="sec-ribbon-sep"></div>
+              <div class="sec-ribbon-item">
+                <span class="dot ok" style="width:10px;height:10px"></span>
+                <span class="sec-ribbon-num ok" id="sec-count-acked">—</span>
+                <span class="sec-ribbon-lbl">ACKED<br>LAST 24H</span>
+              </div>
             </div>
-            <div class="row-flex">
-              <button class="btn primary" id="refresh-security">Re-scan</button>
+            <div class="sec-ribbon-actions">
+              <button class="btn ghost sm" id="sec-filter-time">Last 24h ▾</button>
+              <button class="btn sm" id="refresh-security">Re-scan</button>
             </div>
           </div>
 
-          <!-- Scan trio -->
-          <div class="scan-trio">
-            <div class="scan ueba" id="sec-ueba" onclick="document.getElementById('sec-section-ueba').scrollIntoView({behavior:'smooth'})">
-              <div class="name">Behavioral · UEBA</div>
-              <div class="nums" id="sec-ueba-counts">
-                <div class="n cr"><b>—</b><span>critical</span></div>
-                <div class="n wn"><b>—</b><span>warning</span></div>
-                <div class="n in"><b>—</b><span>info</span></div>
+          <!-- Filter / bulk action bar -->
+          <div class="sec-filter-bar" id="sec-filter-bar">
+            <button class="btn sm" id="sec-filter-source">All sources ▾</button>
+            <button class="btn sm" id="sec-filter-sev">All severities ▾</button>
+            <button class="btn sm" id="sec-filter-assign">Unassigned ▾</button>
+            <div style="flex:1"></div>
+            <span class="mono sec-selection-count" id="sec-selection-count" style="display:none"></span>
+            <button class="btn sm" id="sec-btn-assign" style="display:none">Assign…</button>
+            <button class="btn sm" id="sec-btn-ack" style="display:none">Acknowledge</button>
+            <button class="btn sm danger" id="sec-btn-page" style="display:none">⚡ Page on-call</button>
+          </div>
+
+          <!-- Two-column: inbox + side rail -->
+          <div class="sec-inbox-layout" id="sec-inbox-layout">
+            <!-- Findings inbox -->
+            <div class="card sec-inbox" id="sec-inbox">
+              <div class="sec-inbox-empty" id="sec-inbox-empty">
+                <span class="count-badge ok">✓ No findings</span>
               </div>
-              <div class="last">
-                <span id="sec-ueba-meta">No report</span>
-                <span class="sec-section-badge" id="sec-ueba-badge"></span>
-              </div>
-              <div class="glow"></div>
             </div>
-            <div class="scan drift" id="sec-drift" onclick="document.getElementById('sec-section-drift').scrollIntoView({behavior:'smooth'})">
-              <div class="name">Configuration · Drift</div>
-              <div class="nums" id="sec-drift-counts">
-                <div class="n cr"><b>—</b><span>critical</span></div>
-                <div class="n wn"><b>—</b><span>warning</span></div>
-                <div class="n in"><b>—</b><span>info</span></div>
+
+            <!-- Side rail -->
+            <div class="sec-rail" id="sec-rail">
+              <!-- Focused finding detail (shown when a finding is selected) -->
+              <div class="card sec-rail-card" id="sec-focused-card" style="display:none">
+                <span class="tag crit" id="sec-focused-tag" style="margin-bottom:12px;display:inline-block">FOCUSED · CRIT</span>
+                <h3 id="sec-focused-title" style="font-size:14px;margin:4px 0 6px;font-weight:600"></h3>
+                <div class="mono" style="font-size:11px;color:var(--text-3);margin-bottom:14px">
+                  rule: <span id="sec-focused-rule" style="color:var(--text-2)">—</span>
+                </div>
+                <div class="sec-focused-desc" id="sec-focused-desc"></div>
+                <div class="section-label" style="margin-top:14px;margin-bottom:6px">SIGNALS</div>
+                <div class="sec-signals" id="sec-signals"></div>
+                <div class="section-label" style="margin-top:14px;margin-bottom:6px">PIVOT</div>
+                <div style="display:flex;flex-direction:column;gap:6px" id="sec-pivot-btns">
+                  <button class="btn sm" id="sec-pivot-audit" style="justify-content:space-between">Open audit entry <span class="mono" style="color:var(--text-3)" id="sec-pivot-audit-hash">—</span></button>
+                  <button class="btn sm" id="sec-pivot-users" style="justify-content:space-between">Subject in Users <span>→</span></button>
+                  <button class="btn sm" id="sec-pivot-audit-agent" style="justify-content:space-between">Ask Audit Agent <span>✦</span></button>
+                </div>
+                <div style="border-top:1px solid var(--border);margin-top:14px;padding-top:12px;display:flex;gap:6px">
+                  <button class="btn sm" id="sec-action-assign" style="flex:1">Assign…</button>
+                  <button class="btn sm" id="sec-action-ack" style="flex:1">Acknowledge</button>
+                  <button class="btn sm danger" id="sec-action-page" title="Page on-call">⚡</button>
+                </div>
               </div>
-              <div class="last">
-                <span id="sec-drift-meta">No report</span>
-                <span class="sec-section-badge" id="sec-drift-badge"></span>
+
+              <!-- Drift remediation card -->
+              <div class="card sec-rail-card" id="sec-drift-rem-v2" style="display:none;border-color:color-mix(in oklab,var(--crit),transparent 60%)">
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+                  <span class="tag crit">DRIFT REMEDIATION</span>
+                  <span class="mono" style="font-size:10.5px;color:var(--text-3)" id="sec-drift-rem-subject">—</span>
+                </div>
+                <div style="font-size:12.5px;color:var(--text-2);margin-bottom:12px;line-height:1.55" id="sec-drift-rem-desc">—</div>
+                <div class="section-label" style="margin-bottom:6px">DIFF PREVIEW</div>
+                <div id="sec-drift-rem-diff" style="margin-bottom:12px"></div>
+                <div style="display:flex;gap:6px">
+                  <button class="btn sm" style="flex:1" id="sec-drift-full">Show full diff</button>
+                  <button class="btn primary sm" style="flex:1" id="sec-drift-restore-v2">Restore baseline</button>
+                </div>
+                <div class="mono" style="font-size:10px;color:var(--text-4);margin-top:8px;text-align:center">requires 2nd approver · 30-min token</div>
               </div>
-              <div class="glow"></div>
-            </div>
-            <div class="scan id" id="sec-risky" onclick="document.getElementById('sec-section-risky').scrollIntoView({behavior:'smooth'})">
-              <div class="name">Identity Protection</div>
-              <div class="nums" id="sec-risky-counts">
-                <div class="n cr"><b>—</b><span>critical</span></div>
-                <div class="n wn"><b>—</b><span>warning</span></div>
-                <div class="n in"><b>—</b><span>info</span></div>
+
+              <!-- Next scans card -->
+              <div class="card sec-rail-card" id="sec-next-scans">
+                <div class="section-label" style="margin-bottom:8px">NEXT SCANS</div>
+                <div id="sec-next-scans-list">
+                  <div class="sec-scan-row"><div><div style="font-size:12.5px">UEBA Analysis</div><div class="mono" style="font-size:10.5px;color:var(--text-4)">daily · 12:30 PM</div></div><span class="mono" style="font-size:11px;color:var(--text-3)">—</span></div>
+                  <div class="sec-scan-row"><div><div style="font-size:12.5px">Drift Detection</div><div class="mono" style="font-size:10.5px;color:var(--text-4)">weekly · Mon 05:00</div></div><span class="mono" style="font-size:11px;color:var(--text-3)">—</span></div>
+                  <div class="sec-scan-row"><div><div style="font-size:12.5px">Risky User Scan</div><div class="mono" style="font-size:10.5px;color:var(--text-4)">every 6h</div></div><span class="mono" style="font-size:11px;color:var(--text-3)">—</span></div>
+                </div>
               </div>
-              <div class="last">
-                <span id="sec-risky-meta">No report</span>
-                <span class="sec-section-badge" id="sec-risky-badge"></span>
-              </div>
-              <div class="glow"></div>
             </div>
           </div>
 
-          <!-- UEBA findings -->
-          <details class="collapse" id="sec-section-ueba">
-            <summary>
-              <span id="sec-ueba-run" style="font-family:var(--mono);font-size:11px;color:var(--muted);font-weight:400">UEBA findings</span>
-            </summary>
-            <div class="collapse-body" id="sec-ueba-list">
-              <div class="loading-hint">Loading…</div>
-            </div>
-          </details>
-
-          <!-- Drift findings -->
-          <details class="collapse" id="sec-section-drift">
-            <summary>
-              <span id="sec-drift-run" style="font-family:var(--mono);font-size:11px;color:var(--muted);font-weight:400">Drift findings</span>
-            </summary>
-            <div class="collapse-body" id="sec-drift-list">
-              <div class="loading-hint">Loading…</div>
-            </div>
-          </details>
-
-          <!-- Risky users -->
-          <details class="collapse" id="sec-section-risky">
-            <summary>
-              <span id="sec-risky-run" style="font-family:var(--mono);font-size:11px;color:var(--muted);font-weight:400">Identity Protection · risky users</span>
-            </summary>
-            <div class="collapse-body" id="sec-risky-list">
-              <div class="loading-hint">Loading…</div>
-            </div>
-          </details>
-
-          <!-- Agent health -->
-          <details class="collapse" id="sec-agent-health">
-            <summary>Agent Health</summary>
-            <div class="collapse-body dense">
-              <div id="agent-health-grid"><div class="loading-hint">Loading…</div></div>
-            </div>
-          </details>
-
-          <!-- Stale Account Manager -->
-          <details class="collapse" id="sec-stale">
-            <summary>Stale Account Manager</summary>
-            <div class="collapse-body">
-              <div class="row-flex" style="margin-bottom:10px">
-                <label style="font-size:12.5px">Inactive ≥ <input id="stale-days" type="number" value="90" min="14" max="365" style="width:70px;padding:5px 8px;font-family:var(--mono)"> days</label>
-                <button class="btn" id="btn-scan-stale">Scan</button>
-                <button class="btn danger" id="btn-disable-stale" style="display:none">Disable Selected</button>
-              </div>
-              <div id="stale-results"></div>
-            </div>
-          </details>
-
-          <!-- Certificate Expiry -->
-          <details class="collapse" id="sec-cert-expiry">
-            <summary>Certificate Expiry</summary>
-            <div class="collapse-body" id="cert-expiry-body">
-              <div class="loading-hint">Expand to load.</div>
-            </div>
-          </details>
-
-          <!-- SoD Conflict Tester -->
-          <details class="collapse" id="sec-sod-tester">
-            <summary>SoD Conflict Tester</summary>
-            <div class="collapse-body">
-              <div class="qop-form" style="padding:0">
-                <div class="qop-row"><label>User UPN</label><input id="sod-test-upn" type="text" placeholder="user@tenant" autocomplete="off"></div>
-                <div class="qop-row"><label>Group A</label><input id="sod-test-group-a" type="text" placeholder="Group ID or display name"></div>
-                <div class="qop-row"><label>Group B</label><input id="sod-test-group-b" type="text" placeholder="Group ID or display name"></div>
-                <div class="qop-row" style="align-self:end"><button class="btn primary" id="btn-test-sod">Test</button></div>
-              </div>
-              <div id="sod-tester-result" class="sod-tester-result" style="display:none"></div>
-            </div>
-          </details>
-
-          <!-- PIM Roles -->
-          <details class="collapse" id="sec-pim">
-            <summary>PIM Eligible Roles</summary>
-            <div class="collapse-body dense">
-              <div style="padding:10px 14px">
-                <button class="btn" id="btn-load-pim">Load my eligible roles</button>
-              </div>
-              <div id="pim-roles-list"></div>
-            </div>
-          </details>
+          <!-- Hidden elements kept for backward-compat with JS handler (scan-trio IDs) -->
+          <div style="display:none">
+            <div id="sec-ueba"><div class="nums" id="sec-ueba-counts"></div></div>
+            <div id="sec-drift"><div class="nums" id="sec-drift-counts"></div></div>
+            <div id="sec-risky"><div class="nums" id="sec-risky-counts"></div></div>
+            <span id="sec-ueba-meta"></span><span id="sec-drift-meta"></span><span id="sec-risky-meta"></span>
+            <span id="sec-ueba-run"></span><span id="sec-drift-run"></span><span id="sec-risky-run"></span>
+            <span id="sec-ueba-badge"></span><span id="sec-drift-badge"></span><span id="sec-risky-badge"></span>
+            <span id="sec-ueba-summary-preview"></span><span id="sec-drift-summary-preview"></span><span id="sec-risky-summary-preview"></span>
+            <div id="sec-ueba-list"></div><div id="sec-drift-list"></div><div id="sec-risky-list"></div>
+            <div id="drift-rem-card"><button id="btn-drift-ignore"></button><button id="btn-drift-restore"></button></div>
+            <div id="agent-health-grid"></div>
+            <input id="stale-days" type="number" value="90"><button id="btn-scan-stale"></button><button id="btn-disable-stale"></button><div id="stale-results"></div>
+            <div id="cert-expiry-body"></div>
+            <input id="sod-test-upn"><input id="sod-test-group-a"><input id="sod-test-group-b"><button id="btn-test-sod"></button><div id="sod-tester-result"></div>
+            <div id="pim-roles-list"></div><button id="btn-load-pim"></button>
+          </div>
         </section>
 
         <!-- =====================================================
@@ -987,8 +1337,56 @@
             </div>
             <div class="row-flex">
               <button class="btn ghost" id="btn-toggle-timeline">Timeline</button>
+              <button class="btn" id="btn-build-attestation">Build Attestation Pack</button>
               <button class="btn primary" id="refresh-log">Refresh</button>
             </div>
+          </div>
+
+          <div class="v2-chain-integrity">
+            <div class="chain-head">
+              <h3>Chain Integrity</h3>
+              <div class="chain-meta">
+                <span>head: <b>9f1a3c...b820</b></span>
+                <span>tail: <b>0000...0001</b></span>
+                <span>verified: <b style="color:var(--ok)">yes</b></span>
+              </div>
+            </div>
+            <div class="v2-chain-blocks" aria-label="Hash-chain block sample">
+              <span class="v2-chain-block"></span><span class="v2-chain-block"></span><span class="v2-chain-block"></span><span class="v2-chain-block"></span><span class="v2-chain-block"></span><span class="v2-chain-block"></span>
+              <span class="v2-chain-block"></span><span class="v2-chain-block"></span><span class="v2-chain-block warn"></span><span class="v2-chain-block"></span><span class="v2-chain-block"></span><span class="v2-chain-block"></span>
+              <span class="v2-chain-block"></span><span class="v2-chain-block"></span><span class="v2-chain-block"></span><span class="v2-chain-block crit"></span><span class="v2-chain-block"></span><span class="v2-chain-block"></span>
+              <span class="v2-chain-block"></span><span class="v2-chain-block"></span><span class="v2-chain-block"></span><span class="v2-chain-block"></span><span class="v2-chain-block"></span><span class="v2-chain-block"></span>
+              <span class="v2-chain-block"></span><span class="v2-chain-block"></span><span class="v2-chain-block"></span><span class="v2-chain-block"></span><span class="v2-chain-block"></span><span class="v2-chain-block"></span>
+              <span class="v2-chain-block"></span><span class="v2-chain-block"></span><span class="v2-chain-block"></span><span class="v2-chain-block"></span><span class="v2-chain-block"></span><span class="v2-chain-block"></span>
+            </div>
+            <div class="v2-replication-chain">
+              <div class="rep-title">Replication / tamper-evident end-to-end</div>
+              <div class="v2-replication-hops">
+                <div class="v2-replication-hop"><span class="label"><span class="dot ok"></span>Local Chain</span><span class="sub">SHA-256 / in-memory</span><span class="latency">0 ms</span></div>
+                <span class="v2-replication-arrow">-&gt;</span>
+                <div class="v2-replication-hop"><span class="label"><span class="dot ok"></span>Azure Blob</span><span class="sub">Object-Lock / WORM / 7y</span><span class="latency">120 ms</span></div>
+                <span class="v2-replication-arrow">-&gt;</span>
+                <div class="v2-replication-hop"><span class="label"><span class="dot ok"></span>Sentinel</span><span class="sub">JML_AuditLog_CL</span><span class="latency">1.2 s</span></div>
+                <span class="v2-replication-arrow">-&gt;</span>
+                <div class="v2-replication-hop"><span class="label"><span class="dot ok"></span>Splunk SIEM</span><span class="sub">HEC / enriched</span><span class="latency">2.4 s</span></div>
+                <span class="v2-replication-arrow">-&gt;</span>
+                <div class="v2-replication-hop"><span class="label"><span class="dot ok"></span>S3 Object-Lock</span><span class="sub">cross-region / 7y</span><span class="latency">3.1 s</span></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="v2-filter-chips" aria-label="Quick audit filters">
+            <span class="section-label" style="margin:0 6px 0 0">Filter</span>
+            <button class="v2-filter-chip active" data-log-agent="">All agents</button>
+            <button class="v2-filter-chip" data-log-agent="joiner">joiner</button>
+            <button class="v2-filter-chip" data-log-agent="mover">mover</button>
+            <button class="v2-filter-chip" data-log-agent="leaver">leaver</button>
+            <button class="v2-filter-chip" data-log-agent="certifier">certifier</button>
+            <button class="v2-filter-chip" data-log-agent="enroller">enroller</button>
+            <button class="v2-filter-chip active" data-log-outcome="">All outcomes</button>
+            <button class="v2-filter-chip" data-log-outcome="success">success</button>
+            <button class="v2-filter-chip crit" data-log-outcome="failed">failed</button>
+            <button class="v2-filter-chip info" data-log-outcome="partial">partial</button>
           </div>
 
           <div class="toolbar">
@@ -1025,6 +1423,8 @@
           </table>
 
           <div id="log-timeline" style="display:none"></div>
+
+          <div class="log-pagination" id="log-pagination"></div>
 
           <div class="hash-chain">
             <span class="dot"></span> Chain verified · <span id="log-count-tail">—</span> entries · last seal <b id="log-seal-time">—</b>
@@ -1082,34 +1482,34 @@
               </div>
             </div>
 
-            <!-- Splunk (preview — not yet wired) -->
-            <div class="exp splunk">
+            <!-- Splunk (coming soon) -->
+            <div class="exp splunk exp-coming-soon">
               <div class="top">
                 <div class="logo">SP</div>
-                <div class="name">Splunk Cloud<span class="sub">HEC · preview</span></div>
-                <span class="export-status-chip chip-unconfigured">unconfigured</span>
+                <div class="name">Splunk Cloud<span class="sub">HEC · log analytics</span></div>
+                <span class="export-status-chip chip-soon">coming soon</span>
               </div>
               <div class="stats">
                 <div class="s"><div class="lbl">Endpoint</div><div class="v">—</div></div>
                 <div class="s"><div class="lbl">Token</div><div class="v">—</div></div>
-                <div class="s"><div class="lbl">Status</div><div class="v" style="color:var(--muted)">not wired</div></div>
+                <div class="s"><div class="lbl">Events sent</div><div class="v">—</div></div>
               </div>
-              <div class="conn"><span style="color:var(--muted)">Configure via auditor/splunk.config.json (planned).</span></div>
+              <div class="conn exp-coming-soon-note">Stream real-time audit events and security findings to Splunk via HEC. Configuration will be available in a future release.</div>
             </div>
 
-            <!-- S3 (preview) -->
-            <div class="exp s3">
+            <!-- S3 (coming soon) -->
+            <div class="exp s3 exp-coming-soon">
               <div class="top">
                 <div class="logo">S3</div>
-                <div class="name">AWS S3 — Compliance Mirror<span class="sub">object-lock · preview</span></div>
-                <span class="export-status-chip chip-unconfigured">unconfigured</span>
+                <div class="name">AWS S3 — Compliance Mirror<span class="sub">object-lock · WORM</span></div>
+                <span class="export-status-chip chip-soon">coming soon</span>
               </div>
               <div class="stats">
                 <div class="s"><div class="lbl">Bucket</div><div class="v">—</div></div>
-                <div class="s"><div class="lbl">Lock</div><div class="v">—</div></div>
-                <div class="s"><div class="lbl">Status</div><div class="v" style="color:var(--muted)">not wired</div></div>
+                <div class="s"><div class="lbl">Object lock</div><div class="v">—</div></div>
+                <div class="s"><div class="lbl">Entries</div><div class="v">—</div></div>
               </div>
-              <div class="conn"><span style="color:var(--muted)">Configure via auditor/s3.config.json (planned).</span></div>
+              <div class="conn exp-coming-soon-note">Mirror the audit chain to S3 with object-lock for WORM compliance. Configuration will be available in a future release.</div>
             </div>
           </div>
 
@@ -1160,12 +1560,44 @@
             </div>
 
             <div id="user-detail-panel" style="display:none">
-              <div>
+              <div class="udp-hero">
+                <div class="udp-avatar" id="udp-avatar">--</div>
+                <div class="udp-title-block">
                 <div id="udp-name">—</div>
                 <div id="udp-upn">—</div>
                 <div id="udp-badge" class="user-detail-badge enabled">—</div>
               </div>
+              </div>
               <div id="udp-details"></div>
+              <div class="udp-risk-lane" id="udp-risk-lane">
+                <div class="risk-mini">
+                  <span class="risk-k">Lifecycle risk</span>
+                  <span class="risk-v" id="udp-risk-score">--</span>
+                  <span class="risk-track"><i id="udp-risk-bar" style="width:0%"></i></span>
+                </div>
+                <div class="risk-mini">
+                  <span class="risk-k">Write route</span>
+                  <span class="risk-v" id="udp-write-route">Safe preview first</span>
+                  <span class="risk-sub">Live mover/leaver actions require a fresh approval token.</span>
+                </div>
+                <div class="risk-mini">
+                  <span class="risk-k">Audit posture</span>
+                  <span class="risk-v" id="udp-audit-posture">Chain ready</span>
+                  <span class="risk-sub">Profile actions are logged with operator, subject, and mode.</span>
+                </div>
+              </div>
+              <div class="udp-lifecycle-dossier">
+                <div class="dossier-head">
+                  <span>Lifecycle Dossier</span>
+                  <span id="udp-dossier-route">read-only profile</span>
+                </div>
+                <div class="dossier-grid">
+                  <div class="dossier-cell"><span class="k">Role exposure</span><span class="v" id="udp-role-exposure">standard user</span></div>
+                  <div class="dossier-cell"><span class="k">License exposure</span><span class="v" id="udp-license-exposure">--</span></div>
+                  <div class="dossier-cell"><span class="k">Group exposure</span><span class="v" id="udp-group-exposure">--</span></div>
+                  <div class="dossier-cell"><span class="k">Next safe action</span><span class="v" id="udp-next-action">select operation</span></div>
+                </div>
+              </div>
               <div>
                 <div class="dim-label">Licenses</div>
                 <div id="udp-licenses"></div>
@@ -1180,7 +1612,7 @@
               </div>
               <div class="udp-actions">
                 <button class="btn" id="udp-btn-mover">Move…</button>
-                <button class="btn danger" id="udp-btn-leaver-soft">Soft Leave</button>
+                <button class="btn danger-outline" id="udp-btn-leaver-soft">Soft Leave</button>
                 <button class="btn danger" id="udp-btn-leaver-hard">Hard Leave</button>
               </div>
             </div>
@@ -1228,6 +1660,19 @@
               </div>
 
               <textarea id="graph-body" rows="6" placeholder='{ "key": "value" }' style="display:none"></textarea>
+
+              <div class="graph-dryrun-card" id="graph-dryrun-card">
+                <div class="dryrun-head">
+                  <span>Request Preview</span>
+                  <span id="graph-dryrun-mode">safe read</span>
+                </div>
+                <div class="dryrun-grid">
+                  <div><span class="k">Method</span><span class="v" id="graph-preview-method">GET</span></div>
+                  <div><span class="k">Target</span><span class="v" id="graph-preview-target">/me</span></div>
+                  <div><span class="k">Approval</span><span class="v" id="graph-preview-approval">not required</span></div>
+                  <div><span class="k">Receipt</span><span class="v">audit.write pending</span></div>
+                </div>
+              </div>
 
               <div class="graph-assist-row">
                 <input id="graph-assist-input" type="text" placeholder="Ask AI: 'find users with no MFA'"  autocomplete="off">
@@ -1449,13 +1894,15 @@
                     <button class="btn primary" id="btn-tenant-save">Save & Sync All Agents</button>
                   </div>
                 </div>
-                <div style="padding:12px 18px;border-top:1px solid var(--border);background:var(--bg-2);font-family:var(--mono);font-size:11px;color:var(--text-2);line-height:1.7">
-                  <div style="color:var(--muted);text-transform:uppercase;letter-spacing:.1em;font-size:9.5px;margin-bottom:6px">Hooking up a new tenant</div>
-                  <div>1. Create app registrations in the target Entra tenant (one per agent). Use <code>~/.claude/agents/provisioner/</code> scripts to automate.</div>
-                  <div>2. Grant Graph API permissions and admin-consent them (see Certs tab for the matrix).</div>
-                  <div>3. Upload certificates (or store secrets) and update each agent's <code>config.json</code> with <code>CertThumbprint</code> or <code>EncryptedSecret</code>.</div>
-                  <div>4. Save Tenant ID + Client IDs here — the values above will be written to all <span style="color:var(--text)">8</span> agent configs.</div>
-                </div>
+                <details class="settings-help-details">
+                  <summary class="settings-help-summary">Setup guide — hooking up a new tenant</summary>
+                  <div class="settings-help-body">
+                    <div class="settings-help-step"><span class="settings-help-num">1</span><div>Create app registrations in the target Entra tenant (one per agent). Use the <code>⚡ Setup Wizard</code> above to automate this step.</div></div>
+                    <div class="settings-help-step"><span class="settings-help-num">2</span><div>Grant Graph API permissions and admin-consent them (see Certs tab for the permissions matrix).</div></div>
+                    <div class="settings-help-step"><span class="settings-help-num">3</span><div>Upload certificates (or store secrets) and update each agent's <code>config.json</code> with <code>CertThumbprint</code> or <code>EncryptedSecret</code>.</div></div>
+                    <div class="settings-help-step"><span class="settings-help-num">4</span><div>Save Tenant ID + Client IDs above — the values will be written to all <b>8</b> agent configs on save.</div></div>
+                  </div>
+                </details>
               </div>
 
               <!-- Agent Certificates -->
@@ -1658,6 +2105,29 @@
     </div>
 
     <!-- =========================================================
+         COMMAND PALETTE  (Ctrl+K)
+         ========================================================= -->
+    <div id="cmd-palette" class="cmd-palette" style="display:none" role="dialog" aria-label="Command palette">
+      <div class="cmd-backdrop"></div>
+      <div class="cmd-modal">
+        <div class="cmd-bar">
+          <svg class="cmd-search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+          <input id="cmd-input" class="cmd-input" type="text" placeholder="Search users, navigate tabs, run actions…" autocomplete="off" spellcheck="false">
+          <kbd class="cmd-esc-key">ESC</kbd>
+        </div>
+        <div class="cmd-divider"></div>
+        <div class="cmd-results" id="cmd-results" role="listbox">
+          <!-- populated by JS -->
+        </div>
+        <div class="cmd-footer">
+          <span><kbd>↑↓</kbd> navigate</span>
+          <span><kbd>↵</kbd> select</span>
+          <span><kbd>ESC</kbd> dismiss</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- =========================================================
          OVERLAYS
          ========================================================= -->
 
@@ -1724,6 +2194,7 @@
         </div>
         <div id="op-switch-list"></div>
         <div class="op-switch-footer">
+          <button class="btn ghost" id="op-switch-signout" style="color:var(--coral)">Sign out</button>
           <button class="btn ghost" id="op-switch-cancel">Cancel</button>
         </div>
       </div>
@@ -1748,9 +2219,15 @@
           <div id="wizard-signin-pending" style="display:none">
             <div style="padding:16px;background:var(--bg-2);border:1px solid var(--border);border-radius:8px;display:flex;flex-direction:column;gap:8px">
               <div class="dim-label" style="font-size:10px">DEVICE CODE</div>
-              <div id="wizard-device-code" style="font-family:var(--mono);font-size:26px;letter-spacing:.2em;color:var(--cyan);text-align:center;padding:8px">—</div>
+              <div style="display:flex;align-items:center;justify-content:center;gap:10px">
+                <div id="wizard-device-code" style="font-family:var(--mono);font-size:26px;letter-spacing:.2em;color:var(--cyan);padding:8px">—</div>
+                <button class="btn ghost sm" id="wizard-copy-code" title="Copy code to clipboard" style="font-size:11px">Copy</button>
+              </div>
               <div class="dim-label" style="font-size:10px">VERIFICATION URL</div>
-              <div id="wizard-verify-url" style="font-family:var(--mono);font-size:12px;color:var(--text);text-align:center">—</div>
+              <div style="display:flex;align-items:center;justify-content:center;gap:10px">
+                <div id="wizard-verify-url" style="font-family:var(--mono);font-size:12px;color:var(--text);text-align:center">—</div>
+                <button class="btn ghost sm" id="wizard-open-url" title="Open in browser" style="font-size:11px">Open ↗</button>
+              </div>
               <div style="font-size:11.5px;color:var(--muted);text-align:center;margin-top:4px">Waiting for you to complete sign-in in the browser…</div>
             </div>
           </div>
@@ -1790,6 +2267,25 @@
         <button class="btn ghost" id="wizard-cancel">Close</button>
         <button class="btn primary" id="wizard-next" style="display:none">Continue →</button>
         <button class="btn primary" id="wizard-finish" style="display:none">Save & Sync</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Integration edit modal -->
+  <div id="int-edit-overlay" style="display:none;position:fixed;inset:0;background:oklch(0 0 0 / .65);backdrop-filter:blur(5px);z-index:300;align-items:center;justify-content:center">
+    <div style="width:440px;max-width:92vw;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-3);padding:24px 26px;display:flex;flex-direction:column;gap:16px;box-shadow:0 28px 80px oklch(0 0 0 / .55)">
+      <div style="display:flex;align-items:center;justify-content:space-between">
+        <span style="font-weight:600;font-size:14px" id="int-edit-modal-title">Edit Integration</span>
+        <button id="int-edit-close" style="background:0;border:0;color:var(--muted);cursor:pointer;font-size:20px;line-height:1;padding:2px 6px">&times;</button>
+      </div>
+      <div id="int-edit-modal-fields" style="display:flex;flex-direction:column;gap:12px"></div>
+      <label style="display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--text-2);cursor:pointer">
+        <input type="checkbox" id="int-edit-enabled" style="accent-color:var(--cyan)"> Mark integration as enabled
+      </label>
+      <div style="font-size:11px;color:var(--muted);line-height:1.5" id="int-edit-hint"></div>
+      <div style="display:flex;gap:8px;justify-content:flex-end">
+        <button class="btn ghost" id="int-edit-cancel">Cancel</button>
+        <button class="btn primary" id="int-edit-save">Save</button>
       </div>
     </div>
   </div>
