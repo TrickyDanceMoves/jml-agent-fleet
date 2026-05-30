@@ -1033,6 +1033,7 @@ let _secFindings = []; // flat array of all findings
 let _secFocused = null; // currently focused finding index
 let _secAckedKeys     = new Set();  // stable keys (rule|title) of acknowledged findings — survives rescans
 let _secAckedFindings = [];         // ordered list of acked finding objects for the acked section
+let _secDeletedKeys   = new Set();  // stable keys of admin-deleted findings — permanently hidden from inbox
 let _secCheckedSet    = new Set();  // original indices of checkbox-selected findings
 let _secFilter = { sev: '', source: '', assign: 'unassigned', maxAge: 0 }; // active inbox filter state
 
@@ -1104,7 +1105,7 @@ function _renderSecRows() {
 
   const visible = [];
   _secFindings.forEach((f, origIdx) => {
-    if (_secAckedKeys.has(_secKey(f))) return; // hide acknowledged findings from active inbox
+    if (_secAckedKeys.has(_secKey(f)) || _secDeletedKeys.has(_secKey(f))) return; // hide acked / deleted findings
     if (_secFilter.sev && f.sev !== _secFilter.sev) return;
     if (_secFilter.source) {
       if (!f.rule.toLowerCase().startsWith(_secFilter.source.toLowerCase())) return;
@@ -1229,11 +1230,13 @@ function _renderAckedSection() {
         okLabel: 'Delete all',
       }).then(ok => {
         if (!ok) return;
+        _secAckedFindings.forEach(f => _secDeletedKeys.add(_secKey(f)));
         _secAckedKeys.clear();
         _secAckedFindings = [];
         const ackedEl = document.getElementById('sec-count-acked');
         if (ackedEl) ackedEl.textContent = '0';
         _renderAckedSection();
+        _renderSecRows();
         showToast('All acknowledged findings deleted');
       }).catch(() => {});
     });
@@ -1244,11 +1247,13 @@ function _renderAckedSection() {
         const idx = parseInt(btn.dataset.ackedIdx);
         const f = _secAckedFindings[idx];
         if (!f) return;
+        _secDeletedKeys.add(_secKey(f));
         _secAckedKeys.delete(_secKey(f));
         _secAckedFindings.splice(idx, 1);
         const ackedEl = document.getElementById('sec-count-acked');
         if (ackedEl) ackedEl.textContent = String(_secAckedFindings.length);
         _renderAckedSection();
+        _renderSecRows();
         showToast('Finding deleted from acknowledged list');
       });
     });
@@ -1802,34 +1807,73 @@ document.getElementById('sec-btn-page')?.addEventListener('click', () => {
   showToast('On-call paged for ' + n + ' finding' + (n > 1 ? 's' : '') + ' via Teams (#identity-ops)');
 });
 
+/**
+ * Show an operator-picker modal.
+ * onPick(operatorName) is called when the user selects someone.
+ * Lists "Assign to me" first, then all other known operators.
+ */
+function _showAssignPicker(onPick) {
+  const me = currentOperatorName || window.api.currentUser || 'me';
+  const others = Object.keys(_operators).filter(n => n !== me);
+
+  const overlay = document.createElement('div');
+  overlay.className = 'pin-overlay';
+
+  const rows = [{ name: me, label: me + ' (me)', role: _operators[me] || currentOperatorRole() }]
+    .concat(others.map(n => ({ name: n, label: n, role: _operators[n] || '' })));
+
+  const roleChip = role => {
+    if (!role) return '';
+    const cls = role === 'admin' ? 'crit' : role === 'helpdesk' ? 'warn' : 'info';
+    return '<span class="tag ' + cls + '" style="margin-left:6px;font-size:10px">' + escHtml(role) + '</span>';
+  };
+
+  overlay.innerHTML =
+    '<div class="pin-modal" style="width:360px;max-width:94vw">'
+    + '<div class="pin-header"><div class="pin-title">Assign to operator</div>'
+    + '<button class="pin-close" id="assign-picker-close">×</button></div>'
+    + '<div class="pin-body" style="padding:8px 0">'
+    + rows.map(r =>
+        '<button class="assign-picker-row" data-name="' + escHtml(r.name) + '" style="display:flex;align-items:center;width:100%;padding:10px 20px;background:none;border:none;cursor:pointer;text-align:left;gap:8px;font-size:13px;color:var(--text-1);border-bottom:1px solid var(--border)">'
+        + '<span style="flex:1">' + escHtml(r.label) + roleChip(r.role) + '</span>'
+        + '</button>'
+      ).join('')
+    + '</div></div>';
+
+  document.body.appendChild(overlay);
+
+  overlay.querySelector('#assign-picker-close').addEventListener('click', () => overlay.remove());
+  overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+
+  overlay.querySelectorAll('.assign-picker-row').forEach(btn => {
+    btn.addEventListener('mouseenter', () => { btn.style.background = 'var(--surface-2)'; });
+    btn.addEventListener('mouseleave', () => { btn.style.background = ''; });
+    btn.addEventListener('click', () => {
+      overlay.remove();
+      onPick(btn.dataset.name);
+    });
+  });
+}
+
 document.getElementById('sec-btn-assign')?.addEventListener('click', function () {
   if (_secCheckedSet.size === 0) return;
   const n = _secCheckedSet.size;
-  confirmModal({
-    title: 'Assign ' + n + ' finding' + (n > 1 ? 's' : ''),
-    body: 'Assign to current operator? This is a placeholder — integrate with your operator roster.',
-    okLabel: 'Assign to me',
-  }).then(ok => {
-    if (!ok) return;
-    _secCheckedSet.forEach(idx => { if (_secFindings[idx]) _secFindings[idx].assignee = 'me'; });
-    showToast(n + ' finding' + (n > 1 ? 's' : '') + ' assigned');
+  _showAssignPicker(name => {
+    _secCheckedSet.forEach(idx => { if (_secFindings[idx]) _secFindings[idx].assignee = name; });
+    showToast(n + ' finding' + (n > 1 ? 's' : '') + ' assigned to ' + name);
     _renderSecRows();
-  }).catch(() => {});
+  });
 });
 
 // ── Individual finding action: Assign ─────────────────────────────────────────
 document.getElementById('sec-action-assign')?.addEventListener('click', () => {
   if (_secFocused === null || !_secFindings[_secFocused]) return;
-  confirmModal({
-    title: 'Assign finding',
-    body: 'Assign "' + _secFindings[_secFocused].title + '" to the current operator?',
-    okLabel: 'Assign to me',
-  }).then(ok => {
-    if (!ok) return;
-    _secFindings[_secFocused].assignee = 'me';
-    showToast('Finding assigned');
+  _showAssignPicker(name => {
+    _secFindings[_secFocused].assignee = name;
+    showToast('Finding assigned to ' + name);
     _renderSecRows();
-  }).catch(() => {});
+    focusFinding(_secFocused); // refresh right-rail assignee display
+  });
 });
 
 // ── Drift "Show full diff" ────────────────────────────────────────────────────
@@ -2737,15 +2781,14 @@ function renderRiskScoreCard(data) {
 }
 
 function renderPlanPreviewCard() {
-  // [num, op, subject, detail, agentKey, dur, reversible]
+  // [num, op, subject, agentKey, dur, reversible]
   // reversible: true = ↺ (can roll back), false = → (permanent)
   const rows = [
-    ['01', 'graph.user.disable',              'robert.martinez@contoso.com', 'set accountEnabled = false',           'leaver',  '~0.4s', true],
-    ['02', 'graph.user.revokeSignInSessions', '3 active sessions',           'force re-authentication on all clients','leaver',  '~0.8s', false],
-    ['03', 'purview.irm.submit',              'termination record',           'open Insider Risk Management case',    'leaver',  '~0.6s', true],
-    ['04', 'audit.write',                     'audit trail entry',            'append tamper-evident record',         'auditor', '~0.2s', false],
+    ['01', 'graph.user.disable',              'robert.martinez@contoso.com', 'leaver',  '~0.4s', true],
+    ['02', 'graph.user.revokeSignInSessions', '3 active sessions',           'leaver',  '~0.8s', false],
+    ['03', 'purview.irm.submit',              'termination record',           'leaver',  '~0.6s', true],
+    ['04', 'audit.write',                     'audit trail entry',            'auditor', '~0.2s', false],
   ];
-  // Agent tag colour map
   const agentTag = key => {
     const colours = { leaver: 'crit', joiner: 'ok', mover: 'warn', auditor: 'info', approver: 'violet', certifier: 'cyan' };
     return '<span class="tag ' + (colours[key] || 'info') + '">' + escHtml(key) + '</span>';
@@ -2756,12 +2799,11 @@ function renderPlanPreviewCard() {
       '<span class="step-body">' +
         '<span class="step-op">' + escHtml(r[1]) + '</span>' +
         '<span class="step-sub">' + escHtml(r[2]) + '</span>' +
-        '<span class="step-detail">' + escHtml(r[3]) + '</span>' +
       '</span>' +
       '<span class="step-meta">' +
-        agentTag(r[4]) +
-        '<span class="step-dur">' + r[5] + '</span>' +
-        '<span class="step-rev ' + (r[6] ? 'ok' : 'warn') + '">' + (r[6] ? '&#x21BA;' : '&rarr;') + '</span>' +
+        agentTag(r[3]) +
+        '<span class="step-dur">' + r[4] + '</span>' +
+        '<span class="step-rev ' + (r[5] ? 'ok' : 'warn') + '">' + (r[5] ? '&#x21BA;' : '&rarr;') + '</span>' +
       '</span>' +
     '</div>'
   ).join('') + '</div>';
