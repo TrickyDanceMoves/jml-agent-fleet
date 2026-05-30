@@ -248,34 +248,10 @@
             <div class="lane-head">
               <span class="dot info"></span>
               <span class="section-label" style="margin:0">Inbound / identity work origin</span>
-              <span class="ks">3 events in last 30 min / BambooHR / Workday / ServiceNow</span>
-              <button class="btn ghost sm" style="margin-left:auto">Pause stream</button>
+              <span class="ks" id="hris-lane-meta">no events in window</span>
             </div>
-            <div class="v2-hris-grid">
-              <button class="v2-hris-event" data-jump-tab="approver">
-                <span class="src"><span class="dot info"></span>BambooHR / hire</span>
-                <span class="name">taylor.chen</span>
-                <span class="detail">Engineering / L4 / start today</span>
-                <span class="route">-&gt; <span class="tag info">joiner</span></span>
-              </button>
-              <button class="v2-hris-event" data-jump-tab="approver">
-                <span class="src"><span class="dot crit"></span>BambooHR / termination</span>
-                <span class="name">robert.martinez</span>
-                <span class="detail">Sales / effective immediate</span>
-                <span class="route">-&gt; <span class="tag crit">leaver</span></span>
-              </button>
-              <button class="v2-hris-event" data-jump-tab="approver">
-                <span class="src"><span class="dot warn"></span>Workday / role change</span>
-                <span class="name">mina.okafor</span>
-                <span class="detail">Finance / approver pool move</span>
-                <span class="route">-&gt; <span class="tag warn">mover</span></span>
-              </button>
-              <button class="v2-hris-event" data-jump-tab="approver">
-                <span class="src"><span class="dot info"></span>ServiceNow / manual</span>
-                <span class="name">REQ-1842</span>
-                <span class="detail">Sensitive license request</span>
-                <span class="route">-&gt; <span class="tag violet">approver</span></span>
-              </button>
+            <div class="v2-hris-grid" id="hris-events-grid">
+              <div class="loading-hint" style="grid-column:1/-1;padding:16px 0;color:var(--text-4);font-size:12px">No inbound HRIS events. Events from BambooHR, Workday, or ServiceNow will appear here when received.</div>
             </div>
           </div>
 
@@ -2243,9 +2219,15 @@
           <div id="wizard-signin-pending" style="display:none">
             <div style="padding:16px;background:var(--bg-2);border:1px solid var(--border);border-radius:8px;display:flex;flex-direction:column;gap:8px">
               <div class="dim-label" style="font-size:10px">DEVICE CODE</div>
-              <div id="wizard-device-code" style="font-family:var(--mono);font-size:26px;letter-spacing:.2em;color:var(--cyan);text-align:center;padding:8px">—</div>
+              <div style="display:flex;align-items:center;justify-content:center;gap:10px">
+                <div id="wizard-device-code" style="font-family:var(--mono);font-size:26px;letter-spacing:.2em;color:var(--cyan);padding:8px">—</div>
+                <button class="btn ghost sm" id="wizard-copy-code" title="Copy code to clipboard" style="font-size:11px">Copy</button>
+              </div>
               <div class="dim-label" style="font-size:10px">VERIFICATION URL</div>
-              <div id="wizard-verify-url" style="font-family:var(--mono);font-size:12px;color:var(--text);text-align:center">—</div>
+              <div style="display:flex;align-items:center;justify-content:center;gap:10px">
+                <div id="wizard-verify-url" style="font-family:var(--mono);font-size:12px;color:var(--text);text-align:center">—</div>
+                <button class="btn ghost sm" id="wizard-open-url" title="Open in browser" style="font-size:11px">Open ↗</button>
+              </div>
               <div style="font-size:11.5px;color:var(--muted);text-align:center;margin-top:4px">Waiting for you to complete sign-in in the browser…</div>
             </div>
           </div>

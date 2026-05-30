@@ -1932,11 +1932,14 @@ let _signinState = { status: 'idle', deviceCode: '', verificationUrl: '', tenant
 function spawnSigninProcess() {
   const { spawn } = require('child_process');
   _signinState = { status: 'pending', deviceCode: '', verificationUrl: '', tenantId: '', account: '', error: '' };
+  // 6>&1 redirects the Information stream (Write-Host / stream 6) to stdout so
+  // the device-code message from Connect-MgGraph is captured by Node.js.
   const script = `
     $ErrorActionPreference = 'Stop'
+    $InformationPreference = 'Continue'
     try {
       Import-Module Microsoft.Graph.Authentication -ErrorAction Stop
-      Connect-MgGraph -Scopes "Application.ReadWrite.All","User.Read.All","Directory.ReadWrite.All" -UseDeviceAuthentication -NoWelcome | Out-Null
+      Connect-MgGraph -Scopes "Application.ReadWrite.All","User.Read.All","Directory.ReadWrite.All" -UseDeviceAuthentication -NoWelcome 6>&1
       $ctx = Get-MgContext
       @{ status='success'; tenantId=$ctx.TenantId; account=$ctx.Account } | ConvertTo-Json -Compress
     } catch {
@@ -1945,15 +1948,23 @@ function spawnSigninProcess() {
   `;
   const p = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', script]);
   let buf = '';
-  p.stdout.on('data', d => {
-    buf += d.toString();
-    // Device-code message arrives early; extract URL + code from it.
-    const m = buf.match(/(https:\/\/microsoft\.com\/devicelogin)[^]*?code\s+([A-Z0-9]+)/i);
-    if (m && !_signinState.deviceCode) {
-      _signinState.verificationUrl = m[1];
-      _signinState.deviceCode = m[2];
+
+  // Parse the running buffer for device-code info and/or final result.
+  // Called on every chunk from both stdout and stderr.
+  function parseBuf() {
+    if (!_signinState.deviceCode) {
+      // Support both common orderings of the device-code message:
+      //   "…open the page https://…/devicelogin … code XXXXXXXX …"
+      //   "…enter the code XXXXXXXX … https://…/devicelogin …"
+      const m1 = buf.match(/https:\/\/microsoft\.com\/devicelogin[^]*?code\s+([A-Z0-9]{8,})/i);
+      const m2 = buf.match(/code\s+([A-Z0-9]{8,})[^]*?(https:\/\/microsoft\.com\/devicelogin)/i);
+      const code = (m1 && m1[1]) || (m2 && m2[1]);
+      if (code) {
+        _signinState.deviceCode = code;
+        _signinState.verificationUrl = 'https://microsoft.com/devicelogin';
+      }
     }
-    // Final JSON line marks completion
+    // Final JSON line marks auth completion
     const finalLine = buf.split(/\r?\n/).reverse().find(l => l.trim().startsWith('{'));
     if (finalLine) {
       try {
@@ -1963,10 +1974,12 @@ function spawnSigninProcess() {
         } else if (j.status === 'error') {
           _signinState.status = 'error'; _signinState.error = j.error;
         }
-      } catch (_) { /* not yet complete */ }
+      } catch (_) { /* partial line – wait for more data */ }
     }
-  });
-  p.stderr.on('data', d => { buf += d.toString(); });
+  }
+
+  p.stdout.on('data', d => { buf += d.toString(); parseBuf(); });
+  p.stderr.on('data', d => { buf += d.toString(); parseBuf(); });
   p.on('close', () => {
     if (_signinState.status === 'pending') _signinState.status = 'error', _signinState.error = 'signin terminated without result';
     _signinProc = null;
