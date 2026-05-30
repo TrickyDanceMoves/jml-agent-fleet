@@ -1031,6 +1031,229 @@ function buildCountBadges(crit, warn, info) {
 // ── V2 Security Inbox ──────────────────────────────────────────────────────
 let _secFindings = []; // flat array of all findings
 let _secFocused = null; // currently focused finding index
+let _secAckedKeys     = new Set();  // stable keys (rule|title) of acknowledged findings — survives rescans
+let _secAckedFindings = [];         // ordered list of acked finding objects for the acked section
+let _secCheckedSet    = new Set();  // original indices of checkbox-selected findings
+let _secFilter = { sev: '', source: '', assign: 'unassigned', maxAge: 0 }; // active inbox filter state
+
+/** Stable identity key for a finding — survives index changes across rescans */
+function _secKey(f) { return (f.rule || '') + '|' + (f.title || ''); }
+
+/** Extract the primary subject UPN/name from a finding for cross-tab navigation */
+function _secFindingSubject(f) {
+  if (!f) return null;
+  for (const key of ['subjects', 'user', 'affected']) {
+    const row = (f.signals || []).find(([k]) => k === key);
+    if (row && row[1] && row[1] !== '—') return row[1].split(',')[0].trim();
+  }
+  if (f.driftItems && f.driftItems.length > 0)
+    return f.driftItems[0].userPrincipalName || f.driftItems[0].displayName || null;
+  return null;
+}
+
+/** Show a compact floating dropdown anchored to a button element */
+function _showSecDropdown(anchorBtn, options, onSelect) {
+  document.getElementById('_sec-dd')?.remove();
+  const r = anchorBtn.getBoundingClientRect();
+  const panel = document.createElement('div');
+  panel.id = '_sec-dd';
+  Object.assign(panel.style, {
+    position: 'fixed', top: (r.bottom + 4) + 'px', left: r.left + 'px',
+    background: 'var(--surface-2,#181818)', border: '1px solid var(--border,#333)',
+    borderRadius: '6px', padding: '4px', zIndex: '9999',
+    minWidth: Math.max(r.width, 150) + 'px',
+    boxShadow: '0 8px 24px rgba(0,0,0,.55)',
+  });
+  options.forEach(({ label, value, active }) => {
+    const item = document.createElement('button');
+    Object.assign(item.style, {
+      display: 'block', width: '100%', textAlign: 'left',
+      padding: '6px 10px', background: active ? 'var(--surface-3,#242424)' : 'none',
+      border: 'none', color: 'var(--text-1)', fontSize: '12px',
+      cursor: 'pointer', borderRadius: '4px', transition: 'background .1s',
+    });
+    item.textContent = label;
+    item.addEventListener('mouseenter', () => { item.style.background = 'var(--surface-3,#242424)'; });
+    item.addEventListener('mouseleave', () => { item.style.background = active ? 'var(--surface-3,#242424)' : 'none'; });
+    item.addEventListener('click', e => { e.stopPropagation(); panel.remove(); onSelect(value, label); });
+    panel.appendChild(item);
+  });
+  document.body.appendChild(panel);
+  setTimeout(() => document.addEventListener('click', function _c() {
+    panel.remove(); document.removeEventListener('click', _c);
+  }), 0);
+}
+
+/** Sync the bulk-action bar (count badge + button visibility) */
+function _updateBulkBar() {
+  const n = _secCheckedSet.size;
+  const show = n > 0;
+  const countEl = document.getElementById('sec-selection-count');
+  if (countEl) { countEl.textContent = n + ' selected'; countEl.style.display = show ? '' : 'none'; }
+  ['sec-btn-assign', 'sec-btn-ack', 'sec-btn-page'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = show ? '' : 'none';
+  });
+}
+
+/** Render inbox rows respecting the current filter + acked state */
+function _renderSecRows() {
+  const inbox = document.getElementById('sec-inbox');
+  const empty = document.getElementById('sec-inbox-empty');
+  if (!inbox) return;
+
+  const visible = [];
+  _secFindings.forEach((f, origIdx) => {
+    if (_secAckedKeys.has(_secKey(f))) return; // hide acknowledged findings from active inbox
+    if (_secFilter.sev && f.sev !== _secFilter.sev) return;
+    if (_secFilter.source) {
+      if (!f.rule.toLowerCase().startsWith(_secFilter.source.toLowerCase())) return;
+    }
+    if (_secFilter.assign === 'unassigned' && f.assignee !== '—') return;
+    if (_secFilter.assign === 'assigned'   && f.assignee === '—') return;
+    if (_secFilter.maxAge > 0 && f.age !== '—') {
+      const ageDays = parseInt(f.age) || 0;
+      if (ageDays > _secFilter.maxAge) return;
+    }
+    visible.push({ f, origIdx });
+  });
+
+  inbox.innerHTML = '';
+  if (empty) inbox.appendChild(empty);
+
+  if (visible.length === 0) {
+    if (empty) empty.style.display = 'flex';
+    return;
+  }
+  if (empty) empty.style.display = 'none';
+
+  _secCheckedSet.clear();
+  _updateBulkBar();
+
+  visible.forEach(({ f, origIdx }, rowPos) => {
+    const row = document.createElement('div');
+    row.className = 'sec-finding-row' + (rowPos === 0 ? (f.sev === 'crit' ? ' focused' : ' focused-warn') : '');
+    row.dataset.idx = origIdx;
+    row.innerHTML =
+        '<input type="checkbox" style="accent-color:var(--violet)">'
+      + '<div class="sec-finding-sev-bar ' + f.sev + '"></div>'
+      + '<div class="sec-finding-content">'
+        + '<div class="sec-finding-rule-row">'
+          + '<span class="tag ' + f.sev + '">' + f.sev.toUpperCase() + '</span>'
+          + '<span class="mono" style="font-size:10.5px;color:var(--text-3);letter-spacing:.05em">' + escHtml(f.rule) + '</span>'
+        + '</div>'
+        + '<div class="sec-finding-title">' + escHtml(f.title) + '</div>'
+        + '<div class="sec-finding-sub">' + escHtml(f.sub) + '</div>'
+      + '</div>'
+      + '<div class="sec-finding-assignee">' + (f.assignee === '—' ? 'unassigned' : escHtml(f.assignee)) + '</div>'
+      + '<div class="sec-finding-age">' + f.age + '</div>'
+      + (rowPos === 0 ? '<span style="color:var(--text-3)">›</span>' : '<span></span>');
+
+    const cb = row.querySelector('input[type=checkbox]');
+    cb.addEventListener('change', () => {
+      if (cb.checked) _secCheckedSet.add(origIdx); else _secCheckedSet.delete(origIdx);
+      _updateBulkBar();
+    });
+
+    row.addEventListener('click', e => {
+      if (e.target === cb) return;
+      document.querySelectorAll('.sec-finding-row').forEach(r => r.classList.remove('focused', 'focused-warn'));
+      row.classList.add(f.sev === 'crit' ? 'focused' : 'focused-warn');
+      inbox.querySelectorAll('.sec-finding-row > span:last-child').forEach(s => { s.textContent = ''; });
+      row.querySelector('span:last-child').textContent = '›';
+      focusFinding(origIdx);
+    });
+
+    inbox.appendChild(row);
+  });
+
+  focusFinding(visible[0].origIdx);
+}
+
+/** Render (or update) the Acknowledged section below the active inbox */
+function _renderAckedSection() {
+  const inbox = document.getElementById('sec-inbox');
+  if (!inbox) return;
+
+  // Remove any existing section before re-rendering
+  let section = document.getElementById('sec-acked-section');
+  if (!section) {
+    section = document.createElement('div');
+    section.id = 'sec-acked-section';
+    inbox.appendChild(section);
+  }
+
+  if (_secAckedFindings.length === 0) {
+    section.innerHTML = '';
+    return;
+  }
+
+  const isAdmin = currentOperatorRole() === 'admin';
+  const timeFmt = d => d ? new Date(d).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+
+  section.innerHTML =
+    '<div style="display:flex;align-items:center;gap:8px;padding:10px 14px 6px;border-top:1px solid var(--border);margin-top:4px">'
+    + '<span style="font-size:11px;font-weight:600;color:var(--text-3);letter-spacing:.06em;text-transform:uppercase">Acknowledged</span>'
+    + '<span style="font-size:11px;font-family:var(--mono);color:var(--text-4)">' + _secAckedFindings.length + '</span>'
+    + '<span style="flex:1"></span>'
+    + (isAdmin
+        ? '<button class="btn sm danger" id="sec-acked-wipe" style="font-size:11px">Delete all</button>'
+        : '<span style="font-size:10.5px;color:var(--text-4);font-style:italic">Admin required to delete</span>')
+    + '</div>'
+    + _secAckedFindings.map((f, i) =>
+        '<div class="sec-finding-row" style="opacity:.45;pointer-events:none" data-acked-idx="' + i + '">'
+        + '<div class="sec-finding-sev-bar ' + f.sev + '" style="opacity:.5"></div>'
+        + '<div class="sec-finding-content">'
+          + '<div class="sec-finding-rule-row">'
+            + '<span class="tag ' + f.sev + '" style="opacity:.6">' + f.sev.toUpperCase() + '</span>'
+            + '<span class="mono" style="font-size:10.5px;color:var(--text-4)">' + escHtml(f.rule) + '</span>'
+          + '</div>'
+          + '<div class="sec-finding-title" style="color:var(--text-3)">' + escHtml(f.title) + '</div>'
+          + '<div class="sec-finding-sub">' + escHtml(f.sub) + '</div>'
+        + '</div>'
+        + '<div class="sec-finding-age" style="color:var(--text-4)">'
+            + (f.ackedAt ? timeFmt(f.ackedAt) : '') + '</div>'
+        + (isAdmin
+            ? '<button class="btn sm danger sec-acked-delete" data-acked-idx="' + i + '" style="pointer-events:all;font-size:11px">Delete</button>'
+            : '<span></span>')
+        + '</div>'
+      ).join('');
+
+  // Wire admin delete buttons
+  if (isAdmin) {
+    section.querySelector('#sec-acked-wipe')?.addEventListener('click', () => {
+      confirmModal({
+        title: 'Delete all acknowledged findings',
+        body: 'Permanently wipe ' + _secAckedFindings.length + ' acknowledged finding' + (_secAckedFindings.length > 1 ? 's' : '') + ' from this session? This cannot be undone.',
+        danger: true,
+        okLabel: 'Delete all',
+      }).then(ok => {
+        if (!ok) return;
+        _secAckedKeys.clear();
+        _secAckedFindings = [];
+        const ackedEl = document.getElementById('sec-count-acked');
+        if (ackedEl) ackedEl.textContent = '0';
+        _renderAckedSection();
+        showToast('All acknowledged findings deleted');
+      }).catch(() => {});
+    });
+
+    section.querySelectorAll('.sec-acked-delete').forEach(btn => {
+      btn.addEventListener('click', e => {
+        e.stopPropagation();
+        const idx = parseInt(btn.dataset.ackedIdx);
+        const f = _secAckedFindings[idx];
+        if (!f) return;
+        _secAckedKeys.delete(_secKey(f));
+        _secAckedFindings.splice(idx, 1);
+        const ackedEl = document.getElementById('sec-count-acked');
+        if (ackedEl) ackedEl.textContent = String(_secAckedFindings.length);
+        _renderAckedSection();
+        showToast('Finding deleted from acknowledged list');
+      });
+    });
+  }
+}
 
 function renderSecurityInbox(data) {
   const inbox = document.getElementById('sec-inbox');
@@ -1084,8 +1307,8 @@ function renderSecurityInbox(data) {
     });
   }
 
-  if (data.risky && data.risky.users) {
-    data.risky.users.forEach(u => {
+  if (data.riskyUsers && data.riskyUsers.users) {
+    data.riskyUsers.users.forEach(u => {
       _secFindings.push({
         sev: u.riskLevel === 'high' ? 'crit' : u.riskLevel === 'medium' ? 'warn' : 'info',
         rule: 'Identity Protection',
@@ -1116,48 +1339,28 @@ function renderSecurityInbox(data) {
   if (critEl) critEl.textContent = _secFindings.filter(f => f.sev === 'crit').length;
   if (warnEl) warnEl.textContent = _secFindings.filter(f => f.sev === 'warn').length;
   if (infoEl) infoEl.textContent = _secFindings.filter(f => f.sev === 'info').length;
-  if (ackedEl) ackedEl.textContent = '0'; // acknowledged tracking not yet implemented
+  if (ackedEl) ackedEl.textContent = String(_secAckedFindings.length);
+
+  // Reset active-inbox filter state (but NOT acked state — it persists across rescans)
+  _secFilter = { sev: '', source: '', assign: 'unassigned', maxAge: 0 };
+  const sevBtn    = document.getElementById('sec-filter-sev');
+  const srcBtn    = document.getElementById('sec-filter-source');
+  const assignBtn = document.getElementById('sec-filter-assign');
+  const timeBtn   = document.getElementById('sec-filter-time');
+  if (sevBtn)    { sevBtn.textContent = 'All severities ▾'; sevBtn.classList.remove('active'); }
+  if (srcBtn)    { srcBtn.textContent = 'All sources ▾';    srcBtn.classList.remove('active'); }
+  if (assignBtn) { assignBtn.textContent = 'Unassigned ▾';  assignBtn.classList.remove('active'); }
+  if (timeBtn)   { timeBtn.textContent = 'All time ▾';      timeBtn.classList.remove('active'); }
 
   if (_secFindings.length === 0) {
     if (empty) empty.style.display = 'flex';
+    _renderAckedSection();
     return;
   }
   if (empty) empty.style.display = 'none';
 
-  // Render finding rows
-  inbox.innerHTML = '';
-  if (empty) inbox.appendChild(empty);
-
-  _secFindings.forEach((f, i) => {
-    const row = document.createElement('div');
-    row.className = 'sec-finding-row' + (i === 0 ? ' focused' : '');
-    row.dataset.idx = i;
-    row.innerHTML =
-      '<input type="checkbox" style="accent-color:var(--violet)">'
-      + '<div class="sec-finding-sev-bar ' + f.sev + '"></div>'
-      + '<div class="sec-finding-content">'
-        + '<div class="sec-finding-rule-row">'
-          + '<span class="tag ' + f.sev + '">' + f.sev.toUpperCase() + '</span>'
-          + '<span class="mono" style="font-size:10.5px;color:var(--text-3);letter-spacing:.05em">' + escHtml(f.rule) + '</span>'
-        + '</div>'
-        + '<div class="sec-finding-title">' + escHtml(f.title) + '</div>'
-        + '<div class="sec-finding-sub">' + escHtml(f.sub) + '</div>'
-      + '</div>'
-      + '<div class="sec-finding-assignee">' + (f.assignee === '—' ? 'unassigned' : escHtml(f.assignee)) + '</div>'
-      + '<div class="sec-finding-age">' + f.age + '</div>'
-      + (i === 0 ? '<span style="color:var(--text-3)">›</span>' : '<span></span>');
-
-    row.addEventListener('click', (e) => {
-      if (e.target.type === 'checkbox') return;
-      document.querySelectorAll('.sec-finding-row').forEach(r => r.classList.remove('focused', 'focused-warn'));
-      row.classList.add(f.sev === 'crit' ? 'focused' : 'focused-warn');
-      focusFinding(i);
-    });
-    inbox.appendChild(row);
-  });
-
-  // Auto-focus first finding
-  if (_secFindings.length > 0) focusFinding(0);
+  _renderSecRows();
+  _renderAckedSection();
 }
 
 function focusFinding(idx) {
@@ -1178,6 +1381,14 @@ function focusFinding(idx) {
   if (titleEl) titleEl.textContent = f.title;
   if (ruleEl) ruleEl.textContent = f.rule;
   if (descEl) descEl.textContent = '';
+
+  // Update pivot button hash label — show a compact rule/check identifier
+  const pivotHashEl = document.getElementById('sec-pivot-audit-hash');
+  if (pivotHashEl) {
+    const parts = (f.rule || '').split(' · ');
+    pivotHashEl.textContent = parts.length > 1 ? parts.slice(1).join('·').slice(0, 14) : (parts[0] || '—').slice(0, 14);
+  }
+
   if (signalsEl) {
     signalsEl.innerHTML = (f.signals || []).map(([k, v]) =>
       '<div class="sec-signal-row"><span class="sec-signal-key">' + escHtml(String(k)) + '</span><span class="sec-signal-val">' + escHtml(String(v)) + '</span></div>'
@@ -1223,8 +1434,8 @@ window.api.onSecurityReports((data) => {
       critCount += data.drift.findings.filter(f => f.severity === 'critical').length;
       warnCount += data.drift.findings.filter(f => f.severity === 'warning').length;
     }
-    if (data.risky && data.risky.users) {
-      critCount += data.risky.users.filter(r => r.riskLevel === 'high').length;
+    if (data.riskyUsers && data.riskyUsers.users) {
+      critCount += data.riskyUsers.users.filter(r => r.riskLevel === 'high').length;
     }
     const labelEl = critCard.querySelector('.label');
     const titleEl = critCard.querySelector('.title');
@@ -1430,12 +1641,18 @@ window.api.onSecurityReports((data) => {
 
 // ── V2 security inbox action buttons ─────────────────────────────────────────
 document.getElementById('sec-action-ack')?.addEventListener('click', () => {
-  if (_secFocused === null) return;
-  const row = document.querySelector('.sec-finding-row.focused, .sec-finding-row.focused-warn');
-  if (row) row.style.opacity = '0.4';
+  if (_secFocused === null || !_secFindings[_secFocused]) return;
+  const f = _secFindings[_secFocused];
+  const key = _secKey(f);
+  if (!_secAckedKeys.has(key)) {
+    _secAckedKeys.add(key);
+    _secAckedFindings.push({ ...f, ackedAt: new Date() });
+  }
   const ackedEl = document.getElementById('sec-count-acked');
-  if (ackedEl) ackedEl.textContent = String((parseInt(ackedEl.textContent) || 0) + 1);
-  showToast('Finding acknowledged and moved to audit log');
+  if (ackedEl) ackedEl.textContent = String(_secAckedFindings.length);
+  showToast('Finding acknowledged');
+  _renderSecRows();
+  _renderAckedSection();
 });
 
 document.getElementById('sec-action-page')?.addEventListener('click', () => {
@@ -1448,6 +1665,207 @@ document.getElementById('sec-drift-restore-v2')?.addEventListener('click', () =>
   } else {
     showToast('Restore baseline: submitting for dual approval…');
   }
+});
+
+// ── Security pivot buttons ────────────────────────────────────────────────────
+// "Open audit entry" → jump to Audit Log and pre-filter by subject
+document.getElementById('sec-pivot-audit')?.addEventListener('click', () => {
+  const f = _secFindings[_secFocused];
+  if (!f) return;
+  switchTab('audit-log');
+  const subject = _secFindingSubject(f);
+  if (subject) {
+    setTimeout(() => {
+      const sel = document.getElementById('log-filter-agent');
+      // Audit log filters by agent name — try to set the UPN as a text search
+      const searchInput = document.getElementById('log-search-input') || document.getElementById('log-filter-upn');
+      if (searchInput) { searchInput.value = subject; }
+      // Trigger filter apply
+      const applyBtn = document.getElementById('btn-log-filter-apply') || document.getElementById('btn-log-apply');
+      if (applyBtn) applyBtn.click(); else if (typeof applyAuditFilters === 'function') applyAuditFilters();
+    }, 150);
+  }
+});
+
+// "Subject in Users" → jump to Users tab and search for the subject
+document.getElementById('sec-pivot-users')?.addEventListener('click', () => {
+  const f = _secFindings[_secFocused];
+  if (!f) return;
+  const subject = _secFindingSubject(f);
+  switchTab('users');
+  if (subject) {
+    setTimeout(() => {
+      const inp = document.getElementById('user-search-input');
+      if (inp) { inp.value = subject; }
+      const searchBtn = document.getElementById('btn-user-search');
+      if (searchBtn) searchBtn.click();
+    }, 150);
+  }
+});
+
+// "Ask Audit Agent" → jump to Auditor and pre-fill a contextual query
+document.getElementById('sec-pivot-audit-agent')?.addEventListener('click', () => {
+  const f = _secFindings[_secFocused];
+  if (!f) return;
+  switchTab('auditor');
+  setTimeout(() => {
+    const inp = document.getElementById('input-auditor');
+    if (inp) {
+      const subject = _secFindingSubject(f);
+      inp.value = subject
+        ? `Investigate security finding "${f.title}" (${f.rule}) for user ${subject}. Show related audit entries and context.`
+        : `Investigate security finding: "${f.title}" (${f.rule}). Show related audit log entries.`;
+      inp.focus();
+    }
+  }, 150);
+});
+
+// ── Security filter dropdowns ─────────────────────────────────────────────────
+document.getElementById('sec-filter-sev')?.addEventListener('click', function () {
+  _showSecDropdown(this, [
+    { label: 'All severities', value: '', active: _secFilter.sev === '' },
+    { label: 'Critical only',  value: 'crit', active: _secFilter.sev === 'crit' },
+    { label: 'Warning+',       value: 'warn', active: _secFilter.sev === 'warn' },
+    { label: 'Info only',      value: 'info', active: _secFilter.sev === 'info' },
+  ], (value, label) => {
+    _secFilter.sev = value;
+    this.textContent = (value ? label : 'All severities') + ' ▾';
+    this.classList.toggle('active', !!value);
+    _renderSecRows();
+  });
+});
+
+document.getElementById('sec-filter-source')?.addEventListener('click', function () {
+  _showSecDropdown(this, [
+    { label: 'All sources',         value: '',        active: _secFilter.source === '' },
+    { label: 'UEBA',                value: 'ueba',    active: _secFilter.source === 'ueba' },
+    { label: 'Drift',               value: 'drift',   active: _secFilter.source === 'drift' },
+    { label: 'Identity Protection', value: 'identity',active: _secFilter.source === 'identity' },
+  ], (value, label) => {
+    _secFilter.source = value;
+    this.textContent = (value ? label : 'All sources') + ' ▾';
+    this.classList.toggle('active', !!value);
+    _renderSecRows();
+  });
+});
+
+document.getElementById('sec-filter-assign')?.addEventListener('click', function () {
+  _showSecDropdown(this, [
+    { label: 'Unassigned',  value: 'unassigned', active: _secFilter.assign === 'unassigned' },
+    { label: 'Assigned',    value: 'assigned',   active: _secFilter.assign === 'assigned' },
+    { label: 'All findings',value: '',           active: _secFilter.assign === '' },
+  ], (value, label) => {
+    _secFilter.assign = value;
+    this.textContent = (value === 'unassigned' ? 'Unassigned' : value === 'assigned' ? 'Assigned' : 'All') + ' ▾';
+    this.classList.toggle('active', value === 'assigned');
+    _renderSecRows();
+  });
+});
+
+document.getElementById('sec-filter-time')?.addEventListener('click', function () {
+  _showSecDropdown(this, [
+    { label: 'All time', value: 0,  active: _secFilter.maxAge === 0 },
+    { label: 'Last 24h', value: 1,  active: _secFilter.maxAge === 1 },
+    { label: 'Last 7d',  value: 7,  active: _secFilter.maxAge === 7 },
+    { label: 'Last 30d', value: 30, active: _secFilter.maxAge === 30 },
+  ], (value, label) => {
+    _secFilter.maxAge = value;
+    this.textContent = label + ' ▾';
+    this.classList.toggle('active', value > 0);
+    _renderSecRows();
+  });
+});
+
+// ── Security bulk action buttons ──────────────────────────────────────────────
+document.getElementById('sec-btn-ack')?.addEventListener('click', () => {
+  if (_secCheckedSet.size === 0) return;
+  _secCheckedSet.forEach(idx => {
+    const f = _secFindings[idx];
+    if (!f) return;
+    const key = _secKey(f);
+    if (!_secAckedKeys.has(key)) {
+      _secAckedKeys.add(key);
+      _secAckedFindings.push({ ...f, ackedAt: new Date() });
+    }
+  });
+  const ackedEl = document.getElementById('sec-count-acked');
+  if (ackedEl) ackedEl.textContent = String(_secAckedFindings.length);
+  const n = _secCheckedSet.size;
+  showToast(n + ' finding' + (n > 1 ? 's' : '') + ' acknowledged');
+  _renderSecRows();
+  _renderAckedSection();
+});
+
+document.getElementById('sec-btn-page')?.addEventListener('click', () => {
+  const n = _secCheckedSet.size;
+  if (n === 0) return;
+  showToast('On-call paged for ' + n + ' finding' + (n > 1 ? 's' : '') + ' via Teams (#identity-ops)');
+});
+
+document.getElementById('sec-btn-assign')?.addEventListener('click', function () {
+  if (_secCheckedSet.size === 0) return;
+  const n = _secCheckedSet.size;
+  confirmModal({
+    title: 'Assign ' + n + ' finding' + (n > 1 ? 's' : ''),
+    body: 'Assign to current operator? This is a placeholder — integrate with your operator roster.',
+    okLabel: 'Assign to me',
+  }).then(ok => {
+    if (!ok) return;
+    _secCheckedSet.forEach(idx => { if (_secFindings[idx]) _secFindings[idx].assignee = 'me'; });
+    showToast(n + ' finding' + (n > 1 ? 's' : '') + ' assigned');
+    _renderSecRows();
+  }).catch(() => {});
+});
+
+// ── Individual finding action: Assign ─────────────────────────────────────────
+document.getElementById('sec-action-assign')?.addEventListener('click', () => {
+  if (_secFocused === null || !_secFindings[_secFocused]) return;
+  confirmModal({
+    title: 'Assign finding',
+    body: 'Assign "' + _secFindings[_secFocused].title + '" to the current operator?',
+    okLabel: 'Assign to me',
+  }).then(ok => {
+    if (!ok) return;
+    _secFindings[_secFocused].assignee = 'me';
+    showToast('Finding assigned');
+    _renderSecRows();
+  }).catch(() => {});
+});
+
+// ── Drift "Show full diff" ────────────────────────────────────────────────────
+document.getElementById('sec-drift-full')?.addEventListener('click', () => {
+  const f = _secFindings[_secFocused];
+  if (!f || !f.isDrift || !f.driftItems) return;
+  const rowsHtml = f.driftItems.map(item => {
+    const name = escHtml(item.displayName || item.userPrincipalName || item.agent || '?');
+    const exp = item.expected ? escHtml(item.expected) : null;
+    const act = item.actual  ? escHtml(item.actual)   : null;
+    return '<div style="margin-bottom:8px">'
+      + '<div style="font-weight:600;margin-bottom:4px">' + name + '</div>'
+      + (exp
+        ? '<div class="diff-row keep"><span class="sym"> </span><span style="color:var(--ok)">Expected: ' + exp + '</span></div>'
+          + '<div class="diff-row rem"><span class="sym">−</span><span style="color:var(--crit)">Actual: ' + (act || '?') + '</span></div>'
+        : '<div class="diff-row rem"><span class="sym">−</span><span>' + escHtml(item.note || f.title) + '</span></div>')
+      + '</div>';
+  }).join('<hr style="border-color:var(--border);margin:8px 0">');
+
+  // Build modal directly so we can render HTML (showDetailPopover escapes raw)
+  const overlay = document.createElement('div');
+  overlay.className = 'pin-overlay';
+  overlay.innerHTML =
+    '<div class="pin-modal" style="width:540px;max-width:94vw">'
+    + '<div class="pin-header"><div class="pin-title">' + escHtml('Full drift diff — ' + f.title) + '</div></div>'
+    + '<div class="pin-body" style="max-height:60vh;overflow-y:auto;padding:16px">'
+    + '<div style="font-family:var(--mono,monospace);font-size:12px;line-height:1.7">'
+    + rowsHtml
+    + '</div></div>'
+    + '<div class="pin-footer"><button class="btn ghost dd-close">Close</button></div>'
+    + '</div>';
+  document.body.appendChild(overlay);
+  const close = () => overlay.remove();
+  overlay.querySelector('.dd-close').addEventListener('click', close);
+  overlay.addEventListener('click', e => { if (e.target === overlay) close(); });
+  document.addEventListener('keydown', function esc(e) { if (e.key === 'Escape') { close(); document.removeEventListener('keydown', esc); } });
 });
 
 // ── Exports tab ───────────────────────────────────────────────────────────────
@@ -2181,14 +2599,12 @@ function agentScopeTip(agent, label, className) {
   const safeLabel = escHtml(label || key || 'agent');
   const cls = className ? ' ' + className : '';
   if (!meta) return '<span class="agent-scope-label' + cls + '">' + safeLabel + '</span>';
+  // Compact tooltip: role + key permissions only (no reg, cannot, or note)
   return '<span class="tip-host agent-scope-label' + cls + '" tabindex="0">' + safeLabel +
     '<span class="tip">' +
-      '<div class="tip-title">' + escHtml(meta.label || key) + ' agent scope</div>' +
-      (meta.reg ? '<div class="tip-row"><span class="k">reg</span><span class="v mono">' + escHtml(meta.reg) + '</span></div>' : '') +
+      '<div class="tip-title">' + escHtml(meta.label || key) + '</div>' +
       '<div class="tip-row"><span class="k">role</span><span class="v">' + escHtml(meta.role) + '</span></div>' +
       '<div class="tip-row"><span class="k">can</span><span class="v ok">' + escHtml(meta.scopes.join(', ')) + '</span></div>' +
-      '<div class="tip-row"><span class="k">cannot</span><span class="v crit">' + escHtml(meta.cannot.join(', ')) + '</span></div>' +
-      (meta.note ? '<div class="tip-note">' + escHtml(meta.note) + '</div>' : '') +
     '</span>' +
   '</span>';
 }
@@ -2321,25 +2737,29 @@ function renderRiskScoreCard(data) {
 }
 
 function renderPlanPreviewCard() {
-  // [num, op, subject, detail, agent, dur, reversible]
-  // reversible: true = ↺ can undo, false = → one-way
+  // [num, op, subject, detail, agentKey, dur, reversible]
+  // reversible: true = ↺ (can roll back), false = → (permanent)
   const rows = [
-    ['01', 'graph.user.disable',              '→ robert.martinez@contoso.com', 'set accountEnabled = false',              'leaver',  '~0.4s', true],
-    ['02', 'graph.user.revokeSignInSessions', '→ 3 active sessions',           'force sign-in across all clients',        'leaver',  '~0.8s', false],
-    ['03', 'purview.irm.submit',              '→ termination record',           'create Insider Risk Management entry',    'leaver',  '~0.6s', true],
-    ['04', 'audit.write',                     '→ hash-chain entry',             'prev-hash + pending operation hash',      'auditor', '~0.2s', false],
+    ['01', 'graph.user.disable',              'robert.martinez@contoso.com', 'set accountEnabled = false',           'leaver',  '~0.4s', true],
+    ['02', 'graph.user.revokeSignInSessions', '3 active sessions',           'force re-authentication on all clients','leaver',  '~0.8s', false],
+    ['03', 'purview.irm.submit',              'termination record',           'open Insider Risk Management case',    'leaver',  '~0.6s', true],
+    ['04', 'audit.write',                     'audit trail entry',            'append tamper-evident record',         'auditor', '~0.2s', false],
   ];
-  // Grid: 24px(num) | 1fr(op+sub+detail) | auto(meta)
+  // Agent tag colour map
+  const agentTag = key => {
+    const colours = { leaver: 'crit', joiner: 'ok', mover: 'warn', auditor: 'info', approver: 'violet', certifier: 'cyan' };
+    return '<span class="tag ' + (colours[key] || 'info') + '">' + escHtml(key) + '</span>';
+  };
   return '<div class="plan-list v2-chat-card">' + rows.map(r =>
     '<div class="plan-row">' +
       '<span class="step-num">' + r[0] + '</span>' +
-      '<span>' +
+      '<span class="step-body">' +
         '<span class="step-op">' + escHtml(r[1]) + '</span>' +
         '<span class="step-sub">' + escHtml(r[2]) + '</span>' +
         '<span class="step-detail">' + escHtml(r[3]) + '</span>' +
       '</span>' +
       '<span class="step-meta">' +
-        agentScopeTip(r[4], r[4], 'tag info') +
+        agentTag(r[4]) +
         '<span class="step-dur">' + r[5] + '</span>' +
         '<span class="step-rev ' + (r[6] ? 'ok' : 'warn') + '">' + (r[6] ? '&#x21BA;' : '&rarr;') + '</span>' +
       '</span>' +
@@ -2751,7 +3171,10 @@ document.getElementById('btn-schedule').addEventListener('click', () => {
   const upn    = document.getElementById('sched-upn').value.trim();
   const when   = document.getElementById('sched-when').value;
   const whatif = document.getElementById('sched-whatif').checked;
-  if (!op || !upn || !when) return;
+  if (!op || !upn || !when) {
+    showToast(!upn ? 'Enter a UPN before scheduling' : 'Choose a date and time', 'warn');
+    return;
+  }
   window.api.saveScheduledOp({
     operation: op,
     payload:   { userPrincipalName: upn, whatif },
@@ -3205,10 +3628,18 @@ document.getElementById('btn-notif-add')?.addEventListener('click', () => {
     }
     document.getElementById('wizard-signin-pending').style.display = '';
     if (_signinPoll) clearInterval(_signinPoll);
+    let _urlOpened = false;
     _signinPoll = setInterval(async () => {
       const s = await window.api.checkDeviceCodeStatus();
       if (s.deviceCode) document.getElementById('wizard-device-code').textContent = s.deviceCode;
-      if (s.verificationUrl) document.getElementById('wizard-verify-url').textContent = s.verificationUrl;
+      if (s.verificationUrl) {
+        document.getElementById('wizard-verify-url').textContent = s.verificationUrl;
+        // Auto-open verification URL in browser the first time it arrives
+        if (!_urlOpened) {
+          _urlOpened = true;
+          if (typeof window.api?.openExternal === 'function') window.api.openExternal(s.verificationUrl);
+        }
+      }
       if (s.status === 'success') {
         clearInterval(_signinPoll); _signinPoll = null;
         _wizState.tenantId = s.tenantId; _wizState.account = s.account;
@@ -3224,6 +3655,22 @@ document.getElementById('btn-notif-add')?.addEventListener('click', () => {
         document.getElementById('wizard-signin-pending').style.display = 'none';
       }
     }, 2000);
+  });
+
+  // Wizard step 1 — Copy code button
+  document.getElementById('wizard-copy-code')?.addEventListener('click', () => {
+    const code = document.getElementById('wizard-device-code').textContent.trim();
+    if (code && code !== '—') {
+      navigator.clipboard.writeText(code).then(() => showToast('Device code copied')).catch(() => showToast('Copy failed', 'warn'));
+    }
+  });
+
+  // Wizard step 1 — Open URL button
+  document.getElementById('wizard-open-url')?.addEventListener('click', () => {
+    const url = document.getElementById('wizard-verify-url').textContent.trim();
+    if (url && url !== '—' && typeof window.api?.openExternal === 'function') {
+      window.api.openExternal(url);
+    }
   });
 
   // Step 2 — create app regs
@@ -4686,6 +5133,7 @@ document.getElementById('dash-action-mover').addEventListener('click',  () => _d
 document.getElementById('dash-action-leaver').addEventListener('click', () => _dashQuickAction('approver', 'Offboard a leaver'));
 document.getElementById('dash-action-audit').addEventListener('click',  () => { switchTab('auditor'); document.getElementById('input-auditor').focus(); });
 document.getElementById('dash-open-security').addEventListener('click', () => switchTab('security'));
+document.getElementById('dash-open-ops')?.addEventListener('click', () => switchTab('operations'));
 
 // Shared helper: open a <details> then smooth-scroll to it within its .view container
 function openSecSection(key) {
