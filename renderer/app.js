@@ -64,7 +64,6 @@ const TAB_TITLES = {
 const PAGE_BRIEFS = {
   approver: [
     ['Intent', 'Plan before write', 'Every request resolves into scoped steps before the tenant is touched.'],
-    ['Guardrail', 'Reaction window', 'Sensitive actions pause between confirmed intent and committed write.'],
     ['Control', 'Dual approval', 'Hard leavers, PIM-adjacent changes, and sensitive licenses require a second hand.']
   ],
   auditor: [
@@ -2671,9 +2670,6 @@ function renderV2ChatEnhancements(text) {
   if (/\bplan\b|graph\.|revoke|disable|license|group|audit\.write|offboard|leaver/.test(t)) {
     parts.push(renderPlanPreviewCard());
   }
-  if (/\bcommit\b|confirmed|go ahead|submit|live mode|write/.test(t)) {
-    parts.push(renderReactionWindowCard());
-  }
   return parts.length ? '<div class="v2-chat-enhancements">' + parts.join('') + '</div>' : '';
 }
 
@@ -2809,20 +2805,6 @@ function renderPlanPreviewCard() {
   ).join('') + '</div>';
 }
 
-function renderReactionWindowCard() {
-  return '<div class="reaction-window v2-chat-card">' +
-    '<div class="rw-header">' +
-      '<span class="dot warn"></span>' +
-      '<span class="rw-title">Reaction window &middot; committing in 2.4s</span>' +
-      '<span class="rw-meta">machine commit: 11ms &middot; your hand: ~1.4s</span>' +
-    '</div>' +
-    '<div class="countdown-bar"><div class="fill" style="--countdown-fill:48%"></div></div>' +
-    '<div class="rw-copy">The agent waits for you between plan and write. This is not a confirmation modal.</div>' +
-    '<div class="rw-footer">' +
-      '<button class="btn danger sm" type="button" onclick="this.closest(\'.reaction-window\').remove()">Abort</button>' +
-    '</div>' +
-  '</div>';
-}
 
 document.getElementById('refresh-approvals').addEventListener('click', loadApprovals);
 
