@@ -4,8 +4,8 @@
 
 .DESCRIPTION
     Queries users in the same department, tallies their license assignments and
-    group memberships, and returns the most common configuration as recommended
-    defaults for a new Joiner or Mover.
+    group memberships, and returns recommendations for licenses and groups
+    held by a strict majority of sampled peers.
 
 .PARAMETER Department
     The target department to find peers in.
@@ -74,27 +74,31 @@ $skuResp = Invoke-MgGraphRequest -Method GET -Uri "https://graph.microsoft.com/v
 $skuMap  = @{}
 foreach ($s in $skuResp.value) { $skuMap[$s.skuId] = $s.skuPartNumber }
 
-# ── Tally group memberships (sample up to 10 peers to limit API calls) ──────────
+# Tally group memberships (sample up to 10 peers to limit API calls)
 $sampleSize = [Math]::Min($peerCount, 10)
 $groupHits  = @{}
 foreach ($user in ($peers | Select-Object -First $sampleSize)) {
     try {
-        $grps = Invoke-MgGraphRequest -Method GET -Uri (
+        $grps = Get-AllPages (
             "https://graph.microsoft.com/v1.0/users/$($user.id)" +
             "/memberOf/microsoft.graph.group?`$select=displayName&`$top=50")
-        foreach ($g in @($grps.value)) {
+        foreach ($g in @($grps)) {
             $name = $g.displayName
-            if ($name) { $groupHits[$name] = ($groupHits[$name] ?? 0) + 1 }
+            if ($name) {
+                if (-not $groupHits.ContainsKey($name)) { $groupHits[$name] = 0 }
+                $groupHits[$name]++
+            }
         }
     } catch {}
 }
 
-# ── Apply >50% threshold ────────────────────────────────────────────────────────
-$licThreshold   = [Math]::Max(1, [Math]::Ceiling($peerCount * 0.5))
-$grpThreshold   = [Math]::Max(1, [Math]::Ceiling($sampleSize * 0.5))
+# Apply strict >50% threshold.
+$licThreshold = [Math]::Max(1, [Math]::Floor($peerCount / 2) + 1)
+$grpThreshold = [Math]::Max(1, [Math]::Floor($sampleSize / 2) + 1)
 
 $recommendedLicenses = @($licenseHits.GetEnumerator() |
     Where-Object { $_.Value -ge $licThreshold } |
+    Sort-Object Value -Descending |
     ForEach-Object { if ($skuMap[$_.Key]) { $skuMap[$_.Key] } else { $_.Key } })
 
 $recommendedGroups = @($groupHits.GetEnumerator() |

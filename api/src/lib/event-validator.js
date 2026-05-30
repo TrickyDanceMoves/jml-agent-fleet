@@ -21,6 +21,12 @@ function validateEvent(event) {
   if (event.eventType === 'transfer' && !event.changes) {
     return { valid: false, errors: ['changes object required for eventType=transfer'] };
   }
+  if (event.eventType === 'hire' && !event.employee.firstName) {
+    return { valid: false, errors: ['employee.firstName required for eventType=hire'] };
+  }
+  if (event.eventType === 'hire' && !event.employee.lastName) {
+    return { valid: false, errors: ['employee.lastName required for eventType=hire'] };
+  }
   if (event.eventType === 'hire' && !event.employee.usageLocation) {
     return { valid: false, errors: ['employee.usageLocation required for eventType=hire'] };
   }

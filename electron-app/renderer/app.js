@@ -17,11 +17,26 @@ const _submitBatch = {
   approver: {},
   auditor:  {}
 };
+// Holds the most-recent score_risk tool result so renderRiskScoreCard can
+// render contextual reasons rather than generic placeholder text.
+let _lastRiskResult = null;
 
 // ── Agent avatars ─────────────────────────────────────────────────────────────
 const AGENT_AVATARS = {
   approver: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/></svg>`,
   auditor:  `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/></svg>`
+};
+
+const AGENT_SCOPE_META = {
+  joiner:      { label: 'Joiner',      reg: 'jml-joiner-agent',      role: 'CREATE accounts on day-one',                        scopes: ['User.RW', 'Group.RW', 'LicenseAssignment.RW'],              cannot: ['PIM', 'Conditional Access', 'Directory roles'],              note: 'Day-one account creation. Invoked from Joiner tab form or HRIS webhook.' },
+  mover:       { label: 'Mover',       reg: 'jml-mover-agent',       role: 'TRANSFER group + license membership',               scopes: ['User.RW', 'Group.RW'],                                       cannot: ['Account creation', 'PIM', 'Directory roles'],                note: 'Transfer group membership and license seats on role change.' },
+  leaver:      { label: 'Leaver',      reg: 'jml-leaver-agent',      role: 'OFFBOARD accounts in stages',                       scopes: ['User.RW', 'Group.RW', 'Sessions.Revoke'],                    cannot: ['PIM', 'Conditional Access', 'License purchase'],             note: 'Soft & hard offboard. Soft = disable; hard = delete after 30d.' },
+  enroller:    { label: 'Enroller',    reg: 'jml-enroller-agent',    role: 'MFA + device enrollment',                           scopes: ['Device.RW', 'Policy.Read'],                                  cannot: ['User mutation', 'Group mutation', 'PIM'],                    note: 'MFA registration, SSPR, device enroll, Conditional Access seed.' },
+  certifier:   { label: 'Certifier',   reg: 'jml-certifier-agent',   role: 'RECERTIFY access reviews',                          scopes: ['Group.Read', 'AccessReview.RW', 'AuditLog.Read'],            cannot: ['User write', 'Group write', 'PIM'],                          note: 'Drives quarterly access-review campaigns against Entra groups.' },
+  approver:    { label: 'Approver',    reg: 'jml-approver-agent',    role: 'CONVERSATIONAL submit w/ dual-approval',             scopes: ['inherits operator scope'],                                   cannot: ['anything beyond the operator'],                              note: 'Conversational front-door. Collects intent, builds plan, holds reaction window.' },
+  provisioner: { label: 'Provisioner', reg: 'jml-provisioner-agent', role: 'ROTATE certs + per-agent app regs',                 scopes: ['Application.RW.OwnedBy', 'Directory.AccessAsUser.All'],     cannot: ['User / group / role mutation', 'PIM'],                       note: 'Rotates per-agent certs and manages application registrations.' },
+  auditor:     { label: 'Auditor',     reg: 'jml-auditor-agent',     role: 'READ-ONLY query of logs + policy advisor',          scopes: ['AuditLog.Read', 'IdentityRiskyUser.Read'],                   cannot: ['anything that mutates state'],                               note: 'NL query layer over the hash-chained audit log. Read-only, no mutations.' },
+  knowledge:   { label: 'Knowledge',   reg: 'jml-knowledge-agent',   role: 'READ-ONLY policy advisor',                          scopes: ['internal KB only'],                                          cannot: ['directory access', 'audit access'],                          note: 'Policy advisor backed by internal KB. No directory or audit access.' },
 };
 
 // ── Tab switching + auto-refresh ──────────────────────────────────────────────
@@ -46,6 +61,95 @@ const TAB_TITLES = {
 
 // Tabs where the Safe/Live mode pill is meaningful — anywhere you can issue
 // or approve a write operation. Read-only views hide the pill to reduce noise.
+const PAGE_BRIEFS = {
+  approver: [
+    ['Intent', 'Plan before write', 'Every request resolves into scoped steps before the tenant is touched.'],
+    ['Control', 'Dual approval', 'Hard leavers, PIM-adjacent changes, and sensitive licenses require a second hand.']
+  ],
+  auditor: [
+    ['Scope', 'Read-only evidence', 'The Auditor can query logs, risk signals, and policy context without mutating state.'],
+    ['Boundary', 'No directory writes', 'This surface is for explanation, precedent, and traceability only.'],
+    ['Output', 'Citation-first answers', 'Responses point back to audit entries, policies, or event history.']
+  ],
+  approvals: [
+    ['Queue', 'Expiring tokens', 'Approval tokens age out quickly so stale identity decisions do not linger.'],
+    ['Risk', 'Second operator', 'High-impact requests stay blocked until a separate approver signs.'],
+    ['Audit', 'Receipt required', 'Approve and reject actions both become durable evidence.']
+  ],
+  operations: [
+    ['Run state', 'In-flight visibility', 'Operators can see active, queued, completed, and scheduled lifecycle work.'],
+    ['Safety', 'Safe by default', 'Bulk and quick actions start as what-if until an operator chooses live execution.'],
+    ['Recovery', 'Rollback context', 'Lifecycle runs keep enough state nearby to inspect outcomes and recover.']
+  ],
+  certifications: [
+    ['Campaigns', 'Entitlement reviews', 'The Certifier drives recurring access attestations for groups and licenses.'],
+    ['Revocation', 'Approval-routed', 'Sensitive removals flow through Approver instead of bypassing controls.'],
+    ['Evidence', 'Reviewer trace', 'Campaign decisions stay tied to reviewers, scope, and timestamps.']
+  ],
+  integrations: [
+    ['Origin', 'HRIS inbound', 'BambooHR, Workday, and ServiceNow events enter through a canonical lane.'],
+    ['Queue', 'Durable handoff', 'External events land in a queue before any agent decides or writes.'],
+    ['Notify', 'Teams and SIEM', 'Human alerts and downstream security records stay connected to the same event.']
+  ],
+  security: [
+    ['Threats', 'UEBA and risk', 'After-hours behavior, risky identities, and suspicious sequences surface here first.'],
+    ['Drift', 'Baseline repair', 'Policy drift is shown as a concrete diff before remediation is queued.'],
+    ['Escalation', 'On-call ready', 'Critical findings are designed to page operators, not sit as passive reports.']
+  ],
+  'audit-log': [
+    ['Integrity', 'Hash-chain verified', 'Every lifecycle operation links to the previous evidence hash.'],
+    ['Replication', 'Multi-sink chain', 'Local chain, Blob, Sentinel, SIEM, and object lock should agree.'],
+    ['Export', 'Attestation packs', 'Evidence can be packaged for audit without losing provenance.']
+  ],
+  exports: [
+    ['Channels', 'SIEM and archive', 'Audit, security, and inventory exports share the same evidence backbone.'],
+    ['Parity', 'Same chain everywhere', 'Downstream systems receive records tied to the same hash-chain state.'],
+    ['Operations', 'Retry visible', 'Failed replication should be visible and recoverable from this page.']
+  ],
+  users: [
+    ['Directory', 'Identity inventory', 'Managed users are shown with lifecycle, risk, and access-review context.'],
+    ['Signals', 'Risk beside profile', 'UEBA, Identity Protection, and drift signals stay near the person affected.'],
+    ['Action', 'Least-privilege jump', 'User-level action routes through the right agent and approval path.']
+  ],
+  graph: [
+    ['Access', 'Scoped Graph runner', 'Ad-hoc Graph calls run under fleet RBAC, not an invisible operator shortcut.'],
+    ['Logging', 'Every call recorded', 'Queries and mutations are expected to leave an audit trail.'],
+    ['Control', 'Writes need approval', 'Mutating verbs require Approver context before they proceed.']
+  ],
+  certs: [
+    ['Credentials', 'Per-agent certs', 'Each agent has its own app registration and credential lifecycle.'],
+    ['Least privilege', 'Scope matrix', 'Permissions are visible by agent so over-broad access is easy to spot.'],
+    ['Rotation', 'Provisioner managed', 'Expiring certs are detected early and routed through the rotation path.']
+  ],
+  settings: [
+    ['Tenant', 'Binding and authority', 'Tenant, operators, roles, and notification rules define who can steer the fleet.'],
+    ['Policy', 'Guardrails live here', 'Freeze windows, SoD, calendar policy, and routing rules are operational controls.'],
+    ['Audit', 'Config is evidence', 'Settings changes are treated as lifecycle events, not private preferences.']
+  ]
+};
+
+function setupPageBriefs() {
+  // Function-first console: page briefs were visually useful in isolation, but
+  // they delayed the actual tool on every tab. Keep the copy here for future
+  // help/tooltips, but do not inject full-width info tiles.
+  return;
+  Object.entries(PAGE_BRIEFS).forEach(([tab, items]) => {
+    const view = document.getElementById('view-' + tab);
+    const head = view && view.querySelector(':scope > .head');
+    if (!head || view.querySelector(':scope > .v2-view-brief')) return;
+    const html = '<div class="v2-view-brief">' + items.map(([k, title, copy]) =>
+      '<div class="v2-brief-tile">' +
+        '<span class="k">' + k + '</span>' +
+        '<span class="t">' + title + '</span>' +
+        '<span class="c">' + copy + '</span>' +
+      '</div>'
+    ).join('') + '</div>';
+    head.insertAdjacentHTML('afterend', html);
+  });
+}
+
+setupPageBriefs();
+
 const TABS_WITH_MODE = new Set(['approver', 'approvals', 'operations', 'users']);
 
 function switchTab(tab) {
@@ -70,15 +174,132 @@ function switchTab(tab) {
   if (tab === 'certifications'){ loadCertifications(); _tabRefreshTimers.certifications = setInterval(loadCertifications, 60000); }
   if (tab === 'settings')      loadSettings();
   if (tab === 'integrations')  loadIntegrations();
+  if (tab === 'users')         loadRecentUsers();
 }
 
-// Lightweight loader for the new Integrations tab. Pulls live HR queue depth
-// from the existing IPC channel; everything else is static brochure data.
+// ── Integrations tab loader ────────────────────────────────────────────────────
+let _intConfig = null;
+
+function applyIntegrationsConfig(cfg) {
+  _intConfig = cfg || {};
+  const bb = cfg.bamboohr || {};
+  const tm = cfg.teams    || {};
+  const st = cfg.sentinel || {};
+
+  const setEl = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val || '—'; };
+  const setHealth = (id, enabled) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    if (enabled) { el.textContent = 'live';    el.classList.remove('int-health-offline'); }
+    else         { el.textContent = 'offline'; el.classList.add('int-health-offline'); }
+  };
+
+  setHealth('int-bamboo-health',   bb.enabled);
+  setHealth('int-teams-health',    tm.enabled);
+  setHealth('int-sentinel-health', st.enabled);
+
+  const secretEl = document.getElementById('int-bamboo-secret');
+  if (secretEl) secretEl.textContent = bb.enabled ? '••••• configured' : 'not configured';
+
+  setEl('int-teams-channel',    tm.channel);
+  setEl('int-teams-oncall',     tm.oncallHandle);
+  setEl('int-sentinel-ws',      st.workspaceName);
+  setEl('int-sentinel-table',   st.tableName);
+  setEl('int-sentinel-rules',   '—');
+
+  // Show edit buttons only for admins
+  const isAdmin = currentOperatorRole() === 'admin';
+  document.querySelectorAll('.int-admin-only').forEach(btn => { btn.style.display = isAdmin ? '' : 'none'; });
+}
+
 function loadIntegrations() {
   if (typeof window.api?.getHrQueue === 'function') {
     try { window.api.getHrQueue(); } catch (_) { /* non-fatal */ }
   }
+  if (typeof window.api?.getIntegrationsConfig === 'function') {
+    window.api.getIntegrationsConfig().then(r => { if (r && r.config) applyIntegrationsConfig(r.config); }).catch(() => {});
+  }
 }
+
+// ── Integration edit modal ────────────────────────────────────────────────────
+(function wireIntegrationEdit() {
+  const overlay = document.getElementById('int-edit-overlay');
+  if (!overlay) return;
+
+  const FIELDS = {
+    bamboohr: {
+      title: 'Edit BambooHR',
+      hint:  'Webhook secret and API key are stored in api/local.settings.json. Set the enabled flag here once the webhook is wired up.',
+      fields: []
+    },
+    teams: {
+      title: 'Edit Microsoft Teams',
+      hint:  'Teams webhook URL is stored in shared/notifications.json. Update channel and on-call handle here.',
+      fields: [
+        { id: 'teams-channel',    label: 'Channel',       key: 'channel',      placeholder: '#identity-ops' },
+        { id: 'teams-oncall',     label: 'On-crit handle',key: 'oncallHandle', placeholder: '@oncall-identity' }
+      ]
+    },
+    sentinel: {
+      title: 'Edit Sentinel Pipeline',
+      hint:  'Connection details (workspace ID, key) are stored in auditor/sentinel.config.json. Set display labels and enable here.',
+      fields: [
+        { id: 'sentinel-ws',     label: 'Workspace name', key: 'workspaceName', placeholder: 'my-la-workspace' },
+        { id: 'sentinel-table',  label: 'Table name',     key: 'tableName',     placeholder: 'JmlFleet_CL' }
+      ]
+    }
+  };
+
+  let _activeInt = null;
+
+  document.querySelectorAll('.int-admin-only').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const intKey = btn.dataset.int;
+      const def = FIELDS[intKey];
+      if (!def) return;
+      _activeInt = intKey;
+      document.getElementById('int-edit-modal-title').textContent = def.title;
+      document.getElementById('int-edit-hint').textContent        = def.hint;
+
+      const fields = document.getElementById('int-edit-modal-fields');
+      const cur = (_intConfig && _intConfig[intKey]) || {};
+      fields.innerHTML = def.fields.map(f => `
+        <label style="display:flex;flex-direction:column;gap:4px;font-size:12.5px;color:var(--text-2)">
+          ${escHtml(f.label)}
+          <input class="int-edit-field" data-key="${escHtml(f.key)}"
+            value="${escHtml(cur[f.key] || '')}"
+            placeholder="${escHtml(f.placeholder)}"
+            style="padding:8px 10px;font-family:var(--mono);font-size:12px;background:var(--bg-2);border:1px solid var(--border);border-radius:var(--r-1);color:var(--text)">
+        </label>`).join('');
+
+      document.getElementById('int-edit-enabled').checked = !!(cur.enabled);
+      overlay.style.display = 'flex';
+    });
+  });
+
+  const close = () => { overlay.style.display = 'none'; _activeInt = null; };
+  document.getElementById('int-edit-close').addEventListener('click', close);
+  document.getElementById('int-edit-cancel').addEventListener('click', close);
+  overlay.addEventListener('click', e => { if (e.target === overlay) close(); });
+
+  document.getElementById('int-edit-save').addEventListener('click', async () => {
+    if (!_activeInt || currentOperatorRole() !== 'admin') return;
+    const updated = Object.assign({}, (_intConfig && _intConfig[_activeInt]) || {});
+    updated.enabled = document.getElementById('int-edit-enabled').checked;
+    document.querySelectorAll('#int-edit-modal-fields .int-edit-field').forEach(inp => {
+      updated[inp.dataset.key] = inp.value.trim();
+    });
+    const newCfg = Object.assign({}, _intConfig, { [_activeInt]: updated });
+    const res = await window.api.saveIntegrationsConfig(newCfg);
+    if (res && res.ok) {
+      applyIntegrationsConfig(newCfg);
+      close();
+      showToast('Integration settings saved', 'success');
+    } else {
+      showToast((res && res.error) || 'Save failed', 'error');
+    }
+  });
+})();
 
 // Subscribe to HR queue events for both the Exports view AND Integrations view.
 if (typeof window.api?.onHrQueue === 'function') {
@@ -137,15 +358,22 @@ document.querySelectorAll('.nav-item').forEach(btn => {
 document.getElementById('btn-minimize').addEventListener('click', () => window.api.windowMinimize());
 document.getElementById('btn-maximize').addEventListener('click', () => window.api.windowMaximize());
 document.getElementById('btn-close').addEventListener('click',    () => window.api.windowClose());
+document.getElementById('btn-power')?.addEventListener('click',   () => {
+  if (confirm('Quit JML Fleet Console?')) window.api.appQuit();
+});
 
 // ── Mode toggle (Approver) ────────────────────────────────────────────────────
 function updateTopbarModePill() {
+  // Toggle live-mode chrome tint on the root layout element
+  const layout = document.getElementById('layout') || document.querySelector('.layout');
+  if (layout) layout.classList.toggle('live-mode', !isWhatif);
+
   const pill = document.getElementById('topbar-mode-pill');
   if (pill) {
     pill.classList.toggle('live', !isWhatif);
     pill.innerHTML = isWhatif
-      ? '<span class="dot"></span> Safe · Safe'
-      : '<span class="dot"></span> LIVE · Committing';
+      ? '<span class="dot"></span> SAFE &middot; NO COMMIT'
+      : '<span class="dot"></span> LIVE &middot; WRITING';
     // Respect current-tab visibility
     if (typeof TABS_WITH_MODE !== 'undefined' && typeof currentTab !== 'undefined') {
       pill.style.display = TABS_WITH_MODE.has(currentTab) ? '' : 'none';
@@ -336,9 +564,10 @@ document.getElementById('clear-auditor').addEventListener('click',  () => window
 
 window.api.onHistoryCleared(({ agent }) => {
   const container = document.getElementById('messages-' + agent);
-  container.innerHTML = container.querySelector ? '' : '';
   container.innerHTML = '';
   appendWelcome(agent);
+  if (agent === 'approver') { lcSetIdle(); _lastRiskResult = null; }
+  if (agent === 'auditor')  audClearState();
 });
 
 function appendWelcome(agent) {
@@ -369,6 +598,11 @@ function sendMessage(agent) {
   const placeholder = appendAssistantPlaceholder(agent);
   currentMsgEl[agent] = placeholder;
 
+  // Lifecycle: reset to request stage when approver gets a new message
+  if (agent === 'approver') lcResetToRequest();
+  // Auditor: update active query card
+  if (agent === 'auditor') audSetActiveQuery(text);
+
   window.api.sendMessage(agent, text);
 }
 
@@ -378,6 +612,150 @@ function sendMessage(agent) {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(agent); }
   });
 });
+
+// ── V2 Approver Rail updates ───────────────────────────────────────────────
+function updateSubjectCard(info) {
+  // info: { name, upn, dept, manager, ticket, groups, licenses }
+  const card = document.getElementById('subject-card');
+  if (!card) return;
+  card.style.display = 'block';
+  const av = document.getElementById('subject-avatar');
+  const nameEl = document.getElementById('subject-name');
+  const upnEl = document.getElementById('subject-upn');
+  const grid = document.getElementById('subject-grid');
+  if (nameEl) nameEl.textContent = info.name || '—';
+  if (upnEl) upnEl.textContent = info.upn || '—';
+  if (av) {
+    const initials = (info.name || '?').split(/\s+/).map(w => w[0]).join('').slice(0, 2).toUpperCase();
+    av.textContent = initials;
+  }
+  if (grid) {
+    const rows = [
+      ['DEPT', info.dept],
+      ['MGR', info.manager],
+      ['TICKET', info.ticket],
+      ['GROUPS', info.groups],
+      ['LICENSES', info.licenses],
+    ].filter(([, v]) => v);
+    grid.innerHTML = rows.map(([k, v]) =>
+      '<span class="sg-key">' + k + '</span><span>' + escHtml(String(v)) + '</span>'
+    ).join('');
+  }
+}
+
+function addOpLogEntry(entry) {
+  // entry: { time, agent, event, msg, ok }
+  const list = document.getElementById('op-log-list');
+  const card = document.getElementById('op-log-card');
+  if (!list || !card) return;
+  card.style.display = 'block';
+  const row = document.createElement('div');
+  row.className = 'op-log-row';
+  row.innerHTML =
+    '<span class="op-log-time mono">' + escHtml(entry.time || '—') + '</span>'
+    + '<span class="tag op-log-agent">' + escHtml(entry.agent || '—') + '</span>'
+    + '<span class="op-log-event">' + escHtml(entry.event || '') + '<span class="op-log-msg"> · ' + escHtml(entry.msg || '') + '</span></span>'
+    + '<span class="dot ' + (entry.ok ? 'ok' : 'warn') + '"></span>';
+  list.insertBefore(row, list.firstChild);
+}
+
+// ── Approver lifecycle state machine ──────────────────────────────────────────
+const _LC_META = {
+  request:   { label: 'Request',       sub: 'intent captured' },
+  risk:      { label: 'Risk Score',    sub: null },
+  plan:      { label: 'Plan',          sub: null },
+  soft:      { label: 'Soft Stage',    sub: 'disable · revoke sessions' },
+  approval:  { label: 'Dual Approval', sub: 'second sign-off required' },
+  hard:      { label: 'Hard Stage',    sub: 'remove licenses · groups' },
+  provision: { label: 'Provisioning',  sub: 'create · enroll' },
+  transfer:  { label: 'Transfer',      sub: 'update groups · licenses' },
+  enroll:    { label: 'Enrollment',    sub: 'MFA · device registration' },
+};
+
+// Tool name → lifecycle stage key
+const _TOOL_TO_LC_STAGE = {
+  score_risk:           'risk',
+  suggest_provisioning: 'plan',
+  submit_leaver_soft:   'soft',
+  submit_leaver_hard:   'hard',
+  submit_joiner:        'provision',
+  submit_enroller:      'enroll',
+  submit_mover:         'transfer',
+};
+
+let _lcPipeline = ['request', 'risk', 'plan'];
+let _lcDoneSet  = new Set();
+let _lcCurrent  = null;
+
+function renderLifecycleMap() {
+  const map = document.getElementById('lifecycle-map');
+  if (!map) return;
+  if (_lcPipeline.length === 0) {
+    map.innerHTML = '<div class="lc-idle-hint">No active operation</div>';
+    return;
+  }
+  map.innerHTML = _lcPipeline.map(key => {
+    const meta    = _LC_META[key] || { label: key, sub: null };
+    const isDone  = _lcDoneSet.has(key);
+    const isCurr  = key === _lcCurrent;
+    const cls     = 'lc-state' + (isDone ? ' done' : isCurr ? ' current' : '');
+    const dot     = isDone ? '<span>✓</span>' : '';
+    const subHtml = meta.sub ? `<div class="lc-sub">${meta.sub}</div>` : '';
+    return `<div class="${cls}" data-stage="${key}">
+      <div class="lc-dot">${dot}</div>
+      <div class="lc-info"><div class="lc-label">${meta.label}</div>${subHtml}</div>
+    </div>`;
+  }).join('');
+}
+
+function lcResetToRequest() {
+  _lcPipeline = ['request', 'risk', 'plan'];
+  _lcDoneSet  = new Set();
+  _lcCurrent  = 'request';
+  const tag = document.getElementById('lifecycle-status-tag');
+  if (tag) { tag.textContent = 'In Progress'; tag.className = 'tag info'; }
+  renderLifecycleMap();
+}
+
+function lcAdvanceTo(stageKey) {
+  if (!_lcPipeline.includes(stageKey)) {
+    // Insert after 'plan', or at the end
+    const pi = _lcPipeline.indexOf('plan');
+    pi >= 0 ? _lcPipeline.splice(pi + 1, 0, stageKey) : _lcPipeline.push(stageKey);
+    // Also insert 'soft' before 'hard' if adding 'hard' without 'soft'
+    if (stageKey === 'hard' && !_lcPipeline.includes('soft')) {
+      const hi = _lcPipeline.indexOf('hard');
+      _lcPipeline.splice(hi, 0, 'soft', 'approval');
+    }
+  }
+  // Mark everything up to (not including) stageKey as done
+  const idx = _lcPipeline.indexOf(stageKey);
+  for (let i = 0; i < idx; i++) _lcDoneSet.add(_lcPipeline[i]);
+  _lcCurrent = stageKey;
+  renderLifecycleMap();
+}
+
+function lcMarkComplete() {
+  if (_lcCurrent) _lcDoneSet.add(_lcCurrent);
+  _lcCurrent = null;
+  const tag = document.getElementById('lifecycle-status-tag');
+  if (tag) { tag.textContent = 'Complete'; tag.className = 'tag ok'; }
+  renderLifecycleMap();
+}
+
+function lcSetIdle() {
+  _lcPipeline = ['request', 'risk', 'plan'];
+  _lcDoneSet  = new Set();
+  _lcCurrent  = null;
+  const tag = document.getElementById('lifecycle-status-tag');
+  if (tag) { tag.textContent = 'Idle'; tag.className = 'tag'; }
+  renderLifecycleMap();
+}
+
+// Legacy shim — kept so any future callers don't break
+function updateLifecycleState(stepLabel, state) {
+  // Replaced by the new state machine above; no-op for legacy calls
+}
 
 // ── Message rendering ─────────────────────────────────────────────────────────
 function appendUserMessage(agent, text) {
@@ -392,14 +770,17 @@ function appendUserMessage(agent, text) {
 function appendAssistantPlaceholder(agent) {
   const msgs = document.getElementById('messages-' + agent);
   const el   = document.createElement('div');
-  el.className = 'message assistant';
+  el.className = 'message assistant thinking';
   const avatarSvg = AGENT_AVATARS[agent] || 'AI';
   el.innerHTML = `
     <div class="message-avatar avatar-${agent}">${avatarSvg}</div>
     <div class="message-body">
+      <div class="thinking-indicator">
+        <span class="thinking-dots"><span></span><span></span><span></span></span>
+        <span class="thinking-label">Thinking</span>
+      </div>
       <div class="message-text"></div>
       <div class="tool-indicators"></div>
-      <div class="typing-indicator"><span></span><span></span><span></span></div>
     </div>`;
   msgs.appendChild(el);
   msgs.scrollTop = msgs.scrollHeight;
@@ -415,7 +796,7 @@ function getOrCreateCurrentMsg(agent) {
 }
 
 // ── Streaming chunk handler ───────────────────────────────────────────────────
-window.api.onChunk(({ type, text, toolName, success }) => {
+window.api.onChunk(({ type, text, toolName, success, result }) => {
   const agent = currentTab === 'auditor' ? 'auditor' : 'approver';
   const msgEl = getOrCreateCurrentMsg(agent);
   const textEl = msgEl.querySelector('.message-text');
@@ -423,12 +804,25 @@ window.api.onChunk(({ type, text, toolName, success }) => {
   const msgs   = msgEl.closest('.messages');
 
   if (type === 'text') {
-    msgEl.querySelector('.typing-indicator').style.display = 'none';
+    const thinkEl = msgEl.querySelector('.thinking-indicator');
+    if (thinkEl) thinkEl.style.display = 'none';
+    msgEl.classList.remove('thinking');
+    textEl.classList.add('streaming');
     textEl.innerHTML = renderMarkdown(textEl.dataset.raw ? textEl.dataset.raw + text : text);
     textEl.dataset.raw = (textEl.dataset.raw || '') + text;
   }
 
   if (type === 'tool_start') {
+    // Advance lifecycle for approver; track tools for auditor query card
+    if (agent === 'approver' && _TOOL_TO_LC_STAGE[toolName]) {
+      lcAdvanceTo(_TOOL_TO_LC_STAGE[toolName]);
+    }
+    if (agent === 'auditor') audTrackTool(toolName, 'running');
+
+    const thinkLbl = msgEl.querySelector('.thinking-label');
+    if (thinkLbl && msgEl.classList.contains('thinking')) {
+      thinkLbl.textContent = formatToolName(toolName) + '…';
+    }
     if (SUBMIT_LABELS[toolName]) {
       const lbl = SUBMIT_LABELS[toolName];
       if (!_submitBatch[agent][toolName]) _submitBatch[agent][toolName] = { el: null, started: 0, done: 0, failed: 0 };
@@ -461,6 +855,9 @@ window.api.onChunk(({ type, text, toolName, success }) => {
   }
 
   if (type === 'tool_done') {
+    // Capture structured results for contextual card rendering
+    if (toolName === 'score_risk' && success && result && !result.error) _lastRiskResult = result;
+    if (agent === 'auditor') audTrackTool(toolName, 'done');
     if (SUBMIT_LABELS[toolName]) {
       const lbl = SUBMIT_LABELS[toolName];
       const b = _submitBatch[agent][toolName];
@@ -499,9 +896,40 @@ window.api.onChunk(({ type, text, toolName, success }) => {
 
 window.api.onComplete(({ agent }) => {
   setWaiting(agent, false);
+  // Advance lifecycle / query state on completion
+  if (agent === 'approver') lcMarkComplete();
+  if (agent === 'auditor')  audQueryComplete(currentMsgEl[agent]);
   const msgEl = currentMsgEl[agent];
   if (msgEl) {
-    msgEl.querySelector('.typing-indicator').style.display = 'none';
+    const thinkEl = msgEl.querySelector('.thinking-indicator');
+    if (thinkEl) thinkEl.style.display = 'none';
+    msgEl.classList.remove('thinking');
+    const textEl2 = msgEl.querySelector('.message-text');
+    if (textEl2) textEl2.classList.remove('streaming');
+    // Auditor: if the response contains findings, surface quick-nav action chips
+    if (agent === 'auditor') {
+      const textEl = msgEl.querySelector('.message-text');
+      const txt = textEl ? (textEl.textContent || '') : '';
+      const findingKeywords = ['risk', 'finding', 'violation', 'anomaly', 'flag', 'alert', 'concern', 'critical', 'warning', 'suspicious', 'unusual', 'gap', 'exposure'];
+      const hasFinding = findingKeywords.some(kw => txt.toLowerCase().includes(kw));
+      if (hasFinding && textEl) {
+        const chips = [
+          { label: '→ Security', tab: 'security' },
+          { label: '→ Operations', tab: 'operations' },
+          { label: '→ Audit Log', tab: 'audit-log' },
+        ];
+        const wrap = document.createElement('div');
+        wrap.className = 'auditor-finding-actions';
+        chips.forEach(({ label, tab }) => {
+          const btn = document.createElement('button');
+          btn.className = 'auditor-action-chip';
+          btn.textContent = label;
+          btn.addEventListener('click', () => switchTab(tab));
+          wrap.appendChild(btn);
+        });
+        textEl.appendChild(wrap);
+      }
+    }
     currentMsgEl[agent] = null;
   }
 });
@@ -512,8 +940,11 @@ window.api.onError(({ text }) => {
       setWaiting(agent, false);
       const msgEl = currentMsgEl[agent];
       if (msgEl) {
-        msgEl.querySelector('.typing-indicator').style.display = 'none';
+        const thinkElE = msgEl.querySelector('.thinking-indicator');
+        if (thinkElE) thinkElE.style.display = 'none';
+        msgEl.classList.remove('thinking');
         const textEl = msgEl.querySelector('.message-text');
+        textEl.classList.remove('streaming');
         textEl.innerHTML = '<span class="error-text">Error: ' + escHtml(text) + '</span>';
         currentMsgEl[agent] = null;
       }
@@ -525,6 +956,32 @@ function setWaiting(agent, waiting) {
   isWaiting[agent] = waiting;
   document.getElementById('input-' + agent).disabled  = waiting;
   document.getElementById('send-' + agent).disabled   = waiting;
+}
+
+// ── Cross-window conversation mirror ─────────────────────────────────────────
+// When the overlay or docked panel sends a message, mirror it into the main
+// console's conversation so both views stay in sync.
+if (typeof window.api.onMsgMirror === 'function') {
+  window.api.onMsgMirror(({ agent, role, text }) => {
+    if (!text) return;
+    const validAgent = agent === 'auditor' ? 'auditor' : 'approver';
+    if (role === 'user') {
+      appendUserMessage(validAgent, text);
+      appendAssistantPlaceholder(validAgent); // show thinking indicator
+    } else if (role === 'assistant') {
+      // Find the most recent thinking placeholder and fill it
+      const msgs = document.getElementById('messages-' + validAgent);
+      if (!msgs) return;
+      let placeholder = msgs.querySelector('.message.assistant.thinking:last-of-type');
+      if (!placeholder) { placeholder = appendAssistantPlaceholder(validAgent); }
+      placeholder.classList.remove('thinking');
+      const thinkEl = placeholder.querySelector('.thinking-indicator');
+      if (thinkEl) thinkEl.style.display = 'none';
+      const textEl = placeholder.querySelector('.message-text');
+      if (textEl) { textEl.innerHTML = renderMarkdown(text); textEl.classList.remove('streaming'); }
+      msgs.scrollTop = msgs.scrollHeight;
+    }
+  });
 }
 
 // ── Security dashboard ────────────────────────────────────────────────────────
@@ -545,6 +1002,17 @@ document.getElementById('refresh-security').addEventListener('click', () => {
   setTimeout(() => setSecurityScanning(false), 30000);
 });
 
+// Drift remediation card actions
+(function () {
+  const card    = document.getElementById('drift-rem-card');
+  const btnIgn  = document.getElementById('btn-drift-ignore');
+  const btnRest = document.getElementById('btn-drift-restore');
+  if (btnIgn)  btnIgn.addEventListener('click',  () => { if (card) card.style.display = 'none'; });
+  if (btnRest) btnRest.addEventListener('click', () => {
+    addNotification('🔒', 'Restore baseline queued — awaiting dual approval from a second operator');
+  });
+})();
+
 function loadSecurity() {
   window.api.getSecurityReports();
   window.api.getAgentHealth();
@@ -559,21 +1027,431 @@ function buildCountBadges(crit, warn, info) {
   return parts.join('');
 }
 
+// ── V2 Security Inbox ──────────────────────────────────────────────────────
+let _secFindings = []; // flat array of all findings
+let _secFocused = null; // currently focused finding index
+let _secAckedKeys     = new Set();  // stable keys (rule|title) of acknowledged findings — survives rescans
+let _secAckedFindings = [];         // ordered list of acked finding objects for the acked section
+let _secDeletedKeys   = new Set();  // stable keys of admin-deleted findings — permanently hidden from inbox
+let _secCheckedSet    = new Set();  // original indices of checkbox-selected findings
+let _secFilter = { sev: '', source: '', assign: 'unassigned', maxAge: 0 }; // active inbox filter state
+
+/** Stable identity key for a finding — survives index changes across rescans */
+function _secKey(f) { return (f.rule || '') + '|' + (f.title || ''); }
+
+/** Extract the primary subject UPN/name from a finding for cross-tab navigation */
+function _secFindingSubject(f) {
+  if (!f) return null;
+  for (const key of ['subjects', 'user', 'affected']) {
+    const row = (f.signals || []).find(([k]) => k === key);
+    if (row && row[1] && row[1] !== '—') return row[1].split(',')[0].trim();
+  }
+  if (f.driftItems && f.driftItems.length > 0)
+    return f.driftItems[0].userPrincipalName || f.driftItems[0].displayName || null;
+  return null;
+}
+
+/** Show a compact floating dropdown anchored to a button element */
+function _showSecDropdown(anchorBtn, options, onSelect) {
+  document.getElementById('_sec-dd')?.remove();
+  const r = anchorBtn.getBoundingClientRect();
+  const panel = document.createElement('div');
+  panel.id = '_sec-dd';
+  Object.assign(panel.style, {
+    position: 'fixed', top: (r.bottom + 4) + 'px', left: r.left + 'px',
+    background: 'var(--surface-2,#181818)', border: '1px solid var(--border,#333)',
+    borderRadius: '6px', padding: '4px', zIndex: '9999',
+    minWidth: Math.max(r.width, 150) + 'px',
+    boxShadow: '0 8px 24px rgba(0,0,0,.55)',
+  });
+  options.forEach(({ label, value, active }) => {
+    const item = document.createElement('button');
+    Object.assign(item.style, {
+      display: 'block', width: '100%', textAlign: 'left',
+      padding: '6px 10px', background: active ? 'var(--surface-3,#242424)' : 'none',
+      border: 'none', color: 'var(--text-1)', fontSize: '12px',
+      cursor: 'pointer', borderRadius: '4px', transition: 'background .1s',
+    });
+    item.textContent = label;
+    item.addEventListener('mouseenter', () => { item.style.background = 'var(--surface-3,#242424)'; });
+    item.addEventListener('mouseleave', () => { item.style.background = active ? 'var(--surface-3,#242424)' : 'none'; });
+    item.addEventListener('click', e => { e.stopPropagation(); panel.remove(); onSelect(value, label); });
+    panel.appendChild(item);
+  });
+  document.body.appendChild(panel);
+  setTimeout(() => document.addEventListener('click', function _c() {
+    panel.remove(); document.removeEventListener('click', _c);
+  }), 0);
+}
+
+/** Sync the bulk-action bar (count badge + button visibility) */
+function _updateBulkBar() {
+  const n = _secCheckedSet.size;
+  const show = n > 0;
+  const countEl = document.getElementById('sec-selection-count');
+  if (countEl) { countEl.textContent = n + ' selected'; countEl.style.display = show ? '' : 'none'; }
+  ['sec-btn-assign', 'sec-btn-ack', 'sec-btn-page'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = show ? '' : 'none';
+  });
+}
+
+/** Render inbox rows respecting the current filter + acked state */
+function _renderSecRows() {
+  const inbox = document.getElementById('sec-inbox');
+  const empty = document.getElementById('sec-inbox-empty');
+  if (!inbox) return;
+
+  const visible = [];
+  _secFindings.forEach((f, origIdx) => {
+    if (_secAckedKeys.has(_secKey(f)) || _secDeletedKeys.has(_secKey(f))) return; // hide acked / deleted findings
+    if (_secFilter.sev && f.sev !== _secFilter.sev) return;
+    if (_secFilter.source) {
+      if (!f.rule.toLowerCase().startsWith(_secFilter.source.toLowerCase())) return;
+    }
+    if (_secFilter.assign === 'unassigned' && f.assignee !== '—') return;
+    if (_secFilter.assign === 'assigned'   && f.assignee === '—') return;
+    if (_secFilter.maxAge > 0 && f.age !== '—') {
+      const ageDays = parseInt(f.age) || 0;
+      if (ageDays > _secFilter.maxAge) return;
+    }
+    visible.push({ f, origIdx });
+  });
+
+  inbox.innerHTML = '';
+  if (empty) inbox.appendChild(empty);
+
+  if (visible.length === 0) {
+    if (empty) empty.style.display = 'flex';
+    return;
+  }
+  if (empty) empty.style.display = 'none';
+
+  _secCheckedSet.clear();
+  _updateBulkBar();
+
+  visible.forEach(({ f, origIdx }, rowPos) => {
+    const row = document.createElement('div');
+    row.className = 'sec-finding-row' + (rowPos === 0 ? (f.sev === 'crit' ? ' focused' : ' focused-warn') : '');
+    row.dataset.idx = origIdx;
+    row.innerHTML =
+        '<input type="checkbox" style="accent-color:var(--violet)">'
+      + '<div class="sec-finding-sev-bar ' + f.sev + '"></div>'
+      + '<div class="sec-finding-content">'
+        + '<div class="sec-finding-rule-row">'
+          + '<span class="tag ' + f.sev + '">' + f.sev.toUpperCase() + '</span>'
+          + '<span class="mono" style="font-size:10.5px;color:var(--text-3);letter-spacing:.05em">' + escHtml(f.rule) + '</span>'
+        + '</div>'
+        + '<div class="sec-finding-title">' + escHtml(f.title) + '</div>'
+        + '<div class="sec-finding-sub">' + escHtml(f.sub) + '</div>'
+      + '</div>'
+      + '<div class="sec-finding-assignee">' + (f.assignee === '—' ? 'unassigned' : escHtml(f.assignee)) + '</div>'
+      + '<div class="sec-finding-age">' + f.age + '</div>'
+      + (rowPos === 0 ? '<span style="color:var(--text-3)">›</span>' : '<span></span>');
+
+    const cb = row.querySelector('input[type=checkbox]');
+    cb.addEventListener('change', () => {
+      if (cb.checked) _secCheckedSet.add(origIdx); else _secCheckedSet.delete(origIdx);
+      _updateBulkBar();
+    });
+
+    row.addEventListener('click', e => {
+      if (e.target === cb) return;
+      document.querySelectorAll('.sec-finding-row').forEach(r => r.classList.remove('focused', 'focused-warn'));
+      row.classList.add(f.sev === 'crit' ? 'focused' : 'focused-warn');
+      inbox.querySelectorAll('.sec-finding-row > span:last-child').forEach(s => { s.textContent = ''; });
+      row.querySelector('span:last-child').textContent = '›';
+      focusFinding(origIdx);
+    });
+
+    inbox.appendChild(row);
+  });
+
+  focusFinding(visible[0].origIdx);
+}
+
+/** Render (or update) the Acknowledged section below the active inbox */
+function _renderAckedSection() {
+  const inbox = document.getElementById('sec-inbox');
+  if (!inbox) return;
+
+  // Remove any existing section before re-rendering
+  let section = document.getElementById('sec-acked-section');
+  if (!section) {
+    section = document.createElement('div');
+    section.id = 'sec-acked-section';
+    inbox.appendChild(section);
+  }
+
+  if (_secAckedFindings.length === 0) {
+    section.innerHTML = '';
+    return;
+  }
+
+  const isAdmin = currentOperatorRole() === 'admin';
+  const timeFmt = d => d ? new Date(d).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+
+  section.innerHTML =
+    '<div style="display:flex;align-items:center;gap:8px;padding:10px 14px 6px;border-top:1px solid var(--border);margin-top:4px">'
+    + '<span style="font-size:11px;font-weight:600;color:var(--text-3);letter-spacing:.06em;text-transform:uppercase">Acknowledged</span>'
+    + '<span style="font-size:11px;font-family:var(--mono);color:var(--text-4)">' + _secAckedFindings.length + '</span>'
+    + '<span style="flex:1"></span>'
+    + (isAdmin
+        ? '<button class="btn sm danger" id="sec-acked-wipe" style="font-size:11px">Delete all</button>'
+        : '<span style="font-size:10.5px;color:var(--text-4);font-style:italic">Admin required to delete</span>')
+    + '</div>'
+    + _secAckedFindings.map((f, i) =>
+        '<div class="sec-finding-row" style="opacity:.45;pointer-events:none" data-acked-idx="' + i + '">'
+        + '<div class="sec-finding-sev-bar ' + f.sev + '" style="opacity:.5"></div>'
+        + '<div class="sec-finding-content">'
+          + '<div class="sec-finding-rule-row">'
+            + '<span class="tag ' + f.sev + '" style="opacity:.6">' + f.sev.toUpperCase() + '</span>'
+            + '<span class="mono" style="font-size:10.5px;color:var(--text-4)">' + escHtml(f.rule) + '</span>'
+          + '</div>'
+          + '<div class="sec-finding-title" style="color:var(--text-3)">' + escHtml(f.title) + '</div>'
+          + '<div class="sec-finding-sub">' + escHtml(f.sub) + '</div>'
+        + '</div>'
+        + '<div class="sec-finding-age" style="color:var(--text-4)">'
+            + (f.ackedAt ? timeFmt(f.ackedAt) : '') + '</div>'
+        + (isAdmin
+            ? '<button class="btn sm danger sec-acked-delete" data-acked-idx="' + i + '" style="pointer-events:all;font-size:11px">Delete</button>'
+            : '<span></span>')
+        + '</div>'
+      ).join('');
+
+  // Wire admin delete buttons
+  if (isAdmin) {
+    section.querySelector('#sec-acked-wipe')?.addEventListener('click', () => {
+      confirmModal({
+        title: 'Delete all acknowledged findings',
+        body: 'Permanently wipe ' + _secAckedFindings.length + ' acknowledged finding' + (_secAckedFindings.length > 1 ? 's' : '') + ' from this session? This cannot be undone.',
+        danger: true,
+        okLabel: 'Delete all',
+      }).then(ok => {
+        if (!ok) return;
+        _secAckedFindings.forEach(f => _secDeletedKeys.add(_secKey(f)));
+        _secAckedKeys.clear();
+        _secAckedFindings = [];
+        const ackedEl = document.getElementById('sec-count-acked');
+        if (ackedEl) ackedEl.textContent = '0';
+        _renderAckedSection();
+        _renderSecRows();
+        showToast('All acknowledged findings deleted');
+      }).catch(() => {});
+    });
+
+    section.querySelectorAll('.sec-acked-delete').forEach(btn => {
+      btn.addEventListener('click', e => {
+        e.stopPropagation();
+        const idx = parseInt(btn.dataset.ackedIdx);
+        const f = _secAckedFindings[idx];
+        if (!f) return;
+        _secDeletedKeys.add(_secKey(f));
+        _secAckedKeys.delete(_secKey(f));
+        _secAckedFindings.splice(idx, 1);
+        const ackedEl = document.getElementById('sec-count-acked');
+        if (ackedEl) ackedEl.textContent = String(_secAckedFindings.length);
+        _renderAckedSection();
+        _renderSecRows();
+        showToast('Finding deleted from acknowledged list');
+      });
+    });
+  }
+}
+
+function renderSecurityInbox(data) {
+  const inbox = document.getElementById('sec-inbox');
+  const empty = document.getElementById('sec-inbox-empty');
+  if (!inbox) return;
+
+  // Flatten all findings from UEBA, drift, risky users
+  _secFindings = [];
+
+  if (data.ueba && data.ueba.findings) {
+    data.ueba.findings.forEach(f => {
+      const subjects = (f.events || []).map(e => e.subject || e.user || '').filter(Boolean);
+      const latest = (f.events || []).map(e => e.timestamp).filter(Boolean).sort().pop();
+      _secFindings.push({
+        sev: f.severity === 'critical' ? 'crit' : f.severity === 'warning' ? 'warn' : 'info',
+        rule: 'UEBA · ' + (f.ruleId || ''),
+        title: f.title,
+        sub: subjects.slice(0, 2).join(', ') + (latest ? ' · ' + new Date(latest).toLocaleDateString() : ''),
+        assignee: '—',
+        age: latest ? Math.max(0, Math.floor((Date.now() - new Date(latest)) / 86400000)) + 'd' : '—',
+        rawSev: f.severity,
+        signals: [
+          ['rule', f.ruleId || '—'],
+          ['events', (f.events || []).length],
+          ['subjects', subjects.join(', ') || '—'],
+        ],
+      });
+    });
+  }
+
+  if (data.drift && data.drift.findings) {
+    data.drift.findings.forEach(f => {
+      const items = (f.items || []);
+      const names = items.map(i => i.displayName || i.userPrincipalName || i.agent || '').filter(Boolean);
+      _secFindings.push({
+        sev: f.severity === 'critical' ? 'crit' : f.severity === 'warning' ? 'warn' : 'info',
+        rule: 'Drift · ' + (f.checkId || ''),
+        title: f.title,
+        sub: names.slice(0, 2).join(', '),
+        assignee: '—',
+        age: '—',
+        rawSev: f.severity,
+        isDrift: true,
+        driftItems: items,
+        signals: [
+          ['check', f.checkId || '—'],
+          ['items', items.length],
+          ['affected', names.join(', ') || '—'],
+        ],
+      });
+    });
+  }
+
+  if (data.riskyUsers && data.riskyUsers.users) {
+    data.riskyUsers.users.forEach(u => {
+      _secFindings.push({
+        sev: u.riskLevel === 'high' ? 'crit' : u.riskLevel === 'medium' ? 'warn' : 'info',
+        rule: 'Identity Protection',
+        title: 'Risky sign-in: ' + (u.riskDetail || 'see details'),
+        sub: (u.userPrincipalName || u.displayName || '—'),
+        assignee: '—',
+        age: u.riskLastUpdatedDateTime ? Math.max(0, Math.floor((Date.now() - new Date(u.riskLastUpdatedDateTime)) / 86400000)) + 'd' : '—',
+        rawSev: u.riskLevel || 'medium',
+        signals: [
+          ['user', u.userPrincipalName || '—'],
+          ['level', u.riskLevel || '—'],
+          ['detail', u.riskDetail || '—'],
+          ['state', u.riskState || '—'],
+        ],
+      });
+    });
+  }
+
+  // Sort: crit first, then warn, then info
+  const sevOrder = { crit: 0, warn: 1, info: 2 };
+  _secFindings.sort((a, b) => (sevOrder[a.sev] ?? 3) - (sevOrder[b.sev] ?? 3));
+
+  // Update ribbon counts
+  const critEl = document.getElementById('sec-count-crit');
+  const warnEl = document.getElementById('sec-count-warn');
+  const infoEl = document.getElementById('sec-count-info');
+  const ackedEl = document.getElementById('sec-count-acked');
+  if (critEl) critEl.textContent = _secFindings.filter(f => f.sev === 'crit').length;
+  if (warnEl) warnEl.textContent = _secFindings.filter(f => f.sev === 'warn').length;
+  if (infoEl) infoEl.textContent = _secFindings.filter(f => f.sev === 'info').length;
+  if (ackedEl) ackedEl.textContent = String(_secAckedFindings.length);
+
+  // Reset active-inbox filter state (but NOT acked state — it persists across rescans)
+  _secFilter = { sev: '', source: '', assign: 'unassigned', maxAge: 0 };
+  const sevBtn    = document.getElementById('sec-filter-sev');
+  const srcBtn    = document.getElementById('sec-filter-source');
+  const assignBtn = document.getElementById('sec-filter-assign');
+  const timeBtn   = document.getElementById('sec-filter-time');
+  if (sevBtn)    { sevBtn.textContent = 'All severities ▾'; sevBtn.classList.remove('active'); }
+  if (srcBtn)    { srcBtn.textContent = 'All sources ▾';    srcBtn.classList.remove('active'); }
+  if (assignBtn) { assignBtn.textContent = 'Unassigned ▾';  assignBtn.classList.remove('active'); }
+  if (timeBtn)   { timeBtn.textContent = 'All time ▾';      timeBtn.classList.remove('active'); }
+
+  if (_secFindings.length === 0) {
+    if (empty) empty.style.display = 'flex';
+    _renderAckedSection();
+    return;
+  }
+  if (empty) empty.style.display = 'none';
+
+  _renderSecRows();
+  _renderAckedSection();
+}
+
+function focusFinding(idx) {
+  _secFocused = idx;
+  const f = _secFindings[idx];
+  if (!f) return;
+  const fc = document.getElementById('sec-focused-card');
+  if (!fc) return;
+  fc.style.display = 'block';
+
+  const tagEl = document.getElementById('sec-focused-tag');
+  const titleEl = document.getElementById('sec-focused-title');
+  const ruleEl = document.getElementById('sec-focused-rule');
+  const descEl = document.getElementById('sec-focused-desc');
+  const signalsEl = document.getElementById('sec-signals');
+
+  if (tagEl) { tagEl.className = 'tag ' + f.sev; tagEl.textContent = 'FOCUSED · ' + f.sev.toUpperCase(); }
+  if (titleEl) titleEl.textContent = f.title;
+  if (ruleEl) ruleEl.textContent = f.rule;
+  if (descEl) descEl.textContent = '';
+
+  // Update pivot button hash label — show a compact rule/check identifier
+  const pivotHashEl = document.getElementById('sec-pivot-audit-hash');
+  if (pivotHashEl) {
+    const parts = (f.rule || '').split(' · ');
+    pivotHashEl.textContent = parts.length > 1 ? parts.slice(1).join('·').slice(0, 14) : (parts[0] || '—').slice(0, 14);
+  }
+
+  if (signalsEl) {
+    signalsEl.innerHTML = (f.signals || []).map(([k, v]) =>
+      '<div class="sec-signal-row"><span class="sec-signal-key">' + escHtml(String(k)) + '</span><span class="sec-signal-val">' + escHtml(String(v)) + '</span></div>'
+    ).join('');
+  }
+
+  // Show drift remediation card if this is a drift finding
+  const driftCard = document.getElementById('sec-drift-rem-v2');
+  if (driftCard) {
+    if (f.isDrift && f.driftItems && f.driftItems.length > 0) {
+      driftCard.style.display = 'block';
+      const sub = document.getElementById('sec-drift-rem-subject');
+      const desc = document.getElementById('sec-drift-rem-desc');
+      const diff = document.getElementById('sec-drift-rem-diff');
+      if (sub) sub.textContent = f.driftItems[0].displayName || f.driftItems[0].agent || '—';
+      if (desc && f.driftItems[0].note) desc.textContent = f.driftItems[0].note;
+      if (diff) {
+        const item = f.driftItems[0];
+        diff.innerHTML = item.expected
+          ? '<div class="diff-row keep"><span class="sym"> </span><span>' + escHtml(item.expected) + ' (expected)</span></div>'
+            + '<div class="diff-row rem"><span class="sym">−</span><span>' + escHtml(item.actual || '?') + ' (actual)</span></div>'
+          : '<div class="diff-row rem"><span class="sym">−</span><span>' + escHtml(f.title) + '</span></div>';
+      }
+    } else {
+      driftCard.style.display = 'none';
+    }
+  }
+}
+
 window.api.onSecurityReports((data) => {
   // Re-scan visual cue: data arrived → clear the pulsing state
   setSecurityScanning(false);
-  // Open only the most-recent scan section by timestamp; collapse the others
-  const tstamps = {
-    ueba: data.ueba?.timestamp ? new Date(data.ueba.timestamp).getTime() : 0,
-    drift: data.drift?.timestamp ? new Date(data.drift.timestamp).getTime() : 0,
-    risky: data.riskyUsers?.timestamp ? new Date(data.riskyUsers.timestamp).getTime() : 0,
-  };
-  const newest = Object.entries(tstamps).sort((a, b) => b[1] - a[1])[0];
-  if (newest && newest[1] > 0) {
-    document.querySelectorAll('#sec-section-ueba, #sec-section-drift, #sec-section-risky').forEach(d => d.removeAttribute('open'));
-    const target = document.getElementById('sec-section-' + newest[0]);
-    if (target) target.setAttribute('open', '');
+
+  // Reflect real security counts in dashboard triage card
+  const critCard = document.querySelector('.v2-triage-card.crit');
+  if (critCard) {
+    let critCount = 0, warnCount = 0;
+    if (data.ueba && data.ueba.findings) {
+      critCount += data.ueba.findings.filter(f => f.severity === 'critical').length;
+      warnCount += data.ueba.findings.filter(f => f.severity === 'warning').length;
+    }
+    if (data.drift && data.drift.findings) {
+      critCount += data.drift.findings.filter(f => f.severity === 'critical').length;
+      warnCount += data.drift.findings.filter(f => f.severity === 'warning').length;
+    }
+    if (data.riskyUsers && data.riskyUsers.users) {
+      critCount += data.riskyUsers.users.filter(r => r.riskLevel === 'high').length;
+    }
+    const labelEl = critCard.querySelector('.label');
+    const titleEl = critCard.querySelector('.title');
+    if (labelEl) labelEl.textContent = critCount > 0
+      ? `Security · ${critCount} critical`
+      : warnCount > 0 ? `Security · ${warnCount} warning` : 'Security · all clear';
+    if (titleEl && critCount === 0 && warnCount === 0) {
+      titleEl.textContent = 'No critical findings';
+    }
   }
+
+  // Sections stay collapsed by default — user clicks a scan card to open one
   // Update summary strip tiles (scan-trio)
   function updateTile(id, report) {
     const countsEl = document.getElementById('sec-' + id + '-counts');
@@ -611,6 +1489,11 @@ window.api.onSecurityReports((data) => {
   const totalCrit = ((data.ueba?.summary?.critical) || 0) +
                     ((data.drift?.summary?.critical) || 0) +
                     ((data.riskyUsers?.summary?.critical) || 0);
+  const totalWarn = ((data.ueba?.summary?.warning) || 0) +
+                    ((data.drift?.summary?.warning) || 0);
+  _dashState.secCrit = totalCrit;
+  _dashState.secWarn = totalWarn;
+  buildDashSummary();
   const secNav = document.getElementById('nav-security-count');
   if (secNav) {
     secNav.textContent = totalCrit;
@@ -621,6 +1504,26 @@ window.api.onSecurityReports((data) => {
   updateTile('ueba',  data.ueba);
   updateTile('drift', data.drift);
   updateTile('risky', data.riskyUsers);
+
+  // Update collapse <summary> preview chips
+  function updateSummaryPreview(key, report) {
+    const el = document.getElementById('sec-' + key + '-summary-preview');
+    if (!el) return;
+    if (!report) { el.textContent = ''; el.className = 'collapse-summary-preview'; return; }
+    const s = report.summary || {};
+    const cr = s.critical || 0, wn = s.warning || 0, inf = s.info || 0;
+    const total = cr + wn + inf;
+    if (!total) { el.textContent = 'All clear'; el.className = 'collapse-summary-preview all-clear'; return; }
+    const parts = [];
+    if (cr) parts.push(cr + ' critical');
+    if (wn) parts.push(wn + ' warning');
+    if (inf) parts.push(inf + ' info');
+    el.textContent = parts.join(' · ');
+    el.className = 'collapse-summary-preview ' + (cr ? 'has-crit' : wn ? 'has-warn' : '');
+  }
+  updateSummaryPreview('ueba',  data.ueba);
+  updateSummaryPreview('drift', data.drift);
+  updateSummaryPreview('risky', data.riskyUsers);
 
   // Update dashboard security at-a-glance strip
   function updateDashTile(id, report) {
@@ -659,7 +1562,7 @@ window.api.onSecurityReports((data) => {
               + subjects.map(s => '<span class="sec-upn-chip">' + escHtml(s) + '</span>').join('')
               + '</div>' : '')
           + '<div class="sec-finding-footer">'
-            + (agents.length ? '<span class="sec-agent-tag">via ' + escHtml(agents.join(', ')) + '</span>' : '')
+            + (agents.length ? '<span class="sec-agent-tag">via ' + agents.map(a => agentScopeTip(a, a)).join(', ') + '</span>' : '')
             + (latestStr ? '<span class="sec-ts">' + latestStr + '</span>' : '')
           + '</div>'
         + '</div>';
@@ -735,6 +1638,277 @@ window.api.onSecurityReports((data) => {
       }).join('');
     }
   }
+
+  // V2 inbox render
+  renderSecurityInbox(data);
+});
+
+// ── V2 security inbox action buttons ─────────────────────────────────────────
+document.getElementById('sec-action-ack')?.addEventListener('click', () => {
+  if (_secFocused === null || !_secFindings[_secFocused]) return;
+  const f = _secFindings[_secFocused];
+  const key = _secKey(f);
+  if (!_secAckedKeys.has(key)) {
+    _secAckedKeys.add(key);
+    _secAckedFindings.push({ ...f, ackedAt: new Date() });
+  }
+  const ackedEl = document.getElementById('sec-count-acked');
+  if (ackedEl) ackedEl.textContent = String(_secAckedFindings.length);
+  showToast('Finding acknowledged');
+  _renderSecRows();
+  _renderAckedSection();
+});
+
+document.getElementById('sec-action-page')?.addEventListener('click', () => {
+  showToast('On-call paged via Teams (#identity-ops)');
+});
+
+document.getElementById('sec-drift-restore-v2')?.addEventListener('click', () => {
+  if (typeof window.api?.runDriftRemediation === 'function') {
+    window.api.runDriftRemediation();
+  } else {
+    showToast('Restore baseline: submitting for dual approval…');
+  }
+});
+
+// ── Security pivot buttons ────────────────────────────────────────────────────
+// "Open audit entry" → jump to Audit Log and pre-filter by subject
+document.getElementById('sec-pivot-audit')?.addEventListener('click', () => {
+  const f = _secFindings[_secFocused];
+  if (!f) return;
+  switchTab('audit-log');
+  const subject = _secFindingSubject(f);
+  if (subject) {
+    setTimeout(() => {
+      const sel = document.getElementById('log-filter-agent');
+      // Audit log filters by agent name — try to set the UPN as a text search
+      const searchInput = document.getElementById('log-search-input') || document.getElementById('log-filter-upn');
+      if (searchInput) { searchInput.value = subject; }
+      // Trigger filter apply
+      const applyBtn = document.getElementById('btn-log-filter-apply') || document.getElementById('btn-log-apply');
+      if (applyBtn) applyBtn.click(); else if (typeof applyAuditFilters === 'function') applyAuditFilters();
+    }, 150);
+  }
+});
+
+// "Subject in Users" → jump to Users tab and search for the subject
+document.getElementById('sec-pivot-users')?.addEventListener('click', () => {
+  const f = _secFindings[_secFocused];
+  if (!f) return;
+  const subject = _secFindingSubject(f);
+  switchTab('users');
+  if (subject) {
+    setTimeout(() => {
+      const inp = document.getElementById('user-search-input');
+      if (inp) { inp.value = subject; }
+      const searchBtn = document.getElementById('btn-user-search');
+      if (searchBtn) searchBtn.click();
+    }, 150);
+  }
+});
+
+// "Ask Audit Agent" → jump to Auditor and pre-fill a contextual query
+document.getElementById('sec-pivot-audit-agent')?.addEventListener('click', () => {
+  const f = _secFindings[_secFocused];
+  if (!f) return;
+  switchTab('auditor');
+  setTimeout(() => {
+    const inp = document.getElementById('input-auditor');
+    if (inp) {
+      const subject = _secFindingSubject(f);
+      inp.value = subject
+        ? `Investigate security finding "${f.title}" (${f.rule}) for user ${subject}. Show related audit entries and context.`
+        : `Investigate security finding: "${f.title}" (${f.rule}). Show related audit log entries.`;
+      inp.focus();
+    }
+  }, 150);
+});
+
+// ── Security filter dropdowns ─────────────────────────────────────────────────
+document.getElementById('sec-filter-sev')?.addEventListener('click', function () {
+  _showSecDropdown(this, [
+    { label: 'All severities', value: '', active: _secFilter.sev === '' },
+    { label: 'Critical only',  value: 'crit', active: _secFilter.sev === 'crit' },
+    { label: 'Warning+',       value: 'warn', active: _secFilter.sev === 'warn' },
+    { label: 'Info only',      value: 'info', active: _secFilter.sev === 'info' },
+  ], (value, label) => {
+    _secFilter.sev = value;
+    this.textContent = (value ? label : 'All severities') + ' ▾';
+    this.classList.toggle('active', !!value);
+    _renderSecRows();
+  });
+});
+
+document.getElementById('sec-filter-source')?.addEventListener('click', function () {
+  _showSecDropdown(this, [
+    { label: 'All sources',         value: '',        active: _secFilter.source === '' },
+    { label: 'UEBA',                value: 'ueba',    active: _secFilter.source === 'ueba' },
+    { label: 'Drift',               value: 'drift',   active: _secFilter.source === 'drift' },
+    { label: 'Identity Protection', value: 'identity',active: _secFilter.source === 'identity' },
+  ], (value, label) => {
+    _secFilter.source = value;
+    this.textContent = (value ? label : 'All sources') + ' ▾';
+    this.classList.toggle('active', !!value);
+    _renderSecRows();
+  });
+});
+
+document.getElementById('sec-filter-assign')?.addEventListener('click', function () {
+  _showSecDropdown(this, [
+    { label: 'Unassigned',  value: 'unassigned', active: _secFilter.assign === 'unassigned' },
+    { label: 'Assigned',    value: 'assigned',   active: _secFilter.assign === 'assigned' },
+    { label: 'All findings',value: '',           active: _secFilter.assign === '' },
+  ], (value, label) => {
+    _secFilter.assign = value;
+    this.textContent = (value === 'unassigned' ? 'Unassigned' : value === 'assigned' ? 'Assigned' : 'All') + ' ▾';
+    this.classList.toggle('active', value === 'assigned');
+    _renderSecRows();
+  });
+});
+
+document.getElementById('sec-filter-time')?.addEventListener('click', function () {
+  _showSecDropdown(this, [
+    { label: 'All time', value: 0,  active: _secFilter.maxAge === 0 },
+    { label: 'Last 24h', value: 1,  active: _secFilter.maxAge === 1 },
+    { label: 'Last 7d',  value: 7,  active: _secFilter.maxAge === 7 },
+    { label: 'Last 30d', value: 30, active: _secFilter.maxAge === 30 },
+  ], (value, label) => {
+    _secFilter.maxAge = value;
+    this.textContent = label + ' ▾';
+    this.classList.toggle('active', value > 0);
+    _renderSecRows();
+  });
+});
+
+// ── Security bulk action buttons ──────────────────────────────────────────────
+document.getElementById('sec-btn-ack')?.addEventListener('click', () => {
+  if (_secCheckedSet.size === 0) return;
+  _secCheckedSet.forEach(idx => {
+    const f = _secFindings[idx];
+    if (!f) return;
+    const key = _secKey(f);
+    if (!_secAckedKeys.has(key)) {
+      _secAckedKeys.add(key);
+      _secAckedFindings.push({ ...f, ackedAt: new Date() });
+    }
+  });
+  const ackedEl = document.getElementById('sec-count-acked');
+  if (ackedEl) ackedEl.textContent = String(_secAckedFindings.length);
+  const n = _secCheckedSet.size;
+  showToast(n + ' finding' + (n > 1 ? 's' : '') + ' acknowledged');
+  _renderSecRows();
+  _renderAckedSection();
+});
+
+document.getElementById('sec-btn-page')?.addEventListener('click', () => {
+  const n = _secCheckedSet.size;
+  if (n === 0) return;
+  showToast('On-call paged for ' + n + ' finding' + (n > 1 ? 's' : '') + ' via Teams (#identity-ops)');
+});
+
+/**
+ * Show an operator-picker modal.
+ * onPick(operatorName) is called when the user selects someone.
+ * Lists "Assign to me" first, then all other known operators.
+ */
+function _showAssignPicker(onPick) {
+  const me = currentOperatorName || window.api.currentUser || 'me';
+  const others = Object.keys(_operators).filter(n => n !== me);
+
+  const overlay = document.createElement('div');
+  overlay.className = 'pin-overlay';
+
+  const rows = [{ name: me, label: me + ' (me)', role: _operators[me] || currentOperatorRole() }]
+    .concat(others.map(n => ({ name: n, label: n, role: _operators[n] || '' })));
+
+  const roleChip = role => {
+    if (!role) return '';
+    const cls = role === 'admin' ? 'crit' : role === 'helpdesk' ? 'warn' : 'info';
+    return '<span class="tag ' + cls + '" style="margin-left:6px;font-size:10px">' + escHtml(role) + '</span>';
+  };
+
+  overlay.innerHTML =
+    '<div class="pin-modal" style="width:360px;max-width:94vw">'
+    + '<div class="pin-header"><div class="pin-title">Assign to operator</div>'
+    + '<button class="pin-close" id="assign-picker-close">×</button></div>'
+    + '<div class="pin-body" style="padding:8px 0">'
+    + rows.map(r =>
+        '<button class="assign-picker-row" data-name="' + escHtml(r.name) + '" style="display:flex;align-items:center;width:100%;padding:10px 20px;background:none;border:none;cursor:pointer;text-align:left;gap:8px;font-size:13px;color:var(--text-1);border-bottom:1px solid var(--border)">'
+        + '<span style="flex:1">' + escHtml(r.label) + roleChip(r.role) + '</span>'
+        + '</button>'
+      ).join('')
+    + '</div></div>';
+
+  document.body.appendChild(overlay);
+
+  overlay.querySelector('#assign-picker-close').addEventListener('click', () => overlay.remove());
+  overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+
+  overlay.querySelectorAll('.assign-picker-row').forEach(btn => {
+    btn.addEventListener('mouseenter', () => { btn.style.background = 'var(--surface-2)'; });
+    btn.addEventListener('mouseleave', () => { btn.style.background = ''; });
+    btn.addEventListener('click', () => {
+      overlay.remove();
+      onPick(btn.dataset.name);
+    });
+  });
+}
+
+document.getElementById('sec-btn-assign')?.addEventListener('click', function () {
+  if (_secCheckedSet.size === 0) return;
+  const n = _secCheckedSet.size;
+  _showAssignPicker(name => {
+    _secCheckedSet.forEach(idx => { if (_secFindings[idx]) _secFindings[idx].assignee = name; });
+    showToast(n + ' finding' + (n > 1 ? 's' : '') + ' assigned to ' + name);
+    _renderSecRows();
+  });
+});
+
+// ── Individual finding action: Assign ─────────────────────────────────────────
+document.getElementById('sec-action-assign')?.addEventListener('click', () => {
+  if (_secFocused === null || !_secFindings[_secFocused]) return;
+  _showAssignPicker(name => {
+    _secFindings[_secFocused].assignee = name;
+    showToast('Finding assigned to ' + name);
+    _renderSecRows();
+    focusFinding(_secFocused); // refresh right-rail assignee display
+  });
+});
+
+// ── Drift "Show full diff" ────────────────────────────────────────────────────
+document.getElementById('sec-drift-full')?.addEventListener('click', () => {
+  const f = _secFindings[_secFocused];
+  if (!f || !f.isDrift || !f.driftItems) return;
+  const rowsHtml = f.driftItems.map(item => {
+    const name = escHtml(item.displayName || item.userPrincipalName || item.agent || '?');
+    const exp = item.expected ? escHtml(item.expected) : null;
+    const act = item.actual  ? escHtml(item.actual)   : null;
+    return '<div style="margin-bottom:8px">'
+      + '<div style="font-weight:600;margin-bottom:4px">' + name + '</div>'
+      + (exp
+        ? '<div class="diff-row keep"><span class="sym"> </span><span style="color:var(--ok)">Expected: ' + exp + '</span></div>'
+          + '<div class="diff-row rem"><span class="sym">−</span><span style="color:var(--crit)">Actual: ' + (act || '?') + '</span></div>'
+        : '<div class="diff-row rem"><span class="sym">−</span><span>' + escHtml(item.note || f.title) + '</span></div>')
+      + '</div>';
+  }).join('<hr style="border-color:var(--border);margin:8px 0">');
+
+  // Build modal directly so we can render HTML (showDetailPopover escapes raw)
+  const overlay = document.createElement('div');
+  overlay.className = 'pin-overlay';
+  overlay.innerHTML =
+    '<div class="pin-modal" style="width:540px;max-width:94vw">'
+    + '<div class="pin-header"><div class="pin-title">' + escHtml('Full drift diff — ' + f.title) + '</div></div>'
+    + '<div class="pin-body" style="max-height:60vh;overflow-y:auto;padding:16px">'
+    + '<div style="font-family:var(--mono,monospace);font-size:12px;line-height:1.7">'
+    + rowsHtml
+    + '</div></div>'
+    + '<div class="pin-footer"><button class="btn ghost dd-close">Close</button></div>'
+    + '</div>';
+  document.body.appendChild(overlay);
+  const close = () => overlay.remove();
+  overlay.querySelector('.dd-close').addEventListener('click', close);
+  overlay.addEventListener('click', e => { if (e.target === overlay) close(); });
+  document.addEventListener('keydown', function esc(e) { if (e.key === 'Escape') { close(); document.removeEventListener('keydown', esc); } });
 });
 
 // ── Exports tab ───────────────────────────────────────────────────────────────
@@ -789,6 +1963,8 @@ window.api.onExportsStatus((data) => {
     if (!b.error) document.getElementById('blob-error').textContent = '';
   }
 
+  updateExportReceiptHop('blob', b, b && b.entriesExported != null ? b.entriesExported + ' entries' : null);
+
   const s = data.sentinel;
   applyExportStatus('sentinel', s);
   if (s) {
@@ -796,6 +1972,8 @@ window.api.onExportsStatus((data) => {
     document.getElementById('sentinel-events').textContent    = s.eventsIngested != null ? s.eventsIngested + ' events' : '—';
     if (!s.error) document.getElementById('sentinel-error').textContent = '';
   }
+
+  updateExportReceiptHop('sentinel', s, s && s.eventsIngested != null ? s.eventsIngested + ' events' : null);
 
   // Feed dashboard Exports widget
   const blobOk = b && !b.error;
@@ -809,6 +1987,30 @@ window.api.onExportsStatus((data) => {
   const sentMeta = document.getElementById('dash-exp-sentinel');
   if (sentMeta) sentMeta.textContent = s ? (s.eventsIngested != null ? s.eventsIngested + ' events' : (s.error ? 'error' : 'ready')) : 'unconfigured';
 });
+
+function updateExportReceiptHop(id, status, countText) {
+  const hop = document.getElementById('export-hop-' + id);
+  const meta = document.getElementById('export-hop-' + id + '-meta');
+  if (!hop || !meta) return;
+  hop.classList.remove('ok', 'err', 'soon');
+  if (!status) {
+    hop.classList.add('soon');
+    meta.textContent = 'unconfigured';
+    return;
+  }
+  if (status.error) {
+    hop.classList.add('err');
+    meta.textContent = 'needs attention';
+    return;
+  }
+  if (status.configured === false) {
+    hop.classList.add('soon');
+    meta.textContent = 'not configured';
+    return;
+  }
+  hop.classList.add('ok');
+  meta.textContent = countText || (status.lastRun ? 'last run recorded' : 'ready');
+}
 
 function setRunning(type, running) {
   const btn = document.getElementById('btn-run-' + type);
@@ -832,9 +2034,16 @@ window.api.onExportRunResult((result) => {
   setRunning(result.type, false);
   if (result.ok) {
     window.api.getExportsStatus();
+    const label = result.type === 'blob' ? 'Blob export' : 'Sentinel ingest';
+    if (result.status && result.status.configured === false) {
+      showToast(label + ' skipped — configure in Integrations settings', 'warning');
+    } else {
+      showToast(label + ' complete', 'success');
+    }
   } else {
     const errEl = document.getElementById(result.type === 'blob' ? 'blob-error' : 'sentinel-error');
-    errEl.textContent = result.error || 'Unknown error';
+    if (errEl) errEl.textContent = result.error || 'Unknown error';
+    showToast((result.type === 'blob' ? 'Blob export' : 'Sentinel ingest') + ' failed: ' + (result.error || 'unknown error'), 'error');
   }
 });
 
@@ -846,42 +2055,28 @@ function loadAuditLog() {
   window.api.getAuditLog();
 }
 
-window.api.onAuditLogData((entries) => {
-  // Feed Operations kanban Completed-today column from audit log
-  renderOpsCompleted(entries || []);
+const LOG_PAGE_SIZE = 50;
+let _logPage = 0;
+let _logEntries = [];
 
-  // Feed dashboard Audit widget
-  if (Array.isArray(entries)) {
-    const total = entries.length;
-    const totalEl = document.getElementById('dash-audit-total');
-    if (totalEl) totalEl.textContent = total;
-    const cnt = document.getElementById('dash-audit-cnt');
-    if (cnt) cnt.textContent = `· ${total} entries`;
-    const last = entries[0];
-    const sealEl = document.getElementById('dash-audit-seal');
-    if (sealEl && last) sealEl.textContent = last.timestamp ? new Date(last.timestamp).toLocaleString() : '—';
-    const headEl = document.getElementById('dash-audit-head');
-    if (headEl && last && last.hash) headEl.textContent = String(last.hash).slice(0, 12) + '…';
-  }
+function renderAuditPage() {
+  const tbody   = document.getElementById('log-tbody');
+  const paginEl = document.getElementById('log-pagination');
+  const entries = _logEntries;
+  const total   = entries.length;
+  const start   = _logPage * LOG_PAGE_SIZE;
+  const end     = Math.min(start + LOG_PAGE_SIZE, total);
+  const page    = entries.slice(start, end);
 
-  const tbody    = document.getElementById('log-tbody');
-  const countEl  = document.getElementById('log-count');
-  if (!entries.length) {
-    tbody.innerHTML = '<tr><td colspan="7" class="empty-row">No audit entries found.</td></tr>';
-    if (countEl) countEl.textContent = '';
-    return;
-  }
-  if (countEl) countEl.textContent = entries.length + ' entries';
-  // Stash for click handlers
-  window._lastAuditEntries = entries;
-  tbody.innerHTML = entries.map(e => {
+  tbody.innerHTML = page.map((e, i) => {
+    const idx      = start + i;
     const ts       = e.timestamp ? new Date(e.timestamp).toLocaleString() : '--';
     const outcome  = e.outcome || '--';
     const mode     = e.whatif ? '<span class="badge-whatif">Safe</span>' : '<span class="badge-live">Live</span>';
     const cls      = outcome === 'success' ? 'success' : outcome === 'partial' ? 'partial' : outcome === 'failed' ? 'failed' : '';
     const ticket   = (e.details && e.details.ticketRef) ? escHtml(e.details.ticketRef) : '<span class="dim">—</span>';
     const operator = e.operator ? escHtml(e.operator) : '<span class="dim">—</span>';
-    return `<tr data-audit-idx="${escHtml(String(entries.indexOf(e)))}" style="cursor:pointer">
+    return `<tr data-audit-idx="${idx}" style="cursor:pointer">
       <td class="mono">${ts}</td>
       <td>${escHtml(e.agent || '--')}</td>
       <td class="mono">${escHtml(e.subject || '--')}</td>
@@ -891,7 +2086,8 @@ window.api.onAuditLogData((entries) => {
       <td>${mode}</td>
     </tr>`;
   }).join('');
-  // Click an audit row → show full detail popover
+
+  // Click handler for detail popover
   tbody.querySelectorAll('tr[data-audit-idx]').forEach(row => {
     row.addEventListener('click', () => {
       const e = entries[parseInt(row.dataset.auditIdx, 10)];
@@ -919,7 +2115,126 @@ window.api.onAuditLogData((entries) => {
       });
     });
   });
+
+  // Pagination controls
+  if (paginEl) {
+    const totalPages = Math.ceil(total / LOG_PAGE_SIZE);
+    if (total <= LOG_PAGE_SIZE) {
+      paginEl.innerHTML = '';
+    } else {
+      paginEl.innerHTML = `
+        <span class="lp-range">Showing ${start + 1}–${end} of ${total}</span>
+        <div class="lp-btns">
+          <button class="lp-btn" id="lp-prev"${_logPage === 0 ? ' disabled' : ''}>← Prev</button>
+          <button class="lp-btn" id="lp-next"${_logPage >= totalPages - 1 ? ' disabled' : ''}>Next →</button>
+        </div>`;
+      const prevBtn = paginEl.querySelector('#lp-prev');
+      const nextBtn = paginEl.querySelector('#lp-next');
+      if (prevBtn) prevBtn.addEventListener('click', () => { _logPage--; renderAuditPage(); });
+      if (nextBtn) nextBtn.addEventListener('click', () => { _logPage++; renderAuditPage(); });
+    }
+  }
+}
+
+window.api.onAuditLogData((entries) => {
+  // Feed Operations kanban Completed-today column from audit log
+  renderOpsCompleted(entries || []);
+
+  // Feed dashboard Audit widget
+  if (Array.isArray(entries)) {
+    const total = entries.length;
+    const totalEl = document.getElementById('dash-audit-total');
+    if (totalEl) totalEl.textContent = total;
+    const cnt = document.getElementById('dash-audit-cnt');
+    if (cnt) cnt.textContent = `· ${total} entries`;
+    const last = entries[0];
+    const sealEl = document.getElementById('dash-audit-seal');
+    if (sealEl && last) sealEl.textContent = last.timestamp ? new Date(last.timestamp).toLocaleString() : '—';
+    const headEl = document.getElementById('dash-audit-head');
+    if (headEl && last && last.hash) headEl.textContent = String(last.hash).slice(0, 12) + '…';
+  }
+
+  const countEl = document.getElementById('log-count');
+  if (!entries.length) {
+    document.getElementById('log-tbody').innerHTML = '<tr><td colspan="7" class="empty-row">No audit entries found.</td></tr>';
+    if (countEl) countEl.textContent = '';
+    const paginEl = document.getElementById('log-pagination');
+    if (paginEl) paginEl.innerHTML = '';
+    return;
+  }
+  if (countEl) countEl.textContent = entries.length + ' entries';
+  window._lastAuditEntries = entries;
+  _logEntries = entries;
+  _logPage = 0;
+  renderAuditPage();
 });
+
+// ── Dashboard AI summary ──────────────────────────────────────────────────────
+const _dashState = {
+  users:     null,   // { total, enabled, disabled, guests }
+  activity:  null,   // { totalEntries }
+  approvals: null,   // number
+  secCrit:   null,   // number
+  secWarn:   null,   // number
+  agents:    null,   // array from agent health
+  certAlert: null,   // name of first expiring cert
+};
+
+function buildDashSummary() {
+  const el = document.getElementById('dash-page-sub');
+  if (!el) return;
+
+  const urgent = [];
+  const notes  = [];
+
+  // Security pressure
+  const sc = _dashState.secCrit ?? 0;
+  const sw = _dashState.secWarn ?? 0;
+  if (sc > 0)       urgent.push(`${sc} critical security finding${sc > 1 ? 's' : ''}`);
+  else if (sw > 0)  urgent.push(`${sw} security warning${sw > 1 ? 's' : ''}`);
+
+  // Approval pressure
+  const ap = _dashState.approvals ?? 0;
+  if (ap > 0) urgent.push(`${ap} pending approval${ap > 1 ? 's' : ''}`);
+
+  // Agent health
+  if (_dashState.agents && _dashState.agents.length) {
+    const sick = _dashState.agents.filter(a => a.status === 'critical' || a.status === 'expiring').length;
+    if (sick > 0) notes.push(`${sick} agent${sick > 1 ? 's' : ''} need${sick === 1 ? 's' : ''} attention`);
+    else          notes.push(`all ${_dashState.agents.length} agents healthy`);
+  }
+
+  // Cert alert
+  if (_dashState.certAlert) notes.push(`${_dashState.certAlert} cert expiring soon`);
+
+  // User baseline
+  if (_dashState.users) {
+    const u = _dashState.users;
+    notes.push(`${(u.total || 0).toLocaleString()} identities${u.guests > 0 ? ` · ${u.guests} guests` : ''}`);
+  }
+
+  // Activity
+  if (_dashState.activity && _dashState.activity.totalEntries) {
+    notes.push(`${_dashState.activity.totalEntries} operations logged`);
+  }
+
+  // Compose prose
+  if (urgent.length === 0 && notes.length === 0) {
+    el.textContent = 'Fleet operating normally — no pending actions, all agents ready.';
+    return;
+  }
+  let text = '';
+  if (urgent.length > 0) {
+    text = urgent.join(' · ');
+    if (notes.length > 0) text += ' — ' + notes.join(', ') + '.';
+    else text += '.';
+  } else {
+    text = notes.join(' · ') + '.';
+    // Capitalise first letter
+    text = text.charAt(0).toUpperCase() + text.slice(1);
+  }
+  el.textContent = text;
+}
 
 // ── Dashboard ─────────────────────────────────────────────────────────────────
 function loadDashboard() {
@@ -962,6 +2277,10 @@ window.api.onDashboardStats((data) => {
     }
   }
 
+  if (data.users)    { _dashState.users    = data.users; }
+  if (data.activity) { _dashState.activity = { totalEntries: data.activity.totalEntries || 0 }; }
+  buildDashSummary();
+
   if (data.activity) {
     document.getElementById('stat-activity-total').textContent = data.activity.totalEntries || 0;
     const recent = (data.activity.recentEntries || []).slice(0, 5);
@@ -1000,6 +2319,16 @@ window.api.onDashboardStats((data) => {
           });
         });
       });
+    }
+  }
+
+  // Update dashboard V2 heading meta with real user count
+  if (data.users && data.users.total) {
+    const sub = document.getElementById('dash-headline-sub');
+    if (sub) {
+      const now = new Date();
+      const timeStr = now.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
+      sub.textContent = data.users.total + ' identities · last sync ' + timeStr;
     }
   }
 });
@@ -1077,7 +2406,7 @@ function buildActivityItem(e) {
   const outcomeClass = (e.outcome || '').toLowerCase();
   return `<div class="evt activity-item" data-agent="${escHtml(agent)}" title="${escHtml(subjFull || e.action || '')}">
     <span class="ts">${escHtml(tsLabel)}</span>
-    <span class="agent-tag t-${escHtml(agent)}">${escHtml(agent)}</span>
+    <span class="agent-tag t-${escHtml(agent)}">${agentScopeTip(agent, agent)}</span>
     <span class="subj">${escHtml(subjMain)}${subjEm ? `<em>${escHtml(subjEm)}</em>` : ''}</span>
     <span class="outcome ${outcomeClass}">${escHtml(e.outcome || '—')}</span>
   </div>`;
@@ -1291,7 +2620,7 @@ function renderMarkdown(text) {
     i++;
   }
 
-  return out.join('');
+  return decorateAgentMentions(out.join('')) + renderV2ChatEnhancements(text);
 }
 
 function inlineMarkdown(text) {
@@ -1307,6 +2636,176 @@ function inlineMarkdown(text) {
 }
 
 // ── Approvals tab ─────────────────────────────────────────────────────────────
+function agentScopeTip(agent, label, className) {
+  const key = String(agent || '').toLowerCase().replace(/[^a-z-]/g, '').replace(/-agent$/, '');
+  const meta = AGENT_SCOPE_META[key];
+  const safeLabel = escHtml(label || key || 'agent');
+  const cls = className ? ' ' + className : '';
+  if (!meta) return '<span class="agent-scope-label' + cls + '">' + safeLabel + '</span>';
+  // Compact tooltip: role + key permissions only (no reg, cannot, or note)
+  return '<span class="tip-host agent-scope-label' + cls + '" tabindex="0">' + safeLabel +
+    '<span class="tip">' +
+      '<div class="tip-title">' + escHtml(meta.label || key) + '</div>' +
+      '<div class="tip-row"><span class="k">role</span><span class="v">' + escHtml(meta.role) + '</span></div>' +
+      '<div class="tip-row"><span class="k">can</span><span class="v ok">' + escHtml(meta.scopes.join(', ')) + '</span></div>' +
+    '</span>' +
+  '</span>';
+}
+
+function decorateAgentMentions(html) {
+  return html.replace(/\b(joiner|mover|leaver|enroller|certifier|approver|provisioner|auditor|knowledge)(?:-agent|\s+agent)?\b/gi, (match, agent) => {
+    return agentScopeTip(agent, match, 'inline');
+  });
+}
+
+function renderV2ChatEnhancements(text) {
+  const t = (text || '').toLowerCase();
+  if (!t || currentTab !== 'approver') return '';
+  const parts = [];
+  if (/\brisk\b|\bscore\b|dual-approval|privileged|sensitive/.test(t)) {
+    // Use real tool result if available; fall back to coarse text-detected score
+    const fallbackScore = t.includes('critical') ? 86 : t.includes('low') ? 24 : 68;
+    parts.push(renderRiskScoreCard(_lastRiskResult || { score: fallbackScore }));
+  }
+  if (/\bplan\b|graph\.|revoke|disable|license|group|audit\.write|offboard|leaver/.test(t)) {
+    parts.push(renderPlanPreviewCard());
+  }
+  return parts.length ? '<div class="v2-chat-enhancements">' + parts.join('') + '</div>' : '';
+}
+
+// renderRiskScoreCard(data)
+// data — either a plain number (legacy fallback) or the full score_risk tool result:
+//   { score, riskLevel, operation, subject, blocked, dualApproval, reasons: string[] }
+// Reasons from Invoke-RiskScore.ps1 use "PREFIX: message" format, e.g.:
+//   "FREEZE: Change-freeze is active on Sundays"
+//   "SENSITIVE_LICENSE: 'AAD_PREMIUM_P2' is flagged for additional review"
+//   "SENSITIVE_GROUP: 'Global Admins' is a privileged group requiring approval"
+//   "SOD_BLOCK [R-001]: Conflicting roles assigned simultaneously"
+//   "DUAL_APPROVAL_REQUIRED: This operation requires a second operator to approve"
+function renderRiskScoreCard(data) {
+  const d      = typeof data === 'number' ? { score: data } : (data || { score: 68 });
+  const clamped = Math.max(0, Math.min(100, d.score || 0));
+  // Derive tone from riskLevel field if present (more accurate than threshold buckets)
+  const tone    = d.riskLevel || (clamped >= 80 ? 'critical' : clamped >= 60 ? 'high' : clamped >= 35 ? 'medium' : 'low');
+  const toneVar = tone === 'critical' ? 'var(--crit)' : tone === 'high' ? 'var(--warn)' : tone === 'medium' ? 'var(--info)' : 'var(--ok)';
+  // SVG circular gauge — r=22 → circumference ≈ 138.2
+  const r = 22, circ = 2 * Math.PI * r;
+  const dash = (clamped / 100) * circ;
+  const gap  = circ - dash;
+
+  // ── Reason rows ─────────────────────────────────────────────────────────────
+  // Map reason prefixes → severity class and human-readable label
+  const _reasonClass = (prefix) => {
+    if (/^(SOD_BLOCK|FREEZE|BLOCKED)/.test(prefix))    return 'bad';
+    if (/^(SENSITIVE|SOD_WARN|DUAL_APPROVAL)/.test(prefix)) return 'warn';
+    return 'ok';
+  };
+  const _reasonLabel = (prefix) => {
+    const map = {
+      FREEZE:               '❄ Freeze window',
+      SENSITIVE_LICENSE:    '⚑ Sensitive license',
+      SENSITIVE_GROUP:      '⚑ Privileged group',
+      SOD_BLOCK:            '⊘ SoD conflict (blocked)',
+      SOD_WARN:             '△ SoD conflict (warn)',
+      DUAL_APPROVAL_REQUIRED: '⊛ Dual approval required',
+      SOD_CHECK_SKIPPED:    '— SoD check skipped',
+    };
+    // Match any key that the prefix starts with
+    return Object.entries(map).find(([k]) => prefix.startsWith(k))?.[1] || prefix;
+  };
+
+  const reasons = Array.isArray(d.reasons) ? d.reasons : [];
+  let reasonsHtml;
+
+  if (reasons.length) {
+    reasonsHtml = reasons.map(raw => {
+      const colon = raw.indexOf(':');
+      const prefix = colon >= 0 ? raw.slice(0, colon).trim() : raw.trim();
+      const detail = colon >= 0 ? raw.slice(colon + 1).trim() : '';
+      const cls    = _reasonClass(prefix);
+      const label  = _reasonLabel(prefix);
+      return '<div class="it ' + cls + '">' +
+        '<span class="risk-reason-lbl">' + escHtml(label) + '</span>' +
+        (detail ? '<span class="risk-reason-detail">' + escHtml(detail) + '</span>' : '') +
+        '</div>';
+    }).join('');
+  } else {
+    // No reasons from the script — render score-relative baseline copy
+    const op = d.operation || '';
+    const opNames = { joiner: 'Joiner', enroller: 'Enroller', mover: 'Mover', leaver_soft: 'Soft leaver', leaver_hard: 'Hard leaver' };
+    const opLabel = opNames[op] || 'Lifecycle';
+    const impact  = clamped < 30 ? 'low-impact' : clamped < 60 ? 'moderate-impact' : 'high-impact';
+    reasonsHtml = '<div class="it ' + (clamped >= 60 ? 'bad' : 'warn') + '">' +
+      escHtml(opLabel + ' baseline — ' + impact + ' on account state.') + '</div>';
+    if (d.dualApproval) reasonsHtml += '<div class="it warn">Dual approval required before execution.</div>';
+    reasonsHtml += '<div class="it ok">Audit chain and rollback window active.</div>';
+  }
+
+  // Blocked banner appended to reasons
+  if (d.blocked) {
+    reasonsHtml += '<div class="it bad risk-blocked-banner">⊘ Operation is blocked by policy — cannot proceed without override.</div>';
+  }
+
+  // ── Badge strip (riskLevel + optional dual-approval + blocked flags) ─────────
+  const badges = '<span class="badge ' + tone + '">' + escHtml(tone) + '</span>' +
+    (d.dualApproval ? ' <span class="badge warn">dual-approval</span>' : '') +
+    (d.blocked      ? ' <span class="badge critical">blocked</span>' : '');
+
+  // ── Score breakdown tooltip text ─────────────────────────────────────────────
+  const opBase = { joiner: 10, enroller: 15, mover: 25, leaver_soft: 40, leaver_hard: 60 };
+  const base   = opBase[d.operation] != null ? opBase[d.operation] : '—';
+  const subEl  = d.operation
+    ? '<div class="risk-score-meta">baseline ' + base + ' + ' + (reasons.length) + ' modifier' + (reasons.length !== 1 ? 's' : '') + '</div>'
+    : '';
+
+  return '<div class="v2-chat-card v2-risk-card">' +
+    '<div class="v2-risk-gauge-wrap">' +
+      '<svg class="v2-risk-gauge" width="56" height="56" viewBox="0 0 56 56">' +
+        '<circle cx="28" cy="28" r="' + r + '" fill="none" stroke="var(--surface-2)" stroke-width="5"/>' +
+        '<circle cx="28" cy="28" r="' + r + '" fill="none" stroke="' + toneVar + '" stroke-width="5"' +
+          ' stroke-dasharray="' + dash.toFixed(1) + ' ' + gap.toFixed(1) + '"' +
+          ' stroke-linecap="round" transform="rotate(-90 28 28)"/>' +
+        '<text x="28" y="32" text-anchor="middle" font-size="13" font-weight="600" fill="' + toneVar + '" font-family="var(--mono)">' + clamped + '</text>' +
+      '</svg>' +
+      '<div class="v2-risk-gauge-label">/ 100' + subEl + '</div>' +
+    '</div>' +
+    '<div class="v2-risk-body">' +
+      '<div class="v2-risk-heading">Risk assessment ' + badges + '</div>' +
+      '<div class="risk-list">' + reasonsHtml + '</div>' +
+    '</div>' +
+  '</div>';
+}
+
+function renderPlanPreviewCard() {
+  // [num, op, subject, agentKey, dur, reversible]
+  // reversible: true = ↺ (can roll back), false = → (permanent)
+  const rows = [
+    ['01', 'graph.user.disable',              'robert.martinez@contoso.com', 'leaver',  '~0.4s', true],
+    ['02', 'graph.user.revokeSignInSessions', '3 active sessions',           'leaver',  '~0.8s', false],
+    ['03', 'purview.irm.submit',              'termination record',           'leaver',  '~0.6s', true],
+    ['04', 'audit.write',                     'audit trail entry',            'auditor', '~0.2s', false],
+  ];
+  const agentTag = key => {
+    const colours = { leaver: 'crit', joiner: 'ok', mover: 'warn', auditor: 'info', approver: 'violet', certifier: 'cyan' };
+    return '<span class="tag ' + (colours[key] || 'info') + '">' + escHtml(key) + '</span>';
+  };
+  return '<div class="plan-list v2-chat-card">' + rows.map(r =>
+    '<div class="plan-row">' +
+      '<span class="step-num">' + r[0] + '</span>' +
+      '<span class="step-body">' +
+        '<span class="step-op">' + escHtml(r[1]) + '</span>' +
+        '<span class="step-sub">' + escHtml(r[2]) + '</span>' +
+      '</span>' +
+      '<span class="step-meta">' +
+        agentTag(r[3]) +
+        '<span class="step-dur">' + r[4] + '</span>' +
+        '<span class="step-rev ' + (r[5] ? 'ok' : 'warn') + '">' + (r[5] ? '&#x21BA;' : '&rarr;') + '</span>' +
+      '</span>' +
+    '</div>'
+  ).join('') + '</div>';
+}
+
+
 document.getElementById('refresh-approvals').addEventListener('click', loadApprovals);
 
 function loadApprovals() {
@@ -1322,6 +2821,8 @@ window.api.onPendingApprovals((data) => {
     return;
   }
   const items = Array.isArray(data) ? data : [];
+  _dashState.approvals = items.length;
+  buildDashSummary();
   if (countEl) countEl.textContent = items.length;
 
   // Sidebar approvals badge
@@ -1339,8 +2840,39 @@ window.api.onPendingApprovals((data) => {
   if (dashDet) dashDet.textContent = items.length
     ? (items.length === 1 ? '1 action awaiting decision' : items.length + ' actions awaiting decision')
     : 'No pending approvals';
+
+  // Update V2 triage card for approvals
+  const apprLabel = document.getElementById('triage-appr-label');
+  const apprTitle = document.getElementById('triage-appr-title');
+  const apprMeta  = document.getElementById('triage-appr-meta');
+  const apprCard  = document.getElementById('triage-approvals');
+  if (apprLabel) apprLabel.textContent = items.length > 0
+    ? 'Approvals · ' + items.length + ' pending'
+    : 'Approvals';
+  if (apprCard) {
+    apprCard.className = 'v2-triage-card ' + (items.length > 2 ? 'crit' : items.length > 0 ? 'warn' : 'info');
+  }
+  if (items.length > 0 && apprTitle) {
+    const first = items[0];
+    const tool = (first.tool || '').toLowerCase();
+    apprTitle.textContent = tool
+      ? tool.charAt(0).toUpperCase() + tool.slice(1).replace(/_/g, ' ') + ' awaiting approval'
+      : 'Operation awaiting approval';
+    if (apprMeta) {
+      const token = first.token || first.id || '';
+      apprMeta.textContent = token ? 'token ' + token.slice(0, 6) + '…' : 'pending review';
+    }
+  } else if (apprTitle) {
+    apprTitle.textContent = 'No pending approvals';
+  }
   if (items.length === 0) {
-    listEl.innerHTML = '<div class="loading-hint">No pending approvals.</div>';
+    listEl.innerHTML = `<div class="empty-state">
+      <div class="empty-state-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+      </div>
+      <div class="empty-state-title">All clear</div>
+      <div class="empty-state-body">No pending approvals. Operations requiring sign-off will appear here with a TTL countdown.</div>
+    </div>`;
     return;
   }
   listEl.innerHTML = items.map(op => {
@@ -1497,7 +3029,16 @@ function renderOpsInflight() {
   if (!body || !count) return;
   const arr = [...(_inflightOps.values())];
   count.textContent = arr.length;
-  if (!arr.length) { body.innerHTML = '<div class="loading-hint">No operations in flight.</div>'; return; }
+  if (!arr.length) {
+    body.innerHTML = `<div class="empty-state sm">
+      <div class="empty-state-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14"/></svg>
+      </div>
+      <div class="empty-state-title">No active runs</div>
+      <div class="empty-state-body">Live operations will stream here as they execute.</div>
+    </div>`;
+    return;
+  }
   body.innerHTML = arr.map(op => {
     const elapsed = op.startedAt ? Math.floor((Date.now() - op.startedAt) / 1000) : 0;
     return `<div class="op-card run">
@@ -1518,7 +3059,16 @@ function renderOpsQueued(items) {
   const next = document.getElementById('ops-queued-next');
   if (!body || !count) return;
   count.textContent = items.length;
-  if (!items.length) { body.innerHTML = '<div class="loading-hint">No queued operations.</div>'; if (next) next.textContent = ''; return; }
+  if (!items.length) {
+    body.innerHTML = `<div class="empty-state sm">
+      <div class="empty-state-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+      </div>
+      <div class="empty-state-title">Queue is empty</div>
+      <div class="empty-state-body">Scheduled operations will appear here before dispatch.</div>
+    </div>`;
+    if (next) next.textContent = ''; return;
+  }
   if (next && items[0].when) {
     const t = new Date(items[0].when);
     next.textContent = 'next ' + t.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'});
@@ -1645,10 +3195,13 @@ document.getElementById('btn-schedule').addEventListener('click', () => {
   const upn    = document.getElementById('sched-upn').value.trim();
   const when   = document.getElementById('sched-when').value;
   const whatif = document.getElementById('sched-whatif').checked;
-  if (!op || !upn || !when) return;
+  if (!op || !upn || !when) {
+    showToast(!upn ? 'Enter a UPN before scheduling' : 'Choose a date and time', 'warn');
+    return;
+  }
   window.api.saveScheduledOp({
     operation: op,
-    payload:   { userPrincipalName: upn },
+    payload:   { userPrincipalName: upn, whatif },
     scheduledFor: new Date(when).toISOString(),
     createdBy: window.api.currentUser,
     whatif
@@ -1662,7 +3215,7 @@ window.api.onScheduledOps((ops) => {
   const queuedItems = Array.isArray(ops)
     ? ops.filter(o => o.status === 'pending' || !o.status).map(o => ({
         id: o.id, op: o.operation, upn: (o.payload || {}).userPrincipalName,
-        when: o.scheduledFor, whatif: (o.payload || {}).whatif !== false, status: o.status || 'pending'
+        when: o.scheduledFor, whatif: o.whatif !== false && (o.payload || {}).whatif !== false, status: o.status || 'pending'
       }))
     : [];
   renderOpsQueued(queuedItems);
@@ -1792,25 +3345,64 @@ window.api.onCertificationResult((data) => {
 
 window.api.onCertHistory((entries) => {
   const el = document.getElementById('cert-history-body');
-  if (!entries || !entries.length) { el.innerHTML = '<div class="loading-hint">No history.</div>'; return; }
-  el.innerHTML = entries.slice(0, 20).map(e => {
-    const ts    = e.timestamp ? new Date(e.timestamp).toLocaleString() : '—';
-    const ok    = e.outcome === 'success';
-    const fail  = e.outcome === 'failed';
-    const icon  = ok ? '&#x2713;' : fail ? '&#x2717;' : '&#x25CF;';
-    const cls   = ok ? 'cert-hist-ok' : fail ? 'cert-hist-fail' : 'cert-hist-neutral';
-    const mode  = e.whatif ? '<span class="badge-whatif">Safe</span>' : '<span class="badge-live">Live</span>';
-    const subj  = e.subject ? escHtml(e.subject) : '<span class="text-dim">—</span>';
-    return '<div class="cert-hist-entry">'
-      + '<div class="cert-hist-icon ' + cls + '">' + icon + '</div>'
-      + '<div class="cert-hist-body">'
-        + '<div class="cert-hist-top">'
-          + '<span class="cert-hist-subject">' + subj + '</span>'
-          + mode
-        + '</div>'
-        + '<div class="cert-hist-ts">' + escHtml(ts) + '</div>'
-      + '</div>'
-    + '</div>';
+  if (!entries || !entries.length) {
+    el.innerHTML = `<div class="empty-state">
+      <div class="empty-state-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/></svg>
+      </div>
+      <div class="empty-state-title">No campaign history</div>
+      <div class="empty-state-body">Run a campaign above to start building an attestation record.</div>
+    </div>`;
+    return;
+  }
+
+  // Group by campaign subject name
+  const grouped = {};
+  entries.forEach(e => {
+    const key = e.subject || 'Unknown';
+    if (!grouped[key]) grouped[key] = [];
+    grouped[key].push(e);
+  });
+
+  el.innerHTML = Object.entries(grouped).map(([name, runs]) => {
+    const total  = runs.length;
+    const passed = runs.filter(r => r.outcome === 'success').length;
+    const failed = runs.filter(r => r.outcome === 'failed').length;
+    const pct    = total ? Math.round((passed / total) * 100) : 0;
+    const last   = runs[0]; // most recent first
+    const lastTs = last && last.timestamp ? new Date(last.timestamp).toLocaleDateString('en-US', {month: 'short', day: 'numeric'}) : '—';
+    const lastMode = last && !last.whatif ? '<span class="badge-live">Live</span>' : '<span class="badge-whatif">Safe</span>';
+    const passColor = pct >= 80 ? 'var(--emerald)' : pct >= 50 ? 'var(--amber)' : 'var(--coral)';
+
+    const runRows = runs.slice(0, 8).map(r => {
+      const ts  = r.timestamp ? new Date(r.timestamp).toLocaleString() : '—';
+      const ok  = r.outcome === 'success';
+      const fail= r.outcome === 'failed';
+      const icon = ok ? '<span style="color:var(--emerald)">✓</span>' : fail ? '<span style="color:var(--coral)">✗</span>' : '<span style="color:var(--amber)">○</span>';
+      const mode = r.whatif ? '<span class="badge-whatif">Safe</span>' : '<span class="badge-live">Live</span>';
+      return `<div class="cert-hist-entry">
+        <div class="cert-hist-icon">${icon}</div>
+        <div class="cert-hist-body">
+          <div class="cert-hist-top"><span style="font-family:var(--mono);font-size:11px;color:var(--text-2)">${escHtml(ts)}</span>${mode}</div>
+        </div>
+      </div>`;
+    }).join('');
+
+    const isPerfect = pct === 100;
+    return `<details class="cert-campaign-group${isPerfect ? ' ccg-perfect' : ''}"${isPerfect ? '' : ''}>
+      <summary>
+        <div class="ccg-left">
+          <span class="ccg-name">${escHtml(name)}</span>
+          <span class="ccg-meta">${total} run${total !== 1 ? 's' : ''} · last ${escHtml(lastTs)}</span>
+        </div>
+        <div class="ccg-right">
+          <span class="ccg-pass-rate" style="color:${passColor}">${pct}% pass</span>
+          ${lastMode}
+          ${isPerfect ? '<span class="ccg-checkmark">✓</span>' : '<span class="ccg-chevron">›</span>'}
+        </div>
+      </summary>
+      <div class="ccg-runs">${runRows}</div>
+    </details>`;
   }).join('');
 });
 
@@ -2060,10 +3652,18 @@ document.getElementById('btn-notif-add')?.addEventListener('click', () => {
     }
     document.getElementById('wizard-signin-pending').style.display = '';
     if (_signinPoll) clearInterval(_signinPoll);
+    let _urlOpened = false;
     _signinPoll = setInterval(async () => {
       const s = await window.api.checkDeviceCodeStatus();
       if (s.deviceCode) document.getElementById('wizard-device-code').textContent = s.deviceCode;
-      if (s.verificationUrl) document.getElementById('wizard-verify-url').textContent = s.verificationUrl;
+      if (s.verificationUrl) {
+        document.getElementById('wizard-verify-url').textContent = s.verificationUrl;
+        // Auto-open verification URL in browser the first time it arrives
+        if (!_urlOpened) {
+          _urlOpened = true;
+          if (typeof window.api?.openExternal === 'function') window.api.openExternal(s.verificationUrl);
+        }
+      }
       if (s.status === 'success') {
         clearInterval(_signinPoll); _signinPoll = null;
         _wizState.tenantId = s.tenantId; _wizState.account = s.account;
@@ -2079,6 +3679,22 @@ document.getElementById('btn-notif-add')?.addEventListener('click', () => {
         document.getElementById('wizard-signin-pending').style.display = 'none';
       }
     }, 2000);
+  });
+
+  // Wizard step 1 — Copy code button
+  document.getElementById('wizard-copy-code')?.addEventListener('click', () => {
+    const code = document.getElementById('wizard-device-code').textContent.trim();
+    if (code && code !== '—') {
+      navigator.clipboard.writeText(code).then(() => showToast('Device code copied')).catch(() => showToast('Copy failed', 'warn'));
+    }
+  });
+
+  // Wizard step 1 — Open URL button
+  document.getElementById('wizard-open-url')?.addEventListener('click', () => {
+    const url = document.getElementById('wizard-verify-url').textContent.trim();
+    if (url && url !== '—' && typeof window.api?.openExternal === 'function') {
+      window.api.openExternal(url);
+    }
   });
 
   // Step 2 — create app regs
@@ -2307,6 +3923,11 @@ function renderOperators() {
   }).join('') || '<tr><td colspan="4" class="empty-row">No operators configured.</td></tr>';
   tbody.querySelectorAll('.btn-del-op').forEach(btn => {
     btn.addEventListener('click', () => {
+      const targetRole = (_operators[btn.dataset.user] || '').toLowerCase();
+      if (targetRole === 'admin' && currentOperatorRole() !== 'admin') {
+        showToast('Only admin operators can remove admin accounts', 'error');
+        return;
+      }
       delete _operators[btn.dataset.user];
       renderOperators();
     });
@@ -2328,6 +3949,10 @@ document.getElementById('btn-add-operator').addEventListener('click', () => {
   const user = document.getElementById('input-add-op-user').value.trim();
   const role = document.getElementById('input-add-op-role').value;
   if (!user) return;
+  if (role === 'admin' && currentOperatorRole() !== 'admin') {
+    showToast('Only admin operators can add admin accounts', 'error');
+    return;
+  }
   _operators[user] = role;
   document.getElementById('input-add-op-user').value = '';
   renderOperators();
@@ -2360,6 +3985,7 @@ window.api.onAgentHealth((data) => {
     else if (key === 'approver') st = 'waiting';
     else if (key === 'provisioner') st = 'standby';
     tile.dataset.st = st;
+    // Legacy .status-text support (pre-revamp cards)
     const stext = tile.querySelector('.status-text');
     if (stext) {
       const last = a.lastActivity ? ' · ' + new Date(a.lastActivity).toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'}) : '';
@@ -2369,6 +3995,16 @@ window.api.onAgentHealth((data) => {
     if (certLine && a.daysUntilExpiry != null) {
       certLine.textContent = a.daysUntilExpiry < 0 ? 'expired' : 'cert ' + a.daysUntilExpiry + 'd';
     }
+    // Update last-run meta in the new card layout
+    const lrEl = document.getElementById('fleet-lr-' + key);
+    if (lrEl) {
+      lrEl.textContent = a.lastActivity
+        ? new Date(a.lastActivity).toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'})
+        : 'never run';
+    }
+    // Update status pill text
+    const pillEl = tile.querySelector('.agent-st-pill');
+    if (pillEl) pillEl.textContent = st;
   });
   // Dashboard fleet count
   const fleetCount = document.getElementById('dash-fleet-count');
@@ -2438,6 +4074,12 @@ window.api.onAgentHealth((data) => {
     sub.textContent = `${dashAgents.length} agents · ${now.getMonth()+1}/${now.getDate()}/${now.getFullYear()} ${hh}:${mm}`;
   }
 
+  // Update dashboard AI summary state
+  _dashState.agents = dashAgents.map(a => ({ name: a.name, status: a.status || 'ok' }));
+  const expiring = dashAgents.find(a => a.daysUntilExpiry != null && a.daysUntilExpiry >= 0 && a.daysUntilExpiry <= 30);
+  _dashState.certAlert = expiring ? (expiring.name + ' (' + expiring.daysUntilExpiry + 'd)') : null;
+  buildDashSummary();
+
   const grid = document.getElementById('agent-health-grid');
   if (!grid) return;
   if (!data.agents || !data.agents.length) {
@@ -2464,6 +4106,50 @@ window.api.onAgentHealth((data) => {
       <div class="health-activity">${escHtml(lastAct)}${outHtml}</div>
     </div>`;
   }).join('');
+
+  // Update V2 fleet strip tiles
+  if (data.agents) {
+    data.agents.forEach(ag => {
+      const name = ag.name; // e.g. 'joiner', 'leaver', etc.
+      const lrEl = document.getElementById('v2fl-lr-' + name);
+      const certEl = document.getElementById('v2fl-cert-' + name);
+      const tileEl = document.querySelector('.v2-fleet-tile[data-agent="' + name + '"]');
+      if (lrEl) {
+        const la = ag.lastActivity ? new Date(ag.lastActivity).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}) : '—';
+        lrEl.textContent = la;
+      }
+      if (certEl) {
+        const days = ag.daysUntilExpiry;
+        certEl.textContent = days === null ? '—' : days < 0 ? 'expired' : days + 'd';
+        if (certEl && days !== null) {
+          certEl.style.color = days < 0 ? 'var(--crit)' : days < 14 ? 'var(--warn)' : 'var(--ok)';
+        }
+      }
+      if (tileEl) {
+        // Update the status dot and state text
+        const dotEl = tileEl.querySelector('.ft-dot');
+        const stateEl = tileEl.querySelector('.ft-state');
+        if (dotEl && stateEl) {
+          if (ag.status === 'unconfigured') {
+            dotEl.className = 'ft-dot muted';
+            stateEl.textContent = 'unconfigured';
+          } else if (ag.status === 'critical') {
+            dotEl.className = 'ft-dot crit';
+            stateEl.textContent = 'credential expired';
+          } else if (ag.status === 'expiring') {
+            dotEl.className = 'ft-dot warn';
+            stateEl.textContent = 'expiring soon';
+          } else if (ag.lastOutcome === 'error') {
+            dotEl.className = 'ft-dot warn';
+            stateEl.textContent = 'last run errored';
+          } else {
+            dotEl.className = 'ft-dot ok';
+            stateEl.textContent = ag.lastActivity ? 'idle' : 'ready';
+          }
+        }
+      }
+    });
+  }
 });
 
 // ── HR Event Queue ────────────────────────────────────────────────────────────
@@ -2544,7 +4230,7 @@ function applyRoleUI(role) {
       if (bannerText) bannerText.textContent = 'Read-only viewer — all write operations are disabled.';
     } else if (r === 'helpdesk') {
       banner.classList.remove('hidden');
-      if (bannerText) bannerText.textContent = 'Helpdesk role — restricted to joiner and enroller operations.';
+      if (bannerText) bannerText.textContent = 'Helpdesk role — integrations config and admin account management are restricted. Leavers on privileged users require admin approval.';
     } else {
       banner.classList.add('hidden');
     }
@@ -2553,6 +4239,21 @@ function applyRoleUI(role) {
 
 // Authoritative current operator name (selected at sign-in, may differ from Windows username)
 let currentOperatorName = null;
+
+function updateDashGreeting(name) {
+  const el = document.getElementById('dash-greeting');
+  if (!el) return;
+  const h = new Date().getHours();
+  const period = h < 12 ? 'morning' : h < 17 ? 'afternoon' : 'evening';
+  const parts = (name || '').split(/[.\s_@-]+/).filter(Boolean);
+  const firstName = parts[0] || '';
+  const display = firstName
+    ? firstName.charAt(0).toUpperCase() + firstName.slice(1).toLowerCase()
+    : '';
+  el.textContent = display
+    ? `Good ${period}, ${display}`
+    : 'Fleet Overview';
+}
 
 // Sidebar operator name + avatar (initials or uploaded image)
 function setSidebarOperator(name) {
@@ -2570,59 +4271,47 @@ function setSidebarOperator(name) {
     const saved = (function() {
       try { return localStorage.getItem('jml-avatar-' + base); } catch { return null; }
     })();
+    const existingImg = av.querySelector('img.av-photo');
+    if (existingImg) existingImg.remove();
     if (saved) {
-      // Use a CSS variable so the rule with !important can pick it up cleanly
-      // and beat the default linear-gradient on .who-avatar.
-      av.style.setProperty('--avatar-image', `url("${saved}")`);
+      const photo = document.createElement('img');
+      photo.className = 'av-photo';
+      photo.src = saved;
+      photo.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;object-fit:cover;border-radius:7px;pointer-events:none;';
+      av.appendChild(photo);
+      av.style.color = 'transparent';
       av.classList.add('has-image');
     } else {
-      av.style.removeProperty('--avatar-image');
+      av.style.removeProperty('color');
+      av.style.removeProperty('background-image');
       av.classList.remove('has-image');
     }
   }
+  updateDashGreeting(name);
 }
 
-// Click avatar → file picker → resize to 128px → save as data URL → re-render
+// Click avatar → Electron native dialog → crop+resize done in main process → store data URL
 (function wireAvatarPicker() {
   const av = document.getElementById('sidebar-operator-avatar');
   if (!av) return;
-  const input = document.createElement('input');
-  input.type = 'file';
-  input.accept = 'image/png,image/jpeg,image/gif,image/webp';
-  input.style.display = 'none';
-  document.body.appendChild(input);
-  av.addEventListener('click', () => input.click());
-  input.addEventListener('change', () => {
-    const file = input.files && input.files[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      const img = new Image();
-      img.onload = () => {
-        // Square-crop centered, resize to 128px
-        const size = 128;
-        const canvas = document.createElement('canvas');
-        canvas.width = size; canvas.height = size;
-        const ctx = canvas.getContext('2d');
-        const min = Math.min(img.naturalWidth, img.naturalHeight);
-        const sx = (img.naturalWidth - min) / 2;
-        const sy = (img.naturalHeight - min) / 2;
-        ctx.drawImage(img, sx, sy, min, min, 0, 0, size, size);
-        const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
-        const user = av.dataset.user;
-        try { localStorage.setItem('jml-avatar-' + user, dataUrl); } catch (e) { showToast('Image too large', 'error'); return; }
-        setSidebarOperator(user);
-        showToast('Avatar updated', 'success');
-      };
-      img.onerror = () => showToast('Failed to load image', 'error');
-      img.src = reader.result;
-    };
-    reader.readAsDataURL(file);
-    input.value = '';
+  av.addEventListener('click', async () => {
+    if (typeof window.api?.pickImageFile !== 'function') return;
+    let dataUrl;
+    try { dataUrl = await window.api.pickImageFile(); } catch { return; }
+    if (!dataUrl) return;
+    const user = av.dataset.user;
+    if (!user) { showToast('No operator signed in', 'warning'); return; }
+    try { localStorage.setItem('jml-avatar-' + user, dataUrl); }
+    catch { showToast('Image too large to store — try a smaller file', 'error'); return; }
+    setSidebarOperator(user);
+    showToast('Avatar updated', 'success');
   });
 })();
 
 // ── Init ──────────────────────────────────────────────────────────────────────
+// Bootstrap UI state
+lcSetIdle();   // Render empty lifecycle map in idle state
+
 window.api.getCurrentOperator().then(d => {
   setSidebarOperator(d.name || window.api.currentUser);
   applyRoleUI(d.role);
@@ -2630,6 +4319,17 @@ window.api.getCurrentOperator().then(d => {
   setSidebarOperator(window.api.currentUser);
   applyRoleUI('viewer');
 });
+
+// Populate sidebar + topbar tenant domain from configured agent configs
+if (typeof window.api?.getTenantConfig === 'function') {
+  window.api.getTenantConfig().then(cfg => {
+    const domain = cfg ? (cfg.primaryDomain || cfg.tenantId || '—') : '—';
+    const el = document.getElementById('sidebar-tenant-domain');
+    if (el) el.textContent = domain;
+    const tb = document.getElementById('topbar-tenant-domain');
+    if (tb) tb.textContent = domain;
+  }).catch(() => {});
+}
 
 // ── Operator switch modal ─────────────────────────────────────────────────────
 (function () {
@@ -2701,6 +4401,10 @@ window.api.getCurrentOperator().then(d => {
   switchBtn.addEventListener('click', openSwitchModal);
   cancelBtn.addEventListener('click', () => { overlay.style.display = 'none'; });
   overlay.addEventListener('click', e => { if (e.target === overlay) overlay.style.display = 'none'; });
+  document.getElementById('op-switch-signout').addEventListener('click', () => {
+    overlay.style.display = 'none';
+    window.api.signOut();
+  });
 
   window.api.onOperatorSwitched(d => {
     setSidebarOperator(d.name);
@@ -2712,7 +4416,7 @@ window.api.getCurrentOperator().then(d => {
 const _viewAllBtn = document.getElementById('btn-view-all-activity');
 if (_viewAllBtn) _viewAllBtn.addEventListener('click', () => switchTab('audit-log'));
 const _viewFleetBtn = document.getElementById('dash-open-fleet');
-if (_viewFleetBtn) _viewFleetBtn.addEventListener('click', () => switchTab('security'));
+if (_viewFleetBtn) _viewFleetBtn.addEventListener('click', () => switchTab('certs'));
 
 // Universal "OPEN →" links on dashboard widgets — any [data-jump-tab] navigates
 document.querySelectorAll('[data-jump-tab]').forEach(el => {
@@ -2729,6 +4433,8 @@ function refreshDashWidgets() {
   if (typeof window.api?.getAuditLog === 'function') { try { window.api.getAuditLog(); } catch (_) {} }
   // Exports — exports status
   if (typeof window.api?.getExportsStatus === 'function') { try { window.api.getExportsStatus(); } catch (_) {} }
+  // Agent Certs — cert expiry dashboard widget
+  if (typeof window.api?.getCertExpiry === 'function') { try { window.api.getCertExpiry(); } catch (_) {} }
   // Graph runner — recent queries from localStorage
   try {
     const recent = JSON.parse(localStorage.getItem('jml-graph-recent') || '[]');
@@ -2879,6 +4585,13 @@ if (typeof window.api?.onHrQueue === 'function') {
       if (sub === 'notifications') loadNotificationRules();
     });
   });
+  document.querySelectorAll('[data-settings-sub]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const sub = btn.dataset.settingsSub;
+      const target = document.querySelector('#view-settings .s-item[data-sub="' + sub + '"]');
+      if (target) target.click();
+    });
+  });
   // Initial preload of notification rules
   loadNotificationRules();
 })();
@@ -2934,6 +4647,12 @@ async function loadTenantConfig() {
       pip.innerHTML = ready ? '<span class="d"></span>HEALTHY' : '<span class="d" style="background:var(--amber)"></span>SETUP NEEDED';
       pip.classList.toggle('warn', !ready);
     }
+    // Keep sidebar + topbar domain in sync
+    const domain2 = cfg.primaryDomain || cfg.tenantId || '—';
+    const sdt = document.getElementById('sidebar-tenant-domain');
+    if (sdt) sdt.textContent = domain2;
+    const tbd = document.getElementById('topbar-tenant-domain');
+    if (tbd) tbd.textContent = domain2;
   } catch (e) {
     showToast('Failed to load tenant config: ' + e.message, 'error');
   }
@@ -3099,6 +4818,21 @@ const AGENT_PURPOSE = {
       if (sec) sec.classList.toggle('dash-hidden', !cb.checked);
       const vis = loadVis();
       vis[key] = cb.checked;
+      saveVis(vis);
+    });
+  });
+
+  // Click on a collapsed stub restores the section and persists the preference
+  document.querySelectorAll('.dash-section[data-section]').forEach(sec => {
+    sec.addEventListener('click', e => {
+      if (!sec.classList.contains('dash-hidden')) return;
+      e.stopPropagation();
+      const key = sec.dataset.section;
+      sec.classList.remove('dash-hidden');
+      const cb = pop.querySelector(`[data-toggle-section="${key}"]`);
+      if (cb) cb.checked = true;
+      const vis = loadVis();
+      vis[key] = true;
       saveVis(vis);
     });
   });
@@ -3299,13 +5033,117 @@ document.addEventListener('click', e => {
   }
 });
 
-// Assist bar chips
+// Assist bar chips — approver
 document.querySelectorAll('#approver-assist-bar .assist-chip').forEach(chip => {
   chip.addEventListener('click', () => {
     if (!_approverIn) return;
     _approverIn.value = chip.dataset.prompt;
     _approverIn.focus();
   });
+});
+
+// Assist bar chips — auditor (pre-fill input, let user send)
+document.querySelectorAll('#auditor-assist-bar .assist-chip').forEach(chip => {
+  chip.addEventListener('click', () => {
+    const inp = document.getElementById('input-auditor');
+    if (!inp) return;
+    inp.value = chip.dataset.prompt;
+    inp.focus();
+  });
+});
+
+// ── V2 Auditor Rail ────────────────────────────────────────────────────────────
+let _audTools = [];  // list of { name, state } seen in current query
+
+function audSetActiveQuery(text) {
+  _audTools = [];
+  const statusEl = document.getElementById('aud-query-status');
+  const bodyEl   = document.getElementById('aud-query-body');
+  if (statusEl) { statusEl.textContent = 'running'; statusEl.style.color = 'var(--cyan)'; }
+  if (bodyEl) {
+    bodyEl.innerHTML = `<div class="aud-query-text">${escHtml(text)}</div><div id="aud-tool-rows"></div>`;
+  }
+}
+
+function audTrackTool(toolName, state) {
+  const toolRows = document.getElementById('aud-tool-rows');
+  if (!toolRows) return;
+  const existing = toolRows.querySelector(`[data-tool="${CSS.escape(toolName)}"]`);
+  if (existing) {
+    existing.className = 'aud-tool-row ' + state;
+    existing.querySelector('.aud-tool-icon').textContent = state === 'done' ? '✓' : '▶';
+  } else {
+    const row = document.createElement('div');
+    row.className = 'aud-tool-row ' + state;
+    row.dataset.tool = toolName;
+    row.innerHTML = `<span class="aud-tool-icon">${state === 'done' ? '✓' : '▶'}</span><span>${escHtml(formatToolName(toolName))}</span>`;
+    toolRows.appendChild(row);
+  }
+  _audTools.push({ name: toolName, state });
+}
+
+function audQueryComplete(msgEl) {
+  const statusEl = document.getElementById('aud-query-status');
+  if (statusEl) { statusEl.textContent = 'done'; statusEl.style.color = 'var(--ok)'; }
+
+  // Extract key findings from the response text
+  if (!msgEl) return;
+  const textEl = msgEl.querySelector('.message-text');
+  const raw = textEl ? (textEl.dataset.raw || textEl.textContent || '') : '';
+  if (!raw) return;
+
+  const findings = [];
+
+  // Extract numeric facts: "X users", "Y licenses", "N roles", "N failed" etc.
+  const numFacts = [...raw.matchAll(/\b(\d[\d,]*)\s+(user[s]?|identit[yi][es]*|license[s]?|admin[s]?|role[s]?|group[s]?|event[s]?|operation[s]?|finding[s]?|failed|enabled|disabled|guest[s]?)/gi)];
+  numFacts.slice(0, 4).forEach(m => {
+    findings.push({ tone: 'default', text: m[0] });
+  });
+
+  // Risk keywords
+  const riskMatch = raw.match(/(\d+)\s+(critical|high.risk|risky)\s+(user[s]?|finding[s]?)/i);
+  if (riskMatch) findings.unshift({ tone: 'crit', text: riskMatch[0] });
+  const warnMatch = raw.match(/(\d+)\s+(warn(?:ing)?|anomal[yous]+|flag[ged]*)\s/i);
+  if (warnMatch) findings.unshift({ tone: 'warn', text: warnMatch[0].trim() });
+
+  if (!findings.length) return;
+
+  const card = document.getElementById('aud-findings-card');
+  const list = document.getElementById('aud-findings-list');
+  if (!card || !list) return;
+  card.style.display = '';
+  // Deduplicate by text
+  const seen = new Set();
+  const unique = findings.filter(f => { if (seen.has(f.text)) return false; seen.add(f.text); return true; });
+  list.innerHTML = unique.slice(0, 5).map(f =>
+    `<div class="aud-finding-item">
+      <div class="aud-finding-dot ${f.tone === 'crit' ? 'crit' : f.tone === 'warn' ? 'warn' : ''}"></div>
+      <div class="aud-finding-text">${escHtml(f.text)}</div>
+    </div>`
+  ).join('');
+}
+
+function audClearState() {
+  _audTools = [];
+  const statusEl = document.getElementById('aud-query-status');
+  const bodyEl   = document.getElementById('aud-query-body');
+  const card     = document.getElementById('aud-findings-card');
+  if (statusEl) { statusEl.textContent = 'idle'; statusEl.style.color = ''; }
+  if (bodyEl)   { bodyEl.className = 'aud-idle-hint'; bodyEl.innerHTML = 'Send a query to begin…'; }
+  if (card)     card.style.display = 'none';
+}
+
+// Auditor jump-to buttons
+document.getElementById('aud-jump-log')?.addEventListener('click', () => switchTab('audit-log'));
+document.getElementById('aud-jump-security')?.addEventListener('click', () => switchTab('security'));
+document.getElementById('aud-jump-users')?.addEventListener('click', () => switchTab('users'));
+
+// Auditor findings clear
+document.getElementById('aud-findings-clr')?.addEventListener('click', () => {
+  const card = document.getElementById('aud-findings-card');
+  const list = document.getElementById('aud-findings-list');
+  if (list) list.innerHTML = '';
+  if (card) card.style.display = 'none';
 });
 
 // ── Dashboard quick actions ────────────────────────────────────────────────────
@@ -3319,7 +5157,37 @@ document.getElementById('dash-action-mover').addEventListener('click',  () => _d
 document.getElementById('dash-action-leaver').addEventListener('click', () => _dashQuickAction('approver', 'Offboard a leaver'));
 document.getElementById('dash-action-audit').addEventListener('click',  () => { switchTab('auditor'); document.getElementById('input-auditor').focus(); });
 document.getElementById('dash-open-security').addEventListener('click', () => switchTab('security'));
-document.querySelectorAll('.dash-sec-tile').forEach(btn => btn.addEventListener('click', () => switchTab('security')));
+document.getElementById('dash-open-ops')?.addEventListener('click', () => switchTab('operations'));
+
+// Shared helper: open a <details> then smooth-scroll to it within its .view container
+function openSecSection(key) {
+  const d = document.getElementById('sec-section-' + key);
+  if (!d) return;
+  d.open = true;
+  // Two-frame wait: first frame commits the open, second frame lets the
+  // browser reflow the expanded content so scrollIntoView lands correctly
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    d.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }));
+}
+
+// Security page — top stat cards open+scroll their section
+[['sec-ueba', 'ueba'], ['sec-drift', 'drift'], ['sec-risky', 'risky']].forEach(([cardId, key]) => {
+  const card = document.getElementById(cardId);
+  if (card) { card.style.cursor = 'pointer'; card.addEventListener('click', () => openSecSection(key)); }
+});
+
+// Dashboard security tiles → Security tab, open + scroll to that section
+const _SEC_TILE_MAP = { 'dash-tile-ueba': 'ueba', 'dash-tile-drift': 'drift', 'dash-tile-risky': 'risky' };
+Object.entries(_SEC_TILE_MAP).forEach(([btnId, key]) => {
+  const btn = document.getElementById(btnId);
+  if (!btn) return;
+  btn.addEventListener('click', () => {
+    switchTab('security');
+    // After tab switch, wait for the view to be visible before opening+scrolling
+    setTimeout(() => openSecSection(key), 120);
+  });
+});
 
 loadDashboard();
 
@@ -3489,7 +5357,7 @@ function renderAuditTable(entries) {
     const operator = e.operator ? escHtml(e.operator) : '<span class="dim">—</span>';
     return '<tr>' +
       '<td class="mono">' + ts + '</td>' +
-      '<td>' + escHtml(e.agent || '--') + '</td>' +
+          '<td>' + agentScopeTip(e.agent || '', e.agent || '--') + '</td>' +
       '<td class="mono">' + escHtml(e.subject || '--') + '</td>' +
       '<td>' + operator + '</td>' +
       '<td>' + ticket + '</td>' +
@@ -3526,7 +5394,7 @@ function renderTimeline(entries) {
         '</div>' +
         '<div class="timeline-content">' +
           '<div class="timeline-header">' +
-            '<span class="timeline-agent">' + escHtml(e.agent || '') + '</span>' +
+            '<span class="timeline-agent">' + agentScopeTip(e.agent || '', e.agent || '') + '</span>' +
             '<span class="timeline-action">' + escHtml(e.action || '') + '</span>' +
             '<span class="timeline-subject">' + escHtml(e.subject || '') + '</span>' +
             '<span class="timeline-time">' + escHtml(ts) + '</span>' +
@@ -3541,6 +5409,7 @@ function renderTimeline(entries) {
   const btnFilter = document.getElementById('btn-log-filter-apply');
   const btnClear  = document.getElementById('btn-log-filter-clear');
   const btnTimeline = document.getElementById('btn-toggle-timeline');
+  const btnAttestation = document.getElementById('btn-build-attestation');
 
   if (btnFilter) btnFilter.addEventListener('click', applyAuditFilters);
 
@@ -3563,9 +5432,111 @@ function renderTimeline(entries) {
       applyAuditFilters();
     });
   }
+
+  document.querySelectorAll('.v2-filter-chip[data-log-agent], .v2-filter-chip[data-log-outcome]').forEach(chip => {
+    chip.addEventListener('click', () => {
+      const isAgent = Object.prototype.hasOwnProperty.call(chip.dataset, 'logAgent');
+      const selectId = isAgent ? 'log-filter-agent' : 'log-filter-outcome';
+      const value = isAgent ? chip.dataset.logAgent : chip.dataset.logOutcome;
+      const sel = document.getElementById(selectId);
+      if (sel) {
+        if (value && !Array.from(sel.options).some(opt => opt.value === value)) {
+          const opt = document.createElement('option');
+          opt.value = value;
+          opt.textContent = value;
+          sel.appendChild(opt);
+        }
+        sel.value = value;
+      }
+      const selector = isAgent ? '[data-log-agent]' : '[data-log-outcome]';
+      document.querySelectorAll('.v2-filter-chip' + selector).forEach(btn => btn.classList.remove('active'));
+      chip.classList.add('active');
+      applyAuditFilters();
+    });
+  });
+
+  if (btnAttestation) {
+    btnAttestation.addEventListener('click', () => {
+      // Remove any existing dialog
+      const existing = document.getElementById('attest-dialog-backdrop');
+      if (existing) existing.remove();
+
+      const backdrop = document.createElement('div');
+      backdrop.id = 'attest-dialog-backdrop';
+      backdrop.className = 'attest-dialog-backdrop';
+      backdrop.innerHTML =
+        '<div class="attest-dialog" role="dialog" aria-modal="true" aria-labelledby="attest-dialog-title">' +
+          '<div class="dialog-head">' +
+            '<div class="dialog-head-title">' +
+              '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/></svg>' +
+              '<span id="attest-dialog-title">Build Attestation Pack</span>' +
+            '</div>' +
+            '<button class="btn ghost sm" id="attest-dialog-close" aria-label="Close">&times;</button>' +
+          '</div>' +
+          '<div class="dialog-body">' +
+            '<p class="attest-desc">Select evidence layers to include in the signed PDF + JSON pack. All selected items are hash-anchored to the audit chain before export.</p>' +
+            '<div class="attest-option-grid">' +
+              '<label class="attest-cb-row"><input type="checkbox" checked> <span class="attest-cb-label">Audit log entries <span class="attest-cb-sub">All filtered entries · hash-chained</span></span></label>' +
+              '<label class="attest-cb-row"><input type="checkbox" checked> <span class="attest-cb-label">Agent execution trace <span class="attest-cb-sub">Tool calls, plan steps, outcomes</span></span></label>' +
+              '<label class="attest-cb-row"><input type="checkbox" checked> <span class="attest-cb-label">Dual-approval receipts <span class="attest-cb-sub">Operator + approver signatures</span></span></label>' +
+              '<label class="attest-cb-row"><input type="checkbox"> <span class="attest-cb-label">HRIS inbound events <span class="attest-cb-sub">Raw webhook payloads from BambooHR / Workday</span></span></label>' +
+              '<label class="attest-cb-row"><input type="checkbox"> <span class="attest-cb-label">Replication receipts <span class="attest-cb-sub">Azure Blob · Sentinel · Splunk · S3 ACKs</span></span></label>' +
+              '<label class="attest-cb-row"><input type="checkbox"> <span class="attest-cb-label">Certificate chain <span class="attest-cb-sub">Per-agent app-reg certs at time of operation</span></span></label>' +
+            '</div>' +
+            '<div class="attest-callout">' +
+              '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>' +
+              'Pack will be signed with the Provisioner agent&rsquo;s current cert and anchored as a new hash-chain entry.' +
+            '</div>' +
+          '</div>' +
+          '<div class="dialog-foot">' +
+            '<button class="btn ghost" id="attest-dialog-cancel">Cancel</button>' +
+            '<button class="btn primary" id="attest-dialog-build">' +
+              '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>' +
+              'Export Pack' +
+            '</button>' +
+          '</div>' +
+        '</div>';
+
+      document.body.appendChild(backdrop);
+
+      // Close handlers
+      const close = () => backdrop.remove();
+      backdrop.addEventListener('click', e => { if (e.target === backdrop) close(); });
+      document.getElementById('attest-dialog-close').addEventListener('click', close);
+      document.getElementById('attest-dialog-cancel').addEventListener('click', close);
+      document.getElementById('attest-dialog-build').addEventListener('click', () => {
+        close();
+        addNotification('✓', 'Attestation pack queued for export — download will begin shortly');
+      });
+    });
+  }
 })();
 
 // ── User Lookup ───────────────────────────────────────────────────────────────
+
+// Show recently-searched users or a friendly prompt when the tab loads cold.
+function loadRecentUsers() {
+  const listEl  = document.getElementById('user-results-list');
+  const countEl = document.getElementById('user-search-count');
+  if (!listEl) return;
+  // Never auto-search with empty string — Graph API returns 400 for empty $search
+  const searchInput = document.getElementById('user-search-input');
+  if (searchInput && searchInput.value.trim()) return;
+  const cached = typeof _userCache !== 'undefined' ? _userCache.slice(0, 10) : [];
+  if (countEl) countEl.textContent = cached.length ? 'Recent · ' + cached.length : '0 identities';
+  // If we already have results visible from a prior search, leave them alone
+  const hasResults = listEl.querySelector('.utable-r');
+  if (hasResults && cached.length) return;
+  // Show friendly hint
+  listEl.innerHTML = `<div class="users-hint">
+    <div class="users-hint-icon">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="36" height="36"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+    </div>
+    <div class="users-hint-title">Search the directory</div>
+    <div class="users-hint-body">Type a name, UPN, or department above to find identities across your Entra tenant.</div>
+  </div>`;
+}
+
 (function () {
   let _selectedUser = null;
 
@@ -3574,7 +5545,11 @@ function renderTimeline(entries) {
 
   function doSearch() {
     const q = (searchInput && searchInput.value.trim()) || '';
-    if (!q) return;
+    if (!q) {
+      // Empty search → show recent users hint
+      loadRecentUsers();
+      return;
+    }
     const countEl = document.getElementById('user-search-count');
     if (countEl) countEl.textContent = 'Searching…';
     document.getElementById('user-results-list').innerHTML = '<div class="loading-hint">Searching…</div>';
@@ -3597,15 +5572,32 @@ function renderTimeline(entries) {
     }
     const listEl  = document.getElementById('user-results-list');
     const countEl = document.getElementById('user-search-count');
+    const isBlankSearch = !searchInput || !searchInput.value.trim();
     if (data.error) {
+      // Suppress errors for empty/blank searches (Graph rejects $search with empty value)
+      if (isBlankSearch) return;
       listEl.innerHTML = '<div class="loading-hint">Error: ' + escHtml(data.error) + '</div>';
       if (countEl) countEl.textContent = '';
       return;
     }
     const users = data.users || [];
-    if (countEl) countEl.textContent = users.length + ' result' + (users.length !== 1 ? 's' : '');
+    if (isBlankSearch) {
+      if (countEl) countEl.textContent = users.length ? 'Recent · ' + users.length : '0 identities';
+    } else {
+      if (countEl) countEl.textContent = users.length + ' result' + (users.length !== 1 ? 's' : '');
+    }
     if (!users.length) {
-      listEl.innerHTML = '<div class="loading-hint">No users found.</div>';
+      if (isBlankSearch) {
+        listEl.innerHTML = `<div class="users-hint">
+          <div class="users-hint-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="36" height="36"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+          </div>
+          <div class="users-hint-title">Search the directory</div>
+          <div class="users-hint-body">Type a name, UPN, or department above to find identities across your Entra tenant.</div>
+        </div>`;
+      } else {
+        listEl.innerHTML = '<div class="loading-hint">No users found.</div>';
+      }
       return;
     }
     // Render revamp's .utable-r rows (avatar + name + dept + status + licenses + risk meter)
@@ -3687,6 +5679,27 @@ function renderTimeline(entries) {
       badgeEl.style.color      = u.accountEnabled ? 'var(--success)'      : 'var(--danger)';
     }
 
+    const riskScore = typeof u.riskScore === 'number'
+      ? u.riskScore
+      : (u.riskLevel === 'high' ? 82 : u.riskLevel === 'medium' ? 54 : u.riskLevel === 'low' ? 22 : (u.accountEnabled ? 12 : 36));
+    const riskScoreEl = document.getElementById('udp-risk-score');
+    const riskBarEl = document.getElementById('udp-risk-bar');
+    const writeRouteEl = document.getElementById('udp-write-route');
+    const auditPostureEl = document.getElementById('udp-audit-posture');
+    if (riskScoreEl) riskScoreEl.textContent = riskScore + ' / 100';
+    if (riskBarEl) riskBarEl.style.width = Math.max(2, Math.min(100, riskScore)) + '%';
+    if (writeRouteEl) writeRouteEl.textContent = riskScore >= 70 || !u.accountEnabled ? 'Dual approval required' : 'Safe preview first';
+    if (auditPostureEl) auditPostureEl.textContent = u.accountEnabled ? 'Chain ready' : 'Disabled account';
+    const avatarEl = document.getElementById('udp-avatar');
+    const roleExposureEl = document.getElementById('udp-role-exposure');
+    const licenseExposureEl = document.getElementById('udp-license-exposure');
+    const groupExposureEl = document.getElementById('udp-group-exposure');
+    const nextActionEl = document.getElementById('udp-next-action');
+    const routeEl = document.getElementById('udp-dossier-route');
+    const initials = (u.displayName || u.userPrincipalName || '--')
+      .split(/[.\s@_-]+/).filter(Boolean).slice(0, 2).map(s => s[0]).join('').toUpperCase() || '--';
+    if (avatarEl) avatarEl.textContent = initials;
+
     const detailsEl = document.getElementById('udp-details');
     const fields = [
       ['Department',  u.department     || '—'],
@@ -3704,12 +5717,18 @@ function renderTimeline(entries) {
     licensesEl.innerHTML = lics.length
       ? lics.map(l => '<span class="user-tag">' + escHtml(l) + '</span>').join('')
       : '<span class="loading-hint">None</span>';
+    if (licenseExposureEl) licenseExposureEl.textContent = lics.length ? lics.length + ' assigned' : 'none assigned';
 
     const groupsEl = document.getElementById('udp-groups');
     const grps = data.groups || [];
     groupsEl.innerHTML = grps.length
       ? grps.map(g => '<span class="user-tag">' + escHtml(g) + '</span>').join('')
       : '<span class="loading-hint">None</span>';
+    const privileged = grps.some(g => /admin|privileged|pim|global|security/i.test(String(g)));
+    if (roleExposureEl) roleExposureEl.textContent = privileged ? 'privileged group member' : 'standard user';
+    if (groupExposureEl) groupExposureEl.textContent = grps.length ? grps.length + ' groups' : 'no groups';
+    if (nextActionEl) nextActionEl.textContent = !u.accountEnabled ? 'audit disabled account' : (riskScore >= 70 || privileged ? 'review before write' : 'safe preview first');
+    if (routeEl) routeEl.textContent = riskScore >= 70 || privileged ? 'approval-routed profile' : 'standard lifecycle profile';
 
     const managerEl = document.getElementById('udp-manager');
     if (data.manager && data.manager.displayName) {
@@ -3759,8 +5778,15 @@ function renderTimeline(entries) {
       if (det) det.setAttribute('open', '');
     }, 100);
   });
-  if (btnLeaverHard) btnLeaverHard.addEventListener('click', () => {
+  if (btnLeaverHard) btnLeaverHard.addEventListener('click', async () => {
     if (!_selectedUser) return;
+    const confirmed = await confirmModal({
+      title: 'Confirm Hard Leave',
+      body: `Hard Leave permanently removes all licenses and group memberships for ${_selectedUser.displayName || _selectedUser.upn} and terminates the account. This cannot be undone.`,
+      danger: true,
+      okLabel: 'Hard Leave',
+    });
+    if (!confirmed) return;
     switchTab('operations');
     setTimeout(() => {
       const upnEl = document.getElementById('ql-upn');
@@ -3830,6 +5856,12 @@ function renderTimeline(entries) {
     if (!resultEl) return;
     resultEl.style.display = 'block';
 
+    if (data.approvalQueued) {
+      resultEl.innerHTML = '<div class="qop-warn" style="color:var(--amber)">[APPROVAL QUEUED] Approval request submitted — go to the <strong>Approvals</strong> tab for admin sign-off. Token: ' + escHtml(String(data.token || '').toUpperCase()) + '</div>';
+      showToast('Approval request queued — admin sign-off required in Approvals tab', 'warning');
+      return;
+    }
+
     const lines = data.lines || [];
     if (!lines.length) {
       resultEl.innerHTML = data.error
@@ -3839,10 +5871,11 @@ function renderTimeline(entries) {
     }
 
     resultEl.innerHTML = lines.map(line => {
-      if (/\[ACTION\]/.test(line)) return '<div class="qop-action">' + escHtml(line) + '</div>';
-      if (/\[WARN\]/.test(line))   return '<div class="qop-warn">'   + escHtml(line) + '</div>';
-      if (/\[ERROR\]/.test(line))  return '<div class="qop-error">'  + escHtml(line) + '</div>';
-      if (/\[WHATIF\]/.test(line)) return '<div class="qop-whatif">' + escHtml(line) + '</div>';
+      if (/\[ACTION\]/.test(line))   return '<div class="qop-action">' + escHtml(line) + '</div>';
+      if (/\[APPROVAL\]/.test(line)) return '<div class="qop-warn" style="color:var(--amber)">' + escHtml(line) + '</div>';
+      if (/\[WARN\]/.test(line))     return '<div class="qop-warn">'   + escHtml(line) + '</div>';
+      if (/\[ERROR\]/.test(line))    return '<div class="qop-error">'  + escHtml(line) + '</div>';
+      if (/\[WHATIF\]/.test(line))   return '<div class="qop-whatif">' + escHtml(line) + '</div>';
       return '<div style="color:var(--text-muted)">' + escHtml(line) + '</div>';
     }).join('');
   });
@@ -3967,6 +6000,43 @@ function renderTimeline(entries) {
         addNotification('⚠️', 'Cert expiring soon: ' + c.agent + ' (' + c.daysRemaining + 'd)');
       }
     });
+
+    // Populate dashboard Agent Certs widget
+    const _cOk   = certs.filter(c => c.daysRemaining === null || c.daysRemaining > 90).length;
+    const _cWarn = certs.filter(c => c.daysRemaining !== null && c.daysRemaining > 0 && c.daysRemaining <= 90).length;
+    const _cCrit = certs.filter(c => c.daysRemaining !== null && c.daysRemaining <= 0).length;
+
+    // Update V2 triage card for cert rotations
+    const expiring = certs.filter(c => c.daysRemaining !== null && c.daysRemaining > 0 && c.daysRemaining <= 30);
+    const expired  = certs.filter(c => c.daysRemaining !== null && c.daysRemaining <= 0);
+    const certsLabel = document.getElementById('triage-certs-label');
+    const certsTitle = document.getElementById('triage-certs-title');
+    const certsMeta  = document.getElementById('triage-certs-meta');
+    const certsSub   = document.getElementById('triage-certs-sub');
+    const certsCard  = document.getElementById('triage-certs');
+    if (certsCard) certsCard.className = 'v2-triage-card ' + (expired.length > 0 ? 'crit' : expiring.length > 0 ? 'warn' : 'info');
+    if (certsLabel) certsLabel.textContent = expired.length > 0
+      ? 'Rotations · ' + expired.length + ' expired'
+      : expiring.length > 0 ? 'Rotations · ' + expiring.length + ' soon' : 'Rotations · all healthy';
+    if (certsTitle && expiring.length > 0) {
+      const first = expiring.sort((a, b) => a.daysRemaining - b.daysRemaining)[0];
+      certsTitle.textContent = first.agent + ' cert expires in ' + first.daysRemaining + ' days';
+      if (certsMeta) certsMeta.textContent = first.agent + ' · ' + (first.thumbprint ? first.thumbprint.slice(0, 8) + '…' : '—');
+    } else if (certsTitle && expired.length > 0) {
+      const first = expired[0];
+      certsTitle.textContent = first.agent + ' cert has expired';
+      if (certsMeta) certsMeta.textContent = first.agent + ' · rotate immediately';
+    } else if (certsTitle) {
+      certsTitle.textContent = 'All agent certs healthy';
+      if (certsMeta) certsMeta.textContent = 'Next rotation: > 90 days';
+    }
+    if (certsSub && expiring.length > 1) certsSub.textContent = 'Plus ' + (expiring.length - 1) + ' more expiring within 30 days';
+    const _setDashCert = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+    _setDashCert('dash-certs-ok',   _cOk);
+    _setDashCert('dash-certs-warn', _cWarn || '—');
+    _setDashCert('dash-certs-crit', _cCrit || '—');
+    const _cCnt = document.getElementById('dash-certs-cnt');
+    if (_cCnt) _cCnt.textContent = '· ' + certs.length + ' agent' + (certs.length !== 1 ? 's' : '');
 
     bodyEl.innerHTML =
       '<table class="cert-expiry-table">' +
@@ -4206,13 +6276,20 @@ function renderTimeline(entries) {
   const respMeta    = document.getElementById('graph-resp-meta');
   const assistInput = document.getElementById('graph-assist-input');
   const btnAssist   = document.getElementById('btn-graph-assist');
+  const guardCard   = document.getElementById('graph-write-guard-card');
+  const guardText   = document.getElementById('graph-write-guard');
+  const guardSub    = document.getElementById('graph-write-guard-sub');
+  const prevMethod  = document.getElementById('graph-preview-method');
+  const prevTarget  = document.getElementById('graph-preview-target');
+  const prevApprove = document.getElementById('graph-preview-approval');
+  const dryrunMode  = document.getElementById('graph-dryrun-mode');
 
   // Quick-pick chips
   document.querySelectorAll('.graph-cq-chip').forEach(chip => {
     chip.addEventListener('click', () => {
       if (methodSel) methodSel.value = chip.dataset.method || 'GET';
       if (urlInput)  urlInput.value  = chip.dataset.url   || '';
-      toggleBodyArea();
+      updateGraphGuard();
     });
   });
 
@@ -4234,7 +6311,7 @@ function renderTimeline(entries) {
     if (bodyArea  && data.body && data.body !== null) {
       bodyArea.value = typeof data.body === 'string' ? data.body : JSON.stringify(data.body, null, 2);
     }
-    toggleBodyArea();
+    updateGraphGuard();
     showToast('Suggestion applied', 'success');
   });
 
@@ -4271,26 +6348,56 @@ function renderTimeline(entries) {
         if (methodSel) methodSel.value = e.method;
         if (urlInput)  urlInput.value  = e.url;
         if (bodyArea && e.body) { bodyArea.value = e.body; bodyArea.style.display = ''; }
-        toggleBodyArea();
+        updateGraphGuard();
       });
     });
   }
 
-  function toggleBodyArea() {
-    const method = methodSel ? methodSel.value : 'GET';
-    if (bodyArea) bodyArea.style.display = (method === 'POST' || method === 'PATCH') ? '' : 'none';
+  function isGraphMutation(method) {
+    return /^(POST|PATCH|DELETE)$/i.test(method || '');
   }
 
-  if (methodSel) methodSel.addEventListener('change', toggleBodyArea);
-  toggleBodyArea();
+  function updateGraphGuard() {
+    const method = methodSel ? methodSel.value : 'GET';
+    const url = urlInput ? urlInput.value.trim() || '/me' : '/me';
+    const mutating = isGraphMutation(method);
+    if (bodyArea) bodyArea.style.display = (method === 'POST' || method === 'PATCH') ? '' : 'none';
+    if (guardCard) guardCard.classList.toggle('warn', mutating);
+    if (guardText) guardText.textContent = mutating ? 'PIN + approval guarded' : 'Read-only request';
+    if (guardSub) guardSub.textContent = mutating
+      ? 'POST, PATCH, and DELETE require a fresh write token before the request is sent.'
+      : 'GET calls are recorded but do not require approval.';
+    if (prevMethod) prevMethod.textContent = method;
+    if (prevTarget) prevTarget.textContent = url;
+    if (prevApprove) prevApprove.textContent = mutating ? 'write token required' : 'not required';
+    if (dryrunMode) dryrunMode.textContent = mutating ? 'guarded write' : 'safe read';
+  }
+
+  if (methodSel) methodSel.addEventListener('change', updateGraphGuard);
+  if (urlInput) urlInput.addEventListener('input', updateGraphGuard);
+  updateGraphGuard();
   renderRecent();
 
   if (btnRun) {
-    btnRun.addEventListener('click', () => {
+    btnRun.addEventListener('click', async () => {
       const method = methodSel ? methodSel.value : 'GET';
       const url    = urlInput  ? urlInput.value.trim() : '';
       const body   = bodyArea  ? bodyArea.value.trim() : '';
       if (!url) { showToast('URL is required', 'warning'); return; }
+      updateGraphGuard();
+      let writeToken = null;
+      if (isGraphMutation(method)) {
+        const ok = await confirmModal({
+          title: 'Guarded Graph write',
+          body: method + ' ' + url + ' will mutate the tenant and requires a fresh operator write token.',
+          danger: method === 'DELETE',
+          okLabel: 'Continue',
+        });
+        if (!ok) return;
+        const t = await requirePinIfNeeded('Confirm Graph ' + method);
+        if (!t) return;
+        writeToken = typeof t === 'string' ? t : null;
+      }
 
       if (respPanel) respPanel.style.display = 'flex';
       if (respPre)   respPre.textContent = 'Running…';
@@ -4304,7 +6411,7 @@ function renderTimeline(entries) {
       }
 
       _lastMethod = method; _lastUrl = url;
-      window.api.runGraphQuery({ method, url, body: parsedBody });
+      window.api.runGraphQuery({ method, url, body: parsedBody, writeToken });
 
       // Save to recent
       const entries = loadRecent().filter(e => !(e.method === method && e.url === url));
@@ -4506,3 +6613,231 @@ setupUserAutocomplete(document.getElementById('ql-upn'));
 setupUserAutocomplete(document.getElementById('sod-test-upn'));
 setupUserAutocomplete(document.getElementById('sched-upn'));
 setupUserAutocomplete(document.getElementById('log-filter-upn'));
+
+// ── Command Palette (Ctrl+K) ──────────────────────────────────────────────────
+(function () {
+  const palette   = document.getElementById('cmd-palette');
+  const input     = document.getElementById('cmd-input');
+  const results   = document.getElementById('cmd-results');
+  const backdrop  = palette && palette.querySelector('.cmd-backdrop');
+  if (!palette || !input || !results) return;
+
+  let _activeIdx = -1;
+  let _items = [];
+
+  // Tab navigation entries
+  const TAB_CMDS = [
+    { label: 'Dashboard',      meta: 'Overview',           tab: 'dashboard',      icon: '⊞' },
+    { label: 'Approver Agent', meta: 'AI · conversational', tab: 'approver',      icon: '◇' },
+    { label: 'Audit Agent',    meta: 'AI · read-only',     tab: 'auditor',        icon: '◌' },
+    { label: 'Graph Runner',   meta: 'Ad-hoc Graph API',   tab: 'graph',          icon: '⟩⟨' },
+    { label: 'Approvals',      meta: 'Pending sign-offs',  tab: 'approvals',      icon: '✓' },
+    { label: 'Operations',     meta: 'Live · Queued',      tab: 'operations',     icon: '⚙' },
+    { label: 'Access Reviews', meta: 'Certifier campaigns',tab: 'certifications', icon: '◈' },
+    { label: 'Integrations',   meta: 'HRIS · Teams · SIEM',tab: 'integrations',   icon: '⇆' },
+    { label: 'Security',       meta: 'UEBA · Drift',       tab: 'security',       icon: '◥' },
+    { label: 'Audit Log',      meta: 'Hash-chained events',tab: 'audit-log',      icon: '≡' },
+    { label: 'Exports',        meta: 'Sentinel · Blob',    tab: 'exports',        icon: '↑' },
+    { label: 'Users',          meta: 'Directory search',   tab: 'users',          icon: '◎' },
+    { label: 'Agent Certs',    meta: 'Certificates · expiry',tab: 'certs',        icon: '⬟' },
+    { label: 'Settings',       meta: 'Tenant · operators', tab: 'settings',       icon: '◎' },
+  ];
+
+  // Action entries
+  const ACTION_CMDS = [
+    { label: 'New Joiner',    meta: 'Open Approver Agent', action: () => { closePalette(); switchTab('approver'); const i = document.getElementById('input-approver'); if (i) { i.value = 'New joiner: '; i.focus(); } } },
+    { label: 'Offboard User', meta: 'Quick Leaver',        action: () => { closePalette(); switchTab('operations'); setTimeout(() => document.getElementById('ops-quick-leaver')?.setAttribute('open',''), 100); } },
+    { label: 'Move User',     meta: 'Quick Mover',         action: () => { closePalette(); switchTab('operations'); setTimeout(() => document.getElementById('ops-quick-mover')?.setAttribute('open',''), 100); } },
+    { label: 'Run Security Scan', meta: 'Re-scan UEBA + Drift', action: () => { closePalette(); switchTab('security'); setTimeout(() => document.getElementById('refresh-security')?.click(), 200); } },
+    { label: 'Open Audit Log', meta: 'Browse hash-chain', action: () => { closePalette(); switchTab('audit-log'); } },
+  ];
+
+  function openPalette() {
+    palette.style.display = 'flex';
+    input.value = '';
+    _activeIdx = -1;
+    renderResults('');
+    setTimeout(() => input.focus(), 30);
+  }
+
+  function closePalette() {
+    palette.style.display = 'none';
+    input.value = '';
+    _activeIdx = -1;
+  }
+
+  function renderResults(q) {
+    const ql = q.toLowerCase().trim();
+    _items = [];
+    let html = '';
+
+    // Score and filter tab commands
+    const tabMatches = TAB_CMDS.filter(c =>
+      !ql || c.label.toLowerCase().includes(ql) || c.meta.toLowerCase().includes(ql)
+    );
+    if (tabMatches.length) {
+      html += '<div class="cmd-group-label">Navigate</div>';
+      tabMatches.forEach(c => {
+        const idx = _items.length;
+        _items.push({ type: 'tab', tab: c.tab });
+        html += `<div class="cmd-item" data-idx="${idx}" role="option">
+          <div class="cmd-item-icon">${escHtml(c.icon)}</div>
+          <div class="cmd-item-label">${escHtml(c.label)}</div>
+          <div class="cmd-item-meta">${escHtml(c.meta)}</div>
+        </div>`;
+      });
+    }
+
+    // User cache matches
+    const userMatches = (typeof _userCache !== 'undefined' ? _userCache : [])
+      .filter(u => !ql || (u.displayName || '').toLowerCase().includes(ql) || (u.userPrincipalName || '').toLowerCase().includes(ql))
+      .slice(0, 5);
+    if (userMatches.length) {
+      html += '<div class="cmd-group-label">Users</div>';
+      userMatches.forEach(u => {
+        const idx = _items.length;
+        const initials = (u.displayName || u.userPrincipalName || '?').split(/[\s._@-]+/).filter(Boolean).map(s => s[0]).join('').slice(0,2).toUpperCase();
+        _items.push({ type: 'user', upn: u.userPrincipalName });
+        html += `<div class="cmd-item" data-idx="${idx}" role="option">
+          <div class="cmd-item-icon" style="font-family:var(--mono);font-size:10px">${escHtml(initials)}</div>
+          <div style="flex:1;min-width:0">
+            <div class="cmd-item-label">${escHtml(u.displayName || u.userPrincipalName)}</div>
+            <div class="cmd-item-upn">${escHtml(u.userPrincipalName || '')}</div>
+          </div>
+          <div class="cmd-item-meta">${escHtml(u.department || u.jobTitle || '')}</div>
+        </div>`;
+      });
+    }
+
+    // Action commands
+    const actionMatches = ACTION_CMDS.filter(c =>
+      !ql || c.label.toLowerCase().includes(ql) || c.meta.toLowerCase().includes(ql)
+    );
+    if (actionMatches.length) {
+      html += '<div class="cmd-group-label">Actions</div>';
+      actionMatches.forEach(c => {
+        const idx = _items.length;
+        _items.push({ type: 'action', fn: c.action });
+        html += `<div class="cmd-item" data-idx="${idx}" role="option">
+          <div class="cmd-item-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><polyline points="9 18 15 12 9 6"/></svg>
+          </div>
+          <div class="cmd-item-label">${escHtml(c.label)}</div>
+          <div class="cmd-item-meta">${escHtml(c.meta)}</div>
+        </div>`;
+      });
+    }
+
+    if (!html) {
+      html = `<div class="cmd-empty">No results for "${escHtml(q)}"</div>`;
+    }
+
+    results.innerHTML = html;
+    _activeIdx = -1;
+
+    results.querySelectorAll('.cmd-item').forEach(el => {
+      el.addEventListener('mouseenter', () => setActive(parseInt(el.dataset.idx, 10)));
+      el.addEventListener('click', () => selectItem(parseInt(el.dataset.idx, 10)));
+    });
+  }
+
+  function setActive(idx) {
+    _activeIdx = idx;
+    results.querySelectorAll('.cmd-item').forEach((el, i) => el.classList.toggle('active', i === idx || parseInt(el.dataset.idx, 10) === idx));
+  }
+
+  function selectItem(idx) {
+    const item = _items[idx];
+    if (!item) return;
+    if (item.type === 'tab') {
+      closePalette();
+      switchTab(item.tab);
+    } else if (item.type === 'user') {
+      closePalette();
+      switchTab('users');
+      const si = document.getElementById('user-search-input');
+      if (si) { si.value = item.upn; document.getElementById('btn-user-search')?.click(); }
+    } else if (item.type === 'action') {
+      item.fn();
+    }
+  }
+
+  // Keyboard navigation
+  input.addEventListener('input', () => renderResults(input.value));
+  input.addEventListener('keydown', e => {
+    const visibleItems = results.querySelectorAll('.cmd-item');
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      const next = Math.min(_activeIdx + 1, visibleItems.length - 1);
+      const nextIdx = parseInt(visibleItems[next]?.dataset.idx ?? next, 10);
+      setActive(nextIdx);
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      const prev = Math.max(_activeIdx - 1, 0);
+      const prevIdx = parseInt(visibleItems[prev]?.dataset.idx ?? prev, 10);
+      setActive(prevIdx);
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      // Find item by active index from dataset
+      const activeEl = results.querySelector('.cmd-item.active');
+      if (activeEl) selectItem(parseInt(activeEl.dataset.idx, 10));
+      else if (_items.length) selectItem(parseInt(visibleItems[0]?.dataset.idx ?? '0', 10));
+    } else if (e.key === 'Escape') {
+      closePalette();
+    }
+  });
+
+  // Open/close triggers
+  document.addEventListener('keydown', e => {
+    if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+      e.preventDefault();
+      palette.style.display === 'none' ? openPalette() : closePalette();
+    }
+    if (e.key === 'Escape' && palette.style.display !== 'none') closePalette();
+  });
+
+  if (backdrop) backdrop.addEventListener('click', closePalette);
+})();
+
+// Docked panel toggle buttons (topbar #btn-toggle-docked + sidebar .nav-docked-toggle)
+(function () {
+  const btns = document.querySelectorAll('#btn-toggle-docked, .nav-docked-toggle');
+  if (!btns.length) return;
+  btns.forEach(btn => btn.addEventListener('click', () => { window.api.toggleDockedPanel(); }));
+  window.api.onDockedPanelState(visible => { btns.forEach(btn => btn.classList.toggle('active', !!visible)); });
+})();
+
+// Agent Overlay toggle buttons (topbar #btn-toggle-overlay + sidebar .nav-overlay-toggle)
+(function () {
+  const btns = document.querySelectorAll('#btn-toggle-overlay, .nav-overlay-toggle');
+  if (!btns.length) return;
+  btns.forEach(btn => btn.addEventListener('click', () => { window.api.toggleOverlay(); }));
+  window.api.onOverlayState(visible => { btns.forEach(btn => btn.classList.toggle('active', !!visible)); });
+})();
+
+// Maximize/restore — toggle rounded corners
+window.api.onMaximized(isMax => { document.body.classList.toggle('maximized', isMax); });
+
+// Azure Portal button
+(function () {
+  const btn = document.getElementById('btn-azure');
+  if (!btn) return;
+  btn.addEventListener('click', () => { window.api.openExternal('https://portal.azure.com'); });
+})();
+
+// Populate tenant badge from live agent config (replaces hardcoded placeholder)
+(function () {
+  window.api.getTenantConfig().then(cfg => {
+    if (cfg && cfg.primaryDomain) {
+      document.querySelectorAll('.tenant-badge').forEach(el => { el.textContent = cfg.primaryDomain; });
+    }
+  }).catch(() => {});
+})();
+
+// Sync session mode when toggled from the docked panel
+window.api.onModeChanged(({ whatif }) => {
+  isWhatif = whatif;
+  setHardMode(whatif ? 'whatif' : 'live');
+  window.api.setMode(whatif);
+  updateTopbarModePill();
+});

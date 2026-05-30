@@ -1,0 +1,11 @@
+{
+  "eventId": "33333333-3333-4333-8333-333333333333",
+  "eventType": "terminate",
+  "effectiveDate": "2026-06-30",
+  "source": "api",
+  "ticketRef": "INC-1003",
+  "employee": {
+    "employeeId": "E1003",
+    "email": "casey.morgan@contoso.com"
+  }
+}

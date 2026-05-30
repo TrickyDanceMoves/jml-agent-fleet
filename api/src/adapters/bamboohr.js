@@ -6,7 +6,8 @@
  * BambooHR fires webhooks per-field-change. Configure three webhooks in BambooHR:
  *   1. New Hire:       trigger on hireDate, fields: firstName, lastName, workEmail,
  *                      department, jobTitle, country, location, supervisorEmail, hireDate
- *   2. Termination:    trigger on terminationDate, fields: workEmail, terminationDate
+ *   2. Termination:    trigger on terminationDate, fields: workEmail, terminationDate,
+ *                      ticketRef or terminationTicket
  *   3. Job Change:     trigger on department or jobTitle, fields: workEmail, department,
  *                      jobTitle, supervisorEmail
  *
@@ -98,6 +99,10 @@ function adaptWebhook(payload) {
         officeLocation: field(f, 'location'),
       }
     };
+
+    if (eventType === 'terminate') {
+      event.ticketRef = field(f, 'ticketRef') || field(f, 'terminationTicket');
+    }
 
     if (eventType === 'transfer') {
       event.changes = {

@@ -136,5 +136,44 @@ contextBridge.exposeInMainWorld('api', {
   // Tenant onboarding wizard
   startDeviceCodeSignin:        ()              => ipcRenderer.invoke('start-device-code-signin'),
   checkDeviceCodeStatus:        ()              => ipcRenderer.invoke('check-device-code-status'),
-  createAgentAppRegistrations:  (names)         => ipcRenderer.invoke('create-agent-app-registrations', { agentNames: names })
+  createAgentAppRegistrations:  (names)         => ipcRenderer.invoke('create-agent-app-registrations', { agentNames: names }),
+
+  // First-run setup
+  completeFirstRun: (data)  => ipcRenderer.invoke('complete-first-run', data),
+  skipFirstRun:     ()      => ipcRenderer.invoke('skip-first-run'),
+
+  // Integrations config
+  getIntegrationsConfig:  ()       => ipcRenderer.invoke('get-integrations-config'),
+  saveIntegrationsConfig: (config) => ipcRenderer.invoke('save-integrations-config', { config }),
+
+  // Open external URL in default browser
+  openExternal: (url) => ipcRenderer.invoke('open-external', url),
+
+  // Sign out — closes main window, returns to operator select
+  signOut: () => ipcRenderer.send('sign-out'),
+
+  // Hard quit — terminates the entire application process
+  appQuit: () => ipcRenderer.send('app-quit'),
+
+  // Avatar file picker — uses Electron native dialog (reliable vs hidden input)
+  pickImageFile: () => ipcRenderer.invoke('pick-image-file'),
+
+  // Docked panel toggle
+  toggleDockedPanel: () => ipcRenderer.invoke('toggle-docked-panel'),
+  // Agent overlay toggle
+  toggleOverlay: () => ipcRenderer.send('toggle-overlay'),
+  onDockedPanelState: (cb) => {
+    ipcRenderer.removeAllListeners('docked-panel-state');
+    ipcRenderer.on('docked-panel-state', (_, v) => cb(v));
+  },
+  // Mode sync from docked panel
+  onModeChanged: (cb) => ipcRenderer.on('mode-changed', (_, d) => cb(d)),
+
+  // Window state
+  onMaximized:    (cb) => ipcRenderer.on('window-maximized', (_, v) => cb(v)),
+  onOverlayState: (cb) => ipcRenderer.on('overlay-state',    (_, v) => cb(v)),
+
+  // Cross-window conversation sync
+  getConversationHistory: (agent) => ipcRenderer.invoke('get-conversation-display', { agent }),
+  onMsgMirror: (cb) => ipcRenderer.on('msg-mirror', (_, d) => cb(d)),
 });
