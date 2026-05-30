@@ -46,6 +46,21 @@ AI-powered identity lifecycle automation for Microsoft Entra ID. Eight agents �
 
 Automates identity provisioning and deprovisioning across a Microsoft 365 / Entra ID tenant, replacing manual IT processes with auditable, policy-gated agent workflows that run from a desktop operations console.
 
+## The Problem
+
+HR platforms, identity providers, ticketing tools, manual approval chains. Identity ops live in the seams between systems — and that's where speed, consistency, and auditability go to die.
+
+| | |
+|---|---|
+| **Delayed** | Provisioning lags behind day-one needs, especially for cross-functional roles. |
+| **Excessive** | Permissions accumulate quietly. Access drift becomes the default state. |
+| **Fragmented** | Audit trails span four tools, three teams, and one heroic spreadsheet. |
+| **Manual** | Approvals route through email, chat, tickets — reviewable, but rarely reviewed. |
+
+> Capability without governance is a liability. Identity is the wrong domain to learn that lesson twice.
+
+The design response: AI works inside guardrails rather than replacing the admin. No single agent has full authority, every action is gated by policy, and the audit trail is tamper-evident by construction.
+
 ## Agent Fleet
 
 | Agent | Role |
@@ -176,6 +191,14 @@ agents/auditor/                 Scheduled intelligence
 | Audit export | Azure Blob Storage (SAS), Microsoft Sentinel (HTTP Data Collector API) |
 | Scripting | PowerShell 5.1 |
 | Local dev | Azurite (Azure Storage emulator) |
+
+## Quality Assurance
+
+Release closeout and smoke-test guidance lives in [`docs/quality-assurance.md`](docs/quality-assurance.md). Use it as the gate before demos, packaging, or tenant handoff.
+
+## Next Product Scope
+
+Planning guidance for the follow-on Azure Network Deployment and Governance Console lives in [`docs/azure-network-console-plan.md`](docs/azure-network-console-plan.md). It extends the same approval, risk, drift, and evidence model from identity automation into Azure networking.
 
 ## Installation
 
