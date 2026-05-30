@@ -3753,26 +3753,6 @@ label { font-size: 12.5px; color: var(--text-2); }
   max-width: min(100%, 720px);
 }
 
-@keyframes countdown-shrink {
-  from { width: 100%; }
-  to { width: 0%; }
-}
-.countdown-bar {
-  position: relative;
-  height: 4px;
-  background: var(--surface-3);
-  border-radius: 2px;
-  overflow: hidden;
-}
-.countdown-bar > .fill {
-  position: absolute;
-  inset: 0 auto 0 0;
-  width: var(--countdown-fill, 100%);
-  background: linear-gradient(90deg, var(--warn), var(--crit));
-}
-.countdown-bar.is-running > .fill {
-  animation: countdown-shrink var(--countdown-ms, 2400ms) linear forwards;
-}
 
 .diff-row.add,
 .diff-row.rem,
@@ -3954,33 +3934,6 @@ label { font-size: 12.5px; color: var(--text-2); }
   color: var(--text-3);
 }
 
-.v2-reaction-window {
-  max-width: 720px;
-  padding: 12px;
-  border: 1px solid color-mix(in oklch, var(--warn) 46%, transparent);
-  border-radius: var(--r-md);
-  background: color-mix(in oklch, var(--warn) 12%, transparent);
-}
-.v2-reaction-window .rw-head,
-.v2-reaction-window .rw-foot {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-.v2-reaction-window .rw-title {
-  font-size: 12.5px;
-  font-weight: 650;
-  color: var(--text);
-}
-.v2-reaction-window .rw-meta,
-.v2-reaction-window .rw-copy {
-  font-family: var(--mono);
-  font-size: 10.5px;
-  color: var(--text-3);
-}
-.v2-reaction-window .rw-meta { margin-left: auto; }
-.v2-reaction-window .countdown-bar { margin: 8px 0; }
-.v2-reaction-window .rw-foot { justify-content: space-between; }
 
 .v2-lifecycle-map {
   display: grid;
@@ -4325,28 +4278,6 @@ label { font-size: 12.5px; color: var(--text-2); }
 .plan-meta { display: flex; align-items: center; gap: 6px; }
 .plan-dur { font-family: var(--mono); font-size: 10.5px; color: var(--text-3); }
 
-/* Reaction window (inline in chat between confirm and commit) */
-.reaction-window {
-  align-self: stretch;
-  max-width: 85%;
-  margin: 4px 0 4px 38px;
-  background: color-mix(in oklab, var(--warn), transparent 88%);
-  border: 1px solid color-mix(in oklab, var(--warn), transparent 50%);
-  border-radius: var(--r-md);
-  padding: 12px;
-}
-.reaction-window-header {
-  display: flex; align-items: center; gap: 10px; margin-bottom: 8px;
-}
-.reaction-window-title { font-size: 12.5px; font-weight: 600; color: var(--text); }
-.countdown-bar {
-  height: 3px; background: var(--surface-3); border-radius: 2px;
-  overflow: hidden; margin-bottom: 8px;
-}
-.countdown-bar .fill {
-  height: 100%; background: var(--warn); border-radius: 2px;
-  transition: width .1s linear;
-}
 
 /* Cost footer */
 .chat-cost-footer {
@@ -4616,52 +4547,6 @@ label { font-size: 12.5px; color: var(--text-2); }
 .hris-event-dot.warn { background: var(--warn);  box-shadow: 0 0 6px var(--warn); }
 .hris-event-dot.crit { background: var(--crit);  box-shadow: 0 0 6px var(--crit); }
 
-/* ============================================================
-   Reaction window
-   ============================================================ */
-
-.reaction-window {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding: 14px 16px;
-  background: color-mix(in oklab, var(--warn), transparent 88%);
-  border: 1px solid color-mix(in oklab, var(--warn), transparent 50%);
-  border-radius: var(--r-lg);
-}
-
-.reaction-window .rw-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  font-family: var(--mono);
-  font-size: 12.5px;
-  color: var(--warn);
-}
-
-.reaction-window .rw-timings {
-  font-family: var(--mono);
-  font-size: 11px;
-  color: var(--text-3);
-  text-align: right;
-}
-
-.reaction-window .rw-copy {
-  font-size: 12px;
-  color: var(--text-2);
-  line-height: 1.5;
-}
-
-.reaction-window .rw-footer {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-/* .reaction-window .rw-abort inherits .btn.danger.sm — add width override only */
-.reaction-window .rw-abort {
-  min-width: 96px;
-}
 
 /* ============================================================
    Plan list
@@ -4996,24 +4881,6 @@ label { font-size: 12.5px; color: var(--text-2); }
   padding-top: 2px;
 }
 
-/* ============================================================
-   Reaction window — new class names
-   ============================================================ */
-
-.reaction-window .rw-meta {
-  font-family: var(--mono);
-  font-size: 11px;
-  color: var(--muted);
-  margin-left: auto;
-}
-
-.reaction-window .rw-copy {
-  font-size: 12px;
-  color: var(--text-2);
-  padding: 0 0 4px;
-  flex: 1;
-  line-height: 1.5;
-}
 
 /* ============================================================
    Attestation dialog — supplementary elements
