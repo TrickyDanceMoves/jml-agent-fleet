@@ -1,6 +1,6 @@
 # JML Agent Fleet
 
-AI-powered identity lifecycle automation for Microsoft Entra ID. Seven Claude-backed agents handle the full Joiner/Mover/Leaver (JML) workflow with zero-trust architecture, UEBA, drift detection, AI-assisted provisioning, and end-to-end HRIS integration, replicating core capabilities of enterprise IGA platforms like SailPoint and Saviynt.
+AI-powered identity lifecycle automation for Microsoft Entra ID. Eight agents — two Claude-backed (Approver, Auditor) and six PowerShell — handle the full Joiner/Mover/Leaver (JML) workflow with zero-trust architecture, UEBA, drift detection, AI-assisted provisioning, and end-to-end HRIS integration, replicating core capabilities of enterprise IGA platforms like SailPoint and Saviynt.
 
 **[Interactive Case Study](https://trickydancemoves.github.io/jml-agent-fleet/docs/case-study.html)** — walkthrough of the architecture, agent design, and live operation flows.
 
@@ -41,18 +41,6 @@ AI-powered identity lifecycle automation for Microsoft Entra ID. Seven Claude-ba
 | Settings | |
 |---|---|
 | ![Settings](docs/images/settings.png) | |
-
-| Auth Selector | Access Reviews |
-|---|---|
-| ![Auth selector](docs/images/authselect.png) | ![Access reviews](docs/images/accessreviews.png) |
-
-| Operations | Integrations |
-|---|---|
-| ![Operations](docs/images/operations.png) | ![Integrations](docs/images/integrations.png) |
-
-| Settings | Users |
-|---|---|
-| ![Settings](docs/images/settings2.png) | ![Users](docs/images/users2.png) |
 
 ## What It Does
 
