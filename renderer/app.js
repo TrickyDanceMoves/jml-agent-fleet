@@ -3905,8 +3905,36 @@ function loadSettings() {
     });
   }
 
+  // ── AI observability / run telemetry ──────────────────────────────────────
+  async function loadAiTraces() {
+    if (typeof window.api?.getAiTraces !== 'function') return;
+    const data = await window.api.getAiTraces(50);
+    const s = (data && data.summary) || {};
+    const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+    set('ai-tr-count', s.count ?? 0);
+    set('ai-tr-in',  (s.totalInputTokens  ?? 0).toLocaleString());
+    set('ai-tr-out', (s.totalOutputTokens ?? 0).toLocaleString());
+    set('ai-tr-lat', (s.avgLatencyMs ?? 0) + ' ms');
+    const list = document.getElementById('ai-traces-list');
+    if (!list) return;
+    const traces = (data && data.traces) || [];
+    if (!traces.length) { list.innerHTML = '<div style="color:var(--text-4)">No model runs recorded yet. Chat with an agent to populate telemetry.</div>'; return; }
+    list.innerHTML = traces.map(t => {
+      const ts = t.ts ? new Date(t.ts).toLocaleTimeString() : '—';
+      const tok = (t.inputTokens != null || t.outputTokens != null) ? `${t.inputTokens ?? '?'}→${t.outputTokens ?? '?'} tok` : 'tokens n/a';
+      return `<div style="display:flex;gap:10px;padding:3px 0;border-bottom:1px solid var(--border)">
+        <span style="color:var(--text-4);min-width:64px">${ts}</span>
+        <span style="min-width:62px">${escHtml(t.agent || '')}</span>
+        <span style="flex:1;color:var(--text-2)">${escHtml(t.provider || '')} · ${escHtml(t.model || '')}</span>
+        <span style="color:var(--cyan)">${tok}</span>
+        <span style="min-width:60px;text-align:right">${t.latencyMs ?? '?'} ms</span>
+      </div>`;
+    }).join('');
+  }
+  document.getElementById('ai-traces-refresh')?.addEventListener('click', loadAiTraces);
+
   // Expose for sub-tab navigation hook
-  window._loadAiProvider = loadAiProvider;
+  window._loadAiProvider = () => { loadAiProvider(); loadAiTraces(); };
 })();
 
 async function loadOperatorActivity() {

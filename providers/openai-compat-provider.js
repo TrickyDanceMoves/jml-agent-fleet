@@ -98,19 +98,23 @@ class OpenAICompatProvider {
     ];
     const openAiTools = toOpenAITools(tools);
 
+    const started = Date.now();
     const stream = await this._agentClient.chat.completions.create({
       model:       this.agentModel,
       max_tokens:  4096,
       messages:    openAiMessages,
       tools:       openAiTools,
       tool_choice: openAiTools ? 'auto' : undefined,
-      stream:      true
+      stream:      true,
+      stream_options: { include_usage: true }
     });
 
     let textContent = '';
+    let usage = null;
     const toolAccum = {}; // index → { id, name, arguments }
 
     for await (const chunk of stream) {
+      if (chunk.usage) usage = chunk.usage; // final chunk carries usage when include_usage is set
       const delta = chunk.choices[0]?.delta;
       if (!delta) continue;
 
@@ -146,7 +150,14 @@ class OpenAICompatProvider {
     }
 
     const stopReason = Object.keys(toolAccum).length > 0 ? 'tool_use' : 'end_turn';
-    return { content, stopReason };
+    return {
+      content, stopReason,
+      trace: {
+        provider: this.name, model: this.agentModel, latencyMs: Date.now() - started,
+        inputTokens:  usage?.prompt_tokens     ?? null,
+        outputTokens: usage?.completion_tokens ?? null
+      }
+    };
   }
 
   async complete({ messages, maxTokens }) {

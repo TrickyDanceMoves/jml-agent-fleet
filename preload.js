@@ -154,6 +154,7 @@ contextBridge.exposeInMainWorld('api', {
   getAiProviderConfig:  ()       => ipcRenderer.invoke('get-ai-provider-config'),
   saveAiProviderConfig: (config) => ipcRenderer.invoke('save-ai-provider-config', { config }),
   testAiProvider:       ()       => ipcRenderer.invoke('test-ai-provider'),
+  getAiTraces:          (limit)  => ipcRenderer.invoke('get-ai-traces', { limit }),
 
   // Open external URL in default browser
   openExternal: (url) => ipcRenderer.invoke('open-external', url),

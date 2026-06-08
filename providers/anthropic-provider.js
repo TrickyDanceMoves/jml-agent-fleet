@@ -16,6 +16,7 @@ class AnthropicProvider {
 
   async streamTurn({ system, tools, messages, onText, onToolStart }) {
     const client = this._client();
+    const started = Date.now();
     const stream = client.messages.stream({
       model: this.agentModel,
       max_tokens: 4096,
@@ -33,7 +34,15 @@ class AnthropicProvider {
     });
 
     const finalMsg = await stream.finalMessage();
-    return { content: finalMsg.content, stopReason: finalMsg.stop_reason };
+    return {
+      content: finalMsg.content,
+      stopReason: finalMsg.stop_reason,
+      trace: {
+        provider: this.name, model: this.agentModel, latencyMs: Date.now() - started,
+        inputTokens:  finalMsg.usage?.input_tokens  ?? null,
+        outputTokens: finalMsg.usage?.output_tokens ?? null
+      }
+    };
   }
 
   async complete({ messages, maxTokens }) {
