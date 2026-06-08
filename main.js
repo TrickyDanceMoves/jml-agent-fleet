@@ -1633,6 +1633,33 @@ ipcMain.handle('test-ai-provider', async () => {
   }
 });
 
+// ── Agent quarantine (kill switch) ─────────────────────────────────────────────
+ipcMain.handle('quarantine-agent', async (event, payload) => {
+  const { agent, reason, whatif, revoke, writeToken } = payload || {};
+  // Real (non-WhatIf) quarantine is a privileged mutation — require a write token
+  // and admin role, same gate as other destructive operations.
+  if (!whatif) {
+    if ((currentRole || 'viewer').toLowerCase() !== 'admin') {
+      return { ok: false, error: 'Quarantine requires an admin operator.' };
+    }
+    const check = consumeWriteToken(writeToken, currentOperator);
+    if (!check.ok) return { ok: false, error: check.error || 'Write token required.' };
+  }
+  try {
+    const args = {
+      AgentName: agent,
+      Reason: reason || 'Manual quarantine via JML Console',
+    };
+    if (whatif) args.WhatIf = true;
+    if (revoke) args.Revoke = true;
+    const raw = runPs(path.join(AGENTS_DIR, 'provisioner', 'Invoke-AgentQuarantine.ps1'), args);
+    const result = _parseMultilineJson(raw, 'No output from quarantine script');
+    return result;
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+});
+
 // ── Agent health ──────────────────────────────────────────────────────────────
 ipcMain.on('get-agent-health', (event) => {
   try {

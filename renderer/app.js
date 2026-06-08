@@ -4834,6 +4834,62 @@ Object.entries(KPI_NAV).forEach(([id, tab]) => {
   el.addEventListener('click', () => switchTab(tab));
 });
 
+// ── Agent quarantine (kill switch) ───────────────────────────────────────────
+(function wireQuarantine() {
+  const sel      = document.getElementById('quarantine-agent-select');
+  const reasonEl = document.getElementById('quarantine-reason');
+  const revokeEl = document.getElementById('quarantine-revoke');
+  const previewBtn = document.getElementById('quarantine-preview-btn');
+  const execBtn    = document.getElementById('quarantine-execute-btn');
+  const fb         = document.getElementById('quarantine-feedback');
+  if (!sel || !execBtn || typeof window.api?.quarantineAgent !== 'function') return;
+
+  function show(msg, kind) {
+    fb.style.display = 'block';
+    fb.textContent = msg;
+    fb.style.color = kind === 'error' ? 'var(--coral)' : kind === 'ok' ? 'var(--emerald)' : 'var(--text-2)';
+  }
+
+  previewBtn?.addEventListener('click', async () => {
+    previewBtn.disabled = true;
+    show('Running WhatIf preview…');
+    const r = await window.api.quarantineAgent({
+      agent: sel.value, reason: reasonEl.value || undefined, whatif: true, revoke: revokeEl.checked
+    });
+    previewBtn.disabled = false;
+    if (r && r.ok) show(`WhatIf: would disable ${r.agent} (appId ${r.appId})${r.revoke ? ' + revoke creds' : ''}. No changes made.`, 'ok');
+    else show('Preview failed: ' + (r?.error || 'unknown'), 'error');
+  });
+
+  execBtn?.addEventListener('click', async () => {
+    if (currentOperatorRole() !== 'admin') { show('Quarantine requires an admin operator.', 'error'); return; }
+    const agent = sel.value;
+    const ok = await confirmModal({
+      title: `Quarantine ${agent}?`,
+      body: `This disables the ${agent} agent's service principal immediately, blocking all token issuance${revokeEl.checked ? ' and revokes its credentials' : ''}. A high-severity audit entry is written. Continue?`,
+      okLabel: 'Quarantine', danger: true,
+    });
+    if (!ok) return;
+    const token = await requirePinIfNeeded('Confirm agent quarantine');
+    if (!token) return;
+    execBtn.disabled = true;
+    show('Quarantining…');
+    const r = await window.api.quarantineAgent({
+      agent, reason: reasonEl.value || undefined, whatif: false, revoke: revokeEl.checked,
+      writeToken: typeof token === 'string' ? token : null
+    });
+    execBtn.disabled = false;
+    if (r && r.ok) {
+      show(`✓ ${agent} quarantined — SP ${r.spObjectId} disabled${r.revoked ? ', credentials revoked' : ''}. Audit entry written.`, 'ok');
+      showToast(`${agent} agent quarantined`, 'success');
+      if (typeof window.api?.getAgentHealth === 'function') window.api.getAgentHealth();
+    } else {
+      show('Quarantine failed: ' + (r?.error || 'unknown'), 'error');
+      showToast('Quarantine failed', 'error');
+    }
+  });
+})();
+
 // ── Certs tiles → detail popover with thumbprint, agent name, status ──────
 (function wireCertTileClicks() {
   document.querySelectorAll('#view-certs .cert-tile').forEach(tile => {

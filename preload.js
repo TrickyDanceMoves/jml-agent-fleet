@@ -62,6 +62,9 @@ contextBridge.exposeInMainWorld('api', {
   getAgentHealth:  ()   => ipcRenderer.send('get-agent-health'),
   onAgentHealth:   (cb) => ipcRenderer.on('agent-health', (_, d) => cb(d)),
 
+  // Agent quarantine (kill switch) — invoke, returns { ok, ... }
+  quarantineAgent: (payload) => ipcRenderer.invoke('quarantine-agent', payload),
+
   getHrQueue:      ()   => ipcRenderer.send('get-hr-queue'),
   onHrQueue:       (cb) => ipcRenderer.on('hr-queue', (_, d) => cb(d)),
 
