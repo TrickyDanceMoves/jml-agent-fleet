@@ -38,7 +38,10 @@ behind dedicated IPC calls, then set `sandbox: true`. Tracked for post-submissio
 
 ## Recommended next steps
 
-- [ ] Add a strict Content-Security-Policy `<meta>` to every renderer HTML (`default-src 'self'`).
+- [x] Strict Content-Security-Policy on the main renderer (`index.html`):
+      `default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'`.
+      (No inline `<script>` or inline event handlers, so `script-src 'self'` holds.)
+- [ ] Extend the same CSP to the secondary renderer HTML (operator-select, setup, overlay, docked, palette).
 - [ ] Set `sandbox: true` after moving Node-dependent preload logic into main-process IPC.
 - [ ] Validate `event.senderFrame` origin in each IPC handler (defence in depth).
 - [ ] Add a JSON-schema validator for IPC payloads on the highest-privilege channels

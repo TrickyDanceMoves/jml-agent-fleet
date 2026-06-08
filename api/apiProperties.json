@@ -1,0 +1,32 @@
+{
+  "properties": {
+    "connectionParameters": {
+      "api_key": {
+        "type": "securestring",
+        "uiDefinition": {
+          "displayName": "JML API Key",
+          "description": "The x-api-key for the JML control-plane API (JML_API_KEY).",
+          "tooltip": "Paste the JML API key issued for this environment.",
+          "constraints": { "tabIndex": 2, "clearText": false, "required": "true" }
+        }
+      }
+    },
+    "iconBrandColor": "#0078D4",
+    "scriptOperations": [],
+    "capabilities": [],
+    "policyTemplateInstances": [
+      {
+        "title": "inject-x-api-key",
+        "templateId": "setheader",
+        "parameters": {
+          "x-ms-apimTemplateParameter.name": "x-api-key",
+          "x-ms-apimTemplateParameter.value": "@connectionParameters('api_key')",
+          "x-ms-apimTemplate-policySection": "Request",
+          "x-ms-apimTemplate-operationName": []
+        }
+      }
+    ],
+    "publisher": "JML Agent Fleet",
+    "stackOwner": "JML Agent Fleet"
+  }
+}

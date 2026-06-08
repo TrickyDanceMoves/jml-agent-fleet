@@ -28,6 +28,8 @@ audit.jsonl
 approver/operator-auth.json
 # Per-operator activity log (contains operator names + event types)
 approver/operator-activity.jsonl
+# AI run telemetry (runtime observability data)
+approver/ai-traces.jsonl
 # Scheduled operations queue (runtime state)
 approver/scheduled.json
 # Notification routing rules — operator-specific, optional to commit

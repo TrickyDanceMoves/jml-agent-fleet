@@ -263,8 +263,9 @@ Honest current state, so reviewers know what's proven vs. planned:
 | JIT privilege | Control-plane (Provisioner at-rest disable + approval) | Agent-scoped governance as Entra supports it |
 | Operator RBAC | Local Windows username / PIN | Entra-backed operator identity + group-derived role |
 | Conditional Access | Script present, needs Workload Identities Premium (P2) | Enabled CA for agent identities |
-| AI observability | Operation audit chain (verifiable) | Foundry run tracing (run ID, tool calls, latency, cost) |
-| Electron sandbox | `sandbox: false` (preload needs Node) | `sandbox: true` after moving Node logic to IPC |
+| AI observability | ✅ Per-turn run telemetry (provider, model, latency, tokens) in Settings → AI Provider | Foundry-native trace correlation IDs |
+| Copilot integration | ✅ OpenAPI action surface + Power Platform connector (`api/apiProperties.json`, `docs/copilot-studio-setup.md`) | Live Copilot Studio agent in tenant |
+| Electron sandbox | `sandbox: false` (preload needs Node); CSP enforced on main renderer | `sandbox: true` after moving Node logic to IPC |
 
 ## Quality Assurance
 
