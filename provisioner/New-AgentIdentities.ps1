@@ -45,7 +45,11 @@ function Get-RestError {
 $joinerCfg = Get-Content (Join-Path $agentsRoot "joiner\config.json") -Raw | ConvertFrom-Json
 $tenantId  = $joinerCfg.TenantId
 $clientId  = "14d82eec-204b-4c2f-b7e8-296a70dab67e"  # Microsoft Graph Command Line Tools
-$scope     = "https://graph.microsoft.com/.default offline_access"
+# Request the specific Agent ID scope so the admin consents to it at sign-in.
+# (.default only yields already-consented scopes; the new AgentIdentity scope is not
+#  pre-consented on the Graph CLI client, which is why creation returned
+#  Authorization_RequestDenied even though the endpoint exists.)
+$scope     = "https://graph.microsoft.com/AgentIdentity.Create.All https://graph.microsoft.com/User.Read.All offline_access openid profile"
 
 # JML agents to mint Agent IDs for (display names + a stable tag)
 $agents = @(
@@ -92,7 +96,8 @@ $headers = @{ Authorization = "Bearer $token"; "Content-Type" = "application/jso
 $sponsorId = $null
 if ($SponsorUpn) {
     try {
-        $u = Invoke-RestMethod -Method GET -Headers $headers -Uri "https://graph.microsoft.com/v1.0/users/$SponsorUpn?`$select=id,displayName"
+        $sponsorUri = 'https://graph.microsoft.com/v1.0/users/' + $SponsorUpn + '?$select=id,displayName'
+        $u = Invoke-RestMethod -Method GET -Headers $headers -Uri $sponsorUri
         $sponsorId = $u.id
         Write-Log "Sponsor: $($u.displayName) ($sponsorId)"
     } catch { Write-Log "Could not resolve sponsor '$SponsorUpn': $(Get-RestError $_)" "WARN" }
