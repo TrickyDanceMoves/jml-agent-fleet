@@ -871,13 +871,18 @@ body.maximized, body.maximized .app { border-radius: 0; }
 .dash-section.dash-hidden {
   height: 36px;
   overflow: hidden;
-  opacity: 0.5;
+  opacity: 0.68;
   cursor: pointer;
-  border: 1px dashed var(--border);
+  border: 1px solid var(--border);
   border-radius: var(--r-md);
-  transition: opacity .15s;
+  background: color-mix(in oklch, var(--surface) 45%, transparent);
+  transition: opacity .15s, border-color .15s, background .15s;
 }
-.dash-section.dash-hidden:hover { opacity: 0.85; }
+.dash-section.dash-hidden:hover {
+  opacity: 0.95;
+  border-color: var(--border-strong);
+  background: var(--surface);
+}
 
 /* Show only the header-row, hide body content */
 .dash-section.dash-hidden > *:not(.dash-section-hdr):not(.panel) { display: none !important; }
@@ -909,6 +914,13 @@ body.maximized, body.maximized .app { border-radius: 0; }
   margin-left: 8px;
   font-family: var(--mono);
   letter-spacing: .04em;
+}
+
+#view-dashboard .dash-section.dash-hidden .dash-section-hdr::after,
+#view-dashboard .dash-section.dash-hidden .panel > .panel-h::after {
+  content: "open";
+  margin-left: auto;
+  text-transform: uppercase;
 }
 
 /* V2 dashboard owns KPIs, fleet status, live ops, telemetry, and activity.
@@ -3643,7 +3655,21 @@ label { font-size: 12.5px; color: var(--text-2); }
 }
 
 /* ── P2: Exports — coming-soon cards ──────────────────────────────────────── */
-.exp.exp-coming-soon { opacity: 0.55; pointer-events: none; }
+.exp.exp-coming-soon {
+  min-height: 0;
+  padding: 14px 16px;
+  opacity: 0.66;
+  pointer-events: none;
+  border-style: dashed;
+  background: color-mix(in oklch, var(--surface) 55%, transparent);
+}
+.exp.exp-coming-soon .stats { display: none; }
+.exp.exp-coming-soon .top { margin-bottom: 8px; }
+.exp.exp-coming-soon .top .logo {
+  width: 28px;
+  height: 28px;
+  font-size: 10px;
+}
 .chip-soon {
   font-family: var(--mono); font-size: 10px; letter-spacing: .08em;
   text-transform: uppercase; padding: 2px 7px; border-radius: 4px; border: 1px solid;
