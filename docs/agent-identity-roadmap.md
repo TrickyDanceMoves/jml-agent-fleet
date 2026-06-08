@@ -124,16 +124,42 @@ The Agent ID auth model is **not** the SP cert/client-credentials flow. Confirme
 - One blueprint backs many agents; sponsors are required; some high-risk Graph permissions /
   Entra roles are blocked for agent identities.
 
+### KEY CONSTRAINT (verified 2026-06-08): Entra blocks write scopes on agent identities
+Granting permissions surfaced a decisive platform guardrail. These scopes are **rejected**
+for agent identities — *"The specified app role cannot be granted to agent identities"*:
+- `User.ReadWrite.All`  ❌
+- `GroupMember.ReadWrite.All`  ❌
+
+These granted fine: `User.Read.All`, `Group.Read.All`, `Directory.Read.All`,
+`AuditLog.Read.All`, `Reports.Read.All`, `LicenseAssignment.ReadWrite.All`.
+
+**Implication — which agents can switch:**
+| Agent | Needs blocked write scope? | Migrate to Agent ID? |
+|---|---|---|
+| Auditor | No (read-only) | ✅ Yes — all scopes granted |
+| Approver | No (read-only) | ✅ Yes — all scopes granted |
+| Joiner / Mover / Enroller | Yes (User.ReadWrite.All, GroupMember.ReadWrite.All) | ❌ No — stays SP / executes behind control plane |
+| Leaver | Yes (User.ReadWrite.All, GroupMember.ReadWrite.All) | ❌ No — stays SP / executes behind control plane |
+
+**Why this is the right answer, not a limitation:** Microsoft deliberately prevents
+autonomous agent identities from holding blanket directory-write. That is *exactly* JML's
+thesis — agents propose, score, and route; privileged execution lives behind approval +
+policy on a separate identity. So the target architecture is a **hybrid**: reasoning/read
+agents (Auditor, Approver) become first-class Entra Agent IDs; directory mutations stay on
+least-privilege execution SPs gated by the control plane. This is a stronger, platform-aligned
+story than "convert everything to Agent ID."
+
 ### Migration sequence (parallel, non-destructive — never breaks the working SP fleet)
 1. ✅ **Create agent identities** — `New-AgentIdentities.ps1` (done; 6 created).
-2. ▶ **Grant permissions** — `Grant-AgentIdentityPermissions.ps1` assigns each agent identity
-   the same Graph app roles its SP holds (run `-WhatIf` then `-Execute`). Surfaces any
-   permission Entra blocks for agent identities.
+2. ✅ **Grant permissions** — `Grant-AgentIdentityPermissions.ps1` (done; 14 granted, write
+   scopes blocked as above). Auditor + Approver fully permissioned as Agent IDs.
 3. ☐ **Add a credential to the blueprint** (`addPassword`/`addKey`/federated) for the FMI flow.
 4. ☐ **Implement the two-step FMI flow in `shared/Helpers.ps1`** as a new `Connect-AgentGraph`
    mode, selected by a per-agent `config.json` flag (e.g. `"AuthMode": "agentid"`), running in
-   **parallel** with the existing cert path. Validate one agent (start with read-only Auditor).
-5. ☐ **Cut over** per agent once validated, then retire the legacy app registrations.
+   **parallel** with the existing cert path. Validate **Auditor** first (read-only, fully permissioned).
+5. ☐ **Cut over the read agents only** (Auditor, Approver) to Agent ID; retire their SPs.
+   **Write agents (Joiner/Mover/Leaver/Enroller) stay on SPs** — the write scopes they need are
+   blocked for agent identities (see KEY CONSTRAINT). Final state = hybrid by design.
 
 `Remove-OrphanBlueprints.ps1` cleans up duplicate "JML Agent Fleet Blueprint" apps from
 failed creation runs (keeps the one backing the live identities).
