@@ -35,12 +35,20 @@ function Get-RestError {
     return $e.Exception.Message
 }
 
-# Agent display name -> Graph application permissions (matches the SP least-privilege matrix)
+# Agent display name -> Graph application permissions.
+#
+# VERIFIED 2026-06-08: Entra BLOCKS these high-risk write scopes from agent identities
+# ("The specified app role cannot be granted to agent identities."):
+#     User.ReadWrite.All, GroupMember.ReadWrite.All
+# Consequence: the JML WRITE agents (Joiner/Mover/Leaver/Enroller) cannot run as agent
+# identities for their core directory mutations and must remain app-reg SPs (or execute
+# behind the control plane). Only the grantable scopes are listed below. The READ/reasoning
+# agents (Auditor, Approver) migrate fully. See docs/agent-identity-roadmap.md.
 $matrix = @{
-    "JML Joiner Agent"   = @("User.ReadWrite.All","Group.Read.All","GroupMember.ReadWrite.All","LicenseAssignment.ReadWrite.All")
-    "JML Mover Agent"    = @("User.ReadWrite.All","Group.Read.All","GroupMember.ReadWrite.All","LicenseAssignment.ReadWrite.All")
-    "JML Enroller Agent" = @("User.ReadWrite.All","Group.Read.All","GroupMember.ReadWrite.All","LicenseAssignment.ReadWrite.All")
-    "JML Leaver Agent"   = @("User.ReadWrite.All","LicenseAssignment.ReadWrite.All","GroupMember.ReadWrite.All")
+    "JML Joiner Agent"   = @("Group.Read.All","LicenseAssignment.ReadWrite.All")          # User.ReadWrite.All + GroupMember.ReadWrite.All BLOCKED
+    "JML Mover Agent"    = @("Group.Read.All","LicenseAssignment.ReadWrite.All")          # blocked: User.ReadWrite.All, GroupMember.ReadWrite.All
+    "JML Enroller Agent" = @("Group.Read.All","LicenseAssignment.ReadWrite.All")          # blocked: User.ReadWrite.All, GroupMember.ReadWrite.All
+    "JML Leaver Agent"   = @("LicenseAssignment.ReadWrite.All")                            # blocked: User.ReadWrite.All, GroupMember.ReadWrite.All
     "JML Approver Agent" = @("User.Read.All","Group.Read.All")
     "JML Auditor Agent"  = @("User.Read.All","Group.Read.All","Directory.Read.All","AuditLog.Read.All","Reports.Read.All")
 }
