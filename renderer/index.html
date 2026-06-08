@@ -1826,6 +1826,8 @@
               <div class="s-sec">Govern</div>
               <div class="s-item" data-sub="sod">SoD Rules</div>
               <div class="s-item" data-sub="notifications">Notification Routing</div>
+              <div class="s-sec">Intelligence</div>
+              <div class="s-item" data-sub="ai-provider">AI Provider</div>
               <div class="s-sec">Appearance</div>
               <div class="s-item" data-sub="appearance">Theme</div>
             </aside>
@@ -2073,6 +2075,109 @@
               </div>
 
               <!-- Appearance · Theme (side-by-side comparison toggle) -->
+              <!-- AI Provider -->
+              <div class="set-card set-sub" id="set-sub-ai-provider" data-sub="ai-provider" style="display:none">
+                <div class="h">
+                  <div>
+                    <div class="ttl">AI Provider</div>
+                    <div class="sub">Select the language model powering Approver and Auditor agents. All providers use the same tool-calling interface — switch without losing conversation history.</div>
+                  </div>
+                  <span class="cert-pip" id="ai-provider-status-pip"><span class="d"></span>—</span>
+                </div>
+
+                <!-- Provider selector -->
+                <div class="set-row">
+                  <div><div class="lbl">Provider</div><div class="desc">Model backend for the agent chat interface and Graph AI features.</div></div>
+                  <div class="val right-ctrl">
+                    <select id="ai-provider-select" style="font-family:var(--mono);font-size:12px;width:200px">
+                      <option value="claude">Anthropic Claude</option>
+                      <option value="openai">OpenAI</option>
+                      <option value="azure-openai">Azure OpenAI</option>
+                      <option value="ollama">Ollama (local)</option>
+                    </select>
+                  </div>
+                </div>
+
+                <!-- Claude fields -->
+                <div class="ai-prov-section" id="ai-prov-claude">
+                  <div class="set-row">
+                    <div><div class="lbl">API Key</div><div class="desc">Anthropic API key. Starts with <code>sk-ant-</code>. Stored locally, never transmitted.</div></div>
+                    <div class="val right-ctrl"><input id="ai-claude-key" type="password" placeholder="sk-ant-…" autocomplete="off" style="font-family:var(--mono);font-size:12px;width:260px"></div>
+                  </div>
+                  <div class="set-row">
+                    <div><div class="lbl">Agent model</div><div class="desc">Full reasoning model for multi-step agent tasks.</div></div>
+                    <div class="val right-ctrl"><input id="ai-claude-agent-model" type="text" placeholder="claude-opus-4-7" style="font-family:var(--mono);font-size:12px;width:200px"></div>
+                  </div>
+                  <div class="set-row">
+                    <div><div class="lbl">Fast model</div><div class="desc">Lightweight model for Graph digest and query suggestions.</div></div>
+                    <div class="val right-ctrl"><input id="ai-claude-fast-model" type="text" placeholder="claude-haiku-4-5-20251001" style="font-family:var(--mono);font-size:12px;width:200px"></div>
+                  </div>
+                </div>
+
+                <!-- OpenAI fields -->
+                <div class="ai-prov-section" id="ai-prov-openai" style="display:none">
+                  <div class="set-row">
+                    <div><div class="lbl">API Key</div><div class="desc">OpenAI API key. Starts with <code>sk-</code>.</div></div>
+                    <div class="val right-ctrl"><input id="ai-openai-key" type="password" placeholder="sk-…" autocomplete="off" style="font-family:var(--mono);font-size:12px;width:260px"></div>
+                  </div>
+                  <div class="set-row">
+                    <div><div class="lbl">Agent model</div><div class="desc">Model for agent tasks (e.g. <code>gpt-4o</code>, <code>o3</code>).</div></div>
+                    <div class="val right-ctrl"><input id="ai-openai-agent-model" type="text" placeholder="gpt-4o" style="font-family:var(--mono);font-size:12px;width:200px"></div>
+                  </div>
+                  <div class="set-row">
+                    <div><div class="lbl">Fast model</div><div class="desc">Model for quick utility calls (e.g. <code>gpt-4o-mini</code>).</div></div>
+                    <div class="val right-ctrl"><input id="ai-openai-fast-model" type="text" placeholder="gpt-4o-mini" style="font-family:var(--mono);font-size:12px;width:200px"></div>
+                  </div>
+                </div>
+
+                <!-- Azure OpenAI fields -->
+                <div class="ai-prov-section" id="ai-prov-azure-openai" style="display:none">
+                  <div class="set-row">
+                    <div><div class="lbl">API Key</div><div class="desc">Azure OpenAI resource key from Azure Portal → Keys and Endpoint.</div></div>
+                    <div class="val right-ctrl"><input id="ai-azure-key" type="password" placeholder="…" autocomplete="off" style="font-family:var(--mono);font-size:12px;width:260px"></div>
+                  </div>
+                  <div class="set-row">
+                    <div><div class="lbl">Endpoint</div><div class="desc">Resource endpoint, e.g. <code>https://my-resource.openai.azure.com</code>.</div></div>
+                    <div class="val right-ctrl"><input id="ai-azure-endpoint" type="text" placeholder="https://…openai.azure.com" style="font-family:var(--mono);font-size:12px;width:280px"></div>
+                  </div>
+                  <div class="set-row">
+                    <div><div class="lbl">Agent deployment</div><div class="desc">Deployment name for the reasoning model (e.g. <code>gpt-4o</code>).</div></div>
+                    <div class="val right-ctrl"><input id="ai-azure-agent-deploy" type="text" placeholder="gpt-4o" style="font-family:var(--mono);font-size:12px;width:200px"></div>
+                  </div>
+                  <div class="set-row">
+                    <div><div class="lbl">Fast deployment</div><div class="desc">Deployment name for quick calls (e.g. <code>gpt-4o-mini</code>).</div></div>
+                    <div class="val right-ctrl"><input id="ai-azure-fast-deploy" type="text" placeholder="gpt-4o-mini" style="font-family:var(--mono);font-size:12px;width:200px"></div>
+                  </div>
+                  <div class="set-row">
+                    <div><div class="lbl">API version</div><div class="desc">Azure OpenAI API version string.</div></div>
+                    <div class="val right-ctrl"><input id="ai-azure-api-version" type="text" placeholder="2025-01-01-preview" style="font-family:var(--mono);font-size:12px;width:200px"></div>
+                  </div>
+                </div>
+
+                <!-- Ollama fields -->
+                <div class="ai-prov-section" id="ai-prov-ollama" style="display:none">
+                  <div class="set-row">
+                    <div><div class="lbl">Base URL</div><div class="desc">Ollama server address. Default: <code>http://localhost:11434</code>.</div></div>
+                    <div class="val right-ctrl"><input id="ai-ollama-url" type="text" placeholder="http://localhost:11434" style="font-family:var(--mono);font-size:12px;width:260px"></div>
+                  </div>
+                  <div class="set-row">
+                    <div><div class="lbl">Agent model</div><div class="desc">Ollama model tag for agent tasks (e.g. <code>llama3.1</code>, <code>qwen2.5:72b</code>).</div></div>
+                    <div class="val right-ctrl"><input id="ai-ollama-agent-model" type="text" placeholder="llama3.1" style="font-family:var(--mono);font-size:12px;width:200px"></div>
+                  </div>
+                  <div class="set-row">
+                    <div><div class="lbl">Fast model</div><div class="desc">Model for quick utility calls (can be the same).</div></div>
+                    <div class="val right-ctrl"><input id="ai-ollama-fast-model" type="text" placeholder="llama3.1" style="font-family:var(--mono);font-size:12px;width:200px"></div>
+                  </div>
+                </div>
+
+                <!-- Footer actions -->
+                <div style="display:flex;gap:8px;align-items:center;padding:14px 18px;border-top:1px solid var(--border)">
+                  <button class="btn ghost" id="ai-provider-test-btn">Test connection</button>
+                  <button class="btn primary" id="ai-provider-save-btn">Save</button>
+                  <span id="ai-provider-feedback" style="font-family:var(--mono);font-size:11.5px;color:var(--muted);margin-left:4px"></span>
+                </div>
+              </div>
+
               <div class="set-card set-sub" data-sub="appearance" style="display:none">
                 <div class="h">
                   <div><div class="ttl">Theme</div><div class="sub">Switch the console palette. Both themes use the same layout — only color tokens differ. Survives reload.</div></div>

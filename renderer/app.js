@@ -3538,6 +3538,139 @@ function loadSettings() {
   loadOperatorActivity();
 }
 
+// ── AI Provider settings ──────────────────────────────────────────────────────
+(function () {
+  const SECTIONS = ['claude', 'openai', 'azure-openai', 'ollama'];
+
+  function showSection(provider) {
+    SECTIONS.forEach(p => {
+      const el = document.getElementById('ai-prov-' + p);
+      if (el) el.style.display = p === provider ? '' : 'none';
+    });
+  }
+
+  const sel = document.getElementById('ai-provider-select');
+  if (sel) sel.addEventListener('change', () => showSection(sel.value));
+
+  async function loadAiProvider() {
+    if (typeof window.api?.getAiProviderConfig !== 'function') return;
+    const cfg = await window.api.getAiProviderConfig();
+    if (!cfg) return;
+
+    if (sel) sel.value = cfg.provider || 'claude';
+    showSection(cfg.provider || 'claude');
+
+    // Claude
+    const c = cfg.claude || {};
+    setVal('ai-claude-key',        c.apiKey     || '');
+    setVal('ai-claude-agent-model',c.agentModel || 'claude-opus-4-7');
+    setVal('ai-claude-fast-model', c.fastModel  || 'claude-haiku-4-5-20251001');
+
+    // OpenAI
+    const o = cfg.openai || {};
+    setVal('ai-openai-key',        o.apiKey     || '');
+    setVal('ai-openai-agent-model',o.agentModel || 'gpt-4o');
+    setVal('ai-openai-fast-model', o.fastModel  || 'gpt-4o-mini');
+
+    // Azure OpenAI
+    const az = cfg['azure-openai'] || {};
+    setVal('ai-azure-key',         az.apiKey          || '');
+    setVal('ai-azure-endpoint',    az.endpoint         || '');
+    setVal('ai-azure-agent-deploy',az.agentDeployment  || 'gpt-4o');
+    setVal('ai-azure-fast-deploy', az.fastDeployment   || 'gpt-4o-mini');
+    setVal('ai-azure-api-version', az.apiVersion       || '2025-01-01-preview');
+
+    // Ollama
+    const ol = cfg.ollama || {};
+    setVal('ai-ollama-url',        ol.baseUrl    || 'http://localhost:11434');
+    setVal('ai-ollama-agent-model',ol.agentModel || 'llama3.1');
+    setVal('ai-ollama-fast-model', ol.fastModel  || 'llama3.1');
+
+    updateStatusPip(cfg.provider);
+  }
+
+  function setVal(id, v) { const el = document.getElementById(id); if (el) el.value = v; }
+  function getVal(id)    { const el = document.getElementById(id); return el ? el.value.trim() : ''; }
+
+  function updateStatusPip(provider) {
+    const pip = document.getElementById('ai-provider-status-pip');
+    if (!pip) return;
+    const labels = { claude: 'Claude', openai: 'OpenAI', 'azure-openai': 'Azure OpenAI', ollama: 'Ollama' };
+    pip.innerHTML = `<span class="d" style="background:var(--green)"></span>${labels[provider] || provider || 'None'}`;
+  }
+
+  function feedback(msg, isErr) {
+    const el = document.getElementById('ai-provider-feedback');
+    if (!el) return;
+    el.textContent = msg;
+    el.style.color = isErr ? 'var(--coral)' : 'var(--green)';
+    setTimeout(() => { if (el.textContent === msg) el.textContent = ''; }, 4000);
+  }
+
+  function buildConfig() {
+    return {
+      provider: sel ? sel.value : 'claude',
+      claude: {
+        apiKey:     getVal('ai-claude-key'),
+        agentModel: getVal('ai-claude-agent-model') || 'claude-opus-4-7',
+        fastModel:  getVal('ai-claude-fast-model')  || 'claude-haiku-4-5-20251001'
+      },
+      openai: {
+        apiKey:     getVal('ai-openai-key'),
+        agentModel: getVal('ai-openai-agent-model') || 'gpt-4o',
+        fastModel:  getVal('ai-openai-fast-model')  || 'gpt-4o-mini'
+      },
+      'azure-openai': {
+        apiKey:          getVal('ai-azure-key'),
+        endpoint:        getVal('ai-azure-endpoint'),
+        agentDeployment: getVal('ai-azure-agent-deploy') || 'gpt-4o',
+        fastDeployment:  getVal('ai-azure-fast-deploy')  || 'gpt-4o-mini',
+        apiVersion:      getVal('ai-azure-api-version')  || '2025-01-01-preview'
+      },
+      ollama: {
+        baseUrl:    getVal('ai-ollama-url')         || 'http://localhost:11434',
+        agentModel: getVal('ai-ollama-agent-model') || 'llama3.1',
+        fastModel:  getVal('ai-ollama-fast-model')  || 'llama3.1'
+      }
+    };
+  }
+
+  const saveBtn = document.getElementById('ai-provider-save-btn');
+  if (saveBtn) {
+    saveBtn.addEventListener('click', async () => {
+      if (typeof window.api?.saveAiProviderConfig !== 'function') return;
+      saveBtn.disabled = true;
+      const resp = await window.api.saveAiProviderConfig(buildConfig());
+      saveBtn.disabled = false;
+      if (resp && resp.ok) {
+        feedback('Saved');
+        updateStatusPip(sel ? sel.value : '');
+      } else {
+        feedback(resp?.error || 'Save failed', true);
+      }
+    });
+  }
+
+  const testBtn = document.getElementById('ai-provider-test-btn');
+  if (testBtn) {
+    testBtn.addEventListener('click', async () => {
+      if (typeof window.api?.testAiProvider !== 'function') return;
+      testBtn.disabled = true;
+      feedback('Testing…');
+      const resp = await window.api.testAiProvider();
+      testBtn.disabled = false;
+      if (resp && resp.ok) {
+        feedback(`Connected · ${resp.provider} · "${resp.text}"`);
+      } else {
+        feedback(resp?.error || 'Connection failed', true);
+      }
+    });
+  }
+
+  // Expose for sub-tab navigation hook
+  window._loadAiProvider = loadAiProvider;
+})();
+
 async function loadOperatorActivity() {
   const body = document.getElementById('op-activity-body');
   if (!body || typeof window.api?.getOperatorActivity !== 'function') return;
@@ -4583,6 +4716,7 @@ if (typeof window.api?.onHrQueue === 'function') {
       });
       if (sub === 'tenant') loadTenantConfig();
       if (sub === 'notifications') loadNotificationRules();
+      if (sub === 'ai-provider' && typeof window._loadAiProvider === 'function') window._loadAiProvider();
     });
   });
   document.querySelectorAll('[data-settings-sub]').forEach(btn => {
