@@ -61,10 +61,47 @@ where the platform supports it — eliminating long-lived credential theft (thre
 Run both in parallel (Agent ID + legacy app reg) behind the provider/config layer, validate
 end-to-end, then disable and delete the legacy app registrations via the Provisioner.
 
-## Honest status note
+## Verified facts (June 2026)
 
-Entra Agent ID is new and evolving. Availability, the exact provisioning APIs, and whether
-a *custom* (non-Copilot, non-Foundry) agent can be declared as an Agent ID directly may have
-changed since this was written — verify current GA status in the target tenant before
-committing the migration. Until then, the app-registration-per-agent model with
-control-plane JIT and the Quarantine kill switch is the correct, working implementation.
+- **GA**: Microsoft Entra Agent ID is generally available and available to all Entra customers.
+- **Graph endpoint**: `POST https://graph.microsoft.com/v1.0/servicePrincipals/microsoft.graph.agentIdentity`
+  with `displayName`, an agent identity blueprint, and a sponsor reference.
+- **Permission**: `AgentIdentity.Create.All` (or `AgentIdentity.CreateAsManager`).
+- **No in-place conversion**: agent identities are a distinct service-principal subtype;
+  you create new ones and decommission the old app registrations.
+- **This tenant**: licensed for the governance add-ons (Entra P1/P2, ID Governance, Entra
+  Suite). A read-scope probe of the Agent ID endpoints returned BadRequest — i.e. the
+  `AgentIdentity` permission + admin consent are needed to exercise the surface; creation
+  must be done by an admin.
+
+## Create them (to evaluate)
+
+`provisioner/New-AgentIdentities.ps1` mints an Agent ID per JML agent via the endpoint
+above, using an admin device-code sign-in. Run `-WhatIf` first; the real run needs an
+admin who can consent `AgentIdentity.Create.All` and a sponsor UPN. The script prints the
+full Graph error body, so if the tenant's rollout differs the response guides the fix.
+
+```powershell
+.\provisioner\New-AgentIdentities.ps1 -WhatIf
+.\provisioner\New-AgentIdentities.ps1 -SponsorUpn admin@contoso.onmicrosoft.com
+```
+
+## Decision: are Agent IDs better than the current app-reg SPs?
+
+| Dimension | App registration + SP (today) | Entra Agent ID |
+|---|---|---|
+| First-class agent semantics | No — generic app identity | Yes — purpose-built non-human AI identity |
+| Ownership / sponsor / review | Manual (cert expiry tracking only) | Native owner + sponsor + lifecycle |
+| Conditional Access / risk | Needs **Workload Identities Premium** (tenant lacks it) | Governed via Entra ID P1/P2 (tenant HAS it) |
+| Access reviews | Possible but not agent-aware | Agent-aware reviews |
+| Credentials | Cert / DPAPI secret | Platform-managed / federated (no stored secret) |
+| Provisioning | Hand-rolled scripts | Graph API + blueprint |
+| Maturity / risk | Battle-tested, fully working today | GA but new; rollout/schema still settling |
+| Effort to adopt | None (in place) | Create new + re-grant scopes + re-point code + retire old |
+
+**Recommendation:** Agent ID is the strategically correct target — it gives agent-aware
+governance using licenses this tenant already owns, and (notably) lets Conditional Access
+apply *without* the Workload Identities Premium SKU the SP model would require. But it is a
+net-new build with a settling rollout. The pragmatic plan for the submission: keep the
+working app-reg fleet, **demonstrate Agent ID creation with `New-AgentIdentities.ps1`** as
+the forward architecture, and migrate per the 6 steps above once validated in-tenant.
