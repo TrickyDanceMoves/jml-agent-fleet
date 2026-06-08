@@ -146,6 +146,11 @@ contextBridge.exposeInMainWorld('api', {
   getIntegrationsConfig:  ()       => ipcRenderer.invoke('get-integrations-config'),
   saveIntegrationsConfig: (config) => ipcRenderer.invoke('save-integrations-config', { config }),
 
+  // AI Provider configuration
+  getAiProviderConfig:  ()       => ipcRenderer.invoke('get-ai-provider-config'),
+  saveAiProviderConfig: (config) => ipcRenderer.invoke('save-ai-provider-config', { config }),
+  testAiProvider:       ()       => ipcRenderer.invoke('test-ai-provider'),
+
   // Open external URL in default browser
   openExternal: (url) => ipcRenderer.invoke('open-external', url),
 

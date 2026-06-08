@@ -32,11 +32,25 @@ const OPERATORS_FILE = path.join(AGENTS_DIR, 'approver', 'operators.json');
 const OPERATOR_AUTH_FILE = path.join(AGENTS_DIR, 'approver', 'operator-auth.json');
 const OPERATOR_ACTIVITY_FILE = path.join(AGENTS_DIR, 'approver', 'operator-activity.jsonl');
 const PANEL_BOUNDS_FILE      = path.join(__dirname, 'panel-bounds.json');
+const AI_PROVIDER_CONFIG_FILE = path.join(AGENTS_DIR, 'approver', 'ai-provider.json');
 
 function loadPanelBounds() { try { return JSON.parse(fs.readFileSync(PANEL_BOUNDS_FILE, 'utf8')); } catch { return null; } }
 function savePanelBounds(b) { try { fs.writeFileSync(PANEL_BOUNDS_FILE, JSON.stringify(b)); } catch {} }
 const CERT_SCRIPT    = path.join(AGENTS_DIR, 'certifier', 'Invoke-CertificationCampaign.ps1');
 const AGENT_DIRS     = ['joiner','mover','leaver','enroller','approver','provisioner','auditor'];
+
+// ── AI provider abstraction ───────────────────────────────────────────────────
+const { loadConfig: _loadProviderConfig, saveConfig: _saveProviderConfig, buildProvider } = require('./providers');
+let _aiProviderConfig = null;
+
+function _ensureProviderConfig() {
+  if (!_aiProviderConfig) _aiProviderConfig = _loadProviderConfig(AI_PROVIDER_CONFIG_FILE);
+}
+
+function getAIProvider() {
+  _ensureProviderConfig();
+  return buildProvider(_aiProviderConfig);
+}
 
 // ── Agent state ───────────────────────────────────────────────────────────────
 const state = {
@@ -870,13 +884,13 @@ function executeTool(agent, toolName, input, whatif) {
   }
 }
 
-// ── Claude agent loop (with streaming) ───────────────────────────────────────
+// ── AI agent loop (provider-agnostic streaming) ───────────────────────────────
 async function runAgentLoop(sender, agent, userText) {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) { sender.send('msg-error', { text: 'ANTHROPIC_API_KEY not set.' }); return; }
-
-  const Anthropic = require('@anthropic-ai/sdk');
-  const client    = new Anthropic.default({ apiKey });
+  const provider = getAIProvider();
+  if (!provider) {
+    sender.send('msg-error', { text: 'AI provider not configured. Open Settings → AI Provider to add an API key.' });
+    return;
+  }
 
   const agentState = state[agent];
   agentState.messages.push({ role: 'user', content: userText });
@@ -885,52 +899,30 @@ async function runAgentLoop(sender, agent, userText) {
   const systemPrompt = agent === 'approver' ? buildApproverSystem(domain) : buildAuditorSystem(domain);
   const tools        = agent === 'approver' ? APPROVER_TOOLS  : AUDITOR_TOOLS;
 
-  let _fullText = ''; // accumulated across the entire response (for display history)
+  let _fullText = '';
 
   while (true) {
-    const stream = client.messages.stream({
-      model: 'claude-opus-4-7',
-      max_tokens: 4096,
-      system: systemPrompt,
+    const response = await provider.streamTurn({
+      system:      systemPrompt,
       tools,
-      messages: agentState.messages
+      messages:    agentState.messages,
+      onText:      (text) => { sender.send('msg-chunk', { type: 'text', text }); _fullText += text; },
+      onToolStart: (toolName) => { sender.send('msg-chunk', { type: 'tool_start', toolName }); }
     });
 
-    let currentText = '';
-    const toolInputs = {};
+    agentState.messages.push({ role: 'assistant', content: response.content });
 
-    stream.on('text', (text) => {
-      sender.send('msg-chunk', { type: 'text', text });
-      currentText += text;
-      _fullText   += text;
-    });
+    if (response.stopReason === 'end_turn') break;
 
-    stream.on('streamEvent', (event) => {
-      if (event.type === 'content_block_start' && event.content_block.type === 'tool_use') {
-        toolInputs[event.index] = { id: event.content_block.id, name: event.content_block.name, inputStr: '' };
-        sender.send('msg-chunk', { type: 'tool_start', toolName: event.content_block.name });
-      }
-      if (event.type === 'content_block_delta' && event.delta.type === 'input_json_delta') {
-        if (toolInputs[event.index]) toolInputs[event.index].inputStr += event.delta.partial_json;
-      }
-    });
-
-    const finalMsg = await stream.finalMessage();
-    agentState.messages.push({ role: 'assistant', content: finalMsg.content });
-
-    if (finalMsg.stop_reason === 'end_turn') break;
-
+    const toolCalls  = response.content.filter(b => b.type === 'tool_use');
     const toolResults = [];
-    for (const tool of Object.values(toolInputs)) {
-      let input = {};
-      try { input = JSON.parse(tool.inputStr || '{}'); } catch {}
 
+    for (const tool of toolCalls) {
       sender.send('msg-chunk', { type: 'tool_running', toolName: tool.name });
       let result;
       try {
-        result = executeTool(agent, tool.name, input, agentState.whatif);
-        // Include the result for structured-data tools so the renderer can render
-        // contextual cards (e.g. score_risk → risk score card with actual reasons).
+        result = executeTool(agent, tool.name, tool.input, agentState.whatif);
+        // Pass structured result for cards that render it (risk score, provisioning suggestions)
         const sendResult = (tool.name === 'score_risk' || tool.name === 'suggest_provisioning') ? result : undefined;
         sender.send('msg-chunk', { type: 'tool_done', toolName: tool.name, success: true, result: sendResult });
       } catch (err) {
@@ -947,7 +939,6 @@ async function runAgentLoop(sender, agent, userText) {
     }
   }
 
-  // Store and mirror the completed assistant response
   _pushConvTurn(agent, 'assistant', _fullText);
   _broadcastMirror(sender, agent, 'assistant', _fullText);
   sender.send('msg-complete', { agent });
@@ -1546,6 +1537,53 @@ ipcMain.on('save-operators', (event, { operators, roles }) => {
     event.sender.send('operators-saved', { ok: true });
   } catch (err) {
     event.sender.send('operators-saved', { ok: false, error: err.message });
+  }
+});
+
+// ── AI Provider config ────────────────────────────────────────────────────────
+ipcMain.handle('get-ai-provider-config', () => {
+  _ensureProviderConfig();
+  // Mask stored API keys — return length > 0 indicator instead of value
+  const safe = JSON.parse(JSON.stringify(_aiProviderConfig));
+  for (const key of ['claude', 'openai', 'azure-openai']) {
+    const node = safe[key];
+    if (node && node.apiKey) node.apiKey = node.apiKey.length > 0 ? '••••' : '';
+  }
+  return safe;
+});
+
+ipcMain.handle('save-ai-provider-config', (_, { config }) => {
+  try {
+    _ensureProviderConfig();
+    // Merge: preserve existing API keys when the UI sends back masked '••••' placeholders
+    const merged = JSON.parse(JSON.stringify(_aiProviderConfig));
+    merged.provider = config.provider;
+    for (const key of ['claude', 'openai', 'azure-openai', 'ollama']) {
+      if (!config[key]) continue;
+      if (!merged[key]) merged[key] = {};
+      Object.assign(merged[key], config[key]);
+      // Don't overwrite a real key with the masked placeholder
+      if (config[key].apiKey === '••••') merged[key].apiKey = _aiProviderConfig[key]?.apiKey || '';
+    }
+    _aiProviderConfig = merged;
+    _saveProviderConfig(AI_PROVIDER_CONFIG_FILE, merged);
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+});
+
+ipcMain.handle('test-ai-provider', async () => {
+  try {
+    const provider = getAIProvider();
+    if (!provider) return { ok: false, error: 'No provider configured' };
+    const text = await provider.complete({
+      maxTokens: 10,
+      messages: [{ role: 'user', content: 'Reply with the single word: connected' }]
+    });
+    return { ok: true, provider: provider.name, text: text.trim() };
+  } catch (err) {
+    return { ok: false, error: err.message };
   }
 });
 
@@ -2968,35 +3006,29 @@ $resp | ConvertTo-Json -Depth 6 -Compress
 
 // ── Feature: Graph Query Digest ───────────────────────────────────────────────
 ipcMain.on('digest-graph-result', async (event, { method, url, responseText }) => {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) { event.sender.send('graph-digest', { ok: false }); return; }
+  const provider = getAIProvider();
+  if (!provider) { event.sender.send('graph-digest', { ok: false }); return; }
   try {
-    const Anthropic = require('@anthropic-ai/sdk');
-    const client = new Anthropic.default({ apiKey });
     const truncated = responseText.length > 2500 ? responseText.slice(0, 2500) + '…' : responseText;
-    const msg = await client.messages.create({
-      model: 'claude-haiku-4-5-20251001',
-      max_tokens: 120,
+    const text = await provider.complete({
+      maxTokens: 120,
       messages: [{ role: 'user', content: `In 1-2 plain English sentences, describe what this Microsoft Graph API call does and what the response contains. No markdown.\nMethod: ${method}\nURL: ${url}\nResponse: ${truncated}` }]
     });
-    event.sender.send('graph-digest', { ok: true, text: msg.content[0].text.trim() });
+    event.sender.send('graph-digest', { ok: true, text: text.trim() });
   } catch { event.sender.send('graph-digest', { ok: false }); }
 });
 
 // ── Feature: Graph Query Suggest ──────────────────────────────────────────────
 ipcMain.on('suggest-graph-query', async (event, { description }) => {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) { event.sender.send('graph-query-suggestion', { ok: false, error: 'ANTHROPIC_API_KEY not set' }); return; }
+  const provider = getAIProvider();
+  if (!provider) { event.sender.send('graph-query-suggestion', { ok: false, error: 'AI provider not configured' }); return; }
   try {
-    const Anthropic = require('@anthropic-ai/sdk');
-    const client = new Anthropic.default({ apiKey });
-    const msg = await client.messages.create({
-      model: 'claude-haiku-4-5-20251001',
-      max_tokens: 300,
+    const text = await provider.complete({
+      maxTokens: 300,
       messages: [{ role: 'user', content: `You are a Microsoft Graph API expert. Convert this request into a Graph API call.\nRespond with ONLY a raw JSON object (no markdown, no explanation):\n{"method":"GET","url":"https://graph.microsoft.com/v1.0/...","body":null}\n\nRequest: ${description}` }]
     });
-    const text = msg.content[0].text.trim().replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '');
-    const suggestion = JSON.parse(text);
+    const cleaned = text.trim().replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '');
+    const suggestion = JSON.parse(cleaned);
     event.sender.send('graph-query-suggestion', { ok: true, ...suggestion });
   } catch (err) {
     event.sender.send('graph-query-suggestion', { ok: false, error: err.message });
