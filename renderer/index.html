@@ -1718,6 +1718,35 @@
             </div>
           </div>
 
+          <!-- Containment / kill switch -->
+          <div class="card" id="quarantine-card" style="margin-bottom:16px;border-color:color-mix(in oklab,var(--coral),transparent 55%)">
+            <div class="h" style="display:flex;align-items:center;gap:10px;padding:12px 16px">
+              <span class="tag crit" style="font-size:10px">CONTAINMENT</span>
+              <div style="flex:1">
+                <div class="ttl" style="font-size:13px">Quarantine an agent</div>
+                <div class="sub" style="font-size:11.5px">Immediately disables the agent's service principal (blocks token issuance) and writes a high-severity audit entry. Admin only.</div>
+              </div>
+            </div>
+            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:12px 16px;border-top:1px solid var(--border)">
+              <select id="quarantine-agent-select" style="font-family:var(--mono);font-size:12px;min-width:150px">
+                <option value="joiner">Joiner</option>
+                <option value="mover">Mover</option>
+                <option value="leaver">Leaver</option>
+                <option value="enroller">Enroller</option>
+                <option value="approver">Approver</option>
+                <option value="auditor">Auditor</option>
+                <option value="certifier">Certifier</option>
+              </select>
+              <input id="quarantine-reason" type="text" placeholder="Reason (recorded in audit chain)" style="flex:1;min-width:200px;font-size:12px">
+              <label style="display:flex;align-items:center;gap:5px;font-size:11.5px;color:var(--text-2)">
+                <input type="checkbox" id="quarantine-revoke"> revoke creds (hard)
+              </label>
+              <button class="btn ghost sm" id="quarantine-preview-btn">Preview (WhatIf)</button>
+              <button class="btn danger sm" id="quarantine-execute-btn">Quarantine</button>
+            </div>
+            <div id="quarantine-feedback" style="display:none;padding:10px 16px;border-top:1px solid var(--border);font-family:var(--mono);font-size:11.5px"></div>
+          </div>
+
           <div class="cert-grid">
             <div class="cert-tile">
               <div class="ag-top"><span class="av">◢</span><span class="name">Joiner<span class="sub">jml-fleet-joiner</span></span></div>
