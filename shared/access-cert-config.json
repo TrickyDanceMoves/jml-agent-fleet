@@ -6,9 +6,9 @@
         "defaultDecision": "Deny",
         "autoApply": true,
         "groups": [
-            "<JML-USERADMIN-GROUP-ID>",
-            "<JML-LICENSEADMIN-GROUP-ID>",
-            "<JML-CLOUDDEVICEADMIN-GROUP-ID>"
+            "a1be864e-8941-4088-aabc-5938cad8f573",
+            "5e5e1c9a-d858-4dc8-b8d1-4ce1cab25190",
+            "1a99fa17-17f6-4752-bc21-f515ad82aed8"
         ]
     },
     "agentPimCampaign": {
@@ -16,6 +16,6 @@
         "durationDays": 14,
         "defaultDecision": "Deny",
         "autoApply": true,
-        "reviewerObjectId": "<REVIEWER-OBJECT-ID>"
+        "reviewerObjectId": "f0bcdc29-fc6f-45ff-8129-9d1a18489ca4"
     }
 }

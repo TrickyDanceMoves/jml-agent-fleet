@@ -24,6 +24,15 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+
+# Write-Log must be defined before dot-sourcing Helpers.ps1 because Helpers.ps1
+# uses it inside Request-PIMActivation / Remove-PIMActivation.
+function Write-Log {
+    param([string]$Message, [string]$Status = "INFO")
+    $entry = "[" + (Get-Date -Format "HH:mm:ss") + "] [$Status] $Message"
+    Write-Host $entry
+}
+
 $agentsRoot = Split-Path $PSScriptRoot -Parent
 . (Join-Path $agentsRoot "shared\Helpers.ps1")
 
@@ -36,8 +45,25 @@ if (-not (Test-Path $configPath)) {
 $config = Get-Content $configPath | ConvertFrom-Json
 Connect-AgentGraph -Config $config
 
-if ($Action -eq "Activate") {
-    Request-PIMActivation -AgentName $AgentName -Justification $Justification
-} else {
-    Remove-PIMActivation -AgentName $AgentName -Justification $Justification
+# PIM-for-Groups JIT activation only works for principals that can self-activate
+# (users / role-assignable groups). App-only agents authenticate AS their service
+# principal, and Azure does NOT support service principals as PIM-eligible group
+# members. When activation is unavailable the agent proceeds on its app-registration
+# permissions (User.ReadWrite.All, LicenseAssignment.ReadWrite.All, etc.), which are
+# the actual least-privilege authorization for its operations. So a PIM failure here
+# is logged as a warning and treated as non-fatal rather than aborting the operation.
+try {
+    if ($Action -eq "Activate") {
+        Request-PIMActivation -AgentName $AgentName -Justification $Justification
+    } else {
+        Remove-PIMActivation -AgentName $AgentName -Justification $Justification
+    }
+} catch {
+    $reason = $_.Exception.Message
+    if ($reason -like "*not supported*" -or $reason -like "*RoleAssignmentDoesNotExist*" -or $reason -like "*does not allow*") {
+        Write-Host "[PIM] JIT activation unavailable for app-only agent '$AgentName' (service principals cannot be PIM-eligible). Proceeding on app-registration permissions."
+        exit 0
+    }
+    Write-Host "[PIM] Activation error for '$AgentName' (non-fatal): $reason"
+    exit 0
 }
