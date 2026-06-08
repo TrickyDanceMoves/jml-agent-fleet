@@ -49,7 +49,7 @@ $clientId  = "14d82eec-204b-4c2f-b7e8-296a70dab67e"  # Microsoft Graph Command L
 # (.default only yields already-consented scopes; the new AgentIdentity scope is not
 #  pre-consented on the Graph CLI client, which is why creation returned
 #  Authorization_RequestDenied even though the endpoint exists.)
-$scope     = "https://graph.microsoft.com/AgentIdentity.Create.All https://graph.microsoft.com/User.Read.All offline_access openid profile"
+$scope     = "https://graph.microsoft.com/AgentIdentity.Create.All https://graph.microsoft.com/AgentIdentityBlueprint.Create https://graph.microsoft.com/User.Read.All offline_access openid profile"
 
 # JML agents to mint Agent IDs for (display names + a stable tag)
 $agents = @(
@@ -103,33 +103,37 @@ if ($SponsorUpn) {
     } catch { Write-Log "Could not resolve sponsor '$SponsorUpn': $(Get-RestError $_)" "WARN" }
 }
 
-# ── Ensure an agent identity blueprint exists ────────────────────────────────
-# The blueprint resource governs what the agent identity may do. Schema/endpoint may
-# vary by tenant rollout; we attempt the documented surface and report the real error.
-$blueprintId = $null
+# ── Create the Agent Application (blueprint) ──────────────────────────────────
+# An agent identity must reference an "Agent Application" blueprint; its appId is the
+# agentIdentityBlueprintId. Create one via the typed /applications endpoint. The
+# signed-in admin needs the Agent ID Administrator (or Developer) role to create it.
+if (-not $sponsorId) { Write-Log "A sponsor is required (blueprint + identities). Pass -SponsorUpn." "ERROR"; exit 1 }
+$blueprintAppId = $null
+$bpBody = '{"displayName":"JML Agent Fleet Blueprint"' +
+          ',"sponsors@odata.bind":["https://graph.microsoft.com/v1.0/users/' + $sponsorId + '"]' +
+          ',"owners@odata.bind":["https://graph.microsoft.com/v1.0/users/' + $sponsorId + '"]}'
 try {
-    $bps = Invoke-RestMethod -Method GET -Headers $headers -Uri "https://graph.microsoft.com/beta/directory/agentIdentityBlueprints"
-    if ($bps.value.Count -gt 0) { $blueprintId = $bps.value[0].id; Write-Log "Using existing blueprint $blueprintId" }
+    $bp = Invoke-RestMethod -Method POST -Headers $headers `
+        -Uri "https://graph.microsoft.com/v1.0/applications/microsoft.graph.agentIdentityBlueprint" `
+        -Body $bpBody
+    $blueprintAppId = $bp.appId
+    Write-Log ("Created Agent Application blueprint: " + $bp.displayName + " (appId " + $blueprintAppId + ")") "ACTION"
 } catch {
-    Write-Log ("Blueprint list endpoint returned: " + (Get-RestError $_)) "WARN"
-    Write-Log "If this is a 'resource not found' error, your tenant may expose Agent ID under a different path or require portal-side blueprint creation first." "WARN"
+    Write-Log ("Blueprint create failed: " + (Get-RestError $_)) "ERROR"
+    Write-Log "If this cites a role, assign 'Agent ID Administrator' to the signed-in user, then re-run." "WARN"
+    exit 1
 }
 
 # ── Create an Agent ID per JML agent ─────────────────────────────────────────
 $created = 0; $failed = 0
 foreach ($a in $agents) {
     Write-Log ("Creating Agent ID: " + $a.name + " ...")
-    # Sponsor is REQUIRED at create time and is bound via the OData navigation form
-    # "sponsors@odata.bind" (the plain 'sponsors' property is rejected). Build the JSON
-    # by hand so PS 5.1 doesn't collapse the single-element array to a scalar.
-    if (-not $sponsorId) {
-        Write-Log ("  SKIPPED " + $a.name + " - a sponsor is required; pass -SponsorUpn") "ERROR"
-        $failed++
-        continue
-    }
-    $bpBind = if ($blueprintId) { ',"agentIdentityBlueprintId":"' + $blueprintId + '"' } else { '' }
-    $json = '{"displayName":"' + $a.name + '"' + $bpBind +
-            ',"sponsors@odata.bind":["https://graph.microsoft.com/v1.0/directoryObjects/' + $sponsorId + '"]}'
+    # Agent identity requires: displayName, agentIdentityBlueprintId (the blueprint's
+    # appId), and a sponsor bound via "sponsors@odata.bind". JSON built by hand so PS 5.1
+    # doesn't collapse the single-element bind array to a scalar.
+    $json = '{"displayName":"' + $a.name + '"' +
+            ',"agentIdentityBlueprintId":"' + $blueprintAppId + '"' +
+            ',"sponsors@odata.bind":["https://graph.microsoft.com/v1.0/users/' + $sponsorId + '"]}'
     try {
         $resp = Invoke-RestMethod -Method POST -Headers $headers `
             -Uri "https://graph.microsoft.com/v1.0/servicePrincipals/microsoft.graph.agentIdentity" `
