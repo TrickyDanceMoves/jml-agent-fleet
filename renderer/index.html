@@ -2089,10 +2089,11 @@
                 <div class="set-row">
                   <div><div class="lbl">Provider</div><div class="desc">Model backend for the agent chat interface and Graph AI features.</div></div>
                   <div class="val right-ctrl">
-                    <select id="ai-provider-select" style="font-family:var(--mono);font-size:12px;width:200px">
+                    <select id="ai-provider-select" style="font-family:var(--mono);font-size:12px;width:220px">
                       <option value="claude">Anthropic Claude</option>
-                      <option value="openai">OpenAI</option>
+                      <option value="azure-foundry">Azure AI Foundry</option>
                       <option value="azure-openai">Azure OpenAI</option>
+                      <option value="openai">OpenAI</option>
                       <option value="ollama">Ollama (local)</option>
                     </select>
                   </div>
@@ -2127,6 +2128,26 @@
                   <div class="set-row">
                     <div><div class="lbl">Fast model</div><div class="desc">Model for quick utility calls (e.g. <code>gpt-4o-mini</code>).</div></div>
                     <div class="val right-ctrl"><input id="ai-openai-fast-model" type="text" placeholder="gpt-4o-mini" style="font-family:var(--mono);font-size:12px;width:200px"></div>
+                  </div>
+                </div>
+
+                <!-- Azure AI Foundry fields -->
+                <div class="ai-prov-section" id="ai-prov-azure-foundry" style="display:none">
+                  <div class="set-row">
+                    <div><div class="lbl">API Key</div><div class="desc">Azure AI Foundry project key, or a GitHub Personal Access Token (PAT) for the GitHub Models catalogue.</div></div>
+                    <div class="val right-ctrl"><input id="ai-foundry-key" type="password" placeholder="…" autocomplete="off" style="font-family:var(--mono);font-size:12px;width:260px"></div>
+                  </div>
+                  <div class="set-row">
+                    <div><div class="lbl">Endpoint</div><div class="desc">Foundry inference endpoint. GitHub Models: <code>https://models.inference.ai.azure.com</code>. Your project: <code>https://&lt;name&gt;.&lt;region&gt;.models.ai.azure.com</code>.</div></div>
+                    <div class="val right-ctrl"><input id="ai-foundry-endpoint" type="text" placeholder="https://models.inference.ai.azure.com" style="font-family:var(--mono);font-size:12px;width:320px"></div>
+                  </div>
+                  <div class="set-row">
+                    <div><div class="lbl">Agent model</div><div class="desc">Model for agent tasks (e.g. <code>gpt-4o</code>, <code>Meta-Llama-3.1-405B-Instruct</code>).</div></div>
+                    <div class="val right-ctrl"><input id="ai-foundry-agent-model" type="text" placeholder="gpt-4o" style="font-family:var(--mono);font-size:12px;width:240px"></div>
+                  </div>
+                  <div class="set-row">
+                    <div><div class="lbl">Fast model</div><div class="desc">Model for quick utility calls (e.g. <code>gpt-4o-mini</code>).</div></div>
+                    <div class="val right-ctrl"><input id="ai-foundry-fast-model" type="text" placeholder="gpt-4o-mini" style="font-family:var(--mono);font-size:12px;width:240px"></div>
                   </div>
                 </div>
 

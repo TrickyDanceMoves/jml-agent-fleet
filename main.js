@@ -1545,7 +1545,7 @@ ipcMain.handle('get-ai-provider-config', () => {
   _ensureProviderConfig();
   // Mask stored API keys — return length > 0 indicator instead of value
   const safe = JSON.parse(JSON.stringify(_aiProviderConfig));
-  for (const key of ['claude', 'openai', 'azure-openai']) {
+  for (const key of ['claude', 'openai', 'azure-openai', 'azure-foundry']) {
     const node = safe[key];
     if (node && node.apiKey) node.apiKey = node.apiKey.length > 0 ? '••••' : '';
   }
@@ -1558,7 +1558,7 @@ ipcMain.handle('save-ai-provider-config', (_, { config }) => {
     // Merge: preserve existing API keys when the UI sends back masked '••••' placeholders
     const merged = JSON.parse(JSON.stringify(_aiProviderConfig));
     merged.provider = config.provider;
-    for (const key of ['claude', 'openai', 'azure-openai', 'ollama']) {
+    for (const key of ['claude', 'openai', 'azure-foundry', 'azure-openai', 'ollama']) {
       if (!config[key]) continue;
       if (!merged[key]) merged[key] = {};
       Object.assign(merged[key], config[key]);

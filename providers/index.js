@@ -21,6 +21,15 @@ const DEFAULT_CONFIG = {
     fastDeployment:  'gpt-4o-mini',
     apiVersion:      '2025-01-01-preview'
   },
+  // Azure AI Foundry — uses the OpenAI-compatible inference endpoint exposed by
+  // Azure AI Foundry projects (https://<project>.<region>.models.ai.azure.com)
+  // or the GitHub Models catalogue endpoint (https://models.inference.ai.azure.com).
+  'azure-foundry': {
+    apiKey:     '',
+    endpoint:   'https://models.inference.ai.azure.com',
+    agentModel: 'gpt-4o',
+    fastModel:  'gpt-4o-mini'
+  },
   ollama: {
     baseUrl:    'http://localhost:11434',
     agentModel: 'llama3.1',
@@ -82,6 +91,18 @@ function buildProvider(config) {
         azureApiVersion:c.apiVersion || '2025-01-01-preview',
         agentModel:     c.agentDeployment || 'gpt-4o',
         fastModel:      c.fastDeployment  || 'gpt-4o-mini'
+      });
+    }
+    case 'azure-foundry': {
+      const c = config['azure-foundry'] || {};
+      if (!c.apiKey) return null;
+      // Azure AI Foundry exposes an OpenAI-compatible inference API.
+      // The endpoint is either a project-scoped URL or the GitHub Models catalogue.
+      return new OpenAICompatProvider({
+        apiKey:     c.apiKey,
+        baseURL:    (c.endpoint || 'https://models.inference.ai.azure.com').replace(/\/$/, ''),
+        agentModel: c.agentModel || 'gpt-4o',
+        fastModel:  c.fastModel  || 'gpt-4o-mini'
       });
     }
     case 'ollama': {
