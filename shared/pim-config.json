@@ -3,7 +3,7 @@
     "activationDurationHours":  1,
     "groups":  {
                    "JML-UserAdmin":  {
-                                         "groupId":  "<JML-USERADMIN-GROUP-ID>",
+                                         "groupId":  "00000000-0000-0000-0000-000000000000",
                                          "roleDisplayName":  "User Administrator",
                                          "assignedAgents":  [
                                                                 "joiner",
@@ -12,7 +12,7 @@
                                                             ]
                                      },
                    "JML-LicenseAdmin":  {
-                                            "groupId":  "<JML-LICENSEADMIN-GROUP-ID>",
+                                            "groupId":  "00000000-0000-0000-0000-000000000000",
                                             "roleDisplayName":  "License Administrator",
                                             "assignedAgents":  [
                                                                    "joiner",
@@ -22,7 +22,7 @@
                                                                ]
                                         },
                    "JML-CloudDeviceAdmin":  {
-                                                "groupId":  "<JML-CLOUDDEVICEADMIN-GROUP-ID>",
+                                                "groupId":  "00000000-0000-0000-0000-000000000000",
                                                 "roleDisplayName":  "Cloud Device Administrator",
                                                 "assignedAgents":  [
                                                                        "enroller"
@@ -31,28 +31,28 @@
                },
     "agents":  {
                    "joiner":  {
-                                  "objectId":  "<JOINER-SP-OBJECT-ID>",
+                                  "objectId":  "00000000-0000-0000-0000-000000000000",
                                   "requiredGroups":  [
                                                          "JML-UserAdmin",
                                                          "JML-LicenseAdmin"
                                                      ]
                               },
                    "mover":  {
-                                 "objectId":  "<MOVER-SP-OBJECT-ID>",
+                                 "objectId":  "00000000-0000-0000-0000-000000000000",
                                  "requiredGroups":  [
                                                         "JML-UserAdmin",
                                                         "JML-LicenseAdmin"
                                                     ]
                              },
                    "leaver":  {
-                                  "objectId":  "<LEAVER-SP-OBJECT-ID>",
+                                  "objectId":  "00000000-0000-0000-0000-000000000000",
                                   "requiredGroups":  [
                                                          "JML-UserAdmin",
                                                          "JML-LicenseAdmin"
                                                      ]
                               },
                    "enroller":  {
-                                    "objectId":  "<ENROLLER-SP-OBJECT-ID>",
+                                    "objectId":  "00000000-0000-0000-0000-000000000000",
                                     "requiredGroups":  [
                                                            "JML-LicenseAdmin",
                                                            "JML-CloudDeviceAdmin"

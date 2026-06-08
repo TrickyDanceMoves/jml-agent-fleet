@@ -6,9 +6,9 @@
         "defaultDecision": "Deny",
         "autoApply": true,
         "groups": [
-            "<JML-USERADMIN-GROUP-ID>",
-            "<JML-LICENSEADMIN-GROUP-ID>",
-            "<JML-CLOUDDEVICEADMIN-GROUP-ID>"
+            "00000000-0000-0000-0000-000000000000",
+            "00000000-0000-0000-0000-000000000000",
+            "00000000-0000-0000-0000-000000000000"
         ]
     },
     "agentPimCampaign": {
@@ -16,6 +16,6 @@
         "durationDays": 14,
         "defaultDecision": "Deny",
         "autoApply": true,
-        "reviewerObjectId": "<REVIEWER-OBJECT-ID>"
+        "reviewerObjectId": "00000000-0000-0000-0000-000000000000"
     }
 }
