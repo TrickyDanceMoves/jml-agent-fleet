@@ -49,7 +49,7 @@ $clientId  = "14d82eec-204b-4c2f-b7e8-296a70dab67e"  # Microsoft Graph Command L
 # (.default only yields already-consented scopes; the new AgentIdentity scope is not
 #  pre-consented on the Graph CLI client, which is why creation returned
 #  Authorization_RequestDenied even though the endpoint exists.)
-$scope     = "https://graph.microsoft.com/AgentIdentity.Create.All https://graph.microsoft.com/AgentIdentityBlueprint.Create https://graph.microsoft.com/User.Read.All offline_access openid profile"
+$scope     = "https://graph.microsoft.com/AgentIdentity.Create.All https://graph.microsoft.com/AgentIdentityBlueprint.Create https://graph.microsoft.com/Application.ReadWrite.All https://graph.microsoft.com/User.Read.All offline_access openid profile"
 
 # JML agents to mint Agent IDs for (display names + a stable tag)
 $agents = @(
@@ -123,6 +123,22 @@ try {
     Write-Log "If this cites a role, assign 'Agent ID Administrator' to the signed-in user, then re-run." "WARN"
     exit 1
 }
+
+# The blueprint application needs a service principal (the "Agent Blueprint Principal")
+# instantiated before agent identities can reference it - same app -> SP pattern as a
+# normal app registration.
+try {
+    $bpSp = Invoke-RestMethod -Method POST -Headers $headers `
+        -Uri "https://graph.microsoft.com/v1.0/servicePrincipals" `
+        -Body ('{"appId":"' + $blueprintAppId + '"}')
+    Write-Log ("Blueprint principal instantiated (id " + $bpSp.id + ")") "ACTION"
+} catch {
+    $m = Get-RestError $_
+    if ($m -like "*already exists*" -or $m -like "*multiple object*") { Write-Log "Blueprint principal already exists." "INFO" }
+    else { Write-Log ("Blueprint principal create failed (continuing): " + $m) "WARN" }
+}
+Write-Log "Waiting 15s for directory replication of the blueprint principal..."
+Start-Sleep -Seconds 15
 
 # ── Create an Agent ID per JML agent ─────────────────────────────────────────
 $created = 0; $failed = 0
