@@ -74,6 +74,39 @@ function Write-AuditEntry {
 # ── Agent authentication (cert or secret) ─────────────────────────────────────
 function Connect-AgentGraph {
     param([Parameter(Mandatory = $true)]$Config)
+
+    # ── Entra Agent ID (FMI) auth — opt-in, parallel path ────────────────────────
+    # Selected only when config.json sets "AuthMode":"agentid". Credentials live on the
+    # blueprint; the agent identity holds the Graph permissions. Two-step FMI exchange:
+    #   1) blueprint authenticates (client_secret) for an exchange token scoped to the
+    #      agent identity via fmi_path;
+    #   2) that token is used as a client_assertion to mint the agent's Graph token.
+    # The resulting token is handed to Connect-MgGraph -AccessToken. The cert/secret
+    # paths below are untouched, so the working SP fleet is unaffected.
+    if ($Config.AuthMode -eq 'agentid') {
+        $tokenUri = "https://login.microsoftonline.com/$($Config.TenantId)/oauth2/v2.0/token"
+        $bpSecure = ConvertTo-SecureString $Config.BlueprintSecret   # DPAPI-encrypted
+        $bpPlain  = [System.Net.NetworkCredential]::new('', $bpSecure).Password
+
+        $bpTok = Invoke-RestMethod -Method POST -Uri $tokenUri -Body @{
+            client_id     = $Config.BlueprintAppId
+            scope         = 'api://AzureADTokenExchange/.default'
+            grant_type    = 'client_credentials'
+            client_secret = $bpPlain
+            fmi_path      = $Config.AgentAppId
+        }
+        $agTok = Invoke-RestMethod -Method POST -Uri $tokenUri -Body @{
+            client_id             = $Config.AgentAppId
+            scope                 = 'https://graph.microsoft.com/.default'
+            grant_type            = 'client_credentials'
+            client_assertion_type = 'urn:ietf:params:oauth:client-assertion-type:jwt-bearer'
+            client_assertion      = $bpTok.access_token
+        }
+        $graphToken = ConvertTo-SecureString $agTok.access_token -AsPlainText -Force
+        Connect-MgGraph -AccessToken $graphToken -NoWelcome
+        return
+    }
+
     if ($Config.CertThumbprint) {
         Connect-MgGraph -TenantId $Config.TenantId -ClientId $Config.ClientId `
             -CertificateThumbprint $Config.CertThumbprint -NoWelcome
