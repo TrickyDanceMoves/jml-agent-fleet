@@ -6295,6 +6295,38 @@ function loadRecentUsers() {
   const btnMover  = document.getElementById('btn-run-quick-mover');
   const btnLeaver = document.getElementById('btn-run-quick-leaver');
 
+  // ── Policy simulation (read-only dry-run) ────────────────────────────────
+  const btnSim = document.getElementById('btn-policy-sim');
+  if (btnSim && typeof window.api?.simulatePolicy === 'function') {
+    btnSim.addEventListener('click', async () => {
+      const upn = (document.getElementById('ps-upn') || {}).value || '';
+      if (!upn.trim()) { showToast('UPN is required', 'warning'); return; }
+      const resultEl = document.getElementById('ps-result');
+      btnSim.disabled = true; resultEl.innerHTML = '<span class="dim">Evaluating policy…</span>';
+      const r = await window.api.simulatePolicy({
+        operation:         (document.getElementById('ps-operation') || {}).value,
+        userPrincipalName: upn.trim(),
+        licenses:          (document.getElementById('ps-licenses') || {}).value || '',
+        groups:            (document.getElementById('ps-groups')   || {}).value || '',
+        newDepartment:     (document.getElementById('ps-dept')     || {}).value || ''
+      });
+      btnSim.disabled = false;
+      if (!r || r.error) { resultEl.innerHTML = '<span class="qop-error">Error: ' + escHtml(r?.error || 'unknown') + '</span>'; return; }
+      const decision = (r.decision || 'allow');
+      const lvl = (r.riskLevel || r.level || '—');
+      const colors = { allow: 'var(--emerald)', warn: 'var(--amber)', requires_approval: 'var(--amber)', blocked: 'var(--coral)' };
+      const reasons = Array.isArray(r.reasons) ? r.reasons : [];
+      resultEl.innerHTML =
+        '<div style="font-family:var(--mono);font-size:12px;line-height:1.7">' +
+        '<div><b style="color:' + (colors[decision] || 'var(--text)') + '">DECISION: ' + escHtml(decision.toUpperCase().replace('_', ' ')) + '</b></div>' +
+        '<div>risk score: <b>' + escHtml(String(r.score ?? '—')) + '</b> · level: <b>' + escHtml(String(lvl)) + '</b>' +
+        (r.dualApproval ? ' · <span style="color:var(--amber)">dual approval required</span>' : '') + '</div>' +
+        (reasons.length ? '<div style="margin-top:6px;color:var(--text-2)">matched policies:</div><ul style="margin:2px 0 0 16px">' +
+          reasons.map(x => '<li>' + escHtml(String(x)) + '</li>').join('') + '</ul>' : '<div style="color:var(--text-3);margin-top:4px">No policy flags — clean.</div>') +
+        '</div>';
+    });
+  }
+
   if (btnMover) {
     btnMover.addEventListener('click', async () => {
       const upn     = (document.getElementById('qm-upn')     || {}).value || '';
