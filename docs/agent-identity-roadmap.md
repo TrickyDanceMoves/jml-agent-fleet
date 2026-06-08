@@ -74,17 +74,38 @@ end-to-end, then disable and delete the legacy app registrations via the Provisi
   `AgentIdentity` permission + admin consent are needed to exercise the surface; creation
   must be done by an admin.
 
-## Create them (to evaluate)
+## Create them — CONFIRMED working in this tenant (2026-06-08)
 
-`provisioner/New-AgentIdentities.ps1` mints an Agent ID per JML agent via the endpoint
-above, using an admin device-code sign-in. Run `-WhatIf` first; the real run needs an
-admin who can consent `AgentIdentity.Create.All` and a sponsor UPN. The script prints the
-full Graph error body, so if the tenant's rollout differs the response guides the fix.
+`provisioner/New-AgentIdentities.ps1` created all six JML Agent IDs successfully.
+The full live creation contract, reverse-engineered against the tenant:
+
+1. **Consent** (admin device-code): `AgentIdentity.Create.All`, `AgentIdentityBlueprint.Create`,
+   `Application.ReadWrite.All`, `User.Read.All`. Signed-in admin needs the **Agent ID Administrator** role.
+2. **Create the Agent Application blueprint** —
+   `POST /v1.0/applications/microsoft.graph.agentIdentityBlueprint`
+   ```json
+   { "displayName": "...", "sponsors@odata.bind": ["…/users/{id}"], "owners@odata.bind": ["…/users/{id}"] }
+   ```
+   Use the response **`appId`** (not `id`) as the blueprint id.
+3. **Instantiate the blueprint's service principal** (the "Agent Blueprint Principal") —
+   `POST /v1.0/servicePrincipals` with `{ "appId": "<blueprintAppId>" }`, then allow ~15s replication.
+4. **Create each agent identity** —
+   `POST /v1.0/servicePrincipals/microsoft.graph.agentIdentity`
+   ```json
+   { "displayName": "...", "agentIdentityBlueprintId": "<blueprintAppId>", "sponsors@odata.bind": ["…/users/{id}"] }
+   ```
+   A sponsor is **required** and must be bound via `sponsors@odata.bind` (the plain `sponsors`
+   property is rejected).
 
 ```powershell
 .\provisioner\New-AgentIdentities.ps1 -WhatIf
 .\provisioner\New-AgentIdentities.ps1 -SponsorUpn admin@contoso.onmicrosoft.com
 ```
+
+Gotchas learned the hard way: PIM-for-Groups can't gate these (SP limitation — see
+[[jml-pim-limitation]]); em-dashes break PS 5.1 parsing; PS 5.1 collapses single-element
+JSON arrays (build the `@odata.bind` body by hand); each run mints a **new** blueprint app,
+so delete orphan "JML Agent Fleet Blueprint" registrations from failed runs.
 
 ## Decision: are Agent IDs better than the current app-reg SPs?
 
