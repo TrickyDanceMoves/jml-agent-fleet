@@ -14,7 +14,12 @@ jobs:
       - name: Secret-scan denylist (no credential files tracked)
         shell: pwsh
         run: |
-          $patterns = 'config\.json$|local\.settings\.json$|worker\.config\.json$|audit\.jsonl$|operator-auth\.json$|ai-provider\.json$|\.pfx$|\.pem$'
+          # Match only secret-bearing runtime files. Use "/config.json" (slash) so
+          # per-agent credential files (joiner/config.json, ...) are caught while
+          # shared NON-secret policy configs (shared/pim-config.json, ueba-config.json,
+          # drift-config.json, access-cert-config.json, identity-protection-config.json)
+          # are NOT flagged.
+          $patterns = '/config\.json$|local\.settings\.json$|worker\.config\.json$|audit\.jsonl$|operator-auth\.json$|ai-provider\.json$|\.pfx$|\.pem$'
           $bad = git ls-files | Where-Object { $_ -match $patterns }
           if ($bad) {
             Write-Host "Tracked credential/secret files detected:" -ForegroundColor Red
