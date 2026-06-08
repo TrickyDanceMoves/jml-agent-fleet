@@ -1731,6 +1731,41 @@ ipcMain.handle('test-ai-provider', async () => {
   }
 });
 
+// ── Access snapshot (read-only) for before/after diff ───────────────────────────
+ipcMain.handle('get-access-snapshot', async (_, { upn }) => {
+  if (!upn) return { ok: false, error: 'upn required' };
+  try {
+    const cfgPath = path.join(AGENTS_DIR, 'auditor', 'config.json');
+    const ps = `
+$OutputEncoding = New-Object System.Text.UTF8Encoding $false
+[Console]::OutputEncoding = New-Object System.Text.UTF8Encoding $false
+Import-Module Microsoft.Graph.Authentication -ErrorAction SilentlyContinue
+$cfg = [System.IO.File]::ReadAllText('${cfgPath.replace(/'/g, "''")}') | ConvertFrom-Json
+$agentsRoot = '${AGENTS_DIR}'
+. (Join-Path $agentsRoot 'shared\\Helpers.ps1')
+Connect-AgentGraph -Config $cfg
+$uid = '${String(upn).replace(/'/g, "''")}'
+$user = Invoke-GraphWithRetry -Method GET -Uri "https://graph.microsoft.com/v1.0/users/$uid\`?\`$select=displayName,userPrincipalName,accountEnabled,department,jobTitle"
+$lic  = Invoke-GraphWithRetry -Method GET -Uri "https://graph.microsoft.com/v1.0/users/$uid/licenseDetails?\`$select=skuPartNumber"
+$grp  = Invoke-GraphWithRetry -Method GET -Uri "https://graph.microsoft.com/v1.0/users/$uid/memberOf/microsoft.graph.group?\`$select=displayName&\`$top=50"
+@{
+  displayName    = $user.displayName
+  accountEnabled = $user.accountEnabled
+  department     = $user.department
+  jobTitle       = $user.jobTitle
+  licenses       = @($lic.value | ForEach-Object { $_.skuPartNumber })
+  groups         = @($grp.value | ForEach-Object { $_.displayName })
+} | ConvertTo-Json -Depth 4 -Compress
+`;
+    const raw = execFileSync('powershell', ['-NonInteractive', '-Command', ps], { encoding: 'utf8', timeout: 60000 }).split(String.fromCharCode(0xFEFF)).join('');
+    const snap = _parseMultilineJson(raw, 'No output from snapshot query');
+    if (snap && snap.error) return { ok: false, error: snap.error };
+    return { ok: true, snapshot: snap };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+});
+
 // ── Policy simulation ──────────────────────────────────────────────────────────
 // Read-only: runs the same risk/policy engine as score_risk without executing.
 // Returns the decision (allow / warn / requires_approval / blocked), matched
