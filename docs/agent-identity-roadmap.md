@@ -107,6 +107,37 @@ Gotchas learned the hard way: PIM-for-Groups can't gate these (SP limitation —
 JSON arrays (build the `@odata.bind` body by hand); each run mints a **new** blueprint app,
 so delete orphan "JML Agent Fleet Blueprint" registrations from failed runs.
 
+## Switching the agents to Agent IDs — migration mechanics (verified June 2026)
+
+The Agent ID auth model is **not** the SP cert/client-credentials flow. Confirmed structure:
+- **Credentials live on the blueprint** (the Agent Application), not on each agent identity —
+  `POST /applications/{blueprintObjId}/microsoft.graph.agentIdentityBlueprint/addPassword`
+  (or `addKey` for a cert, or a federated identity credential).
+- **Permissions live on the agent identity** — Graph app roles are assigned to the agent
+  identity's SP via `appRoleAssignments`.
+- **Token flow is a two-step FMI exchange** (not direct SP auth):
+  1. Blueprint authenticates and gets an exchange token:
+     `client_id={blueprintAppId}&scope=api://AzureADTokenExchange/.default&grant_type=client_credentials&client_secret=…&fmi_path={agentIdentityAppId}`
+  2. That token is presented as a `client_assertion` to mint the agent token:
+     `client_id={agentIdentityAppId}&scope=https://graph.microsoft.com/.default&grant_type=client_credentials&client_assertion_type=urn:ietf:params:oauth:client-assertion-type:jwt-bearer&client_assertion={blueprintToken}`
+  The resulting token calls Graph **as the agent identity**.
+- One blueprint backs many agents; sponsors are required; some high-risk Graph permissions /
+  Entra roles are blocked for agent identities.
+
+### Migration sequence (parallel, non-destructive — never breaks the working SP fleet)
+1. ✅ **Create agent identities** — `New-AgentIdentities.ps1` (done; 6 created).
+2. ▶ **Grant permissions** — `Grant-AgentIdentityPermissions.ps1` assigns each agent identity
+   the same Graph app roles its SP holds (run `-WhatIf` then `-Execute`). Surfaces any
+   permission Entra blocks for agent identities.
+3. ☐ **Add a credential to the blueprint** (`addPassword`/`addKey`/federated) for the FMI flow.
+4. ☐ **Implement the two-step FMI flow in `shared/Helpers.ps1`** as a new `Connect-AgentGraph`
+   mode, selected by a per-agent `config.json` flag (e.g. `"AuthMode": "agentid"`), running in
+   **parallel** with the existing cert path. Validate one agent (start with read-only Auditor).
+5. ☐ **Cut over** per agent once validated, then retire the legacy app registrations.
+
+`Remove-OrphanBlueprints.ps1` cleans up duplicate "JML Agent Fleet Blueprint" apps from
+failed creation runs (keeps the one backing the live identities).
+
 ## Decision: are Agent IDs better than the current app-reg SPs?
 
 | Dimension | App registration + SP (today) | Entra Agent ID |
