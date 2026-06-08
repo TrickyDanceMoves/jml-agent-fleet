@@ -1463,23 +1463,93 @@ body.maximized, body.maximized .app { border-radius: 0; }
   border-color: color-mix(in oklch, var(--border-strong) 80%, transparent);
 }
 .message-body { display: flex; flex-direction: column; gap: 4px; flex: 1; min-width: 0; }
-.message-text { white-space: pre-wrap; word-wrap: break-word; }
-.message-text p { margin: 0 0 8px 0; }
-.message-text p:last-child { margin-bottom: 0; }
+/* pre-wrap only applies during streaming (raw text); once renderMarkdown runs
+   the content is HTML so normal whitespace collapses correctly */
+.message-text { word-wrap: break-word; overflow-wrap: break-word; }
+.message-text.streaming { white-space: pre-wrap; }
+
+/* Paragraph rhythm */
+.message-text .md-p { margin: 0 0 10px 0; line-height: 1.6; }
+.message-text .md-p:last-child { margin-bottom: 0; }
+
+/* Headings — three tiers with clear hierarchy */
+.message-text .md-h1 {
+  font-size: 15px; font-weight: 700; color: var(--text);
+  margin: 14px 0 8px; letter-spacing: -.01em; line-height: 1.3;
+  border-bottom: 1px solid var(--border); padding-bottom: 5px;
+}
+.message-text .md-h2 {
+  font-size: 13.5px; font-weight: 700; color: var(--text);
+  margin: 12px 0 6px; letter-spacing: -.005em;
+}
+.message-text .md-h3 {
+  font-size: 13px; font-weight: 600;
+  color: var(--text-2); margin: 10px 0 5px;
+  text-transform: uppercase; letter-spacing: .04em; font-size: 11.5px;
+}
+.message-text .md-h1:first-child,
+.message-text .md-h2:first-child,
+.message-text .md-h3:first-child { margin-top: 2px; }
+
+/* Horizontal rule */
+.message-text .md-hr {
+  border: none; border-top: 1px solid var(--border);
+  margin: 12px 0;
+}
+
+/* Lists — tighter indent, breathing room between items */
+.message-text .md-list { padding-left: 18px; margin: 6px 0 10px; }
+.message-text .md-list:last-child { margin-bottom: 0; }
+.message-text .md-list li { margin-bottom: 5px; line-height: 1.55; }
+.message-text .md-list li:last-child { margin-bottom: 0; }
+
+/* Task list items */
+.message-text .md-task-done { opacity: .6; text-decoration: line-through; }
+.message-text .md-task-check { margin-right: 5px; }
+
+/* Inline code */
 .message-text code {
   font-family: var(--mono); font-size: 12px;
   background: var(--elev); padding: 1px 5px; border-radius: 4px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--border); color: var(--cyan);
 }
+
+/* Code blocks */
 .message-text pre {
   font-family: var(--mono); font-size: 12px;
   background: var(--bg-2);
   padding: 10px 12px; border-radius: 6px; border: 1px solid var(--border);
-  overflow-x: auto; margin: 6px 0;
+  overflow-x: auto; margin: 8px 0; line-height: 1.55;
 }
-.message-text pre code { background: none; border: 0; padding: 0; }
-.message-text ul, .message-text ol { padding-left: 20px; margin: 4px 0; }
-.message-text strong { color: var(--text); }
+.message-text pre code { background: none; border: 0; padding: 0; color: var(--text-2); }
+
+/* Blockquote */
+.message-text .md-blockquote {
+  border-left: 3px solid var(--border-strong); padding: 6px 12px;
+  margin: 8px 0; color: var(--text-2); font-style: italic;
+  background: var(--bg-2); border-radius: 0 4px 4px 0;
+}
+.message-text .md-blockquote:last-child { margin-bottom: 0; }
+
+/* Tables */
+.message-text .md-table-wrap { overflow-x: auto; margin: 8px 0 10px; }
+.message-text .md-table { border-collapse: collapse; font-size: 12.5px; width: 100%; }
+.message-text .md-table th, .message-text .md-table td {
+  padding: 6px 10px; border: 1px solid var(--border); text-align: left;
+}
+.message-text .md-table th { background: var(--bg-2); font-weight: 600; color: var(--text); }
+.message-text .md-table tr:nth-child(even) td { background: color-mix(in oklab,var(--bg-2),transparent 50%); }
+
+/* Strong — slightly brighter so it pops against body text */
+.message-text strong { color: var(--text); font-weight: 650; }
+
+/* Links */
+.message-text .md-link { color: var(--cyan); text-decoration: none; }
+.message-text .md-link:hover { text-decoration: underline; }
+
+/* Emoji status markers */
+.md-check, .md-cross, .md-warn { font-style: normal; }
+
 .error-text { color: var(--coral); }
 
 .tool-indicators { display: flex; flex-direction: column; gap: 4px; margin-top: 6px; }
