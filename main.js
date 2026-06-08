@@ -1077,6 +1077,77 @@ ipcMain.on('get-audit-log', (event) => {
   event.sender.send('audit-log-data', entries.reverse());
 });
 
+// ── Evidence packet export ──────────────────────────────────────────────────────
+// Assembles a tamper-evident compliance evidence packet from selected audit entries.
+// Integrity is proven by shelling out to the authoritative Verify-AuditLog.ps1 (the
+// PowerShell verifier reproduces the exact hash format the writer used) rather than
+// re-implementing the hash in JS, which would be fragile across PS/JSON formatting.
+ipcMain.handle('export-evidence-packet', async (event, payload) => {
+  const { hashes } = payload || {};
+  try {
+    const auditPath = path.join(AGENTS_DIR, 'audit.jsonl');
+    if (!fs.existsSync(auditPath)) return { ok: false, error: 'No audit log found.' };
+
+    const all = fs.readFileSync(auditPath, 'utf8').trim().split('\n').filter(Boolean)
+      .map(l => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean);
+
+    // Filter to requested entries (by hash); empty/absent → whole log
+    const wanted = Array.isArray(hashes) && hashes.length
+      ? all.filter(e => hashes.includes(e.hash))
+      : all;
+    if (!wanted.length) return { ok: false, error: 'No matching entries to export.' };
+
+    // Authoritative chain integrity check via the PowerShell verifier
+    let integrity = 'not run';
+    try {
+      const verifyScript = path.join(AGENTS_DIR, 'shared', 'Verify-AuditLog.ps1');
+      const out = execFileSync('powershell',
+        ['-NonInteractive', '-File', verifyScript, '-AuditLogPath', auditPath],
+        { encoding: 'utf8', timeout: 60000 });
+      const line = out.trim().split('\n').map(l => l.trim()).filter(Boolean).pop() || '';
+      integrity = line;
+    } catch (e) {
+      const out = (e.stdout || '').toString().trim().split('\n').map(l => l.trim()).filter(Boolean).pop();
+      integrity = out || ('verification error: ' + e.message);
+    }
+
+    const packet = {
+      packetType: 'JML Agent Fleet — Compliance Evidence Packet',
+      generatedAt: new Date().toISOString(),
+      generatedBy: process.env.JML_CONSOLE_OPERATOR || 'unknown',
+      tenantDomain: getActiveTenantDomain(),
+      entryCount: wanted.length,
+      chainIntegrity: integrity,
+      entries: wanted.map(e => ({
+        timestamp: e.timestamp,
+        agent:     e.agent,
+        action:    e.action,
+        subject:   e.subject,
+        operator:  e.operator || null,
+        mode:      e.whatif ? 'Safe (WhatIf)' : 'Live',
+        outcome:   e.outcome,
+        ticketRef: (e.details && e.details.ticketRef) || null,
+        details:   e.details || {},
+        prevHash:  e.prevHash,
+        hash:      e.hash
+      }))
+    };
+
+    const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+    const { canceled, filePath } = await dialog.showSaveDialog({
+      title: 'Export Evidence Packet',
+      defaultPath: `jml-evidence-${stamp}.json`,
+      filters: [{ name: 'JSON', extensions: ['json'] }]
+    });
+    if (canceled || !filePath) return { ok: false, canceled: true };
+
+    fs.writeFileSync(filePath, JSON.stringify(packet, null, 2), 'utf8');
+    return { ok: true, path: filePath, count: wanted.length, integrity };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+});
+
 ipcMain.on('get-dashboard-stats', async (event) => {
   try {
     const script = path.join(AGENTS_DIR, 'auditor', 'Invoke-AuditorQuery.ps1');

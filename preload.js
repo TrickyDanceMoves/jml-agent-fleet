@@ -9,6 +9,7 @@ contextBridge.exposeInMainWorld('api', {
   setMode:          (whatif)         => ipcRenderer.send('set-mode', { whatif }),
   clearHistory:     (agent)          => ipcRenderer.send('clear-history', { agent }),
   getAuditLog:       ()               => ipcRenderer.send('get-audit-log'),
+  exportEvidencePacket: (payload)     => ipcRenderer.invoke('export-evidence-packet', payload),
   getDashboardStats: ()               => ipcRenderer.send('get-dashboard-stats'),
   getSecurityReports:()               => ipcRenderer.send('get-security-reports'),
   windowMinimize:   ()               => ipcRenderer.send('window-minimize'),
