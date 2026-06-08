@@ -119,15 +119,25 @@ try {
 $created = 0; $failed = 0
 foreach ($a in $agents) {
     Write-Log ("Creating Agent ID: " + $a.name + " ...")
+    # Minimal create body. 'sponsors' is NOT an inline create property in this tenant's
+    # schema (returns Request_BadRequest) — it's attached as a relationship post-create.
     $body = @{ displayName = $a.name }
     if ($blueprintId) { $body.agentIdentityBlueprintId = $blueprintId }
-    if ($sponsorId)   { $body.sponsors = @(@{ "@odata.id" = "https://graph.microsoft.com/v1.0/directoryObjects/$sponsorId" }) }
     try {
         $resp = Invoke-RestMethod -Method POST -Headers $headers `
             -Uri "https://graph.microsoft.com/v1.0/servicePrincipals/microsoft.graph.agentIdentity" `
             -Body ($body | ConvertTo-Json -Depth 5)
         Write-Log ("  CREATED: " + $a.name + " (id " + $resp.id + ")") "ACTION"
         $created++
+        # Best-effort: attach the human sponsor as a relationship (governance metadata).
+        if ($sponsorId) {
+            $refUri  = "https://graph.microsoft.com/v1.0/servicePrincipals/" + $resp.id + "/sponsors/" + '$ref'
+            $refBody = @{ "@odata.id" = "https://graph.microsoft.com/v1.0/directoryObjects/$sponsorId" } | ConvertTo-Json
+            try {
+                Invoke-RestMethod -Method POST -Headers $headers -Uri $refUri -Body $refBody | Out-Null
+                Write-Log "    sponsor assigned" "INFO"
+            } catch { Write-Log ("    sponsor not set (non-fatal): " + (Get-RestError $_)) "WARN" }
+        }
     } catch {
         Write-Log ("  FAILED: " + (Get-RestError $_)) "ERROR"
         $failed++
