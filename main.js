@@ -2479,13 +2479,16 @@ async function runCapture() {
     ['security',       `window.api.getSecurityReports(); window.api.getAgentHealth();`, 2500],
     ['exports',        `window.api.getExportsStatus();`, 2000],
     ['approvals',      null, 2000],
-    ['operations',     `window.api.getScheduledOps();`, 1800],
-    ['certifications', `window.api.getCertHistory();`, 1800],
+    ['operations',     `window.api.getScheduledOps();`, 2000],
+    // certifications: getCertHistory calls PS1 which may be slow; use longer wait
+    ['certifications', null, 2200],
     ['settings',       `window.api.getPolicy();`, 1800],
-    ['audit-log',      `window.api.getAuditLog();`, 2200],
-    ['users',          null, 600],
-    ['certs',          null, 600],
-    ['graph',          null, 600],
+    // audit-log: skip the IPC trigger in capture mode (PS1 needs real audit.jsonl);
+    // the view renders its static structure without data
+    ['audit-log',      null, 1200],
+    ['users',          null, 1000],
+    ['certs',          `window.api.getCertExpiry();`, 1500],
+    ['graph',          null, 1000],
   ];
 
   // Capture approver in default (input) state first
@@ -2499,12 +2502,17 @@ async function runCapture() {
   }
 
   for (const [tab, ipcJs, wait] of TABS) {
+    // Navigate — try switchTab first, fall back to clicking the nav button
     await win.webContents.executeJavaScript(`
-      if (typeof switchTab === 'function') switchTab(${JSON.stringify(tab)});
-      else document.querySelector('[data-tab="${tab}"]')?.click();
+      try {
+        if (typeof switchTab === 'function') switchTab(${JSON.stringify(tab)});
+        else document.querySelector('[data-tab="${tab}"]')?.click();
+      } catch(e) {}
     `);
     await sleep(500);
-    if (ipcJs) await win.webContents.executeJavaScript(ipcJs);
+    if (ipcJs) {
+      try { await win.webContents.executeJavaScript(ipcJs); } catch(e) { /* IPC trigger failed — skip */ }
+    }
     // Re-send mock data that real IPC handlers would wipe in capture mode
     if (tab === 'approvals') win.webContents.send('pending-approvals', MOCK_APPROVALS);
     if (tab === 'dashboard') {

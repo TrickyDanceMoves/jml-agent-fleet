@@ -930,6 +930,55 @@ window.api.onComplete(({ agent }) => {
         textEl.appendChild(wrap);
       }
     }
+    // Approver: inline confirm buttons + copyable token chips
+    if (agent === 'approver') {
+      const textEl = msgEl.querySelector('.message-text');
+      if (textEl) {
+        const raw = (textEl.dataset.raw || textEl.textContent || '');
+
+        // Fix 3: detect confirmation prompts and inject Proceed/Cancel buttons
+        if (/confirm to continue\??|shall i proceed\??|want me to proceed\??|go ahead\?/i.test(raw)
+            && !textEl.querySelector('.inline-confirm')) {
+          const div = document.createElement('div');
+          div.className = 'inline-confirm';
+          const proceed = document.createElement('button');
+          proceed.className = 'btn primary sm';
+          proceed.textContent = 'Proceed';
+          const cancel = document.createElement('button');
+          cancel.className = 'btn ghost sm';
+          cancel.textContent = 'Cancel';
+          proceed.addEventListener('click', () => {
+            div.remove();
+            window.api.sendMessage('approver', 'Confirmed. Go ahead.');
+          });
+          cancel.addEventListener('click', () => {
+            div.remove();
+            window.api.sendMessage('approver', 'Cancel — do not proceed.');
+          });
+          div.appendChild(proceed);
+          div.appendChild(cancel);
+          textEl.appendChild(div);
+        }
+
+        // Fix 4: make dual-approval tokens copyable
+        textEl.querySelectorAll('strong').forEach(strong => {
+          const val = strong.textContent.trim();
+          if (/^[A-Z0-9]{4,8}$/.test(val) && strong.closest('.message-text')
+              && /token/i.test(strong.parentElement.textContent)) {
+            strong.classList.add('token-chip');
+            strong.title = 'Click to copy token';
+            strong.addEventListener('click', () => {
+              navigator.clipboard.writeText(val).then(() => {
+                const orig = strong.textContent;
+                strong.textContent = 'Copied!';
+                setTimeout(() => { strong.textContent = orig; }, 1200);
+              });
+            });
+          }
+        });
+      }
+    }
+
     currentMsgEl[agent] = null;
   }
 });
@@ -1399,6 +1448,36 @@ function focusFinding(idx) {
     ).join('');
   }
 
+  // Inline remediation — show per-finding-type quick actions that route to Approver
+  const remLabel   = document.getElementById('sec-rem-label');
+  const remBtns    = document.getElementById('sec-rem-btns');
+  const remDisable = document.getElementById('sec-rem-disable');
+  const remRevoke  = document.getElementById('sec-rem-revoke');
+  const remMfa     = document.getElementById('sec-rem-mfa');
+  const remGroups  = document.getElementById('sec-rem-groups');
+
+  if (remBtns) {
+    const ruleStr  = (f.rule || '').toLowerCase();
+    const titleStr = (f.title || '').toLowerCase();
+    const combo    = ruleStr + ' ' + titleStr;
+    // Extract subject UPN from signals for pre-filling the Approver prompt
+    const subSig   = (f.signals || []).find(([k]) => /subject|user|upn/i.test(k));
+    remBtns.dataset.subject = subSig ? String(subSig[1]) : (f.subject || '');
+
+    const showDisable = /after.hours|risky|suspicious|compromised|anomaly|pattern/i.test(combo);
+    const showRevoke  = /after.hours|risky|compromised|session/i.test(combo);
+    const showMfa     = /risky|compromised|identity.protect/i.test(combo);
+    const showGroups  = /group.*still|still.*group|disabled.*group|stale.*group|active.*license/i.test(combo);
+    const any = showDisable || showRevoke || showMfa || showGroups;
+
+    if (remLabel) remLabel.style.display = any ? '' : 'none';
+    remBtns.style.display = any ? 'flex' : 'none';
+    if (remDisable) remDisable.style.display = showDisable ? '' : 'none';
+    if (remRevoke)  remRevoke.style.display  = showRevoke  ? '' : 'none';
+    if (remMfa)     remMfa.style.display     = showMfa     ? '' : 'none';
+    if (remGroups)  remGroups.style.display  = showGroups  ? '' : 'none';
+  }
+
   // Show drift remediation card if this is a drift finding
   const driftCard = document.getElementById('sec-drift-rem-v2');
   if (driftCard) {
@@ -1670,6 +1749,27 @@ document.getElementById('sec-drift-restore-v2')?.addEventListener('click', () =>
     showToast('Restore baseline: submitting for dual approval…');
   }
 });
+
+// ── Security inline remediation buttons ──────────────────────────────────────
+function _secRemRoute(promptTemplate) {
+  const subject = document.getElementById('sec-rem-btns')?.dataset.subject || '';
+  const msg     = subject
+    ? promptTemplate.replace('{subject}', subject)
+    : promptTemplate.replace(' {subject}', '').replace('{subject}', 'this user');
+  switchTab('approver');
+  setTimeout(() => {
+    const inp = document.getElementById('chat-input-approver');
+    if (inp) { inp.value = msg; inp.focus(); }
+  }, 350);
+}
+document.getElementById('sec-rem-disable')?.addEventListener('click', () =>
+  _secRemRoute('Disable account for {subject} immediately — security finding requires urgent action'));
+document.getElementById('sec-rem-revoke')?.addEventListener('click', () =>
+  _secRemRoute('Revoke all active sessions for {subject} — security finding'));
+document.getElementById('sec-rem-mfa')?.addEventListener('click', () =>
+  _secRemRoute('Force MFA re-registration for {subject} — identity protection alert'));
+document.getElementById('sec-rem-groups')?.addEventListener('click', () =>
+  _secRemRoute('Remove {subject} from all active group memberships — account is disabled and should not retain access'));
 
 // ── Security pivot buttons ────────────────────────────────────────────────────
 // "Open audit entry" → jump to Audit Log and pre-filter by subject
@@ -2237,14 +2337,28 @@ function buildDashSummary() {
 }
 
 // ── Dashboard ─────────────────────────────────────────────────────────────────
+let _dashConnected = false;
 function loadDashboard() {
+  _dashConnected = false;
   window.api.getDashboardStats();
   window.api.getPendingApprovals();
   window.api.getSecurityReports();
   window.api.getAgentHealth();
+  // Fallback: if live data doesn't arrive within 8s, show a graceful disconnected state
+  clearTimeout(window._dashTimeout);
+  window._dashTimeout = setTimeout(() => {
+    if (_dashConnected) return;
+    document.querySelectorAll('#view-dashboard .loading').forEach(el => el.classList.remove('loading'));
+    const sub = document.getElementById('dash-page-sub');
+    if (sub) sub.textContent = 'Fleet offline — no Entra connection. Configure tenant binding in Settings → Tenant Binding to enable live data.';
+    const statEls = ['stat-users-total','stat-licenses-total','stat-activity-total'];
+    statEls.forEach(id => { const el = document.getElementById(id); if (el && el.textContent === '') el.textContent = '—'; });
+  }, 8000);
 }
 
 window.api.onDashboardStats((data) => {
+  _dashConnected = true;
+  clearTimeout(window._dashTimeout);
   ['stat-users-total','stat-users-detail','stat-licenses-total','stat-activity-total','stat-activity-detail']
     .forEach(id => document.getElementById(id).classList.remove('loading'));
   if (data.error) {
@@ -3227,13 +3341,17 @@ window.api.onScheduledOps((ops) => {
     return;
   }
   el.innerHTML = ops.map(op => {
-    const when = op.scheduledFor ? new Date(op.scheduledFor).toLocaleString() : '—';
+    const when    = op.scheduledFor ? new Date(op.scheduledFor).toLocaleString() : '—';
+    const errHtml = (op.status === 'failed' && op.error)
+      ? `<div class="sched-error-detail">${escHtml(op.error)}</div>`
+      : '';
     return `<div class="sched-item" data-id="${escHtml(op.id)}">
       <span class="sched-op">${escHtml(op.operation || '')}</span>
       <span class="sched-upn">${escHtml((op.payload && op.payload.userPrincipalName) || '')}</span>
       <span class="sched-when">${escHtml(when)}</span>
       <span class="sched-status ${escHtml(op.status || 'pending')}">${escHtml(op.status || 'pending')}</span>
       ${op.status === 'pending' ? '<button class="btn-danger btn-cancel-sched" data-id="' + escHtml(op.id) + '">Cancel</button>' : ''}
+      ${errHtml}
     </div>`;
   }).join('');
   el.querySelectorAll('.btn-cancel-sched').forEach(btn => {
@@ -5291,6 +5409,18 @@ document.getElementById('aud-findings-clr')?.addEventListener('click', () => {
   const list = document.getElementById('aud-findings-list');
   if (list) list.innerHTML = '';
   if (card) card.style.display = 'none';
+});
+
+// ── Scroll-to-bottom buttons (Fix 7) ─────────────────────────────────────────
+['approver', 'auditor'].forEach(agent => {
+  const msgs = document.getElementById('messages-' + agent);
+  const btn  = document.getElementById('scroll-bottom-' + agent);
+  if (!msgs || !btn) return;
+  msgs.addEventListener('scroll', () => {
+    const distFromBottom = msgs.scrollHeight - msgs.scrollTop - msgs.clientHeight;
+    btn.style.display = distFromBottom > 120 ? '' : 'none';
+  }, { passive: true });
+  btn.addEventListener('click', () => { msgs.scrollTo({ top: msgs.scrollHeight, behavior: 'smooth' }); });
 });
 
 // ── Dashboard quick actions ────────────────────────────────────────────────────
