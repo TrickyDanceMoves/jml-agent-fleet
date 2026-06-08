@@ -900,10 +900,10 @@ window.api.onComplete(({ agent }) => {
   if (agent === 'approver') lcMarkComplete();
   if (agent === 'auditor')  audQueryComplete(currentMsgEl[agent]);
 
-  // Real-time security refresh: if a remediation was routed from the Security page,
-  // re-scan findings 4s after the operation completes to reflect the state change.
-  if (agent === 'approver' && window._secRefreshAfterOp) {
-    window._secRefreshAfterOp = false;
+  // Real-time security refresh: if remediation actions were routed from Security,
+  // re-scan once per completed operation (counter survives rapid double-dispatch).
+  if (agent === 'approver' && window._secRefreshAfterOp > 0) {
+    window._secRefreshAfterOp--;
     setTimeout(() => window.api.getSecurityReports(), 4000);
   }
   const msgEl = currentMsgEl[agent];
@@ -967,21 +967,25 @@ window.api.onComplete(({ agent }) => {
           textEl.appendChild(div);
         }
 
-        // Fix 4: make dual-approval tokens copyable
+        // Fix 4: make dual-approval tokens copyable.
+        // Guard: the text node immediately before the <strong> must contain "Token"
+        // so we don't accidentally mark bold role names (**READ**, **ADMIN**, etc.)
+        // in paragraphs that happen to mention "token" elsewhere.
         textEl.querySelectorAll('strong').forEach(strong => {
-          const val = strong.textContent.trim();
-          if (/^[A-Z0-9]{4,8}$/.test(val) && strong.closest('.message-text')
-              && /token/i.test(strong.parentElement.textContent)) {
-            strong.classList.add('token-chip');
-            strong.title = 'Click to copy token';
-            strong.addEventListener('click', () => {
-              navigator.clipboard.writeText(val).then(() => {
-                const orig = strong.textContent;
-                strong.textContent = 'Copied!';
-                setTimeout(() => { strong.textContent = orig; }, 1200);
-              });
+          const val     = strong.textContent.trim();
+          if (!/^[A-Z0-9]{4,8}$/.test(val)) return;
+          const prev    = strong.previousSibling;
+          const prevTxt = prev && prev.nodeType === Node.TEXT_NODE ? prev.textContent : '';
+          if (!/\btoken\b\s*$/i.test(prevTxt)) return;
+          strong.classList.add('token-chip');
+          strong.title = 'Click to copy token';
+          strong.addEventListener('click', () => {
+            navigator.clipboard.writeText(val).then(() => {
+              const orig = strong.textContent;
+              strong.textContent = 'Copied!';
+              setTimeout(() => { strong.textContent = orig; }, 1200);
             });
-          }
+          });
         });
       }
     }
@@ -1782,7 +1786,7 @@ function _secRemRoute(promptTemplate) {
     : promptTemplate.replace(' {subject}', '').replace('{subject}', 'this user');
   switchTab('approver');
   // Schedule a security re-scan after the approver finishes — finding should resolve
-  window._secRefreshAfterOp = true;
+  window._secRefreshAfterOp = (window._secRefreshAfterOp || 0) + 1;
   setTimeout(() => {
     const inp = document.getElementById('chat-input-approver');
     if (inp) { inp.value = msg; inp.focus(); }
@@ -2714,10 +2718,10 @@ function renderMarkdown(text) {
     // Horizontal rule
     if (/^[-*]{3,}$/.test(line.trim())) { out.push('<div class="md-hr"></div>'); i++; continue; }
 
-    // Blockquote — collect consecutive lines
+    // Blockquote — collect only lines that start with `>`; stop at anything else
     if (isBlockq(line)) {
       const bqLines = [];
-      while (i < lines.length && (isBlockq(lines[i]) || (bqLines.length && lines[i].trim()))) {
+      while (i < lines.length && isBlockq(lines[i])) {
         bqLines.push(lines[i].replace(/^\s*>\s?/, ''));
         i++;
       }
@@ -3120,7 +3124,14 @@ window.api.onPendingApprovals((data) => {
       noteHtml = `<div class="note"><div class="ttl">Notes</div><div class="reason">Standard operation. Review the details and approve, hold, or reject.</div></div>`;
     }
 
-    // Dual approver row (severity=crit → 1 of 2)
+    // Role gate: can the current operator approve this?
+    const reqApproverRole  = op.requiredApproverRole || (severity === 'crit' ? 'admin' : 'helpdesk');
+    const actorRole        = currentOperatorRole();
+    const canApproveThis   = actorRole === 'admin' || (reqApproverRole !== 'admin' && actorRole === 'helpdesk');
+    const needsAdminBadge  = reqApproverRole === 'admin';
+    const submittedByHelpdesk = (op.requestedByRole || '').toLowerCase() === 'helpdesk';
+
+    // Dual approver row
     const isDual = severity === 'crit';
     const approverRow = isDual
       ? `<span class="approver-line">Approvers
@@ -3132,16 +3143,33 @@ window.api.onPendingApprovals((data) => {
            <span style="margin-left:8px">1 of 1 required</span>
          </span>`;
 
+    // Role badge and disabled-approve messaging
+    const roleBadgeHtml = needsAdminBadge
+      ? `<span class="tag crit" style="font-size:10px;padding:2px 7px">Admin required</span>`
+      : `<span class="tag info" style="font-size:10px;padding:2px 7px;opacity:.7">Any approver</span>`;
+    const submitterHtml = submittedByHelpdesk && op.requestedBy
+      ? `<div style="font-size:11.5px;color:var(--text-3);margin-top:6px;font-family:var(--mono)">Escalated by helpdesk · ${escHtml(op.requestedBy)}</div>`
+      : '';
+    const approveBtn = !expired
+      ? canApproveThis
+        ? `<button class="btn primary btn-approve" data-id="${escHtml(token)}">Approve${isDual ? ' (1 of 2)' : ''}</button>`
+        : `<button class="btn primary btn-approve" data-id="${escHtml(token)}" disabled
+              title="Requires admin role — contact an admin operator to approve this action"
+              style="opacity:.45;cursor:not-allowed">Admin sign-off needed</button>`
+      : '';
+
     return `<div class="approval-card card ${severity === 'crit' ? 'crit' : 'info'}${expired ? ' expired' : ''}" data-id="${escHtml(token)}">
       <div class="card-h approval-header">
         <span class="tag approval-badge ${badgeClass}">${opLabel}</span>
         <span class="who-em approval-upn">${escHtml(inp.userPrincipalName || '—')}</span>
         <div class="spacer"></div>
+        ${roleBadgeHtml}
         ${token ? `<span class="token approval-token">TOKEN <b>${escHtml(token.slice(0, 8).toUpperCase())}</b></span>` : ''}
         ${ttlText ? `<span class="ttl-cnt${ttlIsWarn ? ' warn' : ''}"><span class="x"></span>${escHtml(ttlText)}</span>` : ''}
       </div>
       <div class="card-b">
         ${kvHtml}
+        ${submitterHtml}
         ${noteHtml}
       </div>
       <div class="card-f approval-actions">
@@ -3149,7 +3177,7 @@ window.api.onPendingApprovals((data) => {
         <div class="spacer"></div>
         ${!expired ? `<button class="btn danger btn-reject" data-id="${escHtml(token)}">Reject</button>` : ''}
         ${!expired ? `<button class="btn btn-hold" data-id="${escHtml(token)}" disabled title="Hold not yet supported">Hold</button>` : ''}
-        ${!expired ? `<button class="btn primary btn-approve" data-id="${escHtml(token)}">Approve${isDual ? ' (1 of 2)' : ''}</button>` : ''}
+        ${approveBtn}
       </div>
     </div>`;
   }).join('');

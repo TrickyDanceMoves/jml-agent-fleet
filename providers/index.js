@@ -40,8 +40,19 @@ const DEFAULT_CONFIG = {
 function loadConfig(configFile) {
   try {
     if (fs.existsSync(configFile)) {
-      const raw = fs.readFileSync(configFile, 'utf8').split(String.fromCharCode(0xFEFF)).join('');
-      return Object.assign({}, DEFAULT_CONFIG, JSON.parse(raw));
+      const raw  = fs.readFileSync(configFile, 'utf8').split(String.fromCharCode(0xFEFF)).join('');
+      const saved = JSON.parse(raw);
+      // Deep merge: start from DEFAULT_CONFIG so every provider sub-object has all
+      // required keys even if the saved file pre-dates a new field being added.
+      const merged = JSON.parse(JSON.stringify(DEFAULT_CONFIG));
+      if (saved.provider !== undefined) merged.provider = saved.provider;
+      for (const key of Object.keys(merged)) {
+        if (key === 'provider') continue;
+        if (saved[key] && typeof saved[key] === 'object') {
+          merged[key] = Object.assign({}, merged[key], saved[key]);
+        }
+      }
+      return merged;
     }
   } catch {}
   // Bootstrap Claude from env var if present
@@ -96,22 +107,22 @@ function buildProvider(config) {
     case 'azure-foundry': {
       const c = config['azure-foundry'] || {};
       if (!c.apiKey) return null;
-      // Azure AI Foundry exposes an OpenAI-compatible inference API.
-      // The endpoint is either a project-scoped URL or the GitHub Models catalogue.
       return new OpenAICompatProvider({
-        apiKey:     c.apiKey,
-        baseURL:    (c.endpoint || 'https://models.inference.ai.azure.com').replace(/\/$/, ''),
-        agentModel: c.agentModel || 'gpt-4o',
-        fastModel:  c.fastModel  || 'gpt-4o-mini'
+        apiKey:       c.apiKey,
+        baseURL:      (c.endpoint || 'https://models.inference.ai.azure.com').replace(/\/$/, ''),
+        agentModel:   c.agentModel || 'gpt-4o',
+        fastModel:    c.fastModel  || 'gpt-4o-mini',
+        providerName: 'azure-foundry'
       });
     }
     case 'ollama': {
       const c = config.ollama || {};
       return new OpenAICompatProvider({
-        apiKey:     'ollama',
-        baseURL:    `${(c.baseUrl || 'http://localhost:11434').replace(/\/$/, '')}/v1`,
-        agentModel: c.agentModel || 'llama3.1',
-        fastModel:  c.fastModel  || 'llama3.1'
+        apiKey:       'ollama',
+        baseURL:      `${(c.baseUrl || 'http://localhost:11434').replace(/\/$/, '')}/v1`,
+        agentModel:   c.agentModel || 'llama3.1',
+        fastModel:    c.fastModel  || 'llama3.1',
+        providerName: 'ollama'
       });
     }
     default:

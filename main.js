@@ -42,6 +42,7 @@ const AGENT_DIRS     = ['joiner','mover','leaver','enroller','approver','provisi
 // ── AI provider abstraction ───────────────────────────────────────────────────
 const { loadConfig: _loadProviderConfig, saveConfig: _saveProviderConfig, buildProvider } = require('./providers');
 let _aiProviderConfig = null;
+let _cachedProvider   = null; // invalidated whenever config is saved
 
 function _ensureProviderConfig() {
   if (!_aiProviderConfig) _aiProviderConfig = _loadProviderConfig(AI_PROVIDER_CONFIG_FILE);
@@ -49,7 +50,8 @@ function _ensureProviderConfig() {
 
 function getAIProvider() {
   _ensureProviderConfig();
-  return buildProvider(_aiProviderConfig);
+  if (!_cachedProvider) _cachedProvider = buildProvider(_aiProviderConfig);
+  return _cachedProvider;
 }
 
 // ── Agent state ───────────────────────────────────────────────────────────────
@@ -108,6 +110,23 @@ the full operation details. Then:
 - dualApproval=true: inform the operator that a second approval token is required.
 
 In WHATIF mode score_risk is informational — show it but don't gate on it.
+
+OPERATOR ROLE CONTEXT:
+Current operator role: ${currentRole || 'unknown'}
+
+Role-based action boundaries:
+- admin: full authority — can submit all operation types including Hard leavers in Live mode.
+- helpdesk: can submit Joiners, Enrollers, Movers, and Soft leavers in Live mode.
+  Hard leavers are always escalated to the admin approval queue — inform the operator
+  that after submitting, an admin must approve from the Approvals tab before execution.
+  If a Soft leaver is blocked (user holds privileged roles), it is also escalated.
+- viewer: read-only — all submit tools are blocked. Remind the operator to switch to
+  an admin or helpdesk account.
+
+When the current operator is helpdesk and they request a Hard leaver:
+1. Acknowledge that it will be submitted for admin approval.
+2. Proceed with submit_leaver_hard — the system will automatically route it.
+3. Show the approval token and tell them to notify an admin.
 
 FORMATTING RULES (always follow):
 - Always write UPNs in full (e.g. sarah.chen@${domain}). Never abbreviate to "..." or truncate the domain.
@@ -735,22 +754,24 @@ function pollTrayApprovals() {
   } catch {}
 }
 
-function routeBlockedLeaverToApproval(input, stage) {
+function routeBlockedLeaverToApproval(input, stage, reason, requiredApproverRole) {
   if (!fs.existsSync(PENDING_DIR)) fs.mkdirSync(PENDING_DIR, { recursive: true });
   const token = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  const reqRole = requiredApproverRole || 'admin';
   const record = {
     id: token, token,
     tool: 'submit_leaver_' + stage.toLowerCase(),
     severity: 'crit',
     requestedBy: currentOperator || 'helpdesk',
     requestedByRole: currentRole,
+    requiredApproverRole: reqRole,
     requestedAt: new Date().toISOString(),
     input: { userPrincipalName: input.userPrincipalName, stage, ticketRef: input.ticketRef || '' },
-    note: 'User holds privileged Entra directory roles — admin approval required to proceed.',
+    note: reason || 'Hard-stage leaver submitted by helpdesk — admin approval required to execute.',
     status: 'pending'
   };
   fs.writeFileSync(path.join(PENDING_DIR, token + '.json'), JSON.stringify(record, null, 2), 'utf8');
-  sendToast('Admin Approval Required', (input.userPrincipalName || 'User') + ' holds privileged directory roles — leaver queued for admin sign-off.');
+  sendToast('Admin Approval Required', (input.userPrincipalName || 'User') + ' queued for admin sign-off.');
   return token;
 }
 
@@ -863,18 +884,33 @@ function executeTool(agent, toolName, input, whatif) {
     case 'submit_leaver_soft':
     case 'submit_leaver_hard': {
       const _stage = toolName === 'submit_leaver_hard' ? 'Hard' : 'Soft';
+      // Helpdesk operators cannot execute Hard leavers directly — always route to admin approval.
+      // Soft leavers pass through with OperatorRole check; the PS1 blocks further if user
+      // holds privileged roles and returns the BLOCKED sentinel.
+      if (currentRole === 'helpdesk' && _stage === 'Hard' && !w) {
+        const _tok = routeBlockedLeaverToApproval(input, _stage,
+          'Hard-stage leaver (license + group removal) submitted by helpdesk — admin sign-off required before execution.',
+          'admin');
+        return { approvalQueued: true, token: _tok, message: 'Hard-stage leavers require admin approval. Request queued — an admin operator must approve from the Approvals tab.' };
+      }
+      if (currentRole === 'helpdesk' && _stage === 'Hard' && w) {
+        return { approvalRequired: true, message: 'Hard-stage leavers require admin approval in Live mode. This request would be queued for admin sign-off.' };
+      }
       try {
         return parsePs1Output(runPs(path.join(AGENTS_DIR, 'leaver', 'Invoke-LeaverProcess.ps1'), {
           UserPrincipalName: input.userPrincipalName, Stage: _stage, WhatIf: w, OperatorRole: currentRole
         }));
       } catch (_lErr) {
         const _stdout = _lErr.stdout || _lErr.message || '';
+        // Soft leaver blocked by PS1 because user holds privileged roles → escalate
         if (currentRole === 'helpdesk' && !w && _stdout.includes('BLOCKED: Operator role')) {
-          const _tok = routeBlockedLeaverToApproval(input, _stage);
-          return { approvalQueued: true, token: _tok, message: 'User holds privileged Entra directory roles. Approval request submitted — an admin operator must approve from the Approvals tab before this leaver executes.' };
+          const _tok = routeBlockedLeaverToApproval(input, _stage,
+            'User holds privileged Entra directory roles — admin approval required to proceed.',
+            'admin');
+          return { approvalQueued: true, token: _tok, message: 'User holds privileged roles. Approval request submitted — an admin operator must approve from the Approvals tab.' };
         }
         if (currentRole === 'helpdesk' && w && _stdout.includes('BLOCKED: Operator role')) {
-          return { approvalRequired: true, message: 'This user holds privileged Entra directory roles. In Live mode, this leaver would be routed to the Approvals tab for admin sign-off.' };
+          return { approvalRequired: true, message: 'This user holds privileged roles. In Live mode, this leaver would be routed to the Approvals tab for admin sign-off.' };
         }
         throw _lErr;
       }
@@ -1353,6 +1389,15 @@ ipcMain.on('approve-pending', (event, payload) => {
     const file = path.join(PENDING_DIR, id + '.json');
     if (!fs.existsSync(file)) { event.sender.send('approve-result', { ok: false, error: 'Not found' }); return; }
     const op   = readJson(file);
+
+    // Role gate: if the pending record requires admin, only admin can approve
+    const reqRole = op.requiredApproverRole || 'helpdesk';
+    const actorRole = (currentRole || 'viewer').toLowerCase();
+    if (reqRole === 'admin' && actorRole !== 'admin') {
+      event.sender.send('approve-result', { ok: false, error: 'Insufficient role — this action requires an admin operator to approve.' });
+      return;
+    }
+
     const inp  = op.input || op;
     const tool = (op.tool || '').toLowerCase();
     let raw;
@@ -1566,6 +1611,7 @@ ipcMain.handle('save-ai-provider-config', (_, { config }) => {
       if (config[key].apiKey === '••••') merged[key].apiKey = _aiProviderConfig[key]?.apiKey || '';
     }
     _aiProviderConfig = merged;
+    _cachedProvider   = null; // force rebuild on next use
     _saveProviderConfig(AI_PROVIDER_CONFIG_FILE, merged);
     return { ok: true };
   } catch (err) {

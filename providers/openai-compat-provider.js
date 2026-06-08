@@ -43,9 +43,14 @@ function toOpenAIMessages(messages) {
           function: { name: b.name, arguments: JSON.stringify(b.input) }
         }));
         const entry = { role: 'assistant' };
-        if (textStr)         entry.content    = textStr;
-        if (tool_calls.length) entry.tool_calls = tool_calls;
-        if (!textStr && !tool_calls.length) entry.content = '';
+        if (tool_calls.length) {
+          // OpenAI spec: content MUST be null (not a string) when tool_calls is present.
+          // Setting both causes HTTP 400 on Azure AI Foundry and many Ollama models.
+          entry.content    = null;
+          entry.tool_calls = tool_calls;
+        } else {
+          entry.content = textStr || '';
+        }
         out.push(entry);
       }
     }
@@ -64,10 +69,11 @@ class OpenAICompatProvider {
    * @param {string}  opts.agentModel        Model/deployment for the main agent loop
    * @param {string}  opts.fastModel         Model/deployment for quick utility calls
    */
-  constructor({ apiKey, baseURL, isAzure, azureEndpoint, azureApiVersion, agentModel, fastModel }) {
-    this.agentModel = agentModel;
-    this.fastModel  = fastModel;
-    this.isAzure    = !!isAzure;
+  constructor({ apiKey, baseURL, isAzure, azureEndpoint, azureApiVersion, agentModel, fastModel, providerName }) {
+    this.agentModel    = agentModel;
+    this.fastModel     = fastModel;
+    this.isAzure       = !!isAzure;
+    this._providerName = providerName || (isAzure ? 'azure-openai' : 'openai');
 
     if (isAzure) {
       const { AzureOpenAI } = require('openai');
@@ -83,7 +89,7 @@ class OpenAICompatProvider {
     }
   }
 
-  get name() { return this.isAzure ? 'azure-openai' : 'openai'; }
+  get name() { return this._providerName; }
 
   async streamTurn({ system, tools, messages, onText, onToolStart }) {
     const openAiMessages = [
