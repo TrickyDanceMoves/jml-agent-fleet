@@ -3540,7 +3540,7 @@ function loadSettings() {
 
 // ── AI Provider settings ──────────────────────────────────────────────────────
 (function () {
-  const SECTIONS = ['claude', 'openai', 'azure-openai', 'ollama'];
+  const SECTIONS = ['claude', 'openai', 'azure-foundry', 'azure-openai', 'ollama'];
 
   function showSection(provider) {
     SECTIONS.forEach(p => {
@@ -3572,6 +3572,13 @@ function loadSettings() {
     setVal('ai-openai-agent-model',o.agentModel || 'gpt-4o');
     setVal('ai-openai-fast-model', o.fastModel  || 'gpt-4o-mini');
 
+    // Azure AI Foundry
+    const af = cfg['azure-foundry'] || {};
+    setVal('ai-foundry-key',        af.apiKey     || '');
+    setVal('ai-foundry-endpoint',   af.endpoint   || 'https://models.inference.ai.azure.com');
+    setVal('ai-foundry-agent-model',af.agentModel || 'gpt-4o');
+    setVal('ai-foundry-fast-model', af.fastModel  || 'gpt-4o-mini');
+
     // Azure OpenAI
     const az = cfg['azure-openai'] || {};
     setVal('ai-azure-key',         az.apiKey          || '');
@@ -3595,7 +3602,7 @@ function loadSettings() {
   function updateStatusPip(provider) {
     const pip = document.getElementById('ai-provider-status-pip');
     if (!pip) return;
-    const labels = { claude: 'Claude', openai: 'OpenAI', 'azure-openai': 'Azure OpenAI', ollama: 'Ollama' };
+    const labels = { claude: 'Claude', openai: 'OpenAI', 'azure-foundry': 'Azure AI Foundry', 'azure-openai': 'Azure OpenAI', ollama: 'Ollama' };
     pip.innerHTML = `<span class="d" style="background:var(--green)"></span>${labels[provider] || provider || 'None'}`;
   }
 
@@ -3619,6 +3626,12 @@ function loadSettings() {
         apiKey:     getVal('ai-openai-key'),
         agentModel: getVal('ai-openai-agent-model') || 'gpt-4o',
         fastModel:  getVal('ai-openai-fast-model')  || 'gpt-4o-mini'
+      },
+      'azure-foundry': {
+        apiKey:     getVal('ai-foundry-key'),
+        endpoint:   getVal('ai-foundry-endpoint')    || 'https://models.inference.ai.azure.com',
+        agentModel: getVal('ai-foundry-agent-model') || 'gpt-4o',
+        fastModel:  getVal('ai-foundry-fast-model')  || 'gpt-4o-mini'
       },
       'azure-openai': {
         apiKey:          getVal('ai-azure-key'),
