@@ -2237,6 +2237,22 @@
                   <button class="btn primary" id="ai-provider-save-btn">Save</button>
                   <span id="ai-provider-feedback" style="font-family:var(--mono);font-size:11.5px;color:var(--muted);margin-left:4px"></span>
                 </div>
+
+                <!-- AI observability — model run telemetry across all providers -->
+                <div style="border-top:1px solid var(--border);padding:14px 18px">
+                  <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+                    <div class="section-label" style="margin:0">AI Activity · run telemetry</div>
+                    <span style="flex:1"></span>
+                    <button class="btn ghost sm" id="ai-traces-refresh">Refresh</button>
+                  </div>
+                  <div id="ai-traces-summary" style="display:flex;gap:18px;flex-wrap:wrap;font-family:var(--mono);font-size:11.5px;color:var(--text-2);margin-bottom:10px">
+                    <span>runs <b id="ai-tr-count" style="color:var(--text)">—</b></span>
+                    <span>in <b id="ai-tr-in" style="color:var(--cyan)">—</b></span>
+                    <span>out <b id="ai-tr-out" style="color:var(--cyan)">—</b></span>
+                    <span>avg latency <b id="ai-tr-lat" style="color:var(--text)">—</b></span>
+                  </div>
+                  <div id="ai-traces-list" style="font-family:var(--mono);font-size:11px;color:var(--text-3);max-height:200px;overflow-y:auto"></div>
+                </div>
               </div>
 
               <div class="set-card set-sub" data-sub="appearance" style="display:none">

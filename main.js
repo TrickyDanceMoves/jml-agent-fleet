@@ -54,6 +54,16 @@ function getAIProvider() {
   return _cachedProvider;
 }
 
+// AI observability — append a trace line per model turn (provider, model, latency,
+// tokens). Gives Foundry-style run telemetry regardless of which provider is active.
+const AI_TRACES_FILE = path.join(AGENTS_DIR, 'approver', 'ai-traces.jsonl');
+function recordAITrace(agent, trace) {
+  try {
+    const line = JSON.stringify({ ts: new Date().toISOString(), agent, ...trace });
+    fs.appendFileSync(AI_TRACES_FILE, line + '\n', 'utf8');
+  } catch {}
+}
+
 // ── Agent state ───────────────────────────────────────────────────────────────
 const state = {
   approver: { messages: [], whatif: true },
@@ -947,6 +957,7 @@ async function runAgentLoop(sender, agent, userText) {
     });
 
     agentState.messages.push({ role: 'assistant', content: response.content });
+    if (response.trace) recordAITrace(agent, response.trace);
 
     if (response.stopReason === 'end_turn') break;
 
@@ -1687,6 +1698,22 @@ ipcMain.handle('save-ai-provider-config', (_, { config }) => {
     return { ok: true };
   } catch (err) {
     return { ok: false, error: err.message };
+  }
+});
+
+ipcMain.handle('get-ai-traces', (_, payload) => {
+  try {
+    if (!fs.existsSync(AI_TRACES_FILE)) return { traces: [], summary: { count: 0 } };
+    const limit = (payload && payload.limit) || 50;
+    const lines = fs.readFileSync(AI_TRACES_FILE, 'utf8').trim().split('\n').filter(Boolean);
+    const all = lines.map(l => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean);
+    const recent = all.slice(-limit).reverse();
+    const totIn  = all.reduce((s, t) => s + (t.inputTokens  || 0), 0);
+    const totOut = all.reduce((s, t) => s + (t.outputTokens || 0), 0);
+    const avgLat = all.length ? Math.round(all.reduce((s, t) => s + (t.latencyMs || 0), 0) / all.length) : 0;
+    return { traces: recent, summary: { count: all.length, totalInputTokens: totIn, totalOutputTokens: totOut, avgLatencyMs: avgLat } };
+  } catch (err) {
+    return { traces: [], summary: { count: 0 }, error: err.message };
   }
 });
 
