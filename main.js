@@ -785,24 +785,31 @@ function routeBlockedLeaverToApproval(input, stage, reason, requiredApproverRole
   return token;
 }
 
-// Extract and parse a JSON object from PowerShell stdout that may contain
-// non-JSON header lines or pretty-printed (multi-line) ConvertTo-Json output.
+// Extract and parse JSON from PowerShell stdout that may contain non-JSON
+// header lines or pretty-printed (multi-line) ConvertTo-Json output.
 function _parseMultilineJson(raw, emptyMsg) {
   const trimmed = raw.trim();
   if (!trimmed) return { error: emptyMsg || 'No output from script' };
   // Fast path: entire output is valid JSON
   try { return JSON.parse(trimmed); } catch {}
-  // Slow path: find the { ... } block spanning multiple lines
+  // Slow path: find a { ... } or [ ... ] block spanning multiple lines.
+  // Avoid log lines like "[Certifier]" by only accepting "[" or "[{"/"[]".
   const ls = trimmed.split('\n');
-  const start = ls.findIndex(l => l.trim().startsWith('{'));
-  if (start < 0) return { error: emptyMsg || 'No JSON output from script' };
-  let end = -1;
-  for (let i = ls.length - 1; i >= start; i--) {
-    if (/^\s*\}\s*$/.test(ls[i])) { end = i; break; }
+  const isStart = (line) => {
+    const t = line.trim();
+    return t.startsWith('{') || t === '[' || t.startsWith('[{') || t.startsWith('[]');
+  };
+  for (let start = 0; start < ls.length; start++) {
+    if (!isStart(ls[start])) continue;
+    const t = ls[start].trim();
+    const close = t.startsWith('{') ? '}' : ']';
+    for (let end = ls.length - 1; end >= start; end--) {
+      if (!ls[end].trim().endsWith(close)) continue;
+      const block = ls.slice(start, end + 1).join('\n');
+      try { return JSON.parse(block); } catch {}
+    }
   }
-  const block = ls.slice(start, end >= 0 ? end + 1 : undefined).join('\n');
-  try { return JSON.parse(block); }
-  catch (ex) { return { error: `JSON parse error: ${ex.message}`, raw: trimmed.slice(0, 400) }; }
+  return { error: 'JSON parse error: no parseable object or array found', raw: trimmed.slice(0, 400) };
 }
 
 function parsePs1Output(raw) {
@@ -835,8 +842,7 @@ function executeTool(agent, toolName, input, whatif) {
     if (input.days) params.Days = input.days;
     if (input.topN) params.TopN = input.topN;
     const raw = runPs(script, params);
-    const jsonLine = raw.trim().split('\n').filter(l => l.trim().startsWith('{')).pop();
-    return jsonLine ? JSON.parse(jsonLine) : { error: 'No output' };
+    return _parseMultilineJson(raw, 'No output from auditor query script');
   }
 
   const w = whatif ? true : false;
@@ -1591,9 +1597,8 @@ ipcMain.on('run-certification', (event, { campaignType, whatif }) => {
     const lines  = raw.trim().split('\n')
       .filter(l => /\[Certifier\]/.test(l))
       .map(l => l.replace(/^\[\d{2}:\d{2}:\d{2}\] /, '').trim());
-    const jsonLine = raw.trim().split('\n').filter(l => l.trim().startsWith('[')).pop();
-    let campaigns = [];
-    try { if (jsonLine) campaigns = JSON.parse(jsonLine); } catch {}
+    const parsed = _parseMultilineJson(raw, 'No certification campaign output');
+    const campaigns = Array.isArray(parsed) ? parsed : [];
     event.sender.send('certification-result', { ok: true, campaigns, lines });
   } catch (err) {
     event.sender.send('certification-result', { ok: false, error: err.message, campaigns: [], lines: [] });
@@ -2539,6 +2544,9 @@ const TAB_INJECT = {
         </div></div></div>
       \`;
       c.scrollTop = c.scrollHeight;
+      if (typeof window.__jmlSetApproverDemoLifecycle === 'function') {
+        window.__jmlSetApproverDemoLifecycle();
+      }
     })();
   `,
   auditor: `
@@ -2577,6 +2585,12 @@ const TAB_INJECT = {
         lastMsg.appendChild(wrap);
       }
       c.scrollTop = c.scrollHeight;
+      if (typeof window.__jmlSetAuditorDemoRail === 'function') {
+        window.__jmlSetAuditorDemoRail(
+          'Any off-hours or suspicious access patterns?',
+          '2 critical UEBA findings. 3 failed/partial entries in the last 7 days. Robert Martinez is confirmedCompromised; sessions were auto-revoked.'
+        );
+      }
     })();
   `,
   users: `
@@ -2600,6 +2614,8 @@ const TAB_INJECT = {
         <div class="ac-item"><span class="ac-name">Marcus Johnson</span><span class="ac-upn">marcus.johnson@contoso.onmicrosoft.com</span></div>
         <div class="ac-item"><span class="ac-name">Sales Lead</span><span class="ac-upn">jennifer.lee@contoso.onmicrosoft.com</span></div>
       \`;
+      const cnt = document.getElementById('user-search-count');
+      if (cnt) cnt.textContent = '3';
     })();
   `,
   graph: `
@@ -2635,8 +2651,10 @@ const TAB_INJECT = {
 async function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
 async function runCapture() {
-  currentOperator = 'admin';
-  process.env.JML_CONSOLE_OPERATOR = 'admin';
+  // Use the configured admin operator so demo captures show the intended
+  // approval path instead of falling back to viewer permissions.
+  currentOperator = 'Nick';
+  process.env.JML_CONSOLE_OPERATOR = 'Nick';
 
   // ── Operator selector ──────────────────────────────────────────────────────
   createOperatorWindow();
@@ -2657,6 +2675,12 @@ async function runCapture() {
   });
   win.loadFile(path.join(__dirname, 'renderer', 'index.html'));
   await new Promise(r => win.webContents.once('did-finish-load', r));
+  await win.webContents.executeJavaScript(`
+    try {
+      localStorage.setItem('jml-sidebar-collapsed', '0');
+      document.querySelector('.layout')?.classList.remove('sidebar-collapsed');
+    } catch (_) {}
+  `);
   await sleep(1200);
 
   // Pre-send mock data so dashboard/certs show content without Graph connection
@@ -2680,10 +2704,21 @@ async function runCapture() {
           el.style.maxHeight = 'none';
         });
       });
+      // Keep inactive views truly hidden. Previous capture passes add inline
+      // layout styles to the active view; when that view later becomes inactive
+      // those inline styles must not leak into the next screenshot.
+      document.querySelectorAll('.view:not(.active)').forEach(el => {
+        el.style.display   = 'none';
+        el.style.overflow  = '';
+        el.style.maxHeight = '';
+        el.style.height    = '';
+        el.style.opacity   = '';
+      });
       // Active view — expand to full content height so all content renders.
       // Also kill the viewfade animation (opacity starts at 0 with fill-mode:both)
       // which can freeze at opacity=0 in software-render / --disable-gpu mode.
       document.querySelectorAll('.view.active').forEach(el => {
+        el.style.display   = 'block';
         el.style.animation = 'none';
         el.style.opacity   = '1';
         el.style.overflow  = 'visible';
@@ -2740,14 +2775,54 @@ async function runCapture() {
     if (img) { fs.writeFileSync(path.join(CAPTURE_OUT, 'jml-fleet-input.png'), img.toPNG()); console.log('Captured: jml-fleet-input'); }
   }
 
-  for (const [tab, ipcJs, wait] of TABS) {
-    // Navigate — try switchTab first, fall back to clicking the nav button
+  let lastFrameHash = null;
+  let lastFrameTab  = null;
+
+  async function forceCapturePaint() {
+    const [w, h] = win.getSize();
+    // Software-render capture can return the previous compositor frame unless
+    // Chromium has a real resize/paint boundary between tab switches.
+    win.setSize(w + 1, h, false);
+    await sleep(80);
+    win.setSize(w, h, false);
+    win.webContents.invalidate();
     await win.webContents.executeJavaScript(`
-      try {
-        if (typeof switchTab === 'function') switchTab(${JSON.stringify(tab)});
-        else document.querySelector('[data-tab="${tab}"]')?.click();
-      } catch(e) {}
+      new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))
     `);
+    await sleep(250);
+  }
+
+  for (const [tab, ipcJs, wait] of TABS) {
+    // Navigate — reset capture inline styles first, then force a single active
+    // view after switchTab so stale frames cannot remain visible.
+    const activeViewId = await win.webContents.executeJavaScript(`
+      (function(){
+        const tab = ${JSON.stringify(tab)};
+        document.querySelectorAll('.view').forEach(el => {
+          el.style.display = '';
+          el.style.overflow = '';
+          el.style.maxHeight = '';
+          el.style.height = '';
+          el.style.opacity = '';
+        });
+        try {
+          if (typeof switchTab === 'function') switchTab(tab);
+          else document.querySelector('[data-tab="' + tab + '"]')?.click();
+        } catch(e) {}
+        document.querySelectorAll('.nav-item').forEach(el => el.classList.toggle('active', el.dataset.tab === tab));
+        document.querySelectorAll('.view').forEach(el => {
+          const active = el.id === 'view-' + tab;
+          el.classList.toggle('active', active);
+          el.style.display = active ? 'block' : 'none';
+        });
+        const crumb = document.getElementById('crumb-cur');
+        if (crumb && typeof TAB_TITLES !== 'undefined') crumb.textContent = TAB_TITLES[tab] || tab;
+        return document.querySelector('.view.active')?.id || '';
+      })()
+    `);
+    if (activeViewId !== 'view-' + tab) {
+      console.warn(`Capture navigation warning: requested ${tab}, active ${activeViewId || '(none)'}`);
+    }
     await sleep(500);
     if (ipcJs) {
       try { await win.webContents.executeJavaScript(ipcJs); } catch(e) { /* IPC trigger failed — skip */ }
@@ -2757,20 +2832,27 @@ async function runCapture() {
     if (tab === 'dashboard') {
       win.webContents.send('dashboard-stats', MOCK_DASHBOARD);
       win.webContents.send('agent-health',    MOCK_AGENT_HEALTH);
+      win.webContents.send('pending-approvals', MOCK_APPROVALS);
     }
     await sleep(wait);
     if (TAB_INJECT[tab]) await win.webContents.executeJavaScript(TAB_INJECT[tab]);
     await win.webContents.executeJavaScript(REMOVE_OVERFLOW);
     // Force a fresh paint before capture (especially needed in --disable-gpu / software render mode)
-    win.webContents.invalidate();
-    await sleep(800);
+    await forceCapturePaint();
     let img;
     for (let attempt = 0; attempt < 3; attempt++) {
       try { img = await win.webContents.capturePage(); break; }
       catch (e) { console.warn(`capturePage attempt ${attempt + 1} failed: ${e.message}`); await sleep(600); }
     }
     if (!img) { console.error('capturePage failed for', tab, '- skipping'); continue; }
-    fs.writeFileSync(path.join(CAPTURE_OUT, tab + '.png'), img.toPNG());
+    const png = img.toPNG();
+    const frameHash = crypto.createHash('sha256').update(png).digest('hex');
+    if (lastFrameHash === frameHash) {
+      console.warn(`Capture warning: ${tab}.png is identical to ${lastFrameTab}.png`);
+    }
+    lastFrameHash = frameHash;
+    lastFrameTab = tab;
+    fs.writeFileSync(path.join(CAPTURE_OUT, tab + '.png'), png);
     console.log('Captured:', tab);
   }
   app.quit();

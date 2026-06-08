@@ -785,6 +785,17 @@ function updateLifecycleState(stepLabel, state) {
   // Replaced by the new state machine above; no-op for legacy calls
 }
 
+window.__jmlSetApproverDemoLifecycle = function () {
+  _lcPipeline  = ['request', 'risk', 'plan', 'soft', 'approval', 'hard'];
+  _lcDoneSet   = new Set(['request', 'risk', 'plan', 'soft']);
+  _lcCurrent   = 'approval';
+  _lcToolRan   = true;
+  _lcCapturing = false;
+  const tag = document.getElementById('lifecycle-status-tag');
+  if (tag) { tag.textContent = 'Awaiting dual approval'; tag.className = 'tag warn'; }
+  renderLifecycleMap();
+};
+
 // ── Message rendering ─────────────────────────────────────────────────────────
 function appendUserMessage(agent, text) {
   const msgs = document.getElementById('messages-' + agent);
@@ -5614,6 +5625,18 @@ function audClearState() {
   if (card)     card.style.display = 'none';
 }
 
+window.__jmlSetAuditorDemoRail = function (query, responseText) {
+  audSetActiveQuery(query || 'Show failed and suspicious operations');
+  audTrackTool('query_audit_log', 'done');
+  audTrackTool('scan_ueba_findings', 'done');
+  const msgEl = document.createElement('div');
+  const txt = document.createElement('div');
+  txt.className = 'message-text';
+  txt.textContent = responseText || '';
+  msgEl.appendChild(txt);
+  audQueryComplete(msgEl);
+};
+
 // Auditor jump-to buttons
 document.getElementById('aud-jump-log')?.addEventListener('click', () => switchTab('audit-log'));
 document.getElementById('aud-jump-security')?.addEventListener('click', () => switchTab('security'));
@@ -6027,6 +6050,13 @@ function renderTimeline(entries) {
 })();
 
 // ── User Lookup ───────────────────────────────────────────────────────────────
+
+// Attestation dialog safety net: the dialog is created dynamically, so this
+// delegated handler ensures Export Pack invokes the real evidence export path.
+document.addEventListener('click', e => {
+  if (!e.target.closest('#attest-dialog-build')) return;
+  setTimeout(() => document.getElementById('btn-export-evidence')?.click(), 0);
+}, true);
 
 // Show recently-searched users or a friendly prompt when the tab loads cold.
 function loadRecentUsers() {
