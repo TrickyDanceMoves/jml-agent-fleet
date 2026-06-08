@@ -1731,6 +1731,39 @@ ipcMain.handle('test-ai-provider', async () => {
   }
 });
 
+// ── Policy simulation ──────────────────────────────────────────────────────────
+// Read-only: runs the same risk/policy engine as score_risk without executing.
+// Returns the decision (allow / warn / requires_approval / blocked), matched
+// policies, risk level, and dual-approval requirement.
+ipcMain.handle('simulate-policy', (_, payload) => {
+  const { operation, userPrincipalName, licenses, groups, newDepartment } = payload || {};
+  if (!operation || !userPrincipalName) {
+    return { ok: false, error: 'operation and userPrincipalName are required' };
+  }
+  try {
+    const raw = runPs(path.join(AGENTS_DIR, 'auditor', 'Invoke-RiskScore.ps1'), {
+      Operation:         operation,
+      UserPrincipalName: userPrincipalName,
+      Licenses:          licenses || '',
+      Groups:            groups || '',
+      NewDepartment:     newDepartment || ''
+    });
+    const result = _parseMultilineJson(raw, 'No output from risk score script');
+    if (result && !result.error) {
+      // Derive a plain-English decision from the engine output
+      const lvl = (result.riskLevel || result.level || '').toLowerCase();
+      let decision = 'allow';
+      if (result.blocked || lvl === 'critical') decision = 'blocked';
+      else if (result.dualApproval || lvl === 'high') decision = 'requires_approval';
+      else if (lvl === 'medium') decision = 'warn';
+      result.decision = decision;
+    }
+    return result;
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+});
+
 // ── Agent quarantine (kill switch) ─────────────────────────────────────────────
 ipcMain.handle('quarantine-agent', async (event, payload) => {
   const { agent, reason, whatif, revoke, writeToken } = payload || {};

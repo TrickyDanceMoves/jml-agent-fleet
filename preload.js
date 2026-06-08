@@ -66,6 +66,9 @@ contextBridge.exposeInMainWorld('api', {
   // Agent quarantine (kill switch) — invoke, returns { ok, ... }
   quarantineAgent: (payload) => ipcRenderer.invoke('quarantine-agent', payload),
 
+  // Policy simulation — read-only decision preview
+  simulatePolicy: (payload) => ipcRenderer.invoke('simulate-policy', payload),
+
   getHrQueue:      ()   => ipcRenderer.send('get-hr-queue'),
   onHrQueue:       (cb) => ipcRenderer.on('hr-queue', (_, d) => cb(d)),
 

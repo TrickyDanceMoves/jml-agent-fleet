@@ -1013,6 +1013,33 @@
             </div>
           </details>
 
+          <!-- Policy Simulation -->
+          <details class="collapse" id="ops-policy-sim">
+            <summary>Policy Simulation <span style="font-family:var(--mono);font-size:11px;color:var(--muted);margin-left:6px">· dry-run · no changes</span></summary>
+            <div class="collapse-body dense">
+              <div class="qop-form">
+                <div class="qop-row">
+                  <label>Operation</label>
+                  <select id="ps-operation">
+                    <option value="joiner">Joiner</option>
+                    <option value="enroller">Enroller</option>
+                    <option value="mover">Mover</option>
+                    <option value="leaver_soft">Leaver (Soft)</option>
+                    <option value="leaver_hard">Leaver (Hard)</option>
+                  </select>
+                </div>
+                <div class="qop-row"><label>User UPN</label><input id="ps-upn" type="text" placeholder="user@tenant" autocomplete="off"></div>
+                <div class="qop-row"><label>Licenses</label><input id="ps-licenses" type="text" placeholder="comma-separated SKUs (optional)"></div>
+                <div class="qop-row"><label>Groups</label><input id="ps-groups" type="text" placeholder="comma-separated groups (optional)"></div>
+                <div class="qop-row"><label>New Dept</label><input id="ps-dept" type="text" placeholder="for movers (optional)"></div>
+              </div>
+              <div class="qop-actions">
+                <button class="btn" id="btn-policy-sim">Simulate</button>
+              </div>
+              <div class="qop-result" id="ps-result"></div>
+            </div>
+          </details>
+
           <!-- Bulk Import -->
           <details class="collapse" id="ops-bulk-import">
             <summary>Bulk Import <span style="font-family:var(--mono);font-size:11px;color:var(--muted);margin-left:6px">· CSV joiner batch</span></summary>
