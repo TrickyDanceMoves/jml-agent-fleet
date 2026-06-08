@@ -899,6 +899,13 @@ window.api.onComplete(({ agent }) => {
   // Advance lifecycle / query state on completion
   if (agent === 'approver') lcMarkComplete();
   if (agent === 'auditor')  audQueryComplete(currentMsgEl[agent]);
+
+  // Real-time security refresh: if a remediation was routed from the Security page,
+  // re-scan findings 4s after the operation completes to reflect the state change.
+  if (agent === 'approver' && window._secRefreshAfterOp) {
+    window._secRefreshAfterOp = false;
+    setTimeout(() => window.api.getSecurityReports(), 4000);
+  }
   const msgEl = currentMsgEl[agent];
   if (msgEl) {
     const thinkEl = msgEl.querySelector('.thinking-indicator');
@@ -1448,6 +1455,7 @@ function focusFinding(idx) {
     ).join('');
   }
 
+  _updateRemButtonAccess();
   // Inline remediation — show per-finding-type quick actions that route to Approver
   const remLabel   = document.getElementById('sec-rem-label');
   const remBtns    = document.getElementById('sec-rem-btns');
@@ -1751,12 +1759,30 @@ document.getElementById('sec-drift-restore-v2')?.addEventListener('click', () =>
 });
 
 // ── Security inline remediation buttons ──────────────────────────────────────
+// Only admin/helpdesk can take remediation actions; viewers see buttons disabled.
+function _updateRemButtonAccess() {
+  const canWrite = ['admin','helpdesk'].includes(currentOperatorRole());
+  ['sec-rem-disable','sec-rem-revoke','sec-rem-mfa','sec-rem-groups'].forEach(id => {
+    const btn = document.getElementById(id);
+    if (!btn) return;
+    btn.disabled = !canWrite;
+    btn.title    = canWrite ? '' : 'Requires admin or helpdesk role';
+    btn.style.opacity = canWrite ? '' : '0.45';
+  });
+}
+
 function _secRemRoute(promptTemplate) {
+  if (!['admin','helpdesk'].includes(currentOperatorRole())) {
+    showToast('Remediation requires admin or helpdesk role', 'error');
+    return;
+  }
   const subject = document.getElementById('sec-rem-btns')?.dataset.subject || '';
   const msg     = subject
     ? promptTemplate.replace('{subject}', subject)
     : promptTemplate.replace(' {subject}', '').replace('{subject}', 'this user');
   switchTab('approver');
+  // Schedule a security re-scan after the approver finishes — finding should resolve
+  window._secRefreshAfterOp = true;
   setTimeout(() => {
     const inp = document.getElementById('chat-input-approver');
     if (inp) { inp.value = msg; inp.focus(); }
@@ -2661,36 +2687,48 @@ function highlightJson(text) {
 }
 
 function renderMarkdown(text) {
-  // Parse GFM-style markdown into styled HTML
   const lines = text.split('\n');
   const out = [];
   let i = 0;
 
+  // Helpers
+  const isBullet   = l => /^\s*[-*•]\s/.test(l);
+  const isNumList  = l => /^\s*\d+\.\s/.test(l);
+  const isTaskItem = l => /^\s*[-*]\s+\[[ xX]\]\s/.test(l);
+  const isBlockq   = l => /^\s*>\s?/.test(l);
+
   while (i < lines.length) {
-    const raw = lines[i];
+    const raw  = lines[i];
     const line = raw.trimEnd();
 
-    // Blank line
+    // Blank line — skip
     if (!line.trim()) { i++; continue; }
 
     // Heading
     const hm = line.match(/^(#{1,3})\s+(.+)/);
     if (hm) {
-      const lvl = hm[1].length;
-      out.push('<div class="md-h' + lvl + '">' + inlineMarkdown(hm[2]) + '</div>');
+      out.push('<div class="md-h' + hm[1].length + '">' + inlineMarkdown(hm[2]) + '</div>');
       i++; continue;
     }
 
     // Horizontal rule
-    if (/^---+$/.test(line.trim())) { out.push('<div class="md-hr"></div>'); i++; continue; }
+    if (/^[-*]{3,}$/.test(line.trim())) { out.push('<div class="md-hr"></div>'); i++; continue; }
 
-    // Pipe table — collect all consecutive pipe rows
+    // Blockquote — collect consecutive lines
+    if (isBlockq(line)) {
+      const bqLines = [];
+      while (i < lines.length && (isBlockq(lines[i]) || (bqLines.length && lines[i].trim()))) {
+        bqLines.push(lines[i].replace(/^\s*>\s?/, ''));
+        i++;
+      }
+      out.push('<div class="md-blockquote">' + inlineMarkdown(bqLines.join(' ')) + '</div>');
+      continue;
+    }
+
+    // Pipe table
     if (line.trim().startsWith('|')) {
       const tableLines = [];
-      while (i < lines.length && lines[i].trim().startsWith('|')) {
-        tableLines.push(lines[i]); i++;
-      }
-      // Skip separator rows (---|---)
+      while (i < lines.length && lines[i].trim().startsWith('|')) { tableLines.push(lines[i]); i++; }
       const rows = tableLines.filter(l => !/^\s*\|[\s\-:|]+\|\s*$/.test(l));
       if (rows.length) {
         const parseRow = l => l.replace(/^\||\|$/g, '').split('|').map(c => c.trim());
@@ -2707,11 +2745,25 @@ function renderMarkdown(text) {
       continue;
     }
 
-    // Bullet list — collect consecutive items
-    if (/^\s*[-*]\s/.test(line)) {
+    // Task list (must come before bullet so `- [x]` isn't consumed as a plain bullet)
+    if (isTaskItem(line)) {
       out.push('<ul class="md-list">');
-      while (i < lines.length && /^\s*[-*]\s/.test(lines[i])) {
-        out.push('<li>' + inlineMarkdown(lines[i].replace(/^\s*[-*]\s+/, '')) + '</li>');
+      while (i < lines.length && isTaskItem(lines[i])) {
+        const done = /^\s*[-*]\s+\[[xX]\]/.test(lines[i]);
+        const body = lines[i].replace(/^\s*[-*]\s+\[[ xX]\]\s*/, '');
+        out.push('<li><span class="md-task-check">' + (done ? '☑' : '☐') + '</span>'
+          + '<span class="' + (done ? 'md-task-done' : '') + '">' + inlineMarkdown(body) + '</span></li>');
+        i++;
+      }
+      out.push('</ul>');
+      continue;
+    }
+
+    // Bullet list — `-`, `*`, or `•` prefixes all treated as list items
+    if (isBullet(line)) {
+      out.push('<ul class="md-list">');
+      while (i < lines.length && isBullet(lines[i])) {
+        out.push('<li>' + inlineMarkdown(lines[i].replace(/^\s*[-*•]\s+/, '')) + '</li>');
         i++;
       }
       out.push('</ul>');
@@ -2719,13 +2771,25 @@ function renderMarkdown(text) {
     }
 
     // Numbered list
-    if (/^\s*\d+\.\s/.test(line)) {
+    if (isNumList(line)) {
       out.push('<ol class="md-list">');
-      while (i < lines.length && /^\s*\d+\.\s/.test(lines[i])) {
+      while (i < lines.length && isNumList(lines[i])) {
         out.push('<li>' + inlineMarkdown(lines[i].replace(/^\s*\d+\.\s+/, '')) + '</li>');
         i++;
       }
       out.push('</ol>');
+      continue;
+    }
+
+    // Fenced code block
+    if (/^```/.test(line)) {
+      const lang = line.replace(/^```/, '').trim();
+      const codeLines = [];
+      i++;
+      while (i < lines.length && !/^```/.test(lines[i])) { codeLines.push(lines[i]); i++; }
+      i++; // consume closing ```
+      out.push('<pre' + (lang ? ' data-lang="' + escHtml(lang) + '"' : '') + '><code>'
+        + escHtml(codeLines.join('\n')) + '</code></pre>');
       continue;
     }
 
@@ -2739,14 +2803,24 @@ function renderMarkdown(text) {
 
 function inlineMarkdown(text) {
   return escHtml(text)
+    // Bold+italic together first
+    .replace(/\*\*\*([^*]+)\*\*\*/g, '<strong><em>$1</em></strong>')
+    // Bold
     .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
-    .replace(/\*([^*]+)\*/g, '<em>$1</em>')
-    .replace(/`([^`]+)`/g, '<code class="md-code">$1</code>')
-    .replace(/&#x2705;/g, '<span class="md-check">&#x2705;</span>')
-    .replace(/&#x274C;/g, '<span class="md-cross">&#x274C;</span>')
+    // Italic
+    .replace(/\*([^*\s][^*]*)\*/g, '<em>$1</em>')
+    // Strikethrough
+    .replace(/~~([^~]+)~~/g, '<del>$1</del>')
+    // Inline code (do before links so backticks aren't processed inside links)
+    .replace(/`([^`]+)`/g, '<code>$1</code>')
+    // Links [text](url) — only http/https to avoid XSS
+    .replace(/\[([^\]]+)\]\((https?:\/\/[^)]+)\)/g, '<a class="md-link" href="$2" target="_blank" rel="noopener">$1</a>')
+    // Emoji status markers
     .replace(/✅/g, '<span class="md-check">✅</span>')
     .replace(/❌/g, '<span class="md-cross">❌</span>')
-    .replace(/⚠️/g, '<span class="md-warn">⚠️</span>');
+    .replace(/⚠️/g, '<span class="md-warn">⚠️</span>')
+    .replace(/&#x2705;/g, '<span class="md-check">✅</span>')
+    .replace(/&#x274C;/g, '<span class="md-cross">❌</span>');
 }
 
 // ── Approvals tab ─────────────────────────────────────────────────────────────
@@ -3108,8 +3182,13 @@ window.api.onPendingApprovals((data) => {
   });
 });
 
-window.api.onApproveResult((data) => { loadApprovals(); });
-window.api.onRejectResult((data)  => { loadApprovals(); });
+window.api.onApproveResult((data) => {
+  loadApprovals();
+  // Approval granted — refresh security findings after brief delay so any newly
+  // cleared findings (e.g. leaver-then-group-add) can resolve
+  setTimeout(() => window.api.getSecurityReports(), 3500);
+});
+window.api.onRejectResult((data) => { loadApprovals(); });
 
 // Live TTL countdown on approval cards (1-second tick)
 setInterval(() => {
@@ -4552,6 +4631,8 @@ function setSidebarOperator(name) {
     }
   }
   updateDashGreeting(name);
+  // Re-evaluate security remediation button access when operator changes
+  _updateRemButtonAccess();
 }
 
 // Click avatar → Electron native dialog → crop+resize done in main process → store data URL
