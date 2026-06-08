@@ -5771,12 +5771,33 @@ function applyAuditFilters() {
   const countEl = document.getElementById('log-count');
   if (countEl) countEl.textContent = filtered.length + ' entries';
 
+  window._filteredAuditEntries = filtered; // consumed by the evidence-packet export
+
   if (_timelineActive) {
     renderTimeline(filtered);
   } else {
     renderAuditTable(filtered);
   }
 }
+
+// ── Evidence packet export ────────────────────────────────────────────────────
+document.getElementById('btn-export-evidence')?.addEventListener('click', async () => {
+  if (typeof window.api?.exportEvidencePacket !== 'function') return;
+  const btn = document.getElementById('btn-export-evidence');
+  const filtered = window._filteredAuditEntries || window._allAuditEntries || [];
+  const hashes = filtered.map(e => e.hash).filter(Boolean);
+  if (!hashes.length) { showToast('No audit entries to export', 'warning'); return; }
+  btn.disabled = true; const orig = btn.textContent; btn.textContent = 'Exporting…';
+  const r = await window.api.exportEvidencePacket({ hashes });
+  btn.disabled = false; btn.textContent = orig;
+  if (r && r.ok) {
+    showToast(`Evidence packet exported (${r.count} entries) — integrity: ${/PASS/i.test(r.integrity) ? 'verified' : 'see packet'}`, 'success');
+  } else if (r && r.canceled) {
+    /* user cancelled save dialog */
+  } else {
+    showToast('Export failed: ' + (r?.error || 'unknown'), 'error');
+  }
+});
 
 function renderAuditTable(entries) {
   const tbody    = document.getElementById('log-tbody');
