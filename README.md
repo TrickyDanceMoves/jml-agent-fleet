@@ -1,6 +1,8 @@
 # JML Agent Fleet
 
-AI-powered identity lifecycle automation for Microsoft Entra ID. Eight agents — two Claude-backed (Approver, Auditor) and six PowerShell — handle the full Joiner/Mover/Leaver (JML) workflow with zero-trust architecture, UEBA, drift detection, AI-assisted provisioning, and end-to-end HRIS integration, replicating core capabilities of enterprise IGA platforms like SailPoint and Saviynt.
+AI-powered identity lifecycle automation for Microsoft Entra ID. Seven agents — two AI-backed (Approver, Auditor) and five PowerShell — handle the full Joiner/Mover/Leaver (JML) workflow with zero-trust architecture, UEBA, drift detection, AI-assisted provisioning, and end-to-end HRIS integration, replicating core capabilities of enterprise IGA platforms like SailPoint and Saviynt.
+
+The AI layer is **provider-agnostic**: Approver and Auditor agents run on any OpenAI-compatible backend — **Azure AI Foundry**, Azure OpenAI, OpenAI, Anthropic Claude, or a local Ollama instance — switchable from Settings with no code change.
 
 **[Interactive Case Study](https://trickydancemoves.github.io/jml-agent-fleet/docs/case-study.html)** — walkthrough of the architecture, agent design, and live operation flows.
 
@@ -193,12 +195,26 @@ agents/auditor/                 Scheduled intelligence
 |---|---|
 | Identity platform | Microsoft Entra ID (Azure AD) |
 | Graph API | Microsoft Graph PowerShell SDK + REST |
-| AI agents | Anthropic Claude API (claude-haiku-4-5 for suggestions, claude-sonnet-4-6 for approver) |
+| AI provider | **Azure AI Foundry** · Azure OpenAI · OpenAI · Anthropic Claude · Ollama (switchable) |
 | Operations console | Electron 42, Node.js |
 | HRIS integration | Azure Functions v4 (Node.js), Azure Storage Queue, Azure Table Storage |
 | Audit export | Azure Blob Storage (SAS), Microsoft Sentinel (HTTP Data Collector API) |
 | Scripting | PowerShell 5.1 |
 | Local dev | Azurite (Azure Storage emulator) |
+
+## AI Provider Architecture
+
+The agent intelligence layer is fully abstracted behind a provider interface (`electron-app/providers/`). Every AI call — streaming agent conversations, Graph query suggestions, and API response digests — flows through the same interface regardless of which backend is configured.
+
+| Provider | Notes |
+|---|---|
+| **Azure AI Foundry** | Recommended for enterprise deployments. Connects to a Foundry project endpoint or the GitHub Models catalogue (`https://models.inference.ai.azure.com`). Supports GPT-4o, Llama, Mistral, and any model in the Azure AI model catalogue. |
+| Azure OpenAI | Direct Azure OpenAI resource with deployment-level configuration. |
+| OpenAI | OpenAI API with model selection. |
+| Anthropic Claude | Claude API with separate agent (Opus) and fast (Haiku) model slots. |
+| Ollama | Local inference — no API key or network egress required. |
+
+Switch providers in **Settings → AI Provider** without restarting the app or losing conversation history. The Anthropic message and tool-call format is used as the internal canonical format; each provider adapter converts on the fly.
 
 ## Quality Assurance
 
