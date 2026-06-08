@@ -686,6 +686,8 @@ const _TOOL_TO_LC_STAGE = {
 let _lcPipeline = ['request', 'risk', 'plan'];
 let _lcDoneSet  = new Set();
 let _lcCurrent  = null;
+let _lcToolRan  = false;   // did any tool fire this turn? (request "captured" signal)
+let _lcCapturing = false;  // request started but intent not yet fully captured
 
 function renderLifecycleMap() {
   const map = document.getElementById('lifecycle-map');
@@ -698,9 +700,16 @@ function renderLifecycleMap() {
     const meta    = _LC_META[key] || { label: key, sub: null };
     const isDone  = _lcDoneSet.has(key);
     const isCurr  = key === _lcCurrent;
-    const cls     = 'lc-state' + (isDone ? ' done' : isCurr ? ' current' : '');
-    const dot     = isDone ? '<span>✓</span>' : '';
-    const subHtml = meta.sub ? `<div class="lc-sub">${meta.sub}</div>` : '';
+    // The 'request' stage has an extra "capturing" sub-state: started but the agent
+    // is still gathering required details (e.g. user only gave a name). It is neither
+    // done nor a normal in-flight step — show it distinctly so operators know more
+    // input is needed before the request is considered captured.
+    const capturing = key === 'request' && isCurr && _lcCapturing && !isDone;
+    const cls     = 'lc-state' + (isDone ? ' done' : capturing ? ' current capturing' : isCurr ? ' current' : '');
+    const dot     = isDone ? '<span>✓</span>' : capturing ? '<span>…</span>' : '';
+    let sub = meta.sub;
+    if (key === 'request') sub = isDone ? 'intent captured' : capturing ? 'gathering details…' : 'awaiting intent';
+    const subHtml = sub ? `<div class="lc-sub">${sub}</div>` : '';
     return `<div class="${cls}" data-stage="${key}">
       <div class="lc-dot">${dot}</div>
       <div class="lc-info"><div class="lc-label">${meta.label}</div>${subHtml}</div>
@@ -712,8 +721,10 @@ function lcResetToRequest() {
   _lcPipeline = ['request', 'risk', 'plan'];
   _lcDoneSet  = new Set();
   _lcCurrent  = 'request';
+  _lcToolRan  = false;
+  _lcCapturing = true;   // a turn just started; intent not yet captured
   const tag = document.getElementById('lifecycle-status-tag');
-  if (tag) { tag.textContent = 'In Progress'; tag.className = 'tag info'; }
+  if (tag) { tag.textContent = 'Capturing'; tag.className = 'tag info'; }
   renderLifecycleMap();
 }
 
@@ -728,16 +739,31 @@ function lcAdvanceTo(stageKey) {
       _lcPipeline.splice(hi, 0, 'soft', 'approval');
     }
   }
+  // A tool fired → the request is now fully captured and actionable
+  _lcToolRan   = true;
+  _lcCapturing = false;
   // Mark everything up to (not including) stageKey as done
   const idx = _lcPipeline.indexOf(stageKey);
   for (let i = 0; i < idx; i++) _lcDoneSet.add(_lcPipeline[i]);
   _lcCurrent = stageKey;
+  const tag = document.getElementById('lifecycle-status-tag');
+  if (tag) { tag.textContent = 'In Progress'; tag.className = 'tag info'; }
   renderLifecycleMap();
 }
 
 function lcMarkComplete() {
+  // If the turn ended without any tool firing and we're still at 'request', the
+  // agent only asked a follow-up — the request is NOT captured/complete yet.
+  if (!_lcToolRan && _lcCurrent === 'request') {
+    _lcCapturing = true;
+    const tag = document.getElementById('lifecycle-status-tag');
+    if (tag) { tag.textContent = 'Awaiting details'; tag.className = 'tag warn'; }
+    renderLifecycleMap();
+    return;
+  }
   if (_lcCurrent) _lcDoneSet.add(_lcCurrent);
   _lcCurrent = null;
+  _lcCapturing = false;
   const tag = document.getElementById('lifecycle-status-tag');
   if (tag) { tag.textContent = 'Complete'; tag.className = 'tag ok'; }
   renderLifecycleMap();
@@ -747,6 +773,8 @@ function lcSetIdle() {
   _lcPipeline = ['request', 'risk', 'plan'];
   _lcDoneSet  = new Set();
   _lcCurrent  = null;
+  _lcToolRan  = false;
+  _lcCapturing = false;
   const tag = document.getElementById('lifecycle-status-tag');
   if (tag) { tag.textContent = 'Idle'; tag.className = 'tag'; }
   renderLifecycleMap();
@@ -2851,18 +2879,13 @@ function decorateAgentMentions(html) {
 }
 
 function renderV2ChatEnhancements(text) {
-  const t = (text || '').toLowerCase();
-  if (!t || currentTab !== 'approver') return '';
-  const parts = [];
-  if (/\brisk\b|\bscore\b|dual-approval|privileged|sensitive/.test(t)) {
-    // Use real tool result if available; fall back to coarse text-detected score
-    const fallbackScore = t.includes('critical') ? 86 : t.includes('low') ? 24 : 68;
-    parts.push(renderRiskScoreCard(_lastRiskResult || { score: fallbackScore }));
-  }
-  if (/\bplan\b|graph\.|revoke|disable|license|group|audit\.write|offboard|leaver/.test(t)) {
-    parts.push(renderPlanPreviewCard());
-  }
-  return parts.length ? '<div class="v2-chat-enhancements">' + parts.join('') + '</div>' : '';
+  // Synthetic chat-enhancement cards (a fabricated "plan preview" execution trace
+  // and a text-pattern-matched risk gauge with a fallback fake score) were appended
+  // to every agent reply. They showed made-up tool calls, timings, and data, which
+  // is misleading — disabled. Real risk data is stated in the agent's own text and
+  // surfaced via the actual score_risk tool result; the deterministic Policy
+  // Simulation tool (Operations tab) covers genuine policy previews.
+  return '';
 }
 
 // renderRiskScoreCard(data)
@@ -6324,6 +6347,88 @@ function loadRecentUsers() {
         (reasons.length ? '<div style="margin-top:6px;color:var(--text-2)">matched policies:</div><ul style="margin:2px 0 0 16px">' +
           reasons.map(x => '<li>' + escHtml(String(x)) + '</li>').join('') + '</ul>' : '<div style="color:var(--text-3);margin-top:4px">No policy flags — clean.</div>') +
         '</div>';
+    });
+  }
+
+  // ── Before/after access diff (read-only impact preview) ──────────────────
+  function _diffList(before, after) {
+    const b = new Set(before || []), a = new Set(after || []);
+    const removed = [...b].filter(x => !a.has(x));
+    const added   = [...a].filter(x => !b.has(x));
+    const kept    = [...b].filter(x => a.has(x));
+    return { removed, added, kept };
+  }
+  function _renderAccessDiff(snap, after, headline) {
+    const chip = (t, kind) => `<span style="display:inline-block;margin:2px 4px 2px 0;padding:1px 7px;border-radius:99px;font-size:11px;` +
+      (kind === 'rem' ? 'background:color-mix(in oklab,var(--coral),transparent 80%);color:var(--coral);text-decoration:line-through' :
+       kind === 'add' ? 'background:color-mix(in oklab,var(--emerald),transparent 80%);color:var(--emerald)' :
+       'background:var(--bg-2);color:var(--text-3)') + `">${escHtml(t)}</span>`;
+    const gd = _diffList(snap.groups, after.groups);
+    const ld = _diffList(snap.licenses, after.licenses);
+    const section = (label, d) => {
+      const parts = [];
+      d.removed.forEach(x => parts.push(chip(x, 'rem')));
+      d.added.forEach(x => parts.push(chip(x, 'add')));
+      d.kept.forEach(x => parts.push(chip(x, 'keep')));
+      return `<div style="margin-top:6px"><span style="color:var(--muted);font-size:11px">${label}:</span> ${parts.length ? parts.join('') : '<span class="dim">none</span>'}</div>`;
+    };
+    const enabledLine = (after.accountEnabled === false && snap.accountEnabled !== false)
+      ? '<div style="margin-top:4px;color:var(--coral);font-size:12px">Account will be DISABLED + sessions revoked</div>' : '';
+    return `<div style="font-family:var(--mono);font-size:12px;line-height:1.6">
+      <div><b>${escHtml(headline)}</b> — ${escHtml(snap.displayName || '')}</div>
+      ${enabledLine}
+      ${section('Groups', gd)}
+      ${section('Licenses', ld)}
+      <div style="margin-top:6px;color:var(--text-4);font-size:10.5px">red = removed · green = added · grey = retained · read-only preview, no changes made</div>
+    </div>`;
+  }
+
+  const btnPrevLeaver = document.getElementById('btn-preview-leaver');
+  if (btnPrevLeaver && typeof window.api?.getAccessSnapshot === 'function') {
+    btnPrevLeaver.addEventListener('click', async () => {
+      const upn = (document.getElementById('ql-upn') || {}).value || '';
+      if (!upn.trim()) { showToast('UPN is required', 'warning'); return; }
+      const stage = (document.querySelector('input[name="ql-stage"]:checked') || {}).value || 'Soft';
+      const resultEl = document.getElementById('ql-result');
+      btnPrevLeaver.disabled = true; resultEl.innerHTML = '<span class="dim">Reading current access…</span>';
+      const r = await window.api.getAccessSnapshot(upn.trim());
+      btnPrevLeaver.disabled = false;
+      if (!r || !r.ok) { resultEl.innerHTML = '<span class="qop-error">Error: ' + escHtml(r?.error || 'unknown') + '</span>'; return; }
+      const snap = r.snapshot;
+      // Soft: nothing removed yet (disable + revoke). Hard: removes all groups + licenses.
+      const after = stage === 'Hard'
+        ? { groups: [], licenses: [], accountEnabled: false }
+        : { groups: snap.groups, licenses: snap.licenses, accountEnabled: false };
+      resultEl.innerHTML = _renderAccessDiff(snap, after, stage === 'Hard' ? 'Hard leaver impact' : 'Soft leaver impact');
+    });
+  }
+
+  const btnPrevMover = document.getElementById('btn-preview-mover');
+  if (btnPrevMover && typeof window.api?.getAccessSnapshot === 'function') {
+    btnPrevMover.addEventListener('click', async () => {
+      const upn = (document.getElementById('qm-upn') || {}).value || '';
+      if (!upn.trim()) { showToast('UPN is required', 'warning'); return; }
+      const resultEl = document.getElementById('qm-result');
+      btnPrevMover.disabled = true; resultEl.innerHTML = '<span class="dim">Reading current attributes…</span>';
+      const r = await window.api.getAccessSnapshot(upn.trim());
+      btnPrevMover.disabled = false;
+      if (!r || !r.ok) { resultEl.innerHTML = '<span class="qop-error">Error: ' + escHtml(r?.error || 'unknown') + '</span>'; return; }
+      const snap = r.snapshot;
+      const newDept = (document.getElementById('qm-dept') || {}).value || '';
+      const newTitle = (document.getElementById('qm-title') || {}).value || '';
+      const newMgr = (document.getElementById('qm-manager') || {}).value || '';
+      const row = (label, before, after) => {
+        const changed = after && after !== before;
+        return `<div>${escHtml(label)}: <span style="color:var(--text-3)">${escHtml(before || '—')}</span>` +
+          (changed ? ` <span style="color:var(--text-4)">→</span> <span style="color:var(--emerald)">${escHtml(after)}</span>` : ' <span class="dim">(unchanged)</span>') + '</div>';
+      };
+      resultEl.innerHTML = `<div style="font-family:var(--mono);font-size:12px;line-height:1.7">
+        <div><b>Mover impact</b> — ${escHtml(snap.displayName || '')}</div>
+        ${row('Department', snap.department, newDept)}
+        ${row('Job title', snap.jobTitle, newTitle)}
+        ${row('Manager', '(current)', newMgr)}
+        <div style="margin-top:6px;color:var(--text-4);font-size:10.5px">Groups/licenses unchanged by attribute move · read-only preview</div>
+      </div>`;
     });
   }
 

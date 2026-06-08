@@ -69,6 +69,9 @@ contextBridge.exposeInMainWorld('api', {
   // Policy simulation — read-only decision preview
   simulatePolicy: (payload) => ipcRenderer.invoke('simulate-policy', payload),
 
+  // Access snapshot — read-only current state for before/after diff
+  getAccessSnapshot: (upn) => ipcRenderer.invoke('get-access-snapshot', { upn }),
+
   getHrQueue:      ()   => ipcRenderer.send('get-hr-queue'),
   onHrQueue:       (cb) => ipcRenderer.on('hr-queue', (_, d) => cb(d)),
 
