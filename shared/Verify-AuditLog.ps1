@@ -49,13 +49,15 @@ for ($i = 0; $i -lt $lines.Count; $i++) {
         }
     }
 
-    # Verify self-hash
+    # Verify self-hash. Field order and set MUST match Write-AuditEntry exactly
+    # (Helpers.ps1): timestamp, agent, action, subject, whatif, outcome, operator,
+    # details, prevHash. Omitting 'operator' here was a verifier bug that reported
+    # every operator-stamped entry as TAMPERED against an untampered log.
     $storedHash = $entry.hash
-    $entryWithoutHash = $entry | Select-Object * -ExcludeProperty hash | ConvertTo-Json -Compress
-    # Rebuild ordered to match write order
     $rebuilt = [ordered]@{
         timestamp = $entry.timestamp; agent = $entry.agent; action = $entry.action
         subject   = $entry.subject;   whatif = $entry.whatif; outcome = $entry.outcome
+        operator  = $entry.operator
         details   = $entry.details;   prevHash = $entry.prevHash
     }
     $rebuiltJson  = $rebuilt | ConvertTo-Json -Compress
