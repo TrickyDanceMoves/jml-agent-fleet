@@ -83,6 +83,14 @@ The design response: AI works inside guardrails rather than replacing the admin.
 | **Provisioner** | Manages app registrations (disabled at rest, enabled only during provisioning sessions) |
 | **Auditor** | UEBA, drift detection, Identity Protection scans, access certification campaigns |
 
+**Taxonomy (so the counts are unambiguous):** there are **seven operational agents**
+(the table above). They are supported by non-agent services — the **API** (Azure
+Functions), the **queue Worker**, the **Certifier** campaign runner, the **Purview**
+HR connector, and the **Electron console**. Counting Entra app registrations, the
+fleet currently provisions **eight** (the seven agents plus the Certifier service), which
+is why some operational views show "8 app registrations." Agents reason and act;
+services move data and host the control plane.
+
 ## Key Features
 
 ### Identity Lifecycle Automation
@@ -216,9 +224,51 @@ The agent intelligence layer is fully abstracted behind a provider interface (`e
 
 Switch providers in **Settings → AI Provider** without restarting the app or losing conversation history. The Anthropic message and tool-call format is used as the internal canonical format; each provider adapter converts on the fly.
 
+## Security & Governance Docs
+
+- [`docs/threat-model.md`](docs/threat-model.md) — STRIDE threat model, trust boundaries, fail-closed controls
+- [`docs/electron-security.md`](docs/electron-security.md) — renderer isolation, IPC hardening, known gaps
+- [`docs/agent-identity-roadmap.md`](docs/agent-identity-roadmap.md) — app registrations → Microsoft Entra Agent ID migration path
+- [`api/openapi.yaml`](api/openapi.yaml) — OpenAPI spec for the JML control-plane API (Copilot Studio action surface)
+
+## Copilot / Agent Integration
+
+The identity lifecycle API ([`api/openapi.yaml`](api/openapi.yaml)) is a governed action
+surface that a **Microsoft 365 Copilot / Copilot Studio** agent can call. Copilot
+captures the intent ("onboard Sarah in Platform Engineering"); the JML control plane
+performs risk scoring, policy checks, human approval, just-in-time privilege, audited
+Graph execution, and Sentinel evidence. **The model proposes; policy and approval decide
+what executes.**
+
+## Just-in-Time Privilege — design note
+
+JIT privilege is enforced at the **control plane**: the Provisioner is disabled at rest
+and enabled only during active provisioning sessions, and every privileged action is
+risk-scored, policy-checked, and approval-gated before least-privilege execution.
+
+> Microsoft Entra **PIM for Groups does not support service principals as eligible
+> members**, so JIT *activation* cannot gate app-only agent identities. This is a platform
+> constraint, not a configuration gap — see [`docs/agent-identity-roadmap.md`](docs/agent-identity-roadmap.md).
+> `pim-config.json` is retained for user-context PIM; `Invoke-PIMHelper.ps1` treats agent
+> PIM activation as non-fatal so agents proceed on their least-privilege app permissions.
+
+## Limitations & Roadmap
+
+Honest current state, so reviewers know what's proven vs. planned:
+
+| Area | Now | Roadmap |
+|---|---|---|
+| Agent identity | App registration + cert per agent | Microsoft Entra Agent ID (see roadmap doc) |
+| Credentials | NonExportable cert, DPAPI secret fallback | Federated identity credentials (no stored secret) |
+| JIT privilege | Control-plane (Provisioner at-rest disable + approval) | Agent-scoped governance as Entra supports it |
+| Operator RBAC | Local Windows username / PIN | Entra-backed operator identity + group-derived role |
+| Conditional Access | Script present, needs Workload Identities Premium (P2) | Enabled CA for agent identities |
+| AI observability | Operation audit chain (verifiable) | Foundry run tracing (run ID, tool calls, latency, cost) |
+| Electron sandbox | `sandbox: false` (preload needs Node) | `sandbox: true` after moving Node logic to IPC |
+
 ## Quality Assurance
 
-Release closeout and smoke-test guidance lives in [`docs/quality-assurance.md`](docs/quality-assurance.md). Use it as the gate before demos, packaging, or tenant handoff.
+Release closeout and smoke-test guidance lives in [`docs/quality-assurance.md`](docs/quality-assurance.md). Use it as the gate before demos, packaging, or tenant handoff. Automated checks run in CI via [`.github/workflows/quality-gate.yml`](.github/workflows/quality-gate.yml) (PowerShell parse, secret-scan denylist, Node tests, schema validation).
 
 ## Next Product Scope
 

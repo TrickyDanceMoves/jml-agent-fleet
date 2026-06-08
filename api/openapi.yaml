@@ -1,0 +1,147 @@
+openapi: 3.0.3
+info:
+  title: JML Agent Fleet — Identity Lifecycle API
+  version: "1.0.0"
+  description: >
+    Governed control-plane API for Joiner/Mover/Leaver identity operations in
+    Microsoft Entra ID. Designed to be invoked by HRIS webhooks, automation, or a
+    Microsoft 365 Copilot / Copilot Studio action. The caller submits a request;
+    the JML control plane performs validation, risk scoring, policy checks, human
+    approval, and audited execution through Microsoft Graph. The model never holds
+    direct authority — it proposes; policy and approval decide what executes.
+servers:
+  - url: http://localhost:7071/api
+    description: Local dev (Azure Functions Core Tools)
+  - url: https://{functionApp}.azurewebsites.net/api
+    description: Deployed Azure Functions
+    variables:
+      functionApp:
+        default: jml-fleet
+security:
+  - ApiKeyAuth: []
+paths:
+  /jml:
+    post:
+      operationId: submitLifecycleEvent
+      summary: Submit a canonical HR lifecycle event (hire / transfer / terminate)
+      description: >
+        Validates and enqueues a lifecycle event for governed execution. Returns
+        202 with an eventId for status polling. Use this as the Copilot action
+        entry point for "onboard", "move", or "offboard" intents.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/HrEvent'
+      responses:
+        '202':
+          description: Accepted and queued for governed execution
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AcceptedResponse'
+        '401': { description: Unauthorized — missing or invalid x-api-key }
+        '400': { description: Invalid JSON body or unroutable event }
+        '422': { description: Schema validation failed }
+  /jml/status/{eventId}:
+    get:
+      operationId: getEventStatus
+      summary: Poll the status of a submitted lifecycle event
+      parameters:
+        - name: eventId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Current event status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EventStatus'
+        '404': { description: Event not found }
+  /webhooks/{source}:
+    post:
+      operationId: receiveHrisWebhook
+      summary: Inbound HRIS webhook receiver (adapts to canonical schema)
+      description: >
+        Receives a source-specific HR webhook, adapts it to the canonical event
+        schema, and enqueues it. BambooHR is verified via HMAC-SHA256
+        (X-BambooHR-Signature); other sources use x-api-key.
+      parameters:
+        - name: source
+          in: path
+          required: true
+          schema: { type: string, enum: [bamboohr] }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, description: Source-specific webhook payload }
+      responses:
+        '202': { description: One or more events processed }
+        '401': { description: Invalid signature or API key }
+        '404': { description: No adapter registered for source }
+        '422': { description: Adapter could not map the payload }
+components:
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: x-api-key
+  schemas:
+    HrEvent:
+      type: object
+      required: [eventType, employee]
+      properties:
+        eventType:
+          type: string
+          enum: [hire, transfer, terminate]
+        effectiveDate:
+          type: string
+          format: date
+        ticketRef:
+          type: string
+          description: Required for terminate events (enforced downstream).
+        employee:
+          type: object
+          required: [email]
+          properties:
+            firstName:     { type: string }
+            lastName:      { type: string }
+            email:         { type: string, format: email }
+            department:    { type: string }
+            jobTitle:      { type: string }
+            usageLocation: { type: string, description: Two-letter ISO country code }
+            manager:       { type: string, format: email }
+            licenses:      { type: array, items: { type: string } }
+        changes:
+          type: object
+          description: For transfer events.
+          properties:
+            newDepartment: { type: string }
+            newTitle:      { type: string }
+            newManager:    { type: string, format: email }
+    AcceptedResponse:
+      type: object
+      properties:
+        eventId:   { type: string, format: uuid }
+        status:    { type: string, example: queued }
+        agent:     { type: string, example: joiner }
+        statusUrl: { type: string, example: /api/jml/status/{eventId} }
+    EventStatus:
+      type: object
+      properties:
+        eventId:       { type: string, format: uuid }
+        status:        { type: string, enum: [queued, processing, completed, failed] }
+        eventType:     { type: string }
+        agent:         { type: string }
+        employee:      { type: string }
+        effectiveDate: { type: string }
+        ticketRef:     { type: string, nullable: true }
+        source:        { type: string }
+        queuedAt:      { type: string, format: date-time }
+        startedAt:     { type: string, format: date-time, nullable: true }
+        completedAt:   { type: string, format: date-time, nullable: true }
+        error:         { type: string, nullable: true }

@@ -1,0 +1,70 @@
+name: jml-quality-gate
+
+on:
+  pull_request:
+  push:
+    branches: [ "**" ]
+
+jobs:
+  validate:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Secret-scan denylist (no credential files tracked)
+        shell: pwsh
+        run: |
+          $patterns = 'config\.json$|local\.settings\.json$|worker\.config\.json$|audit\.jsonl$|operator-auth\.json$|ai-provider\.json$|\.pfx$|\.pem$'
+          $bad = git ls-files | Where-Object { $_ -match $patterns }
+          if ($bad) {
+            Write-Host "Tracked credential/secret files detected:" -ForegroundColor Red
+            $bad | ForEach-Object { Write-Host "  $_" }
+            exit 1
+          }
+          Write-Host "OK - no credential files tracked."
+
+      - name: PowerShell parse check (all .ps1)
+        shell: pwsh
+        run: |
+          $failed = $false
+          Get-ChildItem -Recurse -Filter *.ps1 |
+            Where-Object { $_.FullName -notmatch 'node_modules' } |
+            ForEach-Object {
+              $tokens = $null; $errors = $null
+              [System.Management.Automation.Language.Parser]::ParseFile($_.FullName, [ref]$tokens, [ref]$errors) | Out-Null
+              if ($errors.Count) {
+                Write-Host "PARSE ERROR: $($_.FullName)" -ForegroundColor Red
+                $errors | ForEach-Object { Write-Host "  $($_.Message)" }
+                $failed = $true
+              }
+            }
+          if ($failed) { exit 1 }
+          Write-Host "OK - all PowerShell scripts parse cleanly."
+
+      - name: Node setup
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: API install + test
+        working-directory: api
+        shell: bash
+        run: |
+          npm install --no-audit --no-fund
+          npm test --if-present
+
+      - name: Worker install + test
+        working-directory: worker
+        shell: bash
+        run: |
+          npm install --no-audit --no-fund
+          npm test --if-present
+
+      - name: Validate canonical HR event schema is valid JSON Schema
+        shell: pwsh
+        run: |
+          $schema = "api/src/schemas/hr-event.schema.json"
+          if (Test-Path $schema) {
+            try { Get-Content $schema -Raw | ConvertFrom-Json | Out-Null; Write-Host "OK - schema parses." }
+            catch { Write-Host "Schema is not valid JSON: $_" -ForegroundColor Red; exit 1 }
+          }
