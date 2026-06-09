@@ -611,6 +611,22 @@ function sendMessage(agent) {
   document.getElementById('input-' + agent).addEventListener('keydown', e => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(agent); }
   });
+  const stopBtn = document.getElementById('stop-' + agent);
+  if (stopBtn) {
+    stopBtn.addEventListener('click', () => {
+      window.api.abortAgent(agent);
+      setWaiting(agent, false);
+      const msgEl = currentMsgEl[agent];
+      if (msgEl) {
+        const thinkEl = msgEl.querySelector('.thinking-indicator');
+        if (thinkEl) thinkEl.style.display = 'none';
+        msgEl.classList.remove('thinking');
+        const textEl = msgEl.querySelector('.message-text');
+        if (textEl) textEl.classList.remove('streaming');
+        currentMsgEl[agent] = null;
+      }
+    });
+  }
 });
 
 // ── V2 Approver Rail updates ───────────────────────────────────────────────
@@ -835,8 +851,10 @@ function getOrCreateCurrentMsg(agent) {
 }
 
 // ── Streaming chunk handler ───────────────────────────────────────────────────
-window.api.onChunk(({ type, text, toolName, success, result }) => {
-  const agent = currentTab === 'auditor' ? 'auditor' : 'approver';
+window.api.onChunk(({ agent: chunkAgent, type, text, toolName, success, result }) => {
+  // Route by the agent tag on the chunk itself — a response streaming in for a
+  // background agent must not land in whichever chat tab is currently open.
+  const agent = chunkAgent || (currentTab === 'auditor' ? 'auditor' : 'approver');
   const msgEl = getOrCreateCurrentMsg(agent);
   const textEl = msgEl.querySelector('.message-text');
   const toolEl = msgEl.querySelector('.tool-indicators');
@@ -1033,8 +1051,8 @@ window.api.onComplete(({ agent }) => {
   }
 });
 
-window.api.onError(({ text }) => {
-  ['approver', 'auditor'].forEach(agent => {
+window.api.onError(({ agent: errAgent, text }) => {
+  (errAgent ? [errAgent] : ['approver', 'auditor']).forEach(agent => {
     if (isWaiting[agent]) {
       setWaiting(agent, false);
       const msgEl = currentMsgEl[agent];
@@ -1055,6 +1073,8 @@ function setWaiting(agent, waiting) {
   isWaiting[agent] = waiting;
   document.getElementById('input-' + agent).disabled  = waiting;
   document.getElementById('send-' + agent).disabled   = waiting;
+  const stopBtn = document.getElementById('stop-' + agent);
+  if (stopBtn) stopBtn.classList.toggle('hidden', !waiting);
 }
 
 // ── Cross-window conversation mirror ─────────────────────────────────────────

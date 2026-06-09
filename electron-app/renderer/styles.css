@@ -1670,6 +1670,17 @@ body.maximized, body.maximized .app { border-radius: 0; }
 }
 .chat-send:hover, .compose .send:hover { filter: brightness(1.05); }
 .chat-send[disabled] { opacity: .5; cursor: not-allowed; }
+.compose .stop {
+  width: 36px; height: 36px; border-radius: 9px;
+  display: grid; place-items: center;
+  background: oklch(0.38 0.10 24 / .9);
+  color: oklch(0.85 0.12 24);
+  border: 1px solid oklch(0.50 0.14 24 / .4);
+  cursor: pointer; flex-shrink: 0;
+  transition: background 0.15s;
+}
+.compose .stop:hover { background: oklch(0.45 0.14 24 / .9); }
+.compose .stop.hidden { display: none; }
 
 .assist-bar {
   display: flex; flex-wrap: wrap; gap: 6px; padding: 10px 14px 0;

@@ -135,4 +135,4 @@ $riskLevel = if ($score -ge 80) { 'critical' } elseif ($score -ge 50) { 'high' }
     blocked      = $blocked
     dualApproval = $dualApproval
     reasons      = @($reasons)
-} | ConvertTo-Json -Depth 3
+} | ConvertTo-Json -Depth 3 -Compress
