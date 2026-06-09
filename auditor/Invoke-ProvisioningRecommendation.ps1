@@ -56,7 +56,7 @@ if ($peerCount -eq 0) {
         recommendedLicenses = @()
         recommendedGroups   = @()
         message             = "No peer users found in department '$Department'. Licenses and groups must be specified manually."
-    } | ConvertTo-Json -Depth 4
+    } | ConvertTo-Json -Depth 4 -Compress
     exit 0
 }
 
@@ -116,4 +116,4 @@ $confidence = if ($peerCount -ge 5) { 'high' } elseif ($peerCount -ge 2) { 'medi
     recommendedLicenses = $recommendedLicenses
     recommendedGroups   = $recommendedGroups
     message             = "Based on $peerCount peer user(s) in '$Department' (confidence: $confidence)"
-} | ConvertTo-Json -Depth 4
+} | ConvertTo-Json -Depth 4 -Compress

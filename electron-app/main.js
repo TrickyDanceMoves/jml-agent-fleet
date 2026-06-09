@@ -66,8 +66,8 @@ function recordAITrace(agent, trace) {
 
 // ── Agent state ───────────────────────────────────────────────────────────────
 const state = {
-  approver: { messages: [], whatif: true },
-  auditor:  { messages: [] }
+  approver: { messages: [], whatif: true, lastRisk: null, abortController: null },
+  auditor:  { messages: [], abortController: null }
 };
 
 // ── System prompts ────────────────────────────────────────────────────────────
@@ -103,6 +103,8 @@ Rules:
 - Always confirm full details before calling a tool
 - For leavers, explain the two-stage process and confirm each stage
 - Auto-generate UPNs as firstname.lastname@${domain}
+- Use lookup_user to verify a user exists (or disambiguate a partial name) before operating on them
+- Use list_available_licenses / list_groups to confirm exact SKU and group names before assigning them
 
 AI-ASSISTED PROVISIONING:
 
@@ -153,7 +155,7 @@ You NEVER suggest or make changes to the directory. Strictly observational.
 You have two roles:
 
 1. TENANT INTELLIGENCE: Answer questions about the live tenant state using your query tools.
-   Available: user counts, license utilization, recent joins/leavers, admin roles, group summary, JML activity, stale accounts, guest users.
+   Available: user counts, license utilization, recent joins/leavers, admin roles, group summary, JML activity, stale accounts, guest users, single-user deep dive (query_user_detail).
    Present numbers prominently. Offer follow-up queries when results are interesting.
 
 2. OPERATIONAL GUIDE: Answer "how do I" questions about the JML system itself -- without calling any tools.
@@ -290,6 +292,29 @@ const APPROVER_TOOLS = [
       properties: { userPrincipalName: { type: 'string' } },
       required: ['userPrincipalName']
     }
+  },
+  {
+    name: 'lookup_user',
+    description: 'Look up a user by UPN or display name. Returns profile, account status, manager, licenses, and group memberships. Call this to verify a user exists or to disambiguate a partial name before operating on them.',
+    input_schema: {
+      type: 'object',
+      properties: { upnOrName: { type: 'string', description: 'Full UPN, or display-name prefix to search' } },
+      required: ['upnOrName']
+    }
+  },
+  {
+    name: 'list_available_licenses',
+    description: 'List license SKUs in the tenant with assigned / total / available counts. Call before assigning licenses to confirm availability and exact SKU names.',
+    input_schema: { type: 'object', properties: {}, required: [] }
+  },
+  {
+    name: 'list_groups',
+    description: 'List groups in the tenant, optionally filtered by display-name prefix. Call to confirm exact group names before assigning.',
+    input_schema: {
+      type: 'object',
+      properties: { filter: { type: 'string', description: 'Display-name prefix filter' } },
+      required: []
+    }
   }
 ];
 
@@ -307,7 +332,9 @@ const AUDITOR_TOOLS = [
   { name: 'query_stale_accounts', description: 'Enabled accounts with no sign-in in last N days.',
     input_schema: { type: 'object', properties: { days: { type: 'integer' }, topN: { type: 'integer' } }, required: [] } },
   { name: 'query_guest_users',    description: 'External/guest accounts.',
-    input_schema: { type: 'object', properties: { topN: { type: 'integer' } }, required: [] } }
+    input_schema: { type: 'object', properties: { topN: { type: 'integer' } }, required: [] } },
+  { name: 'query_user_detail',    description: 'Deep-dive a single user by UPN or display name: profile, status, manager, licenses, groups, last sign-in.',
+    input_schema: { type: 'object', properties: { upnOrName: { type: 'string' } }, required: ['upnOrName'] } }
 ];
 
 // ── PS1 dispatch ──────────────────────────────────────────────────────────────
@@ -836,6 +863,10 @@ const AUDITOR_QUERY_MAP = {
 
 function executeTool(agent, toolName, input, whatif) {
   if (agent === 'auditor') {
+    if (toolName === 'query_user_detail') {
+      const raw = runPs(path.join(AGENTS_DIR, 'auditor', 'Invoke-LookupUser.ps1'), { UpnOrName: input.upnOrName });
+      return _parseMultilineJson(raw, 'No output from user lookup script');
+    }
     const queryType = AUDITOR_QUERY_MAP[toolName];
     const script = path.join(AGENTS_DIR, 'auditor', 'Invoke-AuditorQuery.ps1');
     const params = { QueryType: queryType };
@@ -846,7 +877,37 @@ function executeTool(agent, toolName, input, whatif) {
   }
 
   const w = whatif ? true : false;
+
+  // LIVE-mode risk gate: every submit_* in Live mode requires a fresh score_risk
+  // result. The gate is enforced here — not just in the system prompt — so a
+  // prompt-injected or confused model cannot skip the risk assessment.
+  if (toolName.startsWith('submit_') && !w) {
+    const risk = state.approver.lastRisk;
+    if (!risk) {
+      return { error: 'RISK_GATE: Call score_risk before any Live submit operation.' };
+    }
+    if (risk.blocked) {
+      return { error: 'RISK_GATE: Operation is blocked. Reasons: ' + (risk.reasons || []).join('; ') };
+    }
+    if (risk.riskLevel === 'critical') {
+      return { error: 'RISK_GATE: Risk level is critical — operation refused. Reasons: ' + (risk.reasons || []).join('; ') };
+    }
+    state.approver.lastRisk = null; // consumed — next submit needs a fresh score
+  }
+
   switch (toolName) {
+    case 'lookup_user': {
+      const raw = runPs(path.join(AGENTS_DIR, 'auditor', 'Invoke-LookupUser.ps1'), { UpnOrName: input.upnOrName });
+      return _parseMultilineJson(raw, 'No output from user lookup script');
+    }
+    case 'list_available_licenses': {
+      const raw = runPs(path.join(AGENTS_DIR, 'auditor', 'Invoke-AuditorQuery.ps1'), { QueryType: 'LicenseReport' });
+      return _parseMultilineJson(raw, 'No output from license report');
+    }
+    case 'list_groups': {
+      const raw = runPs(path.join(AGENTS_DIR, 'auditor', 'Invoke-ListGroups.ps1'), input.filter ? { Filter: input.filter } : {});
+      return _parseMultilineJson(raw, 'No output from group list script');
+    }
     case 'suggest_provisioning': {
       const raw = runPs(path.join(AGENTS_DIR, 'auditor', 'Invoke-ProvisioningRecommendation.ps1'), {
         Department: input.department,
@@ -862,7 +923,9 @@ function executeTool(agent, toolName, input, whatif) {
         Groups:            input.groups,
         NewDepartment:     input.newDepartment
       });
-      return _parseMultilineJson(raw, 'No output from risk score script');
+      const res = _parseMultilineJson(raw, 'No output from risk score script');
+      if (res && !res.error) state.approver.lastRisk = { ...res, ts: Date.now() };
+      return res;
     }
     case 'submit_joiner': {
       const _pf = writePayloadFile({
@@ -947,7 +1010,7 @@ function executeTool(agent, toolName, input, whatif) {
 async function runAgentLoop(sender, agent, userText) {
   const provider = getAIProvider();
   if (!provider) {
-    sender.send('msg-error', { text: 'AI provider not configured. Open Settings → AI Provider to add an API key.' });
+    sender.send('msg-error', { agent, text: 'AI provider not configured. Open Settings → AI Provider to add an API key.' });
     return;
   }
 
@@ -958,45 +1021,60 @@ async function runAgentLoop(sender, agent, userText) {
   const systemPrompt = agent === 'approver' ? buildApproverSystem(domain) : buildAuditorSystem(domain);
   const tools        = agent === 'approver' ? APPROVER_TOOLS  : AUDITOR_TOOLS;
 
+  // Stop button support: abort() cancels the in-flight provider stream
+  const ac = new AbortController();
+  agentState.abortController = ac;
+
   let _fullText = '';
 
-  while (true) {
-    const response = await provider.streamTurn({
-      system:      systemPrompt,
-      tools,
-      messages:    agentState.messages,
-      onText:      (text) => { sender.send('msg-chunk', { type: 'text', text }); _fullText += text; },
-      onToolStart: (toolName) => { sender.send('msg-chunk', { type: 'tool_start', toolName }); }
-    });
-
-    agentState.messages.push({ role: 'assistant', content: response.content });
-    if (response.trace) recordAITrace(agent, response.trace);
-
-    if (response.stopReason === 'end_turn') break;
-
-    const toolCalls  = response.content.filter(b => b.type === 'tool_use');
-    const toolResults = [];
-
-    for (const tool of toolCalls) {
-      sender.send('msg-chunk', { type: 'tool_running', toolName: tool.name });
-      let result;
+  try {
+    while (true) {
+      let response;
       try {
-        result = executeTool(agent, tool.name, tool.input, agentState.whatif);
-        // Pass structured result for cards that render it (risk score, provisioning suggestions)
-        const sendResult = (tool.name === 'score_risk' || tool.name === 'suggest_provisioning') ? result : undefined;
-        sender.send('msg-chunk', { type: 'tool_done', toolName: tool.name, success: true, result: sendResult });
+        response = await provider.streamTurn({
+          system:      systemPrompt,
+          tools,
+          messages:    agentState.messages,
+          signal:      ac.signal,
+          onText:      (text) => { sender.send('msg-chunk', { agent, type: 'text', text }); _fullText += text; },
+          onToolStart: (toolName) => { sender.send('msg-chunk', { agent, type: 'tool_start', toolName }); }
+        });
       } catch (err) {
-        result = { error: err.message };
-        sender.send('msg-chunk', { type: 'tool_done', toolName: tool.name, success: false });
+        if (ac.signal.aborted) break; // operator pressed Stop — end the turn quietly
+        throw err;
       }
-      toolResults.push({ type: 'tool_result', tool_use_id: tool.id, content: JSON.stringify(result) });
-    }
 
-    if (toolResults.length > 0) {
-      agentState.messages.push({ role: 'user', content: toolResults });
-    } else {
-      break;
+      agentState.messages.push({ role: 'assistant', content: response.content });
+      if (response.trace) recordAITrace(agent, response.trace);
+
+      if (response.stopReason === 'end_turn') break;
+
+      const toolCalls  = response.content.filter(b => b.type === 'tool_use');
+      const toolResults = [];
+
+      for (const tool of toolCalls) {
+        sender.send('msg-chunk', { agent, type: 'tool_running', toolName: tool.name });
+        let result;
+        try {
+          result = executeTool(agent, tool.name, tool.input, agentState.whatif);
+          // Pass structured result for cards that render it (risk score, provisioning suggestions)
+          const sendResult = (tool.name === 'score_risk' || tool.name === 'suggest_provisioning') ? result : undefined;
+          sender.send('msg-chunk', { agent, type: 'tool_done', toolName: tool.name, success: true, result: sendResult });
+        } catch (err) {
+          result = { error: err.message };
+          sender.send('msg-chunk', { agent, type: 'tool_done', toolName: tool.name, success: false });
+        }
+        toolResults.push({ type: 'tool_result', tool_use_id: tool.id, content: JSON.stringify(result) });
+      }
+
+      if (toolResults.length > 0) {
+        agentState.messages.push({ role: 'user', content: toolResults });
+      } else {
+        break;
+      }
     }
+  } finally {
+    agentState.abortController = null;
   }
 
   _pushConvTurn(agent, 'assistant', _fullText);
@@ -1010,8 +1088,13 @@ ipcMain.on('send-message', (event, { agent, text }) => {
   _pushConvTurn(agent, 'user', text);
   _broadcastMirror(event.sender, agent, 'user', text);
   runAgentLoop(event.sender, agent, text).catch(err => {
-    event.sender.send('msg-error', { text: err.message });
+    event.sender.send('msg-error', { agent, text: err.message });
   });
+});
+
+ipcMain.on('abort-agent', (_, { agent }) => {
+  const ctrl = state[agent] && state[agent].abortController;
+  if (ctrl) ctrl.abort();
 });
 
 // Return stored display history for a given agent (used on overlay/docked open)

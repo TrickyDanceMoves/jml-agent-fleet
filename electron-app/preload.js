@@ -6,6 +6,7 @@ const os = require('os');
 contextBridge.exposeInMainWorld('api', {
   currentUser: os.userInfo().username,
   sendMessage:      (agent, text)    => ipcRenderer.send('send-message', { agent, text }),
+  abortAgent:       (agent)          => ipcRenderer.send('abort-agent', { agent }),
   setMode:          (whatif)         => ipcRenderer.send('set-mode', { whatif }),
   clearHistory:     (agent)          => ipcRenderer.send('clear-history', { agent }),
   getAuditLog:       ()               => ipcRenderer.send('get-audit-log'),

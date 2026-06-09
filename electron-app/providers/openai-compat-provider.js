@@ -91,7 +91,7 @@ class OpenAICompatProvider {
 
   get name() { return this._providerName; }
 
-  async streamTurn({ system, tools, messages, onText, onToolStart }) {
+  async streamTurn({ system, tools, messages, onText, onToolStart, signal }) {
     const openAiMessages = [
       { role: 'system', content: system },
       ...toOpenAIMessages(messages)
@@ -107,7 +107,7 @@ class OpenAICompatProvider {
       tool_choice: openAiTools ? 'auto' : undefined,
       stream:      true,
       stream_options: { include_usage: true }
-    });
+    }, signal ? { signal } : undefined);
 
     let textContent = '';
     let usage = null;
