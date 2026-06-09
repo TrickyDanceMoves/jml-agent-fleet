@@ -876,11 +876,18 @@ function executeTool(agent, toolName, input, whatif) {
       try { return parsePs1Output(runPs(path.join(AGENTS_DIR, 'joiner', 'Invoke-JoinerProcess.ps1'), { PayloadPath: _pf, WhatIf: w })); }
       finally { try { fs.unlinkSync(_pf); } catch {} }
     }
-    case 'submit_enroller':
-      return parsePs1Output(runPs(path.join(AGENTS_DIR, 'enroller', 'Invoke-EnrollerProcess.ps1'), {
-        UserPrincipalName: input.userPrincipalName,
-        Licenses: input.licenses, Groups: input.groups, WhatIf: w
-      }));
+    case 'submit_enroller': {
+      // Invoke-EnrollerProcess.ps1 takes -PayloadPath (JSON), NOT -UserPrincipalName.
+      // It reads payload.userPrincipalName / payload.licenses / payload.groups.
+      const _pfEnr = writePayloadFile({
+        userPrincipalName: input.userPrincipalName,
+        licenses: input.licenses,
+        groups: input.groups,
+        ticketRef: input.ticketRef
+      });
+      try { return parsePs1Output(runPs(path.join(AGENTS_DIR, 'enroller', 'Invoke-EnrollerProcess.ps1'), { PayloadPath: _pfEnr, WhatIf: w })); }
+      finally { try { fs.unlinkSync(_pfEnr); } catch {} }
+    }
     case 'submit_mover':
       {
         const _pf = writePayloadFile({
