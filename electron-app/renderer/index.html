@@ -681,7 +681,8 @@
           </div>
 
           <div class="v2-approver-layout">
-          <div class="chat-shell">
+          <div class="chat-shell" style="position:relative">
+            <button class="scroll-bottom-btn" id="scroll-bottom-approver" title="Jump to latest" style="display:none">↓</button>
             <div class="chat-scroll messages" id="messages-approver">
               <div class="welcome-msg">
                 <div class="welcome-title">Approver Agent</div>
@@ -813,7 +814,8 @@
           <div class="v2-auditor-layout">
 
             <!-- Left: chat -->
-            <div class="chat-shell">
+            <div class="chat-shell" style="position:relative">
+              <button class="scroll-bottom-btn" id="scroll-bottom-auditor" title="Jump to latest" style="display:none">↓</button>
               <div class="mode-banner aa-banner">
                 <span class="dot"></span> Read-only audit context · queries are bounded to signed log records and resolve in &lt;200 ms
               </div>
@@ -980,6 +982,7 @@
                 </div>
               </div>
               <div class="qop-actions">
+                <button class="btn" id="btn-preview-mover">Preview impact</button>
                 <button class="btn primary" id="btn-run-quick-mover">Run Mover</button>
               </div>
               <div class="qop-result" id="qm-result"></div>
@@ -1005,9 +1008,37 @@
                 </div>
               </div>
               <div class="qop-actions">
+                <button class="btn" id="btn-preview-leaver">Preview impact</button>
                 <button class="btn primary" id="btn-run-quick-leaver">Run Leaver</button>
               </div>
               <div class="qop-result" id="ql-result"></div>
+            </div>
+          </details>
+
+          <!-- Policy Simulation -->
+          <details class="collapse" id="ops-policy-sim" open>
+            <summary>Policy Simulation <span style="font-family:var(--mono);font-size:11px;color:var(--muted);margin-left:6px">· dry-run · no changes</span></summary>
+            <div class="collapse-body dense">
+              <div class="qop-form">
+                <div class="qop-row">
+                  <label>Operation</label>
+                  <select id="ps-operation">
+                    <option value="joiner">Joiner</option>
+                    <option value="enroller">Enroller</option>
+                    <option value="mover">Mover</option>
+                    <option value="leaver_soft">Leaver (Soft)</option>
+                    <option value="leaver_hard">Leaver (Hard)</option>
+                  </select>
+                </div>
+                <div class="qop-row"><label>User UPN</label><input id="ps-upn" type="text" placeholder="user@tenant" autocomplete="off"></div>
+                <div class="qop-row"><label>Licenses</label><input id="ps-licenses" type="text" placeholder="comma-separated SKUs (optional)"></div>
+                <div class="qop-row"><label>Groups</label><input id="ps-groups" type="text" placeholder="comma-separated groups (optional)"></div>
+                <div class="qop-row"><label>New Dept</label><input id="ps-dept" type="text" placeholder="for movers (optional)"></div>
+              </div>
+              <div class="qop-actions">
+                <button class="btn" id="btn-policy-sim">Simulate</button>
+              </div>
+              <div class="qop-result" id="ps-result"></div>
             </div>
           </details>
 
@@ -1272,6 +1303,14 @@
                   <button class="btn sm" id="sec-pivot-users" style="justify-content:space-between">Subject in Users <span>→</span></button>
                   <button class="btn sm" id="sec-pivot-audit-agent" style="justify-content:space-between">Ask Audit Agent <span>✦</span></button>
                 </div>
+                <!-- Inline remediation — shown per finding type, routes to Approver -->
+                <div class="section-label" id="sec-rem-label" style="margin-top:14px;margin-bottom:6px;display:none">REMEDIATE</div>
+                <div id="sec-rem-btns" style="display:none;flex-direction:column;gap:6px">
+                  <button class="btn sm danger" id="sec-rem-disable" style="justify-content:space-between;display:none">Disable account <span style="opacity:.55;font-size:10px">→ Approver</span></button>
+                  <button class="btn sm" id="sec-rem-revoke" style="justify-content:space-between;display:none">Revoke sessions <span style="opacity:.55;font-size:10px">→ Approver</span></button>
+                  <button class="btn sm" id="sec-rem-mfa" style="justify-content:space-between;display:none">Force MFA reset <span style="opacity:.55;font-size:10px">→ Approver</span></button>
+                  <button class="btn sm" id="sec-rem-groups" style="justify-content:space-between;display:none">Remove from groups <span style="opacity:.55;font-size:10px">→ Approver</span></button>
+                </div>
                 <div style="border-top:1px solid var(--border);margin-top:14px;padding-top:12px;display:flex;gap:6px">
                   <button class="btn sm" id="sec-action-assign" style="flex:1">Assign…</button>
                   <button class="btn sm" id="sec-action-ack" style="flex:1">Acknowledge</button>
@@ -1403,6 +1442,7 @@
             <div class="spacer"></div>
             <button class="btn ghost" id="btn-log-filter-clear">Clear</button>
             <button class="btn" id="btn-log-filter-apply">Apply</button>
+            <button class="btn" id="btn-export-evidence" title="Export a tamper-evident compliance evidence packet for the filtered entries">Export evidence</button>
           </div>
 
           <table id="log-table" class="table">
@@ -1487,14 +1527,14 @@
               <div class="top">
                 <div class="logo">SP</div>
                 <div class="name">Splunk Cloud<span class="sub">HEC · log analytics</span></div>
-                <span class="export-status-chip chip-soon">coming soon</span>
+                <span class="export-status-chip chip-soon">planned</span>
               </div>
               <div class="stats">
                 <div class="s"><div class="lbl">Endpoint</div><div class="v">—</div></div>
                 <div class="s"><div class="lbl">Token</div><div class="v">—</div></div>
                 <div class="s"><div class="lbl">Events sent</div><div class="v">—</div></div>
               </div>
-              <div class="conn exp-coming-soon-note">Stream real-time audit events and security findings to Splunk via HEC. Configuration will be available in a future release.</div>
+              <div class="conn exp-coming-soon-note">Roadmap connector. Active exports above already carry the full evidence chain.</div>
             </div>
 
             <!-- S3 (coming soon) -->
@@ -1502,14 +1542,14 @@
               <div class="top">
                 <div class="logo">S3</div>
                 <div class="name">AWS S3 — Compliance Mirror<span class="sub">object-lock · WORM</span></div>
-                <span class="export-status-chip chip-soon">coming soon</span>
+                <span class="export-status-chip chip-soon">planned</span>
               </div>
               <div class="stats">
                 <div class="s"><div class="lbl">Bucket</div><div class="v">—</div></div>
                 <div class="s"><div class="lbl">Object lock</div><div class="v">—</div></div>
                 <div class="s"><div class="lbl">Entries</div><div class="v">—</div></div>
               </div>
-              <div class="conn exp-coming-soon-note">Mirror the audit chain to S3 with object-lock for WORM compliance. Configuration will be available in a future release.</div>
+              <div class="conn exp-coming-soon-note">Roadmap connector. Azure Blob cold archive is the current WORM-style evidence path.</div>
             </div>
           </div>
 
@@ -1708,6 +1748,35 @@
             </div>
           </div>
 
+          <!-- Containment / kill switch -->
+          <div class="card" id="quarantine-card" style="margin-bottom:16px;border-color:color-mix(in oklab,var(--coral),transparent 55%)">
+            <div class="h" style="display:flex;align-items:center;gap:10px;padding:12px 16px">
+              <span class="tag crit" style="font-size:10px">CONTAINMENT</span>
+              <div style="flex:1">
+                <div class="ttl" style="font-size:13px">Quarantine an agent</div>
+                <div class="sub" style="font-size:11.5px">Immediately disables the agent's service principal (blocks token issuance) and writes a high-severity audit entry. Admin only.</div>
+              </div>
+            </div>
+            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:12px 16px;border-top:1px solid var(--border)">
+              <select id="quarantine-agent-select" style="font-family:var(--mono);font-size:12px;min-width:150px">
+                <option value="joiner">Joiner</option>
+                <option value="mover">Mover</option>
+                <option value="leaver">Leaver</option>
+                <option value="enroller">Enroller</option>
+                <option value="approver">Approver</option>
+                <option value="auditor">Auditor</option>
+                <option value="certifier">Certifier</option>
+              </select>
+              <input id="quarantine-reason" type="text" placeholder="Reason (recorded in audit chain)" style="flex:1;min-width:200px;font-size:12px">
+              <label style="display:flex;align-items:center;gap:5px;font-size:11.5px;color:var(--text-2)">
+                <input type="checkbox" id="quarantine-revoke"> revoke creds (hard)
+              </label>
+              <button class="btn ghost sm" id="quarantine-preview-btn">Preview (WhatIf)</button>
+              <button class="btn danger sm" id="quarantine-execute-btn">Quarantine</button>
+            </div>
+            <div id="quarantine-feedback" style="display:none;padding:10px 16px;border-top:1px solid var(--border);font-family:var(--mono);font-size:11.5px"></div>
+          </div>
+
           <div class="cert-grid">
             <div class="cert-tile">
               <div class="ag-top"><span class="av">◢</span><span class="name">Joiner<span class="sub">jml-fleet-joiner</span></span></div>
@@ -1826,6 +1895,8 @@
               <div class="s-sec">Govern</div>
               <div class="s-item" data-sub="sod">SoD Rules</div>
               <div class="s-item" data-sub="notifications">Notification Routing</div>
+              <div class="s-sec">Intelligence</div>
+              <div class="s-item" data-sub="ai-provider">AI Provider</div>
               <div class="s-sec">Appearance</div>
               <div class="s-item" data-sub="appearance">Theme</div>
             </aside>
@@ -2073,6 +2144,146 @@
               </div>
 
               <!-- Appearance · Theme (side-by-side comparison toggle) -->
+              <!-- AI Provider -->
+              <div class="set-card set-sub" id="set-sub-ai-provider" data-sub="ai-provider" style="display:none">
+                <div class="h">
+                  <div>
+                    <div class="ttl">AI Provider</div>
+                    <div class="sub">Select the language model powering Approver and Auditor agents. All providers use the same tool-calling interface — switch without losing conversation history.</div>
+                  </div>
+                  <span class="cert-pip" id="ai-provider-status-pip"><span class="d"></span>—</span>
+                </div>
+
+                <!-- Provider selector -->
+                <div class="set-row">
+                  <div><div class="lbl">Provider</div><div class="desc">Model backend for the agent chat interface and Graph AI features.</div></div>
+                  <div class="val right-ctrl">
+                    <select id="ai-provider-select" style="font-family:var(--mono);font-size:12px;width:220px">
+                      <option value="claude">Anthropic Claude</option>
+                      <option value="azure-foundry">Azure AI Foundry</option>
+                      <option value="azure-openai">Azure OpenAI</option>
+                      <option value="openai">OpenAI</option>
+                      <option value="ollama">Ollama (local)</option>
+                    </select>
+                  </div>
+                </div>
+
+                <!-- Claude fields -->
+                <div class="ai-prov-section" id="ai-prov-claude">
+                  <div class="set-row">
+                    <div><div class="lbl">API Key</div><div class="desc">Anthropic API key. Starts with <code>sk-ant-</code>. Stored locally, never transmitted.</div></div>
+                    <div class="val right-ctrl"><input id="ai-claude-key" type="password" placeholder="sk-ant-…" autocomplete="off" style="font-family:var(--mono);font-size:12px;width:260px"></div>
+                  </div>
+                  <div class="set-row">
+                    <div><div class="lbl">Agent model</div><div class="desc">Full reasoning model for multi-step agent tasks.</div></div>
+                    <div class="val right-ctrl"><input id="ai-claude-agent-model" type="text" placeholder="claude-opus-4-7" style="font-family:var(--mono);font-size:12px;width:200px"></div>
+                  </div>
+                  <div class="set-row">
+                    <div><div class="lbl">Fast model</div><div class="desc">Lightweight model for Graph digest and query suggestions.</div></div>
+                    <div class="val right-ctrl"><input id="ai-claude-fast-model" type="text" placeholder="claude-haiku-4-5-20251001" style="font-family:var(--mono);font-size:12px;width:200px"></div>
+                  </div>
+                </div>
+
+                <!-- OpenAI fields -->
+                <div class="ai-prov-section" id="ai-prov-openai" style="display:none">
+                  <div class="set-row">
+                    <div><div class="lbl">API Key</div><div class="desc">OpenAI API key. Starts with <code>sk-</code>.</div></div>
+                    <div class="val right-ctrl"><input id="ai-openai-key" type="password" placeholder="sk-…" autocomplete="off" style="font-family:var(--mono);font-size:12px;width:260px"></div>
+                  </div>
+                  <div class="set-row">
+                    <div><div class="lbl">Agent model</div><div class="desc">Model for agent tasks (e.g. <code>gpt-4o</code>, <code>o3</code>).</div></div>
+                    <div class="val right-ctrl"><input id="ai-openai-agent-model" type="text" placeholder="gpt-4o" style="font-family:var(--mono);font-size:12px;width:200px"></div>
+                  </div>
+                  <div class="set-row">
+                    <div><div class="lbl">Fast model</div><div class="desc">Model for quick utility calls (e.g. <code>gpt-4o-mini</code>).</div></div>
+                    <div class="val right-ctrl"><input id="ai-openai-fast-model" type="text" placeholder="gpt-4o-mini" style="font-family:var(--mono);font-size:12px;width:200px"></div>
+                  </div>
+                </div>
+
+                <!-- Azure AI Foundry fields -->
+                <div class="ai-prov-section" id="ai-prov-azure-foundry" style="display:none">
+                  <div class="set-row">
+                    <div><div class="lbl">API Key</div><div class="desc">Azure AI Foundry project key, or a GitHub Personal Access Token (PAT) for the GitHub Models catalogue.</div></div>
+                    <div class="val right-ctrl"><input id="ai-foundry-key" type="password" placeholder="…" autocomplete="off" style="font-family:var(--mono);font-size:12px;width:260px"></div>
+                  </div>
+                  <div class="set-row">
+                    <div><div class="lbl">Endpoint</div><div class="desc">Foundry inference endpoint. GitHub Models: <code>https://models.inference.ai.azure.com</code>. Your project: <code>https://&lt;name&gt;.&lt;region&gt;.models.ai.azure.com</code>.</div></div>
+                    <div class="val right-ctrl"><input id="ai-foundry-endpoint" type="text" placeholder="https://models.inference.ai.azure.com" style="font-family:var(--mono);font-size:12px;width:320px"></div>
+                  </div>
+                  <div class="set-row">
+                    <div><div class="lbl">Agent model</div><div class="desc">Model for agent tasks (e.g. <code>gpt-4o</code>, <code>Meta-Llama-3.1-405B-Instruct</code>).</div></div>
+                    <div class="val right-ctrl"><input id="ai-foundry-agent-model" type="text" placeholder="gpt-4o" style="font-family:var(--mono);font-size:12px;width:240px"></div>
+                  </div>
+                  <div class="set-row">
+                    <div><div class="lbl">Fast model</div><div class="desc">Model for quick utility calls (e.g. <code>gpt-4o-mini</code>).</div></div>
+                    <div class="val right-ctrl"><input id="ai-foundry-fast-model" type="text" placeholder="gpt-4o-mini" style="font-family:var(--mono);font-size:12px;width:240px"></div>
+                  </div>
+                </div>
+
+                <!-- Azure OpenAI fields -->
+                <div class="ai-prov-section" id="ai-prov-azure-openai" style="display:none">
+                  <div class="set-row">
+                    <div><div class="lbl">API Key</div><div class="desc">Azure OpenAI resource key from Azure Portal → Keys and Endpoint.</div></div>
+                    <div class="val right-ctrl"><input id="ai-azure-key" type="password" placeholder="…" autocomplete="off" style="font-family:var(--mono);font-size:12px;width:260px"></div>
+                  </div>
+                  <div class="set-row">
+                    <div><div class="lbl">Endpoint</div><div class="desc">Resource endpoint, e.g. <code>https://my-resource.openai.azure.com</code>.</div></div>
+                    <div class="val right-ctrl"><input id="ai-azure-endpoint" type="text" placeholder="https://…openai.azure.com" style="font-family:var(--mono);font-size:12px;width:280px"></div>
+                  </div>
+                  <div class="set-row">
+                    <div><div class="lbl">Agent deployment</div><div class="desc">Deployment name for the reasoning model (e.g. <code>gpt-4o</code>).</div></div>
+                    <div class="val right-ctrl"><input id="ai-azure-agent-deploy" type="text" placeholder="gpt-4o" style="font-family:var(--mono);font-size:12px;width:200px"></div>
+                  </div>
+                  <div class="set-row">
+                    <div><div class="lbl">Fast deployment</div><div class="desc">Deployment name for quick calls (e.g. <code>gpt-4o-mini</code>).</div></div>
+                    <div class="val right-ctrl"><input id="ai-azure-fast-deploy" type="text" placeholder="gpt-4o-mini" style="font-family:var(--mono);font-size:12px;width:200px"></div>
+                  </div>
+                  <div class="set-row">
+                    <div><div class="lbl">API version</div><div class="desc">Azure OpenAI API version string.</div></div>
+                    <div class="val right-ctrl"><input id="ai-azure-api-version" type="text" placeholder="2025-01-01-preview" style="font-family:var(--mono);font-size:12px;width:200px"></div>
+                  </div>
+                </div>
+
+                <!-- Ollama fields -->
+                <div class="ai-prov-section" id="ai-prov-ollama" style="display:none">
+                  <div class="set-row">
+                    <div><div class="lbl">Base URL</div><div class="desc">Ollama server address. Default: <code>http://localhost:11434</code>.</div></div>
+                    <div class="val right-ctrl"><input id="ai-ollama-url" type="text" placeholder="http://localhost:11434" style="font-family:var(--mono);font-size:12px;width:260px"></div>
+                  </div>
+                  <div class="set-row">
+                    <div><div class="lbl">Agent model</div><div class="desc">Ollama model tag for agent tasks (e.g. <code>llama3.1</code>, <code>qwen2.5:72b</code>).</div></div>
+                    <div class="val right-ctrl"><input id="ai-ollama-agent-model" type="text" placeholder="llama3.1" style="font-family:var(--mono);font-size:12px;width:200px"></div>
+                  </div>
+                  <div class="set-row">
+                    <div><div class="lbl">Fast model</div><div class="desc">Model for quick utility calls (can be the same).</div></div>
+                    <div class="val right-ctrl"><input id="ai-ollama-fast-model" type="text" placeholder="llama3.1" style="font-family:var(--mono);font-size:12px;width:200px"></div>
+                  </div>
+                </div>
+
+                <!-- Footer actions -->
+                <div style="display:flex;gap:8px;align-items:center;padding:14px 18px;border-top:1px solid var(--border)">
+                  <button class="btn ghost" id="ai-provider-test-btn">Test connection</button>
+                  <button class="btn primary" id="ai-provider-save-btn">Save</button>
+                  <span id="ai-provider-feedback" style="font-family:var(--mono);font-size:11.5px;color:var(--muted);margin-left:4px"></span>
+                </div>
+
+                <!-- AI observability — model run telemetry across all providers -->
+                <div style="border-top:1px solid var(--border);padding:14px 18px">
+                  <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+                    <div class="section-label" style="margin:0">AI Activity · run telemetry</div>
+                    <span style="flex:1"></span>
+                    <button class="btn ghost sm" id="ai-traces-refresh">Refresh</button>
+                  </div>
+                  <div id="ai-traces-summary" style="display:flex;gap:18px;flex-wrap:wrap;font-family:var(--mono);font-size:11.5px;color:var(--text-2);margin-bottom:10px">
+                    <span>runs <b id="ai-tr-count" style="color:var(--text)">—</b></span>
+                    <span>in <b id="ai-tr-in" style="color:var(--cyan)">—</b></span>
+                    <span>out <b id="ai-tr-out" style="color:var(--cyan)">—</b></span>
+                    <span>avg latency <b id="ai-tr-lat" style="color:var(--text)">—</b></span>
+                  </div>
+                  <div id="ai-traces-list" style="font-family:var(--mono);font-size:11px;color:var(--text-3);max-height:200px;overflow-y:auto"></div>
+                </div>
+              </div>
+
               <div class="set-card set-sub" data-sub="appearance" style="display:none">
                 <div class="h">
                   <div><div class="ttl">Theme</div><div class="sub">Switch the console palette. Both themes use the same layout — only color tokens differ. Survives reload.</div></div>

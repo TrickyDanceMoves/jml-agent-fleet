@@ -9,6 +9,7 @@ contextBridge.exposeInMainWorld('api', {
   setMode:          (whatif)         => ipcRenderer.send('set-mode', { whatif }),
   clearHistory:     (agent)          => ipcRenderer.send('clear-history', { agent }),
   getAuditLog:       ()               => ipcRenderer.send('get-audit-log'),
+  exportEvidencePacket: (payload)     => ipcRenderer.invoke('export-evidence-packet', payload),
   getDashboardStats: ()               => ipcRenderer.send('get-dashboard-stats'),
   getSecurityReports:()               => ipcRenderer.send('get-security-reports'),
   windowMinimize:   ()               => ipcRenderer.send('window-minimize'),
@@ -61,6 +62,15 @@ contextBridge.exposeInMainWorld('api', {
 
   getAgentHealth:  ()   => ipcRenderer.send('get-agent-health'),
   onAgentHealth:   (cb) => ipcRenderer.on('agent-health', (_, d) => cb(d)),
+
+  // Agent quarantine (kill switch) — invoke, returns { ok, ... }
+  quarantineAgent: (payload) => ipcRenderer.invoke('quarantine-agent', payload),
+
+  // Policy simulation — read-only decision preview
+  simulatePolicy: (payload) => ipcRenderer.invoke('simulate-policy', payload),
+
+  // Access snapshot — read-only current state for before/after diff
+  getAccessSnapshot: (upn) => ipcRenderer.invoke('get-access-snapshot', { upn }),
 
   getHrQueue:      ()   => ipcRenderer.send('get-hr-queue'),
   onHrQueue:       (cb) => ipcRenderer.on('hr-queue', (_, d) => cb(d)),
@@ -145,6 +155,12 @@ contextBridge.exposeInMainWorld('api', {
   // Integrations config
   getIntegrationsConfig:  ()       => ipcRenderer.invoke('get-integrations-config'),
   saveIntegrationsConfig: (config) => ipcRenderer.invoke('save-integrations-config', { config }),
+
+  // AI Provider configuration
+  getAiProviderConfig:  ()       => ipcRenderer.invoke('get-ai-provider-config'),
+  saveAiProviderConfig: (config) => ipcRenderer.invoke('save-ai-provider-config', { config }),
+  testAiProvider:       ()       => ipcRenderer.invoke('test-ai-provider'),
+  getAiTraces:          (limit)  => ipcRenderer.invoke('get-ai-traces', { limit }),
 
   // Open external URL in default browser
   openExternal: (url) => ipcRenderer.invoke('open-external', url),

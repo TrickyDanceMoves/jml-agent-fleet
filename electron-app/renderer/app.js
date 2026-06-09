@@ -686,6 +686,8 @@ const _TOOL_TO_LC_STAGE = {
 let _lcPipeline = ['request', 'risk', 'plan'];
 let _lcDoneSet  = new Set();
 let _lcCurrent  = null;
+let _lcToolRan  = false;   // did any tool fire this turn? (request "captured" signal)
+let _lcCapturing = false;  // request started but intent not yet fully captured
 
 function renderLifecycleMap() {
   const map = document.getElementById('lifecycle-map');
@@ -698,9 +700,16 @@ function renderLifecycleMap() {
     const meta    = _LC_META[key] || { label: key, sub: null };
     const isDone  = _lcDoneSet.has(key);
     const isCurr  = key === _lcCurrent;
-    const cls     = 'lc-state' + (isDone ? ' done' : isCurr ? ' current' : '');
-    const dot     = isDone ? '<span>✓</span>' : '';
-    const subHtml = meta.sub ? `<div class="lc-sub">${meta.sub}</div>` : '';
+    // The 'request' stage has an extra "capturing" sub-state: started but the agent
+    // is still gathering required details (e.g. user only gave a name). It is neither
+    // done nor a normal in-flight step — show it distinctly so operators know more
+    // input is needed before the request is considered captured.
+    const capturing = key === 'request' && isCurr && _lcCapturing && !isDone;
+    const cls     = 'lc-state' + (isDone ? ' done' : capturing ? ' current capturing' : isCurr ? ' current' : '');
+    const dot     = isDone ? '<span>✓</span>' : capturing ? '<span>…</span>' : '';
+    let sub = meta.sub;
+    if (key === 'request') sub = isDone ? 'intent captured' : capturing ? 'gathering details…' : 'awaiting intent';
+    const subHtml = sub ? `<div class="lc-sub">${sub}</div>` : '';
     return `<div class="${cls}" data-stage="${key}">
       <div class="lc-dot">${dot}</div>
       <div class="lc-info"><div class="lc-label">${meta.label}</div>${subHtml}</div>
@@ -712,8 +721,10 @@ function lcResetToRequest() {
   _lcPipeline = ['request', 'risk', 'plan'];
   _lcDoneSet  = new Set();
   _lcCurrent  = 'request';
+  _lcToolRan  = false;
+  _lcCapturing = true;   // a turn just started; intent not yet captured
   const tag = document.getElementById('lifecycle-status-tag');
-  if (tag) { tag.textContent = 'In Progress'; tag.className = 'tag info'; }
+  if (tag) { tag.textContent = 'Capturing'; tag.className = 'tag info'; }
   renderLifecycleMap();
 }
 
@@ -728,16 +739,31 @@ function lcAdvanceTo(stageKey) {
       _lcPipeline.splice(hi, 0, 'soft', 'approval');
     }
   }
+  // A tool fired → the request is now fully captured and actionable
+  _lcToolRan   = true;
+  _lcCapturing = false;
   // Mark everything up to (not including) stageKey as done
   const idx = _lcPipeline.indexOf(stageKey);
   for (let i = 0; i < idx; i++) _lcDoneSet.add(_lcPipeline[i]);
   _lcCurrent = stageKey;
+  const tag = document.getElementById('lifecycle-status-tag');
+  if (tag) { tag.textContent = 'In Progress'; tag.className = 'tag info'; }
   renderLifecycleMap();
 }
 
 function lcMarkComplete() {
+  // If the turn ended without any tool firing and we're still at 'request', the
+  // agent only asked a follow-up — the request is NOT captured/complete yet.
+  if (!_lcToolRan && _lcCurrent === 'request') {
+    _lcCapturing = true;
+    const tag = document.getElementById('lifecycle-status-tag');
+    if (tag) { tag.textContent = 'Awaiting details'; tag.className = 'tag warn'; }
+    renderLifecycleMap();
+    return;
+  }
   if (_lcCurrent) _lcDoneSet.add(_lcCurrent);
   _lcCurrent = null;
+  _lcCapturing = false;
   const tag = document.getElementById('lifecycle-status-tag');
   if (tag) { tag.textContent = 'Complete'; tag.className = 'tag ok'; }
   renderLifecycleMap();
@@ -747,6 +773,8 @@ function lcSetIdle() {
   _lcPipeline = ['request', 'risk', 'plan'];
   _lcDoneSet  = new Set();
   _lcCurrent  = null;
+  _lcToolRan  = false;
+  _lcCapturing = false;
   const tag = document.getElementById('lifecycle-status-tag');
   if (tag) { tag.textContent = 'Idle'; tag.className = 'tag'; }
   renderLifecycleMap();
@@ -756,6 +784,17 @@ function lcSetIdle() {
 function updateLifecycleState(stepLabel, state) {
   // Replaced by the new state machine above; no-op for legacy calls
 }
+
+window.__jmlSetApproverDemoLifecycle = function () {
+  _lcPipeline  = ['request', 'risk', 'plan', 'soft', 'approval', 'hard'];
+  _lcDoneSet   = new Set(['request', 'risk', 'plan', 'soft']);
+  _lcCurrent   = 'approval';
+  _lcToolRan   = true;
+  _lcCapturing = false;
+  const tag = document.getElementById('lifecycle-status-tag');
+  if (tag) { tag.textContent = 'Awaiting dual approval'; tag.className = 'tag warn'; }
+  renderLifecycleMap();
+};
 
 // ── Message rendering ─────────────────────────────────────────────────────────
 function appendUserMessage(agent, text) {
@@ -899,6 +938,13 @@ window.api.onComplete(({ agent }) => {
   // Advance lifecycle / query state on completion
   if (agent === 'approver') lcMarkComplete();
   if (agent === 'auditor')  audQueryComplete(currentMsgEl[agent]);
+
+  // Real-time security refresh: if remediation actions were routed from Security,
+  // re-scan once per completed operation (counter survives rapid double-dispatch).
+  if (agent === 'approver' && window._secRefreshAfterOp > 0) {
+    window._secRefreshAfterOp--;
+    setTimeout(() => window.api.getSecurityReports(), 4000);
+  }
   const msgEl = currentMsgEl[agent];
   if (msgEl) {
     const thinkEl = msgEl.querySelector('.thinking-indicator');
@@ -930,6 +976,59 @@ window.api.onComplete(({ agent }) => {
         textEl.appendChild(wrap);
       }
     }
+    // Approver: inline confirm buttons + copyable token chips
+    if (agent === 'approver') {
+      const textEl = msgEl.querySelector('.message-text');
+      if (textEl) {
+        const raw = (textEl.dataset.raw || textEl.textContent || '');
+
+        // Fix 3: detect confirmation prompts and inject Proceed/Cancel buttons
+        if (/confirm to continue\??|shall i proceed\??|want me to proceed\??|go ahead\?/i.test(raw)
+            && !textEl.querySelector('.inline-confirm')) {
+          const div = document.createElement('div');
+          div.className = 'inline-confirm';
+          const proceed = document.createElement('button');
+          proceed.className = 'btn primary sm';
+          proceed.textContent = 'Proceed';
+          const cancel = document.createElement('button');
+          cancel.className = 'btn ghost sm';
+          cancel.textContent = 'Cancel';
+          proceed.addEventListener('click', () => {
+            div.remove();
+            window.api.sendMessage('approver', 'Confirmed. Go ahead.');
+          });
+          cancel.addEventListener('click', () => {
+            div.remove();
+            window.api.sendMessage('approver', 'Cancel — do not proceed.');
+          });
+          div.appendChild(proceed);
+          div.appendChild(cancel);
+          textEl.appendChild(div);
+        }
+
+        // Fix 4: make dual-approval tokens copyable.
+        // Guard: the text node immediately before the <strong> must contain "Token"
+        // so we don't accidentally mark bold role names (**READ**, **ADMIN**, etc.)
+        // in paragraphs that happen to mention "token" elsewhere.
+        textEl.querySelectorAll('strong').forEach(strong => {
+          const val     = strong.textContent.trim();
+          if (!/^[A-Z0-9]{4,8}$/.test(val)) return;
+          const prev    = strong.previousSibling;
+          const prevTxt = prev && prev.nodeType === Node.TEXT_NODE ? prev.textContent : '';
+          if (!/\btoken\b\s*$/i.test(prevTxt)) return;
+          strong.classList.add('token-chip');
+          strong.title = 'Click to copy token';
+          strong.addEventListener('click', () => {
+            navigator.clipboard.writeText(val).then(() => {
+              const orig = strong.textContent;
+              strong.textContent = 'Copied!';
+              setTimeout(() => { strong.textContent = orig; }, 1200);
+            });
+          });
+        });
+      }
+    }
+
     currentMsgEl[agent] = null;
   }
 });
@@ -1399,6 +1498,37 @@ function focusFinding(idx) {
     ).join('');
   }
 
+  _updateRemButtonAccess();
+  // Inline remediation — show per-finding-type quick actions that route to Approver
+  const remLabel   = document.getElementById('sec-rem-label');
+  const remBtns    = document.getElementById('sec-rem-btns');
+  const remDisable = document.getElementById('sec-rem-disable');
+  const remRevoke  = document.getElementById('sec-rem-revoke');
+  const remMfa     = document.getElementById('sec-rem-mfa');
+  const remGroups  = document.getElementById('sec-rem-groups');
+
+  if (remBtns) {
+    const ruleStr  = (f.rule || '').toLowerCase();
+    const titleStr = (f.title || '').toLowerCase();
+    const combo    = ruleStr + ' ' + titleStr;
+    // Extract subject UPN from signals for pre-filling the Approver prompt
+    const subSig   = (f.signals || []).find(([k]) => /subject|user|upn/i.test(k));
+    remBtns.dataset.subject = subSig ? String(subSig[1]) : (f.subject || '');
+
+    const showDisable = /after.hours|risky|suspicious|compromised|anomaly|pattern/i.test(combo);
+    const showRevoke  = /after.hours|risky|compromised|session/i.test(combo);
+    const showMfa     = /risky|compromised|identity.protect/i.test(combo);
+    const showGroups  = /group.*still|still.*group|disabled.*group|stale.*group|active.*license/i.test(combo);
+    const any = showDisable || showRevoke || showMfa || showGroups;
+
+    if (remLabel) remLabel.style.display = any ? '' : 'none';
+    remBtns.style.display = any ? 'flex' : 'none';
+    if (remDisable) remDisable.style.display = showDisable ? '' : 'none';
+    if (remRevoke)  remRevoke.style.display  = showRevoke  ? '' : 'none';
+    if (remMfa)     remMfa.style.display     = showMfa     ? '' : 'none';
+    if (remGroups)  remGroups.style.display  = showGroups  ? '' : 'none';
+  }
+
   // Show drift remediation card if this is a drift finding
   const driftCard = document.getElementById('sec-drift-rem-v2');
   if (driftCard) {
@@ -1670,6 +1800,45 @@ document.getElementById('sec-drift-restore-v2')?.addEventListener('click', () =>
     showToast('Restore baseline: submitting for dual approval…');
   }
 });
+
+// ── Security inline remediation buttons ──────────────────────────────────────
+// Only admin/helpdesk can take remediation actions; viewers see buttons disabled.
+function _updateRemButtonAccess() {
+  const canWrite = ['admin','helpdesk'].includes(currentOperatorRole());
+  ['sec-rem-disable','sec-rem-revoke','sec-rem-mfa','sec-rem-groups'].forEach(id => {
+    const btn = document.getElementById(id);
+    if (!btn) return;
+    btn.disabled = !canWrite;
+    btn.title    = canWrite ? '' : 'Requires admin or helpdesk role';
+    btn.style.opacity = canWrite ? '' : '0.45';
+  });
+}
+
+function _secRemRoute(promptTemplate) {
+  if (!['admin','helpdesk'].includes(currentOperatorRole())) {
+    showToast('Remediation requires admin or helpdesk role', 'error');
+    return;
+  }
+  const subject = document.getElementById('sec-rem-btns')?.dataset.subject || '';
+  const msg     = subject
+    ? promptTemplate.replace('{subject}', subject)
+    : promptTemplate.replace(' {subject}', '').replace('{subject}', 'this user');
+  switchTab('approver');
+  // Schedule a security re-scan after the approver finishes — finding should resolve
+  window._secRefreshAfterOp = (window._secRefreshAfterOp || 0) + 1;
+  setTimeout(() => {
+    const inp = document.getElementById('chat-input-approver');
+    if (inp) { inp.value = msg; inp.focus(); }
+  }, 350);
+}
+document.getElementById('sec-rem-disable')?.addEventListener('click', () =>
+  _secRemRoute('Disable account for {subject} immediately — security finding requires urgent action'));
+document.getElementById('sec-rem-revoke')?.addEventListener('click', () =>
+  _secRemRoute('Revoke all active sessions for {subject} — security finding'));
+document.getElementById('sec-rem-mfa')?.addEventListener('click', () =>
+  _secRemRoute('Force MFA re-registration for {subject} — identity protection alert'));
+document.getElementById('sec-rem-groups')?.addEventListener('click', () =>
+  _secRemRoute('Remove {subject} from all active group memberships — account is disabled and should not retain access'));
 
 // ── Security pivot buttons ────────────────────────────────────────────────────
 // "Open audit entry" → jump to Audit Log and pre-filter by subject
@@ -2237,14 +2406,28 @@ function buildDashSummary() {
 }
 
 // ── Dashboard ─────────────────────────────────────────────────────────────────
+let _dashConnected = false;
 function loadDashboard() {
+  _dashConnected = false;
   window.api.getDashboardStats();
   window.api.getPendingApprovals();
   window.api.getSecurityReports();
   window.api.getAgentHealth();
+  // Fallback: if live data doesn't arrive within 8s, show a graceful disconnected state
+  clearTimeout(window._dashTimeout);
+  window._dashTimeout = setTimeout(() => {
+    if (_dashConnected) return;
+    document.querySelectorAll('#view-dashboard .loading').forEach(el => el.classList.remove('loading'));
+    const sub = document.getElementById('dash-page-sub');
+    if (sub) sub.textContent = 'Fleet offline — no Entra connection. Configure tenant binding in Settings → Tenant Binding to enable live data.';
+    const statEls = ['stat-users-total','stat-licenses-total','stat-activity-total'];
+    statEls.forEach(id => { const el = document.getElementById(id); if (el && el.textContent === '') el.textContent = '—'; });
+  }, 8000);
 }
 
 window.api.onDashboardStats((data) => {
+  _dashConnected = true;
+  clearTimeout(window._dashTimeout);
   ['stat-users-total','stat-users-detail','stat-licenses-total','stat-activity-total','stat-activity-detail']
     .forEach(id => document.getElementById(id).classList.remove('loading'));
   if (data.error) {
@@ -2547,36 +2730,48 @@ function highlightJson(text) {
 }
 
 function renderMarkdown(text) {
-  // Parse GFM-style markdown into styled HTML
   const lines = text.split('\n');
   const out = [];
   let i = 0;
 
+  // Helpers
+  const isBullet   = l => /^\s*[-*•]\s/.test(l);
+  const isNumList  = l => /^\s*\d+\.\s/.test(l);
+  const isTaskItem = l => /^\s*[-*]\s+\[[ xX]\]\s/.test(l);
+  const isBlockq   = l => /^\s*>\s?/.test(l);
+
   while (i < lines.length) {
-    const raw = lines[i];
+    const raw  = lines[i];
     const line = raw.trimEnd();
 
-    // Blank line
+    // Blank line — skip
     if (!line.trim()) { i++; continue; }
 
     // Heading
     const hm = line.match(/^(#{1,3})\s+(.+)/);
     if (hm) {
-      const lvl = hm[1].length;
-      out.push('<div class="md-h' + lvl + '">' + inlineMarkdown(hm[2]) + '</div>');
+      out.push('<div class="md-h' + hm[1].length + '">' + inlineMarkdown(hm[2]) + '</div>');
       i++; continue;
     }
 
     // Horizontal rule
-    if (/^---+$/.test(line.trim())) { out.push('<div class="md-hr"></div>'); i++; continue; }
+    if (/^[-*]{3,}$/.test(line.trim())) { out.push('<div class="md-hr"></div>'); i++; continue; }
 
-    // Pipe table — collect all consecutive pipe rows
+    // Blockquote — collect only lines that start with `>`; stop at anything else
+    if (isBlockq(line)) {
+      const bqLines = [];
+      while (i < lines.length && isBlockq(lines[i])) {
+        bqLines.push(lines[i].replace(/^\s*>\s?/, ''));
+        i++;
+      }
+      out.push('<div class="md-blockquote">' + inlineMarkdown(bqLines.join(' ')) + '</div>');
+      continue;
+    }
+
+    // Pipe table
     if (line.trim().startsWith('|')) {
       const tableLines = [];
-      while (i < lines.length && lines[i].trim().startsWith('|')) {
-        tableLines.push(lines[i]); i++;
-      }
-      // Skip separator rows (---|---)
+      while (i < lines.length && lines[i].trim().startsWith('|')) { tableLines.push(lines[i]); i++; }
       const rows = tableLines.filter(l => !/^\s*\|[\s\-:|]+\|\s*$/.test(l));
       if (rows.length) {
         const parseRow = l => l.replace(/^\||\|$/g, '').split('|').map(c => c.trim());
@@ -2593,11 +2788,25 @@ function renderMarkdown(text) {
       continue;
     }
 
-    // Bullet list — collect consecutive items
-    if (/^\s*[-*]\s/.test(line)) {
+    // Task list (must come before bullet so `- [x]` isn't consumed as a plain bullet)
+    if (isTaskItem(line)) {
       out.push('<ul class="md-list">');
-      while (i < lines.length && /^\s*[-*]\s/.test(lines[i])) {
-        out.push('<li>' + inlineMarkdown(lines[i].replace(/^\s*[-*]\s+/, '')) + '</li>');
+      while (i < lines.length && isTaskItem(lines[i])) {
+        const done = /^\s*[-*]\s+\[[xX]\]/.test(lines[i]);
+        const body = lines[i].replace(/^\s*[-*]\s+\[[ xX]\]\s*/, '');
+        out.push('<li><span class="md-task-check">' + (done ? '☑' : '☐') + '</span>'
+          + '<span class="' + (done ? 'md-task-done' : '') + '">' + inlineMarkdown(body) + '</span></li>');
+        i++;
+      }
+      out.push('</ul>');
+      continue;
+    }
+
+    // Bullet list — `-`, `*`, or `•` prefixes all treated as list items
+    if (isBullet(line)) {
+      out.push('<ul class="md-list">');
+      while (i < lines.length && isBullet(lines[i])) {
+        out.push('<li>' + inlineMarkdown(lines[i].replace(/^\s*[-*•]\s+/, '')) + '</li>');
         i++;
       }
       out.push('</ul>');
@@ -2605,13 +2814,25 @@ function renderMarkdown(text) {
     }
 
     // Numbered list
-    if (/^\s*\d+\.\s/.test(line)) {
+    if (isNumList(line)) {
       out.push('<ol class="md-list">');
-      while (i < lines.length && /^\s*\d+\.\s/.test(lines[i])) {
+      while (i < lines.length && isNumList(lines[i])) {
         out.push('<li>' + inlineMarkdown(lines[i].replace(/^\s*\d+\.\s+/, '')) + '</li>');
         i++;
       }
       out.push('</ol>');
+      continue;
+    }
+
+    // Fenced code block
+    if (/^```/.test(line)) {
+      const lang = line.replace(/^```/, '').trim();
+      const codeLines = [];
+      i++;
+      while (i < lines.length && !/^```/.test(lines[i])) { codeLines.push(lines[i]); i++; }
+      i++; // consume closing ```
+      out.push('<pre' + (lang ? ' data-lang="' + escHtml(lang) + '"' : '') + '><code>'
+        + escHtml(codeLines.join('\n')) + '</code></pre>');
       continue;
     }
 
@@ -2625,14 +2846,24 @@ function renderMarkdown(text) {
 
 function inlineMarkdown(text) {
   return escHtml(text)
+    // Bold+italic together first
+    .replace(/\*\*\*([^*]+)\*\*\*/g, '<strong><em>$1</em></strong>')
+    // Bold
     .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
-    .replace(/\*([^*]+)\*/g, '<em>$1</em>')
-    .replace(/`([^`]+)`/g, '<code class="md-code">$1</code>')
-    .replace(/&#x2705;/g, '<span class="md-check">&#x2705;</span>')
-    .replace(/&#x274C;/g, '<span class="md-cross">&#x274C;</span>')
+    // Italic
+    .replace(/\*([^*\s][^*]*)\*/g, '<em>$1</em>')
+    // Strikethrough
+    .replace(/~~([^~]+)~~/g, '<del>$1</del>')
+    // Inline code (do before links so backticks aren't processed inside links)
+    .replace(/`([^`]+)`/g, '<code>$1</code>')
+    // Links [text](url) — only http/https to avoid XSS
+    .replace(/\[([^\]]+)\]\((https?:\/\/[^)]+)\)/g, '<a class="md-link" href="$2" target="_blank" rel="noopener">$1</a>')
+    // Emoji status markers
     .replace(/✅/g, '<span class="md-check">✅</span>')
     .replace(/❌/g, '<span class="md-cross">❌</span>')
-    .replace(/⚠️/g, '<span class="md-warn">⚠️</span>');
+    .replace(/⚠️/g, '<span class="md-warn">⚠️</span>')
+    .replace(/&#x2705;/g, '<span class="md-check">✅</span>')
+    .replace(/&#x274C;/g, '<span class="md-cross">❌</span>');
 }
 
 // ── Approvals tab ─────────────────────────────────────────────────────────────
@@ -2659,18 +2890,13 @@ function decorateAgentMentions(html) {
 }
 
 function renderV2ChatEnhancements(text) {
-  const t = (text || '').toLowerCase();
-  if (!t || currentTab !== 'approver') return '';
-  const parts = [];
-  if (/\brisk\b|\bscore\b|dual-approval|privileged|sensitive/.test(t)) {
-    // Use real tool result if available; fall back to coarse text-detected score
-    const fallbackScore = t.includes('critical') ? 86 : t.includes('low') ? 24 : 68;
-    parts.push(renderRiskScoreCard(_lastRiskResult || { score: fallbackScore }));
-  }
-  if (/\bplan\b|graph\.|revoke|disable|license|group|audit\.write|offboard|leaver/.test(t)) {
-    parts.push(renderPlanPreviewCard());
-  }
-  return parts.length ? '<div class="v2-chat-enhancements">' + parts.join('') + '</div>' : '';
+  // Synthetic chat-enhancement cards (a fabricated "plan preview" execution trace
+  // and a text-pattern-matched risk gauge with a fallback fake score) were appended
+  // to every agent reply. They showed made-up tool calls, timings, and data, which
+  // is misleading — disabled. Real risk data is stated in the agent's own text and
+  // surfaced via the actual score_risk tool result; the deterministic Policy
+  // Simulation tool (Operations tab) covers genuine policy previews.
+  return '';
 }
 
 // renderRiskScoreCard(data)
@@ -2932,7 +3158,14 @@ window.api.onPendingApprovals((data) => {
       noteHtml = `<div class="note"><div class="ttl">Notes</div><div class="reason">Standard operation. Review the details and approve, hold, or reject.</div></div>`;
     }
 
-    // Dual approver row (severity=crit → 1 of 2)
+    // Role gate: can the current operator approve this?
+    const reqApproverRole  = op.requiredApproverRole || (severity === 'crit' ? 'admin' : 'helpdesk');
+    const actorRole        = currentOperatorRole();
+    const canApproveThis   = actorRole === 'admin' || (reqApproverRole !== 'admin' && actorRole === 'helpdesk');
+    const needsAdminBadge  = reqApproverRole === 'admin';
+    const submittedByHelpdesk = (op.requestedByRole || '').toLowerCase() === 'helpdesk';
+
+    // Dual approver row
     const isDual = severity === 'crit';
     const approverRow = isDual
       ? `<span class="approver-line">Approvers
@@ -2944,16 +3177,33 @@ window.api.onPendingApprovals((data) => {
            <span style="margin-left:8px">1 of 1 required</span>
          </span>`;
 
+    // Role badge and disabled-approve messaging
+    const roleBadgeHtml = needsAdminBadge
+      ? `<span class="tag crit" style="font-size:10px;padding:2px 7px">Admin required</span>`
+      : `<span class="tag info" style="font-size:10px;padding:2px 7px;opacity:.7">Any approver</span>`;
+    const submitterHtml = submittedByHelpdesk && op.requestedBy
+      ? `<div style="font-size:11.5px;color:var(--text-3);margin-top:6px;font-family:var(--mono)">Escalated by helpdesk · ${escHtml(op.requestedBy)}</div>`
+      : '';
+    const approveBtn = !expired
+      ? canApproveThis
+        ? `<button class="btn primary btn-approve" data-id="${escHtml(token)}">Approve${isDual ? ' (1 of 2)' : ''}</button>`
+        : `<button class="btn primary btn-approve" data-id="${escHtml(token)}" disabled
+              title="Requires admin role — contact an admin operator to approve this action"
+              style="opacity:.45;cursor:not-allowed">Admin sign-off needed</button>`
+      : '';
+
     return `<div class="approval-card card ${severity === 'crit' ? 'crit' : 'info'}${expired ? ' expired' : ''}" data-id="${escHtml(token)}">
       <div class="card-h approval-header">
         <span class="tag approval-badge ${badgeClass}">${opLabel}</span>
         <span class="who-em approval-upn">${escHtml(inp.userPrincipalName || '—')}</span>
         <div class="spacer"></div>
+        ${roleBadgeHtml}
         ${token ? `<span class="token approval-token">TOKEN <b>${escHtml(token.slice(0, 8).toUpperCase())}</b></span>` : ''}
         ${ttlText ? `<span class="ttl-cnt${ttlIsWarn ? ' warn' : ''}"><span class="x"></span>${escHtml(ttlText)}</span>` : ''}
       </div>
       <div class="card-b">
         ${kvHtml}
+        ${submitterHtml}
         ${noteHtml}
       </div>
       <div class="card-f approval-actions">
@@ -2961,7 +3211,7 @@ window.api.onPendingApprovals((data) => {
         <div class="spacer"></div>
         ${!expired ? `<button class="btn danger btn-reject" data-id="${escHtml(token)}">Reject</button>` : ''}
         ${!expired ? `<button class="btn btn-hold" data-id="${escHtml(token)}" disabled title="Hold not yet supported">Hold</button>` : ''}
-        ${!expired ? `<button class="btn primary btn-approve" data-id="${escHtml(token)}">Approve${isDual ? ' (1 of 2)' : ''}</button>` : ''}
+        ${approveBtn}
       </div>
     </div>`;
   }).join('');
@@ -2994,8 +3244,13 @@ window.api.onPendingApprovals((data) => {
   });
 });
 
-window.api.onApproveResult((data) => { loadApprovals(); });
-window.api.onRejectResult((data)  => { loadApprovals(); });
+window.api.onApproveResult((data) => {
+  loadApprovals();
+  // Approval granted — refresh security findings after brief delay so any newly
+  // cleared findings (e.g. leaver-then-group-add) can resolve
+  setTimeout(() => window.api.getSecurityReports(), 3500);
+});
+window.api.onRejectResult((data) => { loadApprovals(); });
 
 // Live TTL countdown on approval cards (1-second tick)
 setInterval(() => {
@@ -3227,13 +3482,17 @@ window.api.onScheduledOps((ops) => {
     return;
   }
   el.innerHTML = ops.map(op => {
-    const when = op.scheduledFor ? new Date(op.scheduledFor).toLocaleString() : '—';
+    const when    = op.scheduledFor ? new Date(op.scheduledFor).toLocaleString() : '—';
+    const errHtml = (op.status === 'failed' && op.error)
+      ? `<div class="sched-error-detail">${escHtml(op.error)}</div>`
+      : '';
     return `<div class="sched-item" data-id="${escHtml(op.id)}">
       <span class="sched-op">${escHtml(op.operation || '')}</span>
       <span class="sched-upn">${escHtml((op.payload && op.payload.userPrincipalName) || '')}</span>
       <span class="sched-when">${escHtml(when)}</span>
       <span class="sched-status ${escHtml(op.status || 'pending')}">${escHtml(op.status || 'pending')}</span>
       ${op.status === 'pending' ? '<button class="btn-danger btn-cancel-sched" data-id="' + escHtml(op.id) + '">Cancel</button>' : ''}
+      ${errHtml}
     </div>`;
   }).join('');
   el.querySelectorAll('.btn-cancel-sched').forEach(btn => {
@@ -3537,6 +3796,180 @@ function loadSettings() {
   loadOperatorAuth();
   loadOperatorActivity();
 }
+
+// ── AI Provider settings ──────────────────────────────────────────────────────
+(function () {
+  const SECTIONS = ['claude', 'openai', 'azure-foundry', 'azure-openai', 'ollama'];
+
+  function showSection(provider) {
+    SECTIONS.forEach(p => {
+      const el = document.getElementById('ai-prov-' + p);
+      if (el) el.style.display = p === provider ? '' : 'none';
+    });
+  }
+
+  const sel = document.getElementById('ai-provider-select');
+  if (sel) sel.addEventListener('change', () => showSection(sel.value));
+
+  async function loadAiProvider() {
+    if (typeof window.api?.getAiProviderConfig !== 'function') return;
+    const cfg = await window.api.getAiProviderConfig();
+    if (!cfg) return;
+
+    if (sel) sel.value = cfg.provider || 'claude';
+    showSection(cfg.provider || 'claude');
+
+    // Claude
+    const c = cfg.claude || {};
+    setVal('ai-claude-key',        c.apiKey     || '');
+    setVal('ai-claude-agent-model',c.agentModel || 'claude-opus-4-7');
+    setVal('ai-claude-fast-model', c.fastModel  || 'claude-haiku-4-5-20251001');
+
+    // OpenAI
+    const o = cfg.openai || {};
+    setVal('ai-openai-key',        o.apiKey     || '');
+    setVal('ai-openai-agent-model',o.agentModel || 'gpt-4o');
+    setVal('ai-openai-fast-model', o.fastModel  || 'gpt-4o-mini');
+
+    // Azure AI Foundry
+    const af = cfg['azure-foundry'] || {};
+    setVal('ai-foundry-key',        af.apiKey     || '');
+    setVal('ai-foundry-endpoint',   af.endpoint   || 'https://models.inference.ai.azure.com');
+    setVal('ai-foundry-agent-model',af.agentModel || 'gpt-4o');
+    setVal('ai-foundry-fast-model', af.fastModel  || 'gpt-4o-mini');
+
+    // Azure OpenAI
+    const az = cfg['azure-openai'] || {};
+    setVal('ai-azure-key',         az.apiKey          || '');
+    setVal('ai-azure-endpoint',    az.endpoint         || '');
+    setVal('ai-azure-agent-deploy',az.agentDeployment  || 'gpt-4o');
+    setVal('ai-azure-fast-deploy', az.fastDeployment   || 'gpt-4o-mini');
+    setVal('ai-azure-api-version', az.apiVersion       || '2025-01-01-preview');
+
+    // Ollama
+    const ol = cfg.ollama || {};
+    setVal('ai-ollama-url',        ol.baseUrl    || 'http://localhost:11434');
+    setVal('ai-ollama-agent-model',ol.agentModel || 'llama3.1');
+    setVal('ai-ollama-fast-model', ol.fastModel  || 'llama3.1');
+
+    updateStatusPip(cfg.provider);
+  }
+
+  function setVal(id, v) { const el = document.getElementById(id); if (el) el.value = v; }
+  function getVal(id)    { const el = document.getElementById(id); return el ? el.value.trim() : ''; }
+
+  function updateStatusPip(provider) {
+    const pip = document.getElementById('ai-provider-status-pip');
+    if (!pip) return;
+    const labels = { claude: 'Claude', openai: 'OpenAI', 'azure-foundry': 'Azure AI Foundry', 'azure-openai': 'Azure OpenAI', ollama: 'Ollama' };
+    pip.innerHTML = `<span class="d" style="background:var(--green)"></span>${labels[provider] || provider || 'None'}`;
+  }
+
+  function feedback(msg, isErr) {
+    const el = document.getElementById('ai-provider-feedback');
+    if (!el) return;
+    el.textContent = msg;
+    el.style.color = isErr ? 'var(--coral)' : 'var(--green)';
+    setTimeout(() => { if (el.textContent === msg) el.textContent = ''; }, 4000);
+  }
+
+  function buildConfig() {
+    return {
+      provider: sel ? sel.value : 'claude',
+      claude: {
+        apiKey:     getVal('ai-claude-key'),
+        agentModel: getVal('ai-claude-agent-model') || 'claude-opus-4-7',
+        fastModel:  getVal('ai-claude-fast-model')  || 'claude-haiku-4-5-20251001'
+      },
+      openai: {
+        apiKey:     getVal('ai-openai-key'),
+        agentModel: getVal('ai-openai-agent-model') || 'gpt-4o',
+        fastModel:  getVal('ai-openai-fast-model')  || 'gpt-4o-mini'
+      },
+      'azure-foundry': {
+        apiKey:     getVal('ai-foundry-key'),
+        endpoint:   getVal('ai-foundry-endpoint')    || 'https://models.inference.ai.azure.com',
+        agentModel: getVal('ai-foundry-agent-model') || 'gpt-4o',
+        fastModel:  getVal('ai-foundry-fast-model')  || 'gpt-4o-mini'
+      },
+      'azure-openai': {
+        apiKey:          getVal('ai-azure-key'),
+        endpoint:        getVal('ai-azure-endpoint'),
+        agentDeployment: getVal('ai-azure-agent-deploy') || 'gpt-4o',
+        fastDeployment:  getVal('ai-azure-fast-deploy')  || 'gpt-4o-mini',
+        apiVersion:      getVal('ai-azure-api-version')  || '2025-01-01-preview'
+      },
+      ollama: {
+        baseUrl:    getVal('ai-ollama-url')         || 'http://localhost:11434',
+        agentModel: getVal('ai-ollama-agent-model') || 'llama3.1',
+        fastModel:  getVal('ai-ollama-fast-model')  || 'llama3.1'
+      }
+    };
+  }
+
+  const saveBtn = document.getElementById('ai-provider-save-btn');
+  if (saveBtn) {
+    saveBtn.addEventListener('click', async () => {
+      if (typeof window.api?.saveAiProviderConfig !== 'function') return;
+      saveBtn.disabled = true;
+      const resp = await window.api.saveAiProviderConfig(buildConfig());
+      saveBtn.disabled = false;
+      if (resp && resp.ok) {
+        feedback('Saved');
+        updateStatusPip(sel ? sel.value : '');
+      } else {
+        feedback(resp?.error || 'Save failed', true);
+      }
+    });
+  }
+
+  const testBtn = document.getElementById('ai-provider-test-btn');
+  if (testBtn) {
+    testBtn.addEventListener('click', async () => {
+      if (typeof window.api?.testAiProvider !== 'function') return;
+      testBtn.disabled = true;
+      feedback('Testing…');
+      const resp = await window.api.testAiProvider();
+      testBtn.disabled = false;
+      if (resp && resp.ok) {
+        feedback(`Connected · ${resp.provider} · "${resp.text}"`);
+      } else {
+        feedback(resp?.error || 'Connection failed', true);
+      }
+    });
+  }
+
+  // ── AI observability / run telemetry ──────────────────────────────────────
+  async function loadAiTraces() {
+    if (typeof window.api?.getAiTraces !== 'function') return;
+    const data = await window.api.getAiTraces(50);
+    const s = (data && data.summary) || {};
+    const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+    set('ai-tr-count', s.count ?? 0);
+    set('ai-tr-in',  (s.totalInputTokens  ?? 0).toLocaleString());
+    set('ai-tr-out', (s.totalOutputTokens ?? 0).toLocaleString());
+    set('ai-tr-lat', (s.avgLatencyMs ?? 0) + ' ms');
+    const list = document.getElementById('ai-traces-list');
+    if (!list) return;
+    const traces = (data && data.traces) || [];
+    if (!traces.length) { list.innerHTML = '<div style="color:var(--text-4)">No model runs recorded yet. Chat with an agent to populate telemetry.</div>'; return; }
+    list.innerHTML = traces.map(t => {
+      const ts = t.ts ? new Date(t.ts).toLocaleTimeString() : '—';
+      const tok = (t.inputTokens != null || t.outputTokens != null) ? `${t.inputTokens ?? '?'}→${t.outputTokens ?? '?'} tok` : 'tokens n/a';
+      return `<div style="display:flex;gap:10px;padding:3px 0;border-bottom:1px solid var(--border)">
+        <span style="color:var(--text-4);min-width:64px">${ts}</span>
+        <span style="min-width:62px">${escHtml(t.agent || '')}</span>
+        <span style="flex:1;color:var(--text-2)">${escHtml(t.provider || '')} · ${escHtml(t.model || '')}</span>
+        <span style="color:var(--cyan)">${tok}</span>
+        <span style="min-width:60px;text-align:right">${t.latencyMs ?? '?'} ms</span>
+      </div>`;
+    }).join('');
+  }
+  document.getElementById('ai-traces-refresh')?.addEventListener('click', loadAiTraces);
+
+  // Expose for sub-tab navigation hook
+  window._loadAiProvider = () => { loadAiProvider(); loadAiTraces(); };
+})();
 
 async function loadOperatorActivity() {
   const body = document.getElementById('op-activity-body');
@@ -4288,6 +4721,8 @@ function setSidebarOperator(name) {
     }
   }
   updateDashGreeting(name);
+  // Re-evaluate security remediation button access when operator changes
+  _updateRemButtonAccess();
 }
 
 // Click avatar → Electron native dialog → crop+resize done in main process → store data URL
@@ -4461,6 +4896,62 @@ Object.entries(KPI_NAV).forEach(([id, tab]) => {
   el.addEventListener('click', () => switchTab(tab));
 });
 
+// ── Agent quarantine (kill switch) ───────────────────────────────────────────
+(function wireQuarantine() {
+  const sel      = document.getElementById('quarantine-agent-select');
+  const reasonEl = document.getElementById('quarantine-reason');
+  const revokeEl = document.getElementById('quarantine-revoke');
+  const previewBtn = document.getElementById('quarantine-preview-btn');
+  const execBtn    = document.getElementById('quarantine-execute-btn');
+  const fb         = document.getElementById('quarantine-feedback');
+  if (!sel || !execBtn || typeof window.api?.quarantineAgent !== 'function') return;
+
+  function show(msg, kind) {
+    fb.style.display = 'block';
+    fb.textContent = msg;
+    fb.style.color = kind === 'error' ? 'var(--coral)' : kind === 'ok' ? 'var(--emerald)' : 'var(--text-2)';
+  }
+
+  previewBtn?.addEventListener('click', async () => {
+    previewBtn.disabled = true;
+    show('Running WhatIf preview…');
+    const r = await window.api.quarantineAgent({
+      agent: sel.value, reason: reasonEl.value || undefined, whatif: true, revoke: revokeEl.checked
+    });
+    previewBtn.disabled = false;
+    if (r && r.ok) show(`WhatIf: would disable ${r.agent} (appId ${r.appId})${r.revoke ? ' + revoke creds' : ''}. No changes made.`, 'ok');
+    else show('Preview failed: ' + (r?.error || 'unknown'), 'error');
+  });
+
+  execBtn?.addEventListener('click', async () => {
+    if (currentOperatorRole() !== 'admin') { show('Quarantine requires an admin operator.', 'error'); return; }
+    const agent = sel.value;
+    const ok = await confirmModal({
+      title: `Quarantine ${agent}?`,
+      body: `This disables the ${agent} agent's service principal immediately, blocking all token issuance${revokeEl.checked ? ' and revokes its credentials' : ''}. A high-severity audit entry is written. Continue?`,
+      okLabel: 'Quarantine', danger: true,
+    });
+    if (!ok) return;
+    const token = await requirePinIfNeeded('Confirm agent quarantine');
+    if (!token) return;
+    execBtn.disabled = true;
+    show('Quarantining…');
+    const r = await window.api.quarantineAgent({
+      agent, reason: reasonEl.value || undefined, whatif: false, revoke: revokeEl.checked,
+      writeToken: typeof token === 'string' ? token : null
+    });
+    execBtn.disabled = false;
+    if (r && r.ok) {
+      show(`✓ ${agent} quarantined — SP ${r.spObjectId} disabled${r.revoked ? ', credentials revoked' : ''}. Audit entry written.`, 'ok');
+      showToast(`${agent} agent quarantined`, 'success');
+      if (typeof window.api?.getAgentHealth === 'function') window.api.getAgentHealth();
+    } else {
+      show('Quarantine failed: ' + (r?.error || 'unknown'), 'error');
+      showToast('Quarantine failed', 'error');
+    }
+  });
+})();
+
 // ── Certs tiles → detail popover with thumbprint, agent name, status ──────
 (function wireCertTileClicks() {
   document.querySelectorAll('#view-certs .cert-tile').forEach(tile => {
@@ -4583,6 +5074,7 @@ if (typeof window.api?.onHrQueue === 'function') {
       });
       if (sub === 'tenant') loadTenantConfig();
       if (sub === 'notifications') loadNotificationRules();
+      if (sub === 'ai-provider' && typeof window._loadAiProvider === 'function') window._loadAiProvider();
     });
   });
   document.querySelectorAll('[data-settings-sub]').forEach(btn => {
@@ -5133,6 +5625,18 @@ function audClearState() {
   if (card)     card.style.display = 'none';
 }
 
+window.__jmlSetAuditorDemoRail = function (query, responseText) {
+  audSetActiveQuery(query || 'Show failed and suspicious operations');
+  audTrackTool('query_audit_log', 'done');
+  audTrackTool('scan_ueba_findings', 'done');
+  const msgEl = document.createElement('div');
+  const txt = document.createElement('div');
+  txt.className = 'message-text';
+  txt.textContent = responseText || '';
+  msgEl.appendChild(txt);
+  audQueryComplete(msgEl);
+};
+
 // Auditor jump-to buttons
 document.getElementById('aud-jump-log')?.addEventListener('click', () => switchTab('audit-log'));
 document.getElementById('aud-jump-security')?.addEventListener('click', () => switchTab('security'));
@@ -5144,6 +5648,18 @@ document.getElementById('aud-findings-clr')?.addEventListener('click', () => {
   const list = document.getElementById('aud-findings-list');
   if (list) list.innerHTML = '';
   if (card) card.style.display = 'none';
+});
+
+// ── Scroll-to-bottom buttons (Fix 7) ─────────────────────────────────────────
+['approver', 'auditor'].forEach(agent => {
+  const msgs = document.getElementById('messages-' + agent);
+  const btn  = document.getElementById('scroll-bottom-' + agent);
+  if (!msgs || !btn) return;
+  msgs.addEventListener('scroll', () => {
+    const distFromBottom = msgs.scrollHeight - msgs.scrollTop - msgs.clientHeight;
+    btn.style.display = distFromBottom > 120 ? '' : 'none';
+  }, { passive: true });
+  btn.addEventListener('click', () => { msgs.scrollTo({ top: msgs.scrollHeight, behavior: 'smooth' }); });
 });
 
 // ── Dashboard quick actions ────────────────────────────────────────────────────
@@ -5329,12 +5845,33 @@ function applyAuditFilters() {
   const countEl = document.getElementById('log-count');
   if (countEl) countEl.textContent = filtered.length + ' entries';
 
+  window._filteredAuditEntries = filtered; // consumed by the evidence-packet export
+
   if (_timelineActive) {
     renderTimeline(filtered);
   } else {
     renderAuditTable(filtered);
   }
 }
+
+// ── Evidence packet export ────────────────────────────────────────────────────
+document.getElementById('btn-export-evidence')?.addEventListener('click', async () => {
+  if (typeof window.api?.exportEvidencePacket !== 'function') return;
+  const btn = document.getElementById('btn-export-evidence');
+  const filtered = window._filteredAuditEntries || window._allAuditEntries || [];
+  const hashes = filtered.map(e => e.hash).filter(Boolean);
+  if (!hashes.length) { showToast('No audit entries to export', 'warning'); return; }
+  btn.disabled = true; const orig = btn.textContent; btn.textContent = 'Exporting…';
+  const r = await window.api.exportEvidencePacket({ hashes });
+  btn.disabled = false; btn.textContent = orig;
+  if (r && r.ok) {
+    showToast(`Evidence packet exported (${r.count} entries) — integrity: ${/PASS/i.test(r.integrity) ? 'verified' : 'see packet'}`, 'success');
+  } else if (r && r.canceled) {
+    /* user cancelled save dialog */
+  } else {
+    showToast('Export failed: ' + (r?.error || 'unknown'), 'error');
+  }
+});
 
 function renderAuditTable(entries) {
   const tbody    = document.getElementById('log-tbody');
@@ -5513,6 +6050,13 @@ function renderTimeline(entries) {
 })();
 
 // ── User Lookup ───────────────────────────────────────────────────────────────
+
+// Attestation dialog safety net: the dialog is created dynamically, so this
+// delegated handler ensures Export Pack invokes the real evidence export path.
+document.addEventListener('click', e => {
+  if (!e.target.closest('#attest-dialog-build')) return;
+  setTimeout(() => document.getElementById('btn-export-evidence')?.click(), 0);
+}, true);
 
 // Show recently-searched users or a friendly prompt when the tab loads cold.
 function loadRecentUsers() {
@@ -5803,6 +6347,120 @@ function loadRecentUsers() {
 (function () {
   const btnMover  = document.getElementById('btn-run-quick-mover');
   const btnLeaver = document.getElementById('btn-run-quick-leaver');
+
+  // ── Policy simulation (read-only dry-run) ────────────────────────────────
+  const btnSim = document.getElementById('btn-policy-sim');
+  if (btnSim && typeof window.api?.simulatePolicy === 'function') {
+    btnSim.addEventListener('click', async () => {
+      const upn = (document.getElementById('ps-upn') || {}).value || '';
+      if (!upn.trim()) { showToast('UPN is required', 'warning'); return; }
+      const resultEl = document.getElementById('ps-result');
+      btnSim.disabled = true; resultEl.innerHTML = '<span class="dim">Evaluating policy…</span>';
+      const r = await window.api.simulatePolicy({
+        operation:         (document.getElementById('ps-operation') || {}).value,
+        userPrincipalName: upn.trim(),
+        licenses:          (document.getElementById('ps-licenses') || {}).value || '',
+        groups:            (document.getElementById('ps-groups')   || {}).value || '',
+        newDepartment:     (document.getElementById('ps-dept')     || {}).value || ''
+      });
+      btnSim.disabled = false;
+      if (!r || r.error) { resultEl.innerHTML = '<span class="qop-error">Error: ' + escHtml(r?.error || 'unknown') + '</span>'; return; }
+      const decision = (r.decision || 'allow');
+      const lvl = (r.riskLevel || r.level || '—');
+      const colors = { allow: 'var(--emerald)', warn: 'var(--amber)', requires_approval: 'var(--amber)', blocked: 'var(--coral)' };
+      const reasons = Array.isArray(r.reasons) ? r.reasons : [];
+      resultEl.innerHTML =
+        '<div style="font-family:var(--mono);font-size:12px;line-height:1.7">' +
+        '<div><b style="color:' + (colors[decision] || 'var(--text)') + '">DECISION: ' + escHtml(decision.toUpperCase().replace('_', ' ')) + '</b></div>' +
+        '<div>risk score: <b>' + escHtml(String(r.score ?? '—')) + '</b> · level: <b>' + escHtml(String(lvl)) + '</b>' +
+        (r.dualApproval ? ' · <span style="color:var(--amber)">dual approval required</span>' : '') + '</div>' +
+        (reasons.length ? '<div style="margin-top:6px;color:var(--text-2)">matched policies:</div><ul style="margin:2px 0 0 16px">' +
+          reasons.map(x => '<li>' + escHtml(String(x)) + '</li>').join('') + '</ul>' : '<div style="color:var(--text-3);margin-top:4px">No policy flags — clean.</div>') +
+        '</div>';
+    });
+  }
+
+  // ── Before/after access diff (read-only impact preview) ──────────────────
+  function _diffList(before, after) {
+    const b = new Set(before || []), a = new Set(after || []);
+    const removed = [...b].filter(x => !a.has(x));
+    const added   = [...a].filter(x => !b.has(x));
+    const kept    = [...b].filter(x => a.has(x));
+    return { removed, added, kept };
+  }
+  function _renderAccessDiff(snap, after, headline) {
+    const chip = (t, kind) => `<span style="display:inline-block;margin:2px 4px 2px 0;padding:1px 7px;border-radius:99px;font-size:11px;` +
+      (kind === 'rem' ? 'background:color-mix(in oklab,var(--coral),transparent 80%);color:var(--coral);text-decoration:line-through' :
+       kind === 'add' ? 'background:color-mix(in oklab,var(--emerald),transparent 80%);color:var(--emerald)' :
+       'background:var(--bg-2);color:var(--text-3)') + `">${escHtml(t)}</span>`;
+    const gd = _diffList(snap.groups, after.groups);
+    const ld = _diffList(snap.licenses, after.licenses);
+    const section = (label, d) => {
+      const parts = [];
+      d.removed.forEach(x => parts.push(chip(x, 'rem')));
+      d.added.forEach(x => parts.push(chip(x, 'add')));
+      d.kept.forEach(x => parts.push(chip(x, 'keep')));
+      return `<div style="margin-top:6px"><span style="color:var(--muted);font-size:11px">${label}:</span> ${parts.length ? parts.join('') : '<span class="dim">none</span>'}</div>`;
+    };
+    const enabledLine = (after.accountEnabled === false && snap.accountEnabled !== false)
+      ? '<div style="margin-top:4px;color:var(--coral);font-size:12px">Account will be DISABLED + sessions revoked</div>' : '';
+    return `<div style="font-family:var(--mono);font-size:12px;line-height:1.6">
+      <div><b>${escHtml(headline)}</b> — ${escHtml(snap.displayName || '')}</div>
+      ${enabledLine}
+      ${section('Groups', gd)}
+      ${section('Licenses', ld)}
+      <div style="margin-top:6px;color:var(--text-4);font-size:10.5px">red = removed · green = added · grey = retained · read-only preview, no changes made</div>
+    </div>`;
+  }
+
+  const btnPrevLeaver = document.getElementById('btn-preview-leaver');
+  if (btnPrevLeaver && typeof window.api?.getAccessSnapshot === 'function') {
+    btnPrevLeaver.addEventListener('click', async () => {
+      const upn = (document.getElementById('ql-upn') || {}).value || '';
+      if (!upn.trim()) { showToast('UPN is required', 'warning'); return; }
+      const stage = (document.querySelector('input[name="ql-stage"]:checked') || {}).value || 'Soft';
+      const resultEl = document.getElementById('ql-result');
+      btnPrevLeaver.disabled = true; resultEl.innerHTML = '<span class="dim">Reading current access…</span>';
+      const r = await window.api.getAccessSnapshot(upn.trim());
+      btnPrevLeaver.disabled = false;
+      if (!r || !r.ok) { resultEl.innerHTML = '<span class="qop-error">Error: ' + escHtml(r?.error || 'unknown') + '</span>'; return; }
+      const snap = r.snapshot;
+      // Soft: nothing removed yet (disable + revoke). Hard: removes all groups + licenses.
+      const after = stage === 'Hard'
+        ? { groups: [], licenses: [], accountEnabled: false }
+        : { groups: snap.groups, licenses: snap.licenses, accountEnabled: false };
+      resultEl.innerHTML = _renderAccessDiff(snap, after, stage === 'Hard' ? 'Hard leaver impact' : 'Soft leaver impact');
+    });
+  }
+
+  const btnPrevMover = document.getElementById('btn-preview-mover');
+  if (btnPrevMover && typeof window.api?.getAccessSnapshot === 'function') {
+    btnPrevMover.addEventListener('click', async () => {
+      const upn = (document.getElementById('qm-upn') || {}).value || '';
+      if (!upn.trim()) { showToast('UPN is required', 'warning'); return; }
+      const resultEl = document.getElementById('qm-result');
+      btnPrevMover.disabled = true; resultEl.innerHTML = '<span class="dim">Reading current attributes…</span>';
+      const r = await window.api.getAccessSnapshot(upn.trim());
+      btnPrevMover.disabled = false;
+      if (!r || !r.ok) { resultEl.innerHTML = '<span class="qop-error">Error: ' + escHtml(r?.error || 'unknown') + '</span>'; return; }
+      const snap = r.snapshot;
+      const newDept = (document.getElementById('qm-dept') || {}).value || '';
+      const newTitle = (document.getElementById('qm-title') || {}).value || '';
+      const newMgr = (document.getElementById('qm-manager') || {}).value || '';
+      const row = (label, before, after) => {
+        const changed = after && after !== before;
+        return `<div>${escHtml(label)}: <span style="color:var(--text-3)">${escHtml(before || '—')}</span>` +
+          (changed ? ` <span style="color:var(--text-4)">→</span> <span style="color:var(--emerald)">${escHtml(after)}</span>` : ' <span class="dim">(unchanged)</span>') + '</div>';
+      };
+      resultEl.innerHTML = `<div style="font-family:var(--mono);font-size:12px;line-height:1.7">
+        <div><b>Mover impact</b> — ${escHtml(snap.displayName || '')}</div>
+        ${row('Department', snap.department, newDept)}
+        ${row('Job title', snap.jobTitle, newTitle)}
+        ${row('Manager', '(current)', newMgr)}
+        <div style="margin-top:6px;color:var(--text-4);font-size:10.5px">Groups/licenses unchanged by attribute move · read-only preview</div>
+      </div>`;
+    });
+  }
 
   if (btnMover) {
     btnMover.addEventListener('click', async () => {
