@@ -32,11 +32,37 @@ const OPERATORS_FILE = path.join(AGENTS_DIR, 'approver', 'operators.json');
 const OPERATOR_AUTH_FILE = path.join(AGENTS_DIR, 'approver', 'operator-auth.json');
 const OPERATOR_ACTIVITY_FILE = path.join(AGENTS_DIR, 'approver', 'operator-activity.jsonl');
 const PANEL_BOUNDS_FILE      = path.join(__dirname, 'panel-bounds.json');
+const AI_PROVIDER_CONFIG_FILE = path.join(AGENTS_DIR, 'approver', 'ai-provider.json');
 
 function loadPanelBounds() { try { return JSON.parse(fs.readFileSync(PANEL_BOUNDS_FILE, 'utf8')); } catch { return null; } }
 function savePanelBounds(b) { try { fs.writeFileSync(PANEL_BOUNDS_FILE, JSON.stringify(b)); } catch {} }
 const CERT_SCRIPT    = path.join(AGENTS_DIR, 'certifier', 'Invoke-CertificationCampaign.ps1');
 const AGENT_DIRS     = ['joiner','mover','leaver','enroller','approver','provisioner','auditor'];
+
+// ── AI provider abstraction ───────────────────────────────────────────────────
+const { loadConfig: _loadProviderConfig, saveConfig: _saveProviderConfig, buildProvider } = require('./providers');
+let _aiProviderConfig = null;
+let _cachedProvider   = null; // invalidated whenever config is saved
+
+function _ensureProviderConfig() {
+  if (!_aiProviderConfig) _aiProviderConfig = _loadProviderConfig(AI_PROVIDER_CONFIG_FILE);
+}
+
+function getAIProvider() {
+  _ensureProviderConfig();
+  if (!_cachedProvider) _cachedProvider = buildProvider(_aiProviderConfig);
+  return _cachedProvider;
+}
+
+// AI observability — append a trace line per model turn (provider, model, latency,
+// tokens). Gives Foundry-style run telemetry regardless of which provider is active.
+const AI_TRACES_FILE = path.join(AGENTS_DIR, 'approver', 'ai-traces.jsonl');
+function recordAITrace(agent, trace) {
+  try {
+    const line = JSON.stringify({ ts: new Date().toISOString(), agent, ...trace });
+    fs.appendFileSync(AI_TRACES_FILE, line + '\n', 'utf8');
+  } catch {}
+}
 
 // ── Agent state ───────────────────────────────────────────────────────────────
 const state = {
@@ -94,6 +120,23 @@ the full operation details. Then:
 - dualApproval=true: inform the operator that a second approval token is required.
 
 In WHATIF mode score_risk is informational — show it but don't gate on it.
+
+OPERATOR ROLE CONTEXT:
+Current operator role: ${currentRole || 'unknown'}
+
+Role-based action boundaries:
+- admin: full authority — can submit all operation types including Hard leavers in Live mode.
+- helpdesk: can submit Joiners, Enrollers, Movers, and Soft leavers in Live mode.
+  Hard leavers are always escalated to the admin approval queue — inform the operator
+  that after submitting, an admin must approve from the Approvals tab before execution.
+  If a Soft leaver is blocked (user holds privileged roles), it is also escalated.
+- viewer: read-only — all submit tools are blocked. Remind the operator to switch to
+  an admin or helpdesk account.
+
+When the current operator is helpdesk and they request a Hard leaver:
+1. Acknowledge that it will be submitted for admin approval.
+2. Proceed with submit_leaver_hard — the system will automatically route it.
+3. Show the approval token and tell them to notify an admin.
 
 FORMATTING RULES (always follow):
 - Always write UPNs in full (e.g. sarah.chen@${domain}). Never abbreviate to "..." or truncate the domain.
@@ -721,43 +764,52 @@ function pollTrayApprovals() {
   } catch {}
 }
 
-function routeBlockedLeaverToApproval(input, stage) {
+function routeBlockedLeaverToApproval(input, stage, reason, requiredApproverRole) {
   if (!fs.existsSync(PENDING_DIR)) fs.mkdirSync(PENDING_DIR, { recursive: true });
   const token = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  const reqRole = requiredApproverRole || 'admin';
   const record = {
     id: token, token,
     tool: 'submit_leaver_' + stage.toLowerCase(),
     severity: 'crit',
     requestedBy: currentOperator || 'helpdesk',
     requestedByRole: currentRole,
+    requiredApproverRole: reqRole,
     requestedAt: new Date().toISOString(),
     input: { userPrincipalName: input.userPrincipalName, stage, ticketRef: input.ticketRef || '' },
-    note: 'User holds privileged Entra directory roles — admin approval required to proceed.',
+    note: reason || 'Hard-stage leaver submitted by helpdesk — admin approval required to execute.',
     status: 'pending'
   };
   fs.writeFileSync(path.join(PENDING_DIR, token + '.json'), JSON.stringify(record, null, 2), 'utf8');
-  sendToast('Admin Approval Required', (input.userPrincipalName || 'User') + ' holds privileged directory roles — leaver queued for admin sign-off.');
+  sendToast('Admin Approval Required', (input.userPrincipalName || 'User') + ' queued for admin sign-off.');
   return token;
 }
 
-// Extract and parse a JSON object from PowerShell stdout that may contain
-// non-JSON header lines or pretty-printed (multi-line) ConvertTo-Json output.
+// Extract and parse JSON from PowerShell stdout that may contain non-JSON
+// header lines or pretty-printed (multi-line) ConvertTo-Json output.
 function _parseMultilineJson(raw, emptyMsg) {
   const trimmed = raw.trim();
   if (!trimmed) return { error: emptyMsg || 'No output from script' };
   // Fast path: entire output is valid JSON
   try { return JSON.parse(trimmed); } catch {}
-  // Slow path: find the { ... } block spanning multiple lines
+  // Slow path: find a { ... } or [ ... ] block spanning multiple lines.
+  // Avoid log lines like "[Certifier]" by only accepting "[" or "[{"/"[]".
   const ls = trimmed.split('\n');
-  const start = ls.findIndex(l => l.trim().startsWith('{'));
-  if (start < 0) return { error: emptyMsg || 'No JSON output from script' };
-  let end = -1;
-  for (let i = ls.length - 1; i >= start; i--) {
-    if (/^\s*\}\s*$/.test(ls[i])) { end = i; break; }
+  const isStart = (line) => {
+    const t = line.trim();
+    return t.startsWith('{') || t === '[' || t.startsWith('[{') || t.startsWith('[]');
+  };
+  for (let start = 0; start < ls.length; start++) {
+    if (!isStart(ls[start])) continue;
+    const t = ls[start].trim();
+    const close = t.startsWith('{') ? '}' : ']';
+    for (let end = ls.length - 1; end >= start; end--) {
+      if (!ls[end].trim().endsWith(close)) continue;
+      const block = ls.slice(start, end + 1).join('\n');
+      try { return JSON.parse(block); } catch {}
+    }
   }
-  const block = ls.slice(start, end >= 0 ? end + 1 : undefined).join('\n');
-  try { return JSON.parse(block); }
-  catch (ex) { return { error: `JSON parse error: ${ex.message}`, raw: trimmed.slice(0, 400) }; }
+  return { error: 'JSON parse error: no parseable object or array found', raw: trimmed.slice(0, 400) };
 }
 
 function parsePs1Output(raw) {
@@ -790,8 +842,7 @@ function executeTool(agent, toolName, input, whatif) {
     if (input.days) params.Days = input.days;
     if (input.topN) params.TopN = input.topN;
     const raw = runPs(script, params);
-    const jsonLine = raw.trim().split('\n').filter(l => l.trim().startsWith('{')).pop();
-    return jsonLine ? JSON.parse(jsonLine) : { error: 'No output' };
+    return _parseMultilineJson(raw, 'No output from auditor query script');
   }
 
   const w = whatif ? true : false;
@@ -825,11 +876,18 @@ function executeTool(agent, toolName, input, whatif) {
       try { return parsePs1Output(runPs(path.join(AGENTS_DIR, 'joiner', 'Invoke-JoinerProcess.ps1'), { PayloadPath: _pf, WhatIf: w })); }
       finally { try { fs.unlinkSync(_pf); } catch {} }
     }
-    case 'submit_enroller':
-      return parsePs1Output(runPs(path.join(AGENTS_DIR, 'enroller', 'Invoke-EnrollerProcess.ps1'), {
-        UserPrincipalName: input.userPrincipalName,
-        Licenses: input.licenses, Groups: input.groups, WhatIf: w
-      }));
+    case 'submit_enroller': {
+      // Invoke-EnrollerProcess.ps1 takes -PayloadPath (JSON), NOT -UserPrincipalName.
+      // It reads payload.userPrincipalName / payload.licenses / payload.groups.
+      const _pfEnr = writePayloadFile({
+        userPrincipalName: input.userPrincipalName,
+        licenses: input.licenses,
+        groups: input.groups,
+        ticketRef: input.ticketRef
+      });
+      try { return parsePs1Output(runPs(path.join(AGENTS_DIR, 'enroller', 'Invoke-EnrollerProcess.ps1'), { PayloadPath: _pfEnr, WhatIf: w })); }
+      finally { try { fs.unlinkSync(_pfEnr); } catch {} }
+    }
     case 'submit_mover':
       {
         const _pf = writePayloadFile({
@@ -849,18 +907,33 @@ function executeTool(agent, toolName, input, whatif) {
     case 'submit_leaver_soft':
     case 'submit_leaver_hard': {
       const _stage = toolName === 'submit_leaver_hard' ? 'Hard' : 'Soft';
+      // Helpdesk operators cannot execute Hard leavers directly — always route to admin approval.
+      // Soft leavers pass through with OperatorRole check; the PS1 blocks further if user
+      // holds privileged roles and returns the BLOCKED sentinel.
+      if (currentRole === 'helpdesk' && _stage === 'Hard' && !w) {
+        const _tok = routeBlockedLeaverToApproval(input, _stage,
+          'Hard-stage leaver (license + group removal) submitted by helpdesk — admin sign-off required before execution.',
+          'admin');
+        return { approvalQueued: true, token: _tok, message: 'Hard-stage leavers require admin approval. Request queued — an admin operator must approve from the Approvals tab.' };
+      }
+      if (currentRole === 'helpdesk' && _stage === 'Hard' && w) {
+        return { approvalRequired: true, message: 'Hard-stage leavers require admin approval in Live mode. This request would be queued for admin sign-off.' };
+      }
       try {
         return parsePs1Output(runPs(path.join(AGENTS_DIR, 'leaver', 'Invoke-LeaverProcess.ps1'), {
           UserPrincipalName: input.userPrincipalName, Stage: _stage, WhatIf: w, OperatorRole: currentRole
         }));
       } catch (_lErr) {
         const _stdout = _lErr.stdout || _lErr.message || '';
+        // Soft leaver blocked by PS1 because user holds privileged roles → escalate
         if (currentRole === 'helpdesk' && !w && _stdout.includes('BLOCKED: Operator role')) {
-          const _tok = routeBlockedLeaverToApproval(input, _stage);
-          return { approvalQueued: true, token: _tok, message: 'User holds privileged Entra directory roles. Approval request submitted — an admin operator must approve from the Approvals tab before this leaver executes.' };
+          const _tok = routeBlockedLeaverToApproval(input, _stage,
+            'User holds privileged Entra directory roles — admin approval required to proceed.',
+            'admin');
+          return { approvalQueued: true, token: _tok, message: 'User holds privileged roles. Approval request submitted — an admin operator must approve from the Approvals tab.' };
         }
         if (currentRole === 'helpdesk' && w && _stdout.includes('BLOCKED: Operator role')) {
-          return { approvalRequired: true, message: 'This user holds privileged Entra directory roles. In Live mode, this leaver would be routed to the Approvals tab for admin sign-off.' };
+          return { approvalRequired: true, message: 'This user holds privileged roles. In Live mode, this leaver would be routed to the Approvals tab for admin sign-off.' };
         }
         throw _lErr;
       }
@@ -870,13 +943,13 @@ function executeTool(agent, toolName, input, whatif) {
   }
 }
 
-// ── Claude agent loop (with streaming) ───────────────────────────────────────
+// ── AI agent loop (provider-agnostic streaming) ───────────────────────────────
 async function runAgentLoop(sender, agent, userText) {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) { sender.send('msg-error', { text: 'ANTHROPIC_API_KEY not set.' }); return; }
-
-  const Anthropic = require('@anthropic-ai/sdk');
-  const client    = new Anthropic.default({ apiKey });
+  const provider = getAIProvider();
+  if (!provider) {
+    sender.send('msg-error', { text: 'AI provider not configured. Open Settings → AI Provider to add an API key.' });
+    return;
+  }
 
   const agentState = state[agent];
   agentState.messages.push({ role: 'user', content: userText });
@@ -885,52 +958,31 @@ async function runAgentLoop(sender, agent, userText) {
   const systemPrompt = agent === 'approver' ? buildApproverSystem(domain) : buildAuditorSystem(domain);
   const tools        = agent === 'approver' ? APPROVER_TOOLS  : AUDITOR_TOOLS;
 
-  let _fullText = ''; // accumulated across the entire response (for display history)
+  let _fullText = '';
 
   while (true) {
-    const stream = client.messages.stream({
-      model: 'claude-opus-4-7',
-      max_tokens: 4096,
-      system: systemPrompt,
+    const response = await provider.streamTurn({
+      system:      systemPrompt,
       tools,
-      messages: agentState.messages
+      messages:    agentState.messages,
+      onText:      (text) => { sender.send('msg-chunk', { type: 'text', text }); _fullText += text; },
+      onToolStart: (toolName) => { sender.send('msg-chunk', { type: 'tool_start', toolName }); }
     });
 
-    let currentText = '';
-    const toolInputs = {};
+    agentState.messages.push({ role: 'assistant', content: response.content });
+    if (response.trace) recordAITrace(agent, response.trace);
 
-    stream.on('text', (text) => {
-      sender.send('msg-chunk', { type: 'text', text });
-      currentText += text;
-      _fullText   += text;
-    });
+    if (response.stopReason === 'end_turn') break;
 
-    stream.on('streamEvent', (event) => {
-      if (event.type === 'content_block_start' && event.content_block.type === 'tool_use') {
-        toolInputs[event.index] = { id: event.content_block.id, name: event.content_block.name, inputStr: '' };
-        sender.send('msg-chunk', { type: 'tool_start', toolName: event.content_block.name });
-      }
-      if (event.type === 'content_block_delta' && event.delta.type === 'input_json_delta') {
-        if (toolInputs[event.index]) toolInputs[event.index].inputStr += event.delta.partial_json;
-      }
-    });
-
-    const finalMsg = await stream.finalMessage();
-    agentState.messages.push({ role: 'assistant', content: finalMsg.content });
-
-    if (finalMsg.stop_reason === 'end_turn') break;
-
+    const toolCalls  = response.content.filter(b => b.type === 'tool_use');
     const toolResults = [];
-    for (const tool of Object.values(toolInputs)) {
-      let input = {};
-      try { input = JSON.parse(tool.inputStr || '{}'); } catch {}
 
+    for (const tool of toolCalls) {
       sender.send('msg-chunk', { type: 'tool_running', toolName: tool.name });
       let result;
       try {
-        result = executeTool(agent, tool.name, input, agentState.whatif);
-        // Include the result for structured-data tools so the renderer can render
-        // contextual cards (e.g. score_risk → risk score card with actual reasons).
+        result = executeTool(agent, tool.name, tool.input, agentState.whatif);
+        // Pass structured result for cards that render it (risk score, provisioning suggestions)
         const sendResult = (tool.name === 'score_risk' || tool.name === 'suggest_provisioning') ? result : undefined;
         sender.send('msg-chunk', { type: 'tool_done', toolName: tool.name, success: true, result: sendResult });
       } catch (err) {
@@ -947,7 +999,6 @@ async function runAgentLoop(sender, agent, userText) {
     }
   }
 
-  // Store and mirror the completed assistant response
   _pushConvTurn(agent, 'assistant', _fullText);
   _broadcastMirror(sender, agent, 'assistant', _fullText);
   sender.send('msg-complete', { agent });
@@ -1048,6 +1099,77 @@ ipcMain.on('get-audit-log', (event) => {
   const lines   = fs.readFileSync(auditPath, 'utf8').trim().split('\n').filter(Boolean);
   const entries = lines.map(l => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean);
   event.sender.send('audit-log-data', entries.reverse());
+});
+
+// ── Evidence packet export ──────────────────────────────────────────────────────
+// Assembles a tamper-evident compliance evidence packet from selected audit entries.
+// Integrity is proven by shelling out to the authoritative Verify-AuditLog.ps1 (the
+// PowerShell verifier reproduces the exact hash format the writer used) rather than
+// re-implementing the hash in JS, which would be fragile across PS/JSON formatting.
+ipcMain.handle('export-evidence-packet', async (event, payload) => {
+  const { hashes } = payload || {};
+  try {
+    const auditPath = path.join(AGENTS_DIR, 'audit.jsonl');
+    if (!fs.existsSync(auditPath)) return { ok: false, error: 'No audit log found.' };
+
+    const all = fs.readFileSync(auditPath, 'utf8').trim().split('\n').filter(Boolean)
+      .map(l => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean);
+
+    // Filter to requested entries (by hash); empty/absent → whole log
+    const wanted = Array.isArray(hashes) && hashes.length
+      ? all.filter(e => hashes.includes(e.hash))
+      : all;
+    if (!wanted.length) return { ok: false, error: 'No matching entries to export.' };
+
+    // Authoritative chain integrity check via the PowerShell verifier
+    let integrity = 'not run';
+    try {
+      const verifyScript = path.join(AGENTS_DIR, 'shared', 'Verify-AuditLog.ps1');
+      const out = execFileSync('powershell',
+        ['-NonInteractive', '-File', verifyScript, '-AuditLogPath', auditPath],
+        { encoding: 'utf8', timeout: 60000 });
+      const line = out.trim().split('\n').map(l => l.trim()).filter(Boolean).pop() || '';
+      integrity = line;
+    } catch (e) {
+      const out = (e.stdout || '').toString().trim().split('\n').map(l => l.trim()).filter(Boolean).pop();
+      integrity = out || ('verification error: ' + e.message);
+    }
+
+    const packet = {
+      packetType: 'JML Agent Fleet — Compliance Evidence Packet',
+      generatedAt: new Date().toISOString(),
+      generatedBy: process.env.JML_CONSOLE_OPERATOR || 'unknown',
+      tenantDomain: getActiveTenantDomain(),
+      entryCount: wanted.length,
+      chainIntegrity: integrity,
+      entries: wanted.map(e => ({
+        timestamp: e.timestamp,
+        agent:     e.agent,
+        action:    e.action,
+        subject:   e.subject,
+        operator:  e.operator || null,
+        mode:      e.whatif ? 'Safe (WhatIf)' : 'Live',
+        outcome:   e.outcome,
+        ticketRef: (e.details && e.details.ticketRef) || null,
+        details:   e.details || {},
+        prevHash:  e.prevHash,
+        hash:      e.hash
+      }))
+    };
+
+    const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+    const { canceled, filePath } = await dialog.showSaveDialog({
+      title: 'Export Evidence Packet',
+      defaultPath: `jml-evidence-${stamp}.json`,
+      filters: [{ name: 'JSON', extensions: ['json'] }]
+    });
+    if (canceled || !filePath) return { ok: false, canceled: true };
+
+    fs.writeFileSync(filePath, JSON.stringify(packet, null, 2), 'utf8');
+    return { ok: true, path: filePath, count: wanted.length, integrity };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
 });
 
 ipcMain.on('get-dashboard-stats', async (event) => {
@@ -1362,6 +1484,15 @@ ipcMain.on('approve-pending', (event, payload) => {
     const file = path.join(PENDING_DIR, id + '.json');
     if (!fs.existsSync(file)) { event.sender.send('approve-result', { ok: false, error: 'Not found' }); return; }
     const op   = readJson(file);
+
+    // Role gate: if the pending record requires admin, only admin can approve
+    const reqRole = op.requiredApproverRole || 'helpdesk';
+    const actorRole = (currentRole || 'viewer').toLowerCase();
+    if (reqRole === 'admin' && actorRole !== 'admin') {
+      event.sender.send('approve-result', { ok: false, error: 'Insufficient role — this action requires an admin operator to approve.' });
+      return;
+    }
+
     const inp  = op.input || op;
     const tool = (op.tool || '').toLowerCase();
     let raw;
@@ -1473,9 +1604,8 @@ ipcMain.on('run-certification', (event, { campaignType, whatif }) => {
     const lines  = raw.trim().split('\n')
       .filter(l => /\[Certifier\]/.test(l))
       .map(l => l.replace(/^\[\d{2}:\d{2}:\d{2}\] /, '').trim());
-    const jsonLine = raw.trim().split('\n').filter(l => l.trim().startsWith('[')).pop();
-    let campaigns = [];
-    try { if (jsonLine) campaigns = JSON.parse(jsonLine); } catch {}
+    const parsed = _parseMultilineJson(raw, 'No certification campaign output');
+    const campaigns = Array.isArray(parsed) ? parsed : [];
     event.sender.send('certification-result', { ok: true, campaigns, lines });
   } catch (err) {
     event.sender.send('certification-result', { ok: false, error: err.message, campaigns: [], lines: [] });
@@ -1546,6 +1676,165 @@ ipcMain.on('save-operators', (event, { operators, roles }) => {
     event.sender.send('operators-saved', { ok: true });
   } catch (err) {
     event.sender.send('operators-saved', { ok: false, error: err.message });
+  }
+});
+
+// ── AI Provider config ────────────────────────────────────────────────────────
+ipcMain.handle('get-ai-provider-config', () => {
+  _ensureProviderConfig();
+  // Mask stored API keys — return length > 0 indicator instead of value
+  const safe = JSON.parse(JSON.stringify(_aiProviderConfig));
+  for (const key of ['claude', 'openai', 'azure-openai', 'azure-foundry']) {
+    const node = safe[key];
+    if (node && node.apiKey) node.apiKey = node.apiKey.length > 0 ? '••••' : '';
+  }
+  return safe;
+});
+
+ipcMain.handle('save-ai-provider-config', (_, { config }) => {
+  try {
+    _ensureProviderConfig();
+    // Merge: preserve existing API keys when the UI sends back masked '••••' placeholders
+    const merged = JSON.parse(JSON.stringify(_aiProviderConfig));
+    merged.provider = config.provider;
+    for (const key of ['claude', 'openai', 'azure-foundry', 'azure-openai', 'ollama']) {
+      if (!config[key]) continue;
+      if (!merged[key]) merged[key] = {};
+      Object.assign(merged[key], config[key]);
+      // Don't overwrite a real key with the masked placeholder
+      if (config[key].apiKey === '••••') merged[key].apiKey = _aiProviderConfig[key]?.apiKey || '';
+    }
+    _aiProviderConfig = merged;
+    _cachedProvider   = null; // force rebuild on next use
+    _saveProviderConfig(AI_PROVIDER_CONFIG_FILE, merged);
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+});
+
+ipcMain.handle('get-ai-traces', (_, payload) => {
+  try {
+    if (!fs.existsSync(AI_TRACES_FILE)) return { traces: [], summary: { count: 0 } };
+    const limit = (payload && payload.limit) || 50;
+    const lines = fs.readFileSync(AI_TRACES_FILE, 'utf8').trim().split('\n').filter(Boolean);
+    const all = lines.map(l => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean);
+    const recent = all.slice(-limit).reverse();
+    const totIn  = all.reduce((s, t) => s + (t.inputTokens  || 0), 0);
+    const totOut = all.reduce((s, t) => s + (t.outputTokens || 0), 0);
+    const avgLat = all.length ? Math.round(all.reduce((s, t) => s + (t.latencyMs || 0), 0) / all.length) : 0;
+    return { traces: recent, summary: { count: all.length, totalInputTokens: totIn, totalOutputTokens: totOut, avgLatencyMs: avgLat } };
+  } catch (err) {
+    return { traces: [], summary: { count: 0 }, error: err.message };
+  }
+});
+
+ipcMain.handle('test-ai-provider', async () => {
+  try {
+    const provider = getAIProvider();
+    if (!provider) return { ok: false, error: 'No provider configured' };
+    const text = await provider.complete({
+      maxTokens: 10,
+      messages: [{ role: 'user', content: 'Reply with the single word: connected' }]
+    });
+    return { ok: true, provider: provider.name, text: text.trim() };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+});
+
+// ── Access snapshot (read-only) for before/after diff ───────────────────────────
+ipcMain.handle('get-access-snapshot', async (_, { upn }) => {
+  if (!upn) return { ok: false, error: 'upn required' };
+  try {
+    const cfgPath = path.join(AGENTS_DIR, 'auditor', 'config.json');
+    const ps = `
+$OutputEncoding = New-Object System.Text.UTF8Encoding $false
+[Console]::OutputEncoding = New-Object System.Text.UTF8Encoding $false
+Import-Module Microsoft.Graph.Authentication -ErrorAction SilentlyContinue
+$cfg = [System.IO.File]::ReadAllText('${cfgPath.replace(/'/g, "''")}') | ConvertFrom-Json
+$agentsRoot = '${AGENTS_DIR}'
+. (Join-Path $agentsRoot 'shared\\Helpers.ps1')
+Connect-AgentGraph -Config $cfg
+$uid = '${String(upn).replace(/'/g, "''")}'
+$user = Invoke-GraphWithRetry -Method GET -Uri "https://graph.microsoft.com/v1.0/users/$uid\`?\`$select=displayName,userPrincipalName,accountEnabled,department,jobTitle"
+$lic  = Invoke-GraphWithRetry -Method GET -Uri "https://graph.microsoft.com/v1.0/users/$uid/licenseDetails?\`$select=skuPartNumber"
+$grp  = Invoke-GraphWithRetry -Method GET -Uri "https://graph.microsoft.com/v1.0/users/$uid/memberOf/microsoft.graph.group?\`$select=displayName&\`$top=50"
+@{
+  displayName    = $user.displayName
+  accountEnabled = $user.accountEnabled
+  department     = $user.department
+  jobTitle       = $user.jobTitle
+  licenses       = @($lic.value | ForEach-Object { $_.skuPartNumber })
+  groups         = @($grp.value | ForEach-Object { $_.displayName })
+} | ConvertTo-Json -Depth 4 -Compress
+`;
+    const raw = execFileSync('powershell', ['-NonInteractive', '-Command', ps], { encoding: 'utf8', timeout: 60000 }).split(String.fromCharCode(0xFEFF)).join('');
+    const snap = _parseMultilineJson(raw, 'No output from snapshot query');
+    if (snap && snap.error) return { ok: false, error: snap.error };
+    return { ok: true, snapshot: snap };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+});
+
+// ── Policy simulation ──────────────────────────────────────────────────────────
+// Read-only: runs the same risk/policy engine as score_risk without executing.
+// Returns the decision (allow / warn / requires_approval / blocked), matched
+// policies, risk level, and dual-approval requirement.
+ipcMain.handle('simulate-policy', (_, payload) => {
+  const { operation, userPrincipalName, licenses, groups, newDepartment } = payload || {};
+  if (!operation || !userPrincipalName) {
+    return { ok: false, error: 'operation and userPrincipalName are required' };
+  }
+  try {
+    const raw = runPs(path.join(AGENTS_DIR, 'auditor', 'Invoke-RiskScore.ps1'), {
+      Operation:         operation,
+      UserPrincipalName: userPrincipalName,
+      Licenses:          licenses || '',
+      Groups:            groups || '',
+      NewDepartment:     newDepartment || ''
+    });
+    const result = _parseMultilineJson(raw, 'No output from risk score script');
+    if (result && !result.error) {
+      // Derive a plain-English decision from the engine output
+      const lvl = (result.riskLevel || result.level || '').toLowerCase();
+      let decision = 'allow';
+      if (result.blocked || lvl === 'critical') decision = 'blocked';
+      else if (result.dualApproval || lvl === 'high') decision = 'requires_approval';
+      else if (lvl === 'medium') decision = 'warn';
+      result.decision = decision;
+    }
+    return result;
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+});
+
+// ── Agent quarantine (kill switch) ─────────────────────────────────────────────
+ipcMain.handle('quarantine-agent', async (event, payload) => {
+  const { agent, reason, whatif, revoke, writeToken } = payload || {};
+  // Real (non-WhatIf) quarantine is a privileged mutation — require a write token
+  // and admin role, same gate as other destructive operations.
+  if (!whatif) {
+    if ((currentRole || 'viewer').toLowerCase() !== 'admin') {
+      return { ok: false, error: 'Quarantine requires an admin operator.' };
+    }
+    const check = consumeWriteToken(writeToken, currentOperator);
+    if (!check.ok) return { ok: false, error: check.error || 'Write token required.' };
+  }
+  try {
+    const args = {
+      AgentName: agent,
+      Reason: reason || 'Manual quarantine via JML Console',
+    };
+    if (whatif) args.WhatIf = true;
+    if (revoke) args.Revoke = true;
+    const raw = runPs(path.join(AGENTS_DIR, 'provisioner', 'Invoke-AgentQuarantine.ps1'), args);
+    const result = _parseMultilineJson(raw, 'No output from quarantine script');
+    return result;
+  } catch (err) {
+    return { ok: false, error: err.message };
   }
 });
 
@@ -2262,6 +2551,9 @@ const TAB_INJECT = {
         </div></div></div>
       \`;
       c.scrollTop = c.scrollHeight;
+      if (typeof window.__jmlSetApproverDemoLifecycle === 'function') {
+        window.__jmlSetApproverDemoLifecycle();
+      }
     })();
   `,
   auditor: `
@@ -2300,6 +2592,12 @@ const TAB_INJECT = {
         lastMsg.appendChild(wrap);
       }
       c.scrollTop = c.scrollHeight;
+      if (typeof window.__jmlSetAuditorDemoRail === 'function') {
+        window.__jmlSetAuditorDemoRail(
+          'Any off-hours or suspicious access patterns?',
+          '2 critical UEBA findings. 3 failed/partial entries in the last 7 days. Robert Martinez is confirmedCompromised; sessions were auto-revoked.'
+        );
+      }
     })();
   `,
   users: `
@@ -2323,6 +2621,8 @@ const TAB_INJECT = {
         <div class="ac-item"><span class="ac-name">Marcus Johnson</span><span class="ac-upn">marcus.johnson@contoso.onmicrosoft.com</span></div>
         <div class="ac-item"><span class="ac-name">Sales Lead</span><span class="ac-upn">jennifer.lee@contoso.onmicrosoft.com</span></div>
       \`;
+      const cnt = document.getElementById('user-search-count');
+      if (cnt) cnt.textContent = '3';
     })();
   `,
   graph: `
@@ -2358,8 +2658,10 @@ const TAB_INJECT = {
 async function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
 async function runCapture() {
-  currentOperator = 'admin';
-  process.env.JML_CONSOLE_OPERATOR = 'admin';
+  // Use the configured admin operator so demo captures show the intended
+  // approval path instead of falling back to viewer permissions.
+  currentOperator = 'Nick';
+  process.env.JML_CONSOLE_OPERATOR = 'Nick';
 
   // ── Operator selector ──────────────────────────────────────────────────────
   createOperatorWindow();
@@ -2380,6 +2682,12 @@ async function runCapture() {
   });
   win.loadFile(path.join(__dirname, 'renderer', 'index.html'));
   await new Promise(r => win.webContents.once('did-finish-load', r));
+  await win.webContents.executeJavaScript(`
+    try {
+      localStorage.setItem('jml-sidebar-collapsed', '0');
+      document.querySelector('.layout')?.classList.remove('sidebar-collapsed');
+    } catch (_) {}
+  `);
   await sleep(1200);
 
   // Pre-send mock data so dashboard/certs show content without Graph connection
@@ -2403,10 +2711,21 @@ async function runCapture() {
           el.style.maxHeight = 'none';
         });
       });
+      // Keep inactive views truly hidden. Previous capture passes add inline
+      // layout styles to the active view; when that view later becomes inactive
+      // those inline styles must not leak into the next screenshot.
+      document.querySelectorAll('.view:not(.active)').forEach(el => {
+        el.style.display   = 'none';
+        el.style.overflow  = '';
+        el.style.maxHeight = '';
+        el.style.height    = '';
+        el.style.opacity   = '';
+      });
       // Active view — expand to full content height so all content renders.
       // Also kill the viewfade animation (opacity starts at 0 with fill-mode:both)
       // which can freeze at opacity=0 in software-render / --disable-gpu mode.
       document.querySelectorAll('.view.active').forEach(el => {
+        el.style.display   = 'block';
         el.style.animation = 'none';
         el.style.opacity   = '1';
         el.style.overflow  = 'visible';
@@ -2441,13 +2760,16 @@ async function runCapture() {
     ['security',       `window.api.getSecurityReports(); window.api.getAgentHealth();`, 2500],
     ['exports',        `window.api.getExportsStatus();`, 2000],
     ['approvals',      null, 2000],
-    ['operations',     `window.api.getScheduledOps();`, 1800],
-    ['certifications', `window.api.getCertHistory();`, 1800],
+    ['operations',     `window.api.getScheduledOps();`, 2000],
+    // certifications: getCertHistory calls PS1 which may be slow; use longer wait
+    ['certifications', null, 2200],
     ['settings',       `window.api.getPolicy();`, 1800],
-    ['audit-log',      `window.api.getAuditLog();`, 2200],
-    ['users',          null, 600],
-    ['certs',          null, 600],
-    ['graph',          null, 600],
+    // audit-log: skip the IPC trigger in capture mode (PS1 needs real audit.jsonl);
+    // the view renders its static structure without data
+    ['audit-log',      null, 1200],
+    ['users',          null, 1000],
+    ['certs',          `window.api.getCertExpiry();`, 1500],
+    ['graph',          null, 1000],
   ];
 
   // Capture approver in default (input) state first
@@ -2460,32 +2782,84 @@ async function runCapture() {
     if (img) { fs.writeFileSync(path.join(CAPTURE_OUT, 'jml-fleet-input.png'), img.toPNG()); console.log('Captured: jml-fleet-input'); }
   }
 
-  for (const [tab, ipcJs, wait] of TABS) {
+  let lastFrameHash = null;
+  let lastFrameTab  = null;
+
+  async function forceCapturePaint() {
+    const [w, h] = win.getSize();
+    // Software-render capture can return the previous compositor frame unless
+    // Chromium has a real resize/paint boundary between tab switches.
+    win.setSize(w + 1, h, false);
+    await sleep(80);
+    win.setSize(w, h, false);
+    win.webContents.invalidate();
     await win.webContents.executeJavaScript(`
-      if (typeof switchTab === 'function') switchTab(${JSON.stringify(tab)});
-      else document.querySelector('[data-tab="${tab}"]')?.click();
+      new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))
     `);
+    await sleep(250);
+  }
+
+  for (const [tab, ipcJs, wait] of TABS) {
+    // Navigate — reset capture inline styles first, then force a single active
+    // view after switchTab so stale frames cannot remain visible.
+    const activeViewId = await win.webContents.executeJavaScript(`
+      (function(){
+        const tab = ${JSON.stringify(tab)};
+        document.querySelectorAll('.view').forEach(el => {
+          el.style.display = '';
+          el.style.overflow = '';
+          el.style.maxHeight = '';
+          el.style.height = '';
+          el.style.opacity = '';
+        });
+        try {
+          if (typeof switchTab === 'function') switchTab(tab);
+          else document.querySelector('[data-tab="' + tab + '"]')?.click();
+        } catch(e) {}
+        document.querySelectorAll('.nav-item').forEach(el => el.classList.toggle('active', el.dataset.tab === tab));
+        document.querySelectorAll('.view').forEach(el => {
+          const active = el.id === 'view-' + tab;
+          el.classList.toggle('active', active);
+          el.style.display = active ? 'block' : 'none';
+        });
+        const crumb = document.getElementById('crumb-cur');
+        if (crumb && typeof TAB_TITLES !== 'undefined') crumb.textContent = TAB_TITLES[tab] || tab;
+        return document.querySelector('.view.active')?.id || '';
+      })()
+    `);
+    if (activeViewId !== 'view-' + tab) {
+      console.warn(`Capture navigation warning: requested ${tab}, active ${activeViewId || '(none)'}`);
+    }
     await sleep(500);
-    if (ipcJs) await win.webContents.executeJavaScript(ipcJs);
+    if (ipcJs) {
+      try { await win.webContents.executeJavaScript(ipcJs); } catch(e) { /* IPC trigger failed — skip */ }
+    }
     // Re-send mock data that real IPC handlers would wipe in capture mode
     if (tab === 'approvals') win.webContents.send('pending-approvals', MOCK_APPROVALS);
     if (tab === 'dashboard') {
       win.webContents.send('dashboard-stats', MOCK_DASHBOARD);
       win.webContents.send('agent-health',    MOCK_AGENT_HEALTH);
+      win.webContents.send('pending-approvals', MOCK_APPROVALS);
     }
     await sleep(wait);
     if (TAB_INJECT[tab]) await win.webContents.executeJavaScript(TAB_INJECT[tab]);
     await win.webContents.executeJavaScript(REMOVE_OVERFLOW);
     // Force a fresh paint before capture (especially needed in --disable-gpu / software render mode)
-    win.webContents.invalidate();
-    await sleep(800);
+    await forceCapturePaint();
     let img;
     for (let attempt = 0; attempt < 3; attempt++) {
       try { img = await win.webContents.capturePage(); break; }
       catch (e) { console.warn(`capturePage attempt ${attempt + 1} failed: ${e.message}`); await sleep(600); }
     }
     if (!img) { console.error('capturePage failed for', tab, '- skipping'); continue; }
-    fs.writeFileSync(path.join(CAPTURE_OUT, tab + '.png'), img.toPNG());
+    const png = img.toPNG();
+    const frameHash = crypto.createHash('sha256').update(png).digest('hex');
+    if (lastFrameHash === frameHash) {
+      console.warn(`Capture warning: ${tab}.png is identical to ${lastFrameTab}.png`);
+    }
+    lastFrameHash = frameHash;
+    lastFrameTab = tab;
+    fs.writeFileSync(path.join(CAPTURE_OUT, tab + '.png'), png);
     console.log('Captured:', tab);
   }
   app.quit();
@@ -2968,35 +3342,29 @@ $resp | ConvertTo-Json -Depth 6 -Compress
 
 // ── Feature: Graph Query Digest ───────────────────────────────────────────────
 ipcMain.on('digest-graph-result', async (event, { method, url, responseText }) => {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) { event.sender.send('graph-digest', { ok: false }); return; }
+  const provider = getAIProvider();
+  if (!provider) { event.sender.send('graph-digest', { ok: false }); return; }
   try {
-    const Anthropic = require('@anthropic-ai/sdk');
-    const client = new Anthropic.default({ apiKey });
     const truncated = responseText.length > 2500 ? responseText.slice(0, 2500) + '…' : responseText;
-    const msg = await client.messages.create({
-      model: 'claude-haiku-4-5-20251001',
-      max_tokens: 120,
+    const text = await provider.complete({
+      maxTokens: 120,
       messages: [{ role: 'user', content: `In 1-2 plain English sentences, describe what this Microsoft Graph API call does and what the response contains. No markdown.\nMethod: ${method}\nURL: ${url}\nResponse: ${truncated}` }]
     });
-    event.sender.send('graph-digest', { ok: true, text: msg.content[0].text.trim() });
+    event.sender.send('graph-digest', { ok: true, text: text.trim() });
   } catch { event.sender.send('graph-digest', { ok: false }); }
 });
 
 // ── Feature: Graph Query Suggest ──────────────────────────────────────────────
 ipcMain.on('suggest-graph-query', async (event, { description }) => {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) { event.sender.send('graph-query-suggestion', { ok: false, error: 'ANTHROPIC_API_KEY not set' }); return; }
+  const provider = getAIProvider();
+  if (!provider) { event.sender.send('graph-query-suggestion', { ok: false, error: 'AI provider not configured' }); return; }
   try {
-    const Anthropic = require('@anthropic-ai/sdk');
-    const client = new Anthropic.default({ apiKey });
-    const msg = await client.messages.create({
-      model: 'claude-haiku-4-5-20251001',
-      max_tokens: 300,
+    const text = await provider.complete({
+      maxTokens: 300,
       messages: [{ role: 'user', content: `You are a Microsoft Graph API expert. Convert this request into a Graph API call.\nRespond with ONLY a raw JSON object (no markdown, no explanation):\n{"method":"GET","url":"https://graph.microsoft.com/v1.0/...","body":null}\n\nRequest: ${description}` }]
     });
-    const text = msg.content[0].text.trim().replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '');
-    const suggestion = JSON.parse(text);
+    const cleaned = text.trim().replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '');
+    const suggestion = JSON.parse(cleaned);
     event.sender.send('graph-query-suggestion', { ok: true, ...suggestion });
   } catch (err) {
     event.sender.send('graph-query-suggestion', { ok: false, error: err.message });
