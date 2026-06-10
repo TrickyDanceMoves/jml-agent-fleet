@@ -5,6 +5,12 @@ const { execFileSync, execFile, spawnSync } = require('child_process');
 const path  = require('path');
 const fs    = require('fs');
 const os    = require('os');
+const crypto = require('crypto');
+const {
+  classifyToolResult,
+  isLifecycleSubmitTool,
+  lifecycleStageForTool,
+} = require('./lib/operation-status');
 
 const AGENTS_DIR    = app.isPackaged
   ? path.join(process.resourcesPath, 'agents')
@@ -33,6 +39,37 @@ const OPERATOR_AUTH_FILE = path.join(AGENTS_DIR, 'approver', 'operator-auth.json
 const OPERATOR_ACTIVITY_FILE = path.join(AGENTS_DIR, 'approver', 'operator-activity.jsonl');
 const PANEL_BOUNDS_FILE      = path.join(__dirname, 'panel-bounds.json');
 const AI_PROVIDER_CONFIG_FILE = path.join(AGENTS_DIR, 'approver', 'ai-provider.json');
+const OPERATIONS_FILE = path.join(AGENTS_DIR, 'approver', 'operations.jsonl');
+const activeOperations = new Map();
+
+function operationSubject(input = {}) {
+  return input.userPrincipalName || input.upn || input.displayName
+    || [input.givenName, input.surname].filter(Boolean).join(' ') || 'Unknown subject';
+}
+
+function persistOperation(operation) {
+  try {
+    fs.mkdirSync(path.dirname(OPERATIONS_FILE), { recursive: true });
+    fs.appendFileSync(OPERATIONS_FILE, JSON.stringify(operation) + '\n', 'utf8');
+  } catch {}
+}
+
+function emitOperation(sender, operation, persist = false) {
+  if (persist) persistOperation(operation);
+  sender.send('operation-status', operation);
+  if (win && !win.isDestroyed() && win.webContents !== sender) {
+    win.webContents.send('operation-status', operation);
+  }
+}
+
+function readOperations() {
+  let persisted = [];
+  try {
+    persisted = fs.readFileSync(OPERATIONS_FILE, 'utf8').trim().split('\n').filter(Boolean)
+      .map(line => { try { return JSON.parse(line); } catch { return null; } }).filter(Boolean);
+  } catch {}
+  return [...activeOperations.values(), ...persisted.reverse()].slice(0, 250);
+}
 
 function loadPanelBounds() { try { return JSON.parse(fs.readFileSync(PANEL_BOUNDS_FILE, 'utf8')); } catch { return null; } }
 function savePanelBounds(b) { try { fs.writeFileSync(PANEL_BOUNDS_FILE, JSON.stringify(b)); } catch {} }
@@ -1093,16 +1130,49 @@ async function runAgentLoop(sender, agent, userText) {
       const toolResults = [];
 
       for (const tool of toolCalls) {
+        let operation = null;
+        if (isLifecycleSubmitTool(tool.name)) {
+          operation = {
+            id: crypto.randomUUID(),
+            agent: tool.name.replace(/^submit_/, '').replace(/_(soft|hard)$/, ''),
+            toolName: tool.name,
+            stage: lifecycleStageForTool(tool.name),
+            subject: operationSubject(tool.input),
+            operator: currentOperator || process.env.JML_CONSOLE_OPERATOR,
+            whatif: !!agentState.whatif,
+            status: 'running',
+            outcome: null,
+            error: null,
+            startedAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          };
+          activeOperations.set(operation.id, operation);
+          emitOperation(sender, operation);
+        }
         sender.send('msg-chunk', { agent, type: 'tool_running', toolName: tool.name });
         let result;
+        let toolError = null;
         try {
           result = executeTool(agent, tool.name, tool.input, agentState.whatif);
+          const classified = classifyToolResult(result);
           // Pass structured result for cards that render it (risk score, provisioning suggestions)
           const sendResult = (tool.name === 'score_risk' || tool.name === 'suggest_provisioning') ? result : undefined;
-          sender.send('msg-chunk', { agent, type: 'tool_done', toolName: tool.name, success: true, result: sendResult });
+          sender.send('msg-chunk', { agent, type: 'tool_done', toolName: tool.name, success: classified.status === 'succeeded', result: sendResult });
         } catch (err) {
+          toolError = err;
           result = { error: err.message };
           sender.send('msg-chunk', { agent, type: 'tool_done', toolName: tool.name, success: false });
+        }
+        if (operation) {
+          const classified = classifyToolResult(result, toolError);
+          operation = {
+            ...operation,
+            ...classified,
+            updatedAt: new Date().toISOString(),
+            completedAt: new Date().toISOString(),
+          };
+          activeOperations.delete(operation.id);
+          emitOperation(sender, operation, true);
         }
         toolResults.push({ type: 'tool_result', tool_use_id: tool.id, content: JSON.stringify(result) });
       }
@@ -1222,6 +1292,10 @@ ipcMain.on('get-audit-log', (event) => {
   const lines   = fs.readFileSync(auditPath, 'utf8').trim().split('\n').filter(Boolean);
   const entries = lines.map(l => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean);
   event.sender.send('audit-log-data', entries.reverse());
+});
+
+ipcMain.on('get-operation-statuses', (event) => {
+  event.sender.send('operation-statuses', readOperations());
 });
 
 // ── Evidence packet export ──────────────────────────────────────────────────────
@@ -2185,7 +2259,6 @@ ipcMain.on('switch-operator', (event, { name, role }) => {
 });
 
 // ── Operator authentication (PIN / Windows) — gates write-mode operations ────
-const crypto = require('crypto');
 function readOperatorAuth() {
   try { return readJson(OPERATOR_AUTH_FILE) || {}; } catch { return {}; }
 }
@@ -2566,7 +2639,10 @@ ipcMain.handle('verify-operator-pin', (event, { user, pin }) => {
 
 // ── Screenshot capture mode (npm start -- --capture) ─────────────────────────
 const CAPTURE_MODE = process.argv.includes('--capture');
-const CAPTURE_OUT  = path.join(__dirname, '..', 'docs', 'images');
+const GLASS_CAPTURE_MODE = process.argv.includes('--glass-qc');
+const CAPTURE_OUT = GLASS_CAPTURE_MODE
+  ? path.join(__dirname, '..', '.superpowers', 'glass-qc')
+  : path.join(__dirname, '..', 'docs', 'images');
 
 // Mock data pushed directly to renderer for tabs that need Graph/PS connections
 const MOCK_DASHBOARD = {
@@ -2786,6 +2862,8 @@ const TAB_INJECT = {
 async function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
 async function runCapture() {
+  fs.mkdirSync(CAPTURE_OUT, { recursive: true });
+
   // Use the configured admin operator so demo captures show the intended
   // approval path instead of falling back to viewer permissions.
   currentOperator = 'Nick';
@@ -2805,7 +2883,9 @@ async function runCapture() {
     width: 1440, height: 1800,
     frame: false,
     icon: APP_ICON,
-    backgroundColor: '#11131a',
+    transparent: GLASS_CAPTURE_MODE,
+    backgroundColor: GLASS_CAPTURE_MODE ? '#00000000' : '#11131a',
+    ...(GLASS_CAPTURE_MODE ? { backgroundMaterial: 'mica' } : {}),
     webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, nodeIntegration: false, sandbox: false }
   });
   win.loadFile(path.join(__dirname, 'renderer', 'index.html'));
@@ -2814,6 +2894,10 @@ async function runCapture() {
     try {
       localStorage.setItem('jml-sidebar-collapsed', '0');
       document.querySelector('.layout')?.classList.remove('sidebar-collapsed');
+      if (${GLASS_CAPTURE_MODE}) {
+        localStorage.setItem('jmlTheme', 'glass');
+        document.documentElement.dataset.theme = 'glass';
+      }
     } catch (_) {}
   `);
   await sleep(1200);

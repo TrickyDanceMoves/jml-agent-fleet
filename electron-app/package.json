@@ -4,6 +4,7 @@
   "description": "JML Identity Management Console",
   "main": "main.js",
   "scripts": {
+    "test": "node --test test/*.test.js",
     "start": "electron .",
     "capture": "electron . --capture --disable-gpu",
     "build": "electron-builder --win --x64"
@@ -30,6 +31,7 @@
       "preload.js",
       "preload-panel.js",
       "preload-overlay.js",
+      "lib/**/*",
       "providers/**/*",
       "renderer/**/*",
       "Assets/icon.ico"

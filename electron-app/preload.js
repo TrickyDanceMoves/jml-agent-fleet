@@ -10,6 +10,7 @@ contextBridge.exposeInMainWorld('api', {
   setMode:          (whatif)         => ipcRenderer.send('set-mode', { whatif }),
   clearHistory:     (agent)          => ipcRenderer.send('clear-history', { agent }),
   getAuditLog:       ()               => ipcRenderer.send('get-audit-log'),
+  getOperationStatuses: ()            => ipcRenderer.send('get-operation-statuses'),
   exportEvidencePacket: (payload)     => ipcRenderer.invoke('export-evidence-packet', payload),
   getDashboardStats: ()               => ipcRenderer.send('get-dashboard-stats'),
   getSecurityReports:()               => ipcRenderer.send('get-security-reports'),
@@ -22,6 +23,8 @@ contextBridge.exposeInMainWorld('api', {
   onError:          (cb) => ipcRenderer.on('msg-error',       (_, d) => cb(d)),
   onHistoryCleared: (cb) => ipcRenderer.on('history-cleared', (_, d) => cb(d)),
   onAuditLogData:    (cb) => ipcRenderer.on('audit-log-data',     (_, d) => cb(d)),
+  onOperationStatus: (cb) => ipcRenderer.on('operation-status',   (_, d) => cb(d)),
+  onOperationStatuses:(cb) => ipcRenderer.on('operation-statuses', (_, d) => cb(d)),
   onDashboardStats:  (cb) => ipcRenderer.on('dashboard-stats',    (_, d) => cb(d)),
   onSecurityReports: (cb) => ipcRenderer.on('security-reports',   (_, d) => cb(d)),
 

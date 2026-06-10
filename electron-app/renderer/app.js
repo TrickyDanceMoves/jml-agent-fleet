@@ -420,10 +420,7 @@ setHardMode(_hardMode);
 // Initialize soft mode to match hard mode at boot
 isWhatif = _hardMode === 'whatif';
 window.api.setMode(isWhatif);
-// Sync the soft toggle UI
-document.querySelectorAll('.mode-btn').forEach(b => {
-  b.classList.toggle('active', (b.dataset.mode === 'whatif') === isWhatif);
-});
+window.JmlModeUi.syncModeUi(document, isWhatif);
 
 // Confirmation modal — returns true if user clicks OK, false otherwise
 function confirmModal({ title, body, danger, okLabel, cancelLabel }) {
@@ -501,9 +498,7 @@ document.querySelectorAll('.hard-mode-btn').forEach(btn => {
     // Apply to soft state too
     isWhatif = target === 'whatif';
     window.api.setMode(isWhatif);
-    document.querySelectorAll('.mode-btn').forEach(b => b.classList.toggle('active', (b.dataset.mode === 'whatif') === isWhatif));
-    document.getElementById('mode-banner-whatif')?.classList.toggle('hidden', !isWhatif);
-    document.getElementById('mode-banner-live')?.classList.toggle('hidden', isWhatif);
+    window.JmlModeUi.syncModeUi(document, isWhatif);
     updateTopbarModePill();
     showToast(`Session set to ${target === 'live' ? 'LIVE' : 'Safe'} mode`, 'success');
   });
@@ -541,8 +536,7 @@ document.querySelectorAll('.mode-btn').forEach(btn => {
     btn.classList.add('active');
     isWhatif = targetWhatif;
     window.api.setMode(isWhatif);
-    document.getElementById('mode-banner-whatif').classList.toggle('hidden', !isWhatif);
-    document.getElementById('mode-banner-live').classList.toggle('hidden', isWhatif);
+    window.JmlModeUi.syncModeUi(document, isWhatif);
     updateTopbarModePill();
   });
 });
@@ -705,6 +699,8 @@ let _lcDoneSet  = new Set();
 let _lcCurrent  = null;
 let _lcToolRan  = false;   // did any tool fire this turn? (request "captured" signal)
 let _lcCapturing = false;  // request started but intent not yet fully captured
+let _lcTerminalState = null;
+let _lcTerminalError = null;
 
 function renderLifecycleMap() {
   const map = document.getElementById('lifecycle-map');
@@ -717,16 +713,19 @@ function renderLifecycleMap() {
     const meta    = _LC_META[key] || { label: key, sub: null };
     const isDone  = _lcDoneSet.has(key);
     const isCurr  = key === _lcCurrent;
+    const isFailed = isCurr && _lcTerminalState === 'failed';
+    const isPartial = isCurr && _lcTerminalState === 'partial';
     // The 'request' stage has an extra "capturing" sub-state: started but the agent
     // is still gathering required details (e.g. user only gave a name). It is neither
     // done nor a normal in-flight step — show it distinctly so operators know more
     // input is needed before the request is considered captured.
     const capturing = key === 'request' && isCurr && _lcCapturing && !isDone;
-    const cls     = 'lc-state' + (isDone ? ' done' : capturing ? ' current capturing' : isCurr ? ' current' : '');
-    const dot     = isDone ? '<span>✓</span>' : capturing ? '<span>…</span>' : '';
+    const cls     = 'lc-state' + (isDone ? ' done' : isFailed ? ' current failed' : isPartial ? ' current partial' : capturing ? ' current capturing' : isCurr ? ' current' : '');
+    const dot     = isDone ? '<span>✓</span>' : (isFailed || isPartial) ? '<span>!</span>' : capturing ? '<span>…</span>' : '';
     let sub = meta.sub;
     if (key === 'request') sub = isDone ? 'intent captured' : capturing ? 'gathering details…' : 'awaiting intent';
-    const subHtml = sub ? `<div class="lc-sub">${sub}</div>` : '';
+    if ((isFailed || isPartial) && _lcTerminalError) sub = _lcTerminalError;
+    const subHtml = sub ? `<div class="lc-sub">${escHtml(sub)}</div>` : '';
     return `<div class="${cls}" data-stage="${key}">
       <div class="lc-dot">${dot}</div>
       <div class="lc-info"><div class="lc-label">${meta.label}</div>${subHtml}</div>
@@ -740,6 +739,8 @@ function lcResetToRequest() {
   _lcCurrent  = 'request';
   _lcToolRan  = false;
   _lcCapturing = true;   // a turn just started; intent not yet captured
+  _lcTerminalState = null;
+  _lcTerminalError = null;
   const tag = document.getElementById('lifecycle-status-tag');
   if (tag) { tag.textContent = 'Capturing'; tag.className = 'tag info'; }
   renderLifecycleMap();
@@ -763,6 +764,8 @@ function lcAdvanceTo(stageKey) {
   const idx = _lcPipeline.indexOf(stageKey);
   for (let i = 0; i < idx; i++) _lcDoneSet.add(_lcPipeline[i]);
   _lcCurrent = stageKey;
+  _lcTerminalState = null;
+  _lcTerminalError = null;
   const tag = document.getElementById('lifecycle-status-tag');
   if (tag) { tag.textContent = 'In Progress'; tag.className = 'tag info'; }
   renderLifecycleMap();
@@ -778,11 +781,29 @@ function lcMarkComplete() {
     renderLifecycleMap();
     return;
   }
-  if (_lcCurrent) _lcDoneSet.add(_lcCurrent);
-  _lcCurrent = null;
-  _lcCapturing = false;
+  // Chat completion only ends the conversational turn. An operation-status
+  // event is the authority for success, partial completion, or failure.
+}
+
+function lcApplyOperation(operation) {
+  if (!operation || !operation.stage) return;
+  lcAdvanceTo(operation.stage);
   const tag = document.getElementById('lifecycle-status-tag');
-  if (tag) { tag.textContent = 'Complete'; tag.className = 'tag ok'; }
+  if (operation.status === 'running') return;
+  _lcCapturing = false;
+  _lcTerminalState = operation.status;
+  _lcTerminalError = operation.error || null;
+  if (operation.status === 'succeeded') {
+    _lcDoneSet.add(operation.stage);
+    _lcCurrent = null;
+    if (tag) { tag.textContent = 'Succeeded'; tag.className = 'tag ok'; }
+  } else if (operation.status === 'awaiting_approval') {
+    if (tag) { tag.textContent = 'Awaiting approval'; tag.className = 'tag warn'; }
+  } else if (operation.status === 'partial') {
+    if (tag) { tag.textContent = 'Partial'; tag.className = 'tag warn'; }
+  } else if (operation.status === 'failed') {
+    if (tag) { tag.textContent = 'Failed'; tag.className = 'tag danger'; }
+  }
   renderLifecycleMap();
 }
 
@@ -792,6 +813,8 @@ function lcSetIdle() {
   _lcCurrent  = null;
   _lcToolRan  = false;
   _lcCapturing = false;
+  _lcTerminalState = null;
+  _lcTerminalError = null;
   const tag = document.getElementById('lifecycle-status-tag');
   if (tag) { tag.textContent = 'Idle'; tag.className = 'tag'; }
   renderLifecycleMap();
@@ -2394,7 +2417,8 @@ function renderAuditPage() {
 
 window.api.onAuditLogData((entries) => {
   // Feed Operations kanban Completed-today column from audit log
-  renderOpsCompleted(entries || []);
+  _opsAuditEntries = entries || [];
+  renderOpsCompleted(mergedCompletedOperations());
 
   // Feed dashboard Audit widget
   if (Array.isArray(entries)) {
@@ -3353,6 +3377,7 @@ setInterval(() => {
 // ── Operations tab ────────────────────────────────────────────────────────────
 function loadOperations() {
   window.api.getScheduledOps();
+  window.api.getOperationStatuses();
   // Also fetch audit log entries for the completed-today column
   if (typeof window.api.getAuditLog === 'function') {
     try { window.api.getAuditLog(); } catch (_) {}
@@ -3362,6 +3387,8 @@ function loadOperations() {
 // Render Operations kanban — derives Queued from scheduled-ops, Completed from audit log,
 // In Flight from the dynamic _inflightOps registry below.
 const _inflightOps = new Map();
+const _operationRecords = new Map();
+let _opsAuditEntries = [];
 function renderOpsInflight() {
   const body = document.getElementById('ops-inflight-body');
   const count = document.getElementById('ops-inflight-count');
@@ -3379,7 +3406,7 @@ function renderOpsInflight() {
     return;
   }
   body.innerHTML = arr.map(op => {
-    const elapsed = op.startedAt ? Math.floor((Date.now() - op.startedAt) / 1000) : 0;
+    const elapsed = op.startedAt ? Math.floor((Date.now() - new Date(op.startedAt).getTime()) / 1000) : 0;
     return `<div class="op-card run">
       <div class="op-top">
         <span class="ag t-${escHtml(op.agent || 'auditor')}">${escHtml(op.agent || '—')}</span>
@@ -3477,6 +3504,53 @@ function renderOpsCompleted(entries) {
     });
   });
 }
+
+function mergedCompletedOperations() {
+  const terminal = [..._operationRecords.values()].filter(op => op.status !== 'running')
+    .map(op => ({
+      ...op,
+      timestamp: op.completedAt || op.updatedAt,
+      details: { error: op.error },
+    }));
+  const seen = new Set(terminal.map(op => op.id).filter(Boolean));
+  return [...terminal, ..._opsAuditEntries.filter(entry => !entry.id || !seen.has(entry.id))]
+    .sort((a, b) => new Date(b.timestamp || 0) - new Date(a.timestamp || 0));
+}
+
+function updateDashboardOperationStatus() {
+  const operations = [..._operationRecords.values()]
+    .sort((a, b) => new Date(b.updatedAt || b.startedAt || 0) - new Date(a.updatedAt || a.startedAt || 0));
+  const current = operations.find(op => op.status === 'running')
+    || operations.find(op => op.status === 'failed' || op.status === 'partial');
+  if (!current) return;
+  const sub = document.getElementById('dash-page-sub');
+  if (!sub) return;
+  const label = current.status === 'running' ? 'In flight'
+    : current.status === 'failed' ? 'Failed' : 'Partial';
+  sub.textContent = `${label}: ${current.agent || 'agent'} · ${current.subject || 'operation'}${current.error ? ' · ' + current.error : ''}`;
+  sub.classList.toggle('operation-failed', current.status === 'failed');
+}
+
+function applyOperationStatus(operation) {
+  if (!operation || !operation.id) return;
+  _operationRecords.set(operation.id, operation);
+  if (operation.status === 'running') {
+    _inflightOps.set(operation.id, { ...operation, progress: 55, step: operation.stage || 'running' });
+  } else {
+    _inflightOps.delete(operation.id);
+  }
+  renderOpsInflight();
+  renderOpsCompleted(mergedCompletedOperations());
+  updateDashboardOperationStatus();
+  lcApplyOperation(operation);
+}
+
+window.api.onOperationStatus(applyOperationStatus);
+window.api.onOperationStatuses(operations => {
+  _operationRecords.clear();
+  _inflightOps.clear();
+  (operations || []).slice().reverse().forEach(applyOperationStatus);
+});
 
 const _csvInput = document.getElementById('bulk-csv-input');
 if (_csvInput) {
@@ -4830,6 +4904,7 @@ function setSidebarOperator(name) {
 // ── Init ──────────────────────────────────────────────────────────────────────
 // Bootstrap UI state
 lcSetIdle();   // Render empty lifecycle map in idle state
+window.api.getOperationStatuses();
 
 window.api.getCurrentOperator().then(d => {
   setSidebarOperator(d.name || window.api.currentUser);
@@ -7581,5 +7656,6 @@ window.api.onModeChanged(({ whatif }) => {
   isWhatif = whatif;
   setHardMode(whatif ? 'whatif' : 'live');
   window.api.setMode(whatif);
+  window.JmlModeUi.syncModeUi(document, whatif);
   updateTopbarModePill();
 });
