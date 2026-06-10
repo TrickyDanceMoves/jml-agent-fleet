@@ -30,6 +30,10 @@ approver/operator-auth.json
 approver/operator-activity.jsonl
 # AI run telemetry (runtime observability data)
 approver/ai-traces.jsonl
+# AI provider config (contains API keys)
+approver/ai-provider.json
+# Lifecycle operation history (runtime state, contains tenant UPNs)
+approver/operations.jsonl
 # Scheduled operations queue (runtime state)
 approver/scheduled.json
 # Notification routing rules — operator-specific, optional to commit
