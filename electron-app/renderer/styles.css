@@ -1474,11 +1474,26 @@ body.maximized, body.maximized .app { border-radius: 0; }
   background: linear-gradient(180deg, var(--elev-2), var(--elev));
   border-color: color-mix(in oklch, var(--border-strong) 80%, transparent);
 }
-.message-body { display: flex; flex-direction: column; gap: 4px; flex: 1; min-width: 0; }
-/* pre-wrap only applies during streaming (raw text); once renderMarkdown runs
-   the content is HTML so normal whitespace collapses correctly */
-.message-text { word-wrap: break-word; overflow-wrap: break-word; }
-.message-text.streaming { white-space: pre-wrap; }
+.message-body { display: flex; flex-direction: column; gap: 4px; flex: 1; min-width: 0; max-width: 680px; }
+/* assistant turn: subtle left-border card so each response has a clear boundary */
+.message.assistant .message-body {
+  border-left: 2px solid var(--border-strong);
+  padding-left: 12px;
+}
+.message.assistant[data-agent="approver"] .message-body { border-left-color: color-mix(in oklab, var(--cyan) 55%, transparent); }
+.message.assistant[data-agent="auditor"]  .message-body { border-left-color: color-mix(in oklab, var(--emerald) 55%, transparent); }
+
+/* agent name + timestamp header above each assistant turn */
+.message-meta {
+  display: flex; align-items: center; gap: 6px; margin-bottom: 2px;
+  font-family: var(--mono); font-size: 10.5px; color: var(--muted);
+}
+.message-meta .meta-agent { color: var(--text-2); font-weight: 600; }
+.message-meta .meta-sep { opacity: .4; }
+
+/* streaming: content is already rendered HTML — pre-wrap causes double-spacing */
+.message-text { word-wrap: break-word; overflow-wrap: break-word; max-width: 100%; }
+.message-text.streaming { /* cursor only; whitespace handled by block HTML */ }
 
 /* Paragraph rhythm */
 .message-text .md-p { margin: 0 0 10px 0; line-height: 1.6; }
@@ -1564,17 +1579,24 @@ body.maximized, body.maximized .app { border-radius: 0; }
 
 .error-text { color: var(--coral); }
 
-.tool-indicators { display: flex; flex-direction: column; gap: 4px; margin-top: 6px; }
+.tool-indicators { display: flex; flex-direction: column; gap: 4px; margin-top: 8px; }
 .tool-indicator {
   display: inline-flex; align-items: center; gap: 6px;
   padding: 4px 9px; border-radius: 99px;
   background: var(--surface); border: 1px solid var(--border);
   font-family: var(--mono); font-size: 10.5px; color: var(--text-2);
-  width: fit-content;
+  width: fit-content; transition: border-radius .15s;
 }
 .tool-indicator.running { color: var(--cyan); border-color: color-mix(in oklch, var(--cyan) 45%, transparent); }
 .tool-indicator.done    { color: var(--emerald); border-color: color-mix(in oklch, var(--emerald) 45%, transparent); }
 .tool-indicator.failed  { color: var(--coral); border-color: color-mix(in oklch, var(--coral) 45%, transparent); }
+.tool-indicator.has-result { cursor: pointer; }
+.tool-indicator.has-result:hover { opacity: .85; }
+.tool-expand-chev {
+  font-size: 9px; margin-left: 2px; display: inline-block;
+  transition: transform .15s; opacity: .6;
+}
+.tool-expand-chev.rotated { transform: rotate(90deg); }
 .tool-spinner {
   width: 9px; height: 9px; border-radius: 50%;
   border: 2px solid currentColor; border-right-color: transparent;
@@ -1583,6 +1605,37 @@ body.maximized, body.maximized .app { border-radius: 0; }
 @keyframes spin { to { transform: rotate(360deg); } }
 .tool-status-icon { font-size: 10px; }
 .tool-label { color: inherit; }
+
+/* wrapper holds the pill + its expandable result drawer */
+.tool-indicator-wrap { display: flex; flex-direction: column; gap: 3px; width: fit-content; max-width: 100%; }
+.tool-result-drawer {
+  display: none; font-family: var(--mono); font-size: 11px; line-height: 1.5;
+  background: var(--bg-2); border: 1px solid var(--border); border-radius: 5px;
+  padding: 7px 10px; white-space: pre-wrap; word-break: break-all;
+  max-height: 240px; overflow-y: auto;
+}
+.tool-result-drawer.open { display: block; }
+.tool-result-drawer pre { margin: 0; font-family: inherit; font-size: inherit; }
+
+/* Collapsed tool-steps summary bar (shown after onComplete when ≥2 tools ran) */
+.tool-steps-summary {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-family: var(--mono); font-size: 10.5px; color: var(--text-2);
+  cursor: pointer; user-select: none; padding: 2px 0;
+}
+.tool-steps-summary:hover { color: var(--text); }
+.ts-icon { font-size: 10px; }
+.ts-icon.ts-ok   { color: var(--emerald); }
+.ts-icon.ts-fail { color: var(--coral); }
+.ts-count { font-weight: 600; }
+.ts-names { opacity: .6; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 360px; }
+.ts-chev {
+  font-size: 9px; display: inline-block; transition: transform .15s;
+  opacity: .5; margin-left: 1px;
+}
+.tool-steps-summary.expanded .ts-chev { transform: rotate(90deg); }
+.tool-steps-detail { display: none; padding-top: 4px; }
+.tool-steps-detail.open { display: flex; flex-direction: column; gap: 4px; }
 
 /* Thinking / streaming state */
 .thinking-indicator {

@@ -26,6 +26,7 @@ const AGENT_AVATARS = {
   approver: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/></svg>`,
   auditor:  `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/></svg>`
 };
+const AGENT_LABELS = { approver: 'Approver Agent', auditor: 'Audit Agent' };
 
 const AGENT_SCOPE_META = {
   joiner:      { label: 'Joiner',      reg: 'jml-joiner-agent',      role: 'CREATE accounts on day-one',                        scopes: ['User.RW', 'Group.RW', 'LicenseAssignment.RW'],              cannot: ['PIM', 'Conditional Access', 'Directory roles'],              note: 'Day-one account creation. Invoked from Joiner tab form or HRIS webhook.' },
@@ -826,10 +827,17 @@ function appendAssistantPlaceholder(agent) {
   const msgs = document.getElementById('messages-' + agent);
   const el   = document.createElement('div');
   el.className = 'message assistant thinking';
+  el.dataset.agent = agent;
   const avatarSvg = AGENT_AVATARS[agent] || 'AI';
+  const timeStr   = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   el.innerHTML = `
     <div class="message-avatar avatar-${agent}">${avatarSvg}</div>
     <div class="message-body">
+      <div class="message-meta">
+        <span class="meta-agent">${AGENT_LABELS[agent] || agent}</span>
+        <span class="meta-sep">·</span>
+        <span class="meta-time">${timeStr}</span>
+      </div>
       <div class="thinking-indicator">
         <span class="thinking-dots"><span></span><span></span><span></span></span>
         <span class="thinking-label">Thinking</span>
@@ -864,9 +872,17 @@ window.api.onChunk(({ agent: chunkAgent, type, text, toolName, success, result }
     const thinkEl = msgEl.querySelector('.thinking-indicator');
     if (thinkEl) thinkEl.style.display = 'none';
     msgEl.classList.remove('thinking');
-    textEl.classList.add('streaming');
-    textEl.innerHTML = renderMarkdown(textEl.dataset.raw ? textEl.dataset.raw + text : text);
     textEl.dataset.raw = (textEl.dataset.raw || '') + text;
+    // Throttle markdown re-renders via RAF to avoid layout thrash on every streamed token
+    if (!textEl._renderPending) {
+      textEl._renderPending = true;
+      requestAnimationFrame(() => {
+        textEl._renderPending = false;
+        textEl.innerHTML = renderMarkdown(textEl.dataset.raw || '');
+        textEl.classList.add('streaming');
+        if (msgs) msgs.scrollTop = msgs.scrollHeight;
+      });
+    }
   }
 
   if (type === 'tool_start') {
@@ -944,6 +960,29 @@ window.api.onChunk(({ agent: chunkAgent, type, text, toolName, success, result }
           ? '<span class="tool-status-icon">✓</span>'
           : '<span class="tool-status-icon">✗</span>';
         ind.querySelector('.tool-label').textContent = formatToolName(toolName);
+        // Attach expandable result drawer for successful non-error results
+        if (success && result && !result.error) {
+          const wrap = document.createElement('div');
+          wrap.className = 'tool-indicator-wrap';
+          ind.parentNode.insertBefore(wrap, ind);
+          wrap.appendChild(ind);
+          const drawer = document.createElement('div');
+          drawer.className = 'tool-result-drawer';
+          try {
+            const pretty = JSON.stringify(typeof result === 'string' ? JSON.parse(result) : result, null, 2);
+            drawer.innerHTML = '<pre>' + highlightJson(pretty) + '</pre>';
+          } catch { drawer.textContent = String(result); }
+          wrap.appendChild(drawer);
+          const chev = document.createElement('span');
+          chev.className = 'tool-expand-chev';
+          chev.textContent = ' ›';
+          ind.appendChild(chev);
+          ind.classList.add('has-result');
+          ind.addEventListener('click', () => {
+            drawer.classList.toggle('open');
+            chev.classList.toggle('rotated');
+          });
+        }
       }
     }
   }
@@ -969,7 +1008,35 @@ window.api.onComplete(({ agent }) => {
     if (thinkEl) thinkEl.style.display = 'none';
     msgEl.classList.remove('thinking');
     const textEl2 = msgEl.querySelector('.message-text');
-    if (textEl2) textEl2.classList.remove('streaming');
+    if (textEl2) { textEl2.classList.remove('streaming'); textEl2._renderPending = false; }
+    // Collapse tool steps: if 2+ indicators ran, fold them into a summary bar
+    const toolEl2 = msgEl.querySelector('.tool-indicators');
+    if (toolEl2 && toolEl2.children.length >= 2) {
+      const allChildren = Array.from(toolEl2.children);
+      const failCount = toolEl2.querySelectorAll('.tool-indicator.failed').length;
+      const labels = Array.from(toolEl2.querySelectorAll('.tool-label'))
+        .map(l => l.textContent.trim()).filter(Boolean);
+      const nameStr = labels.length <= 3 ? labels.join(' · ')
+        : labels.slice(0, 2).join(' · ') + ' · +' + (labels.length - 2) + ' more';
+      const countWord = allChildren.length === 1 ? '1 step' : allChildren.length + ' steps';
+      const summary = document.createElement('div');
+      summary.className = 'tool-steps-summary';
+      summary.innerHTML = (failCount > 0
+        ? '<span class="ts-icon ts-fail">!</span>'
+        : '<span class="ts-icon ts-ok">✓</span>')
+        + `<span class="ts-count">${escHtml(countWord)}</span>`
+        + `<span class="ts-names"> · ${escHtml(nameStr)}</span>`
+        + '<span class="ts-chev"> ›</span>';
+      const detail = document.createElement('div');
+      detail.className = 'tool-steps-detail';
+      allChildren.forEach(c => detail.appendChild(c));
+      toolEl2.appendChild(summary);
+      toolEl2.appendChild(detail);
+      summary.addEventListener('click', () => {
+        detail.classList.toggle('open');
+        summary.classList.toggle('expanded');
+      });
+    }
     // Auditor: if the response contains findings, surface quick-nav action chips
     if (agent === 'auditor') {
       const textEl = msgEl.querySelector('.message-text');
@@ -2904,7 +2971,11 @@ function agentScopeTip(agent, label, className) {
 }
 
 function decorateAgentMentions(html) {
+  const seen = new Set();
   return html.replace(/\b(joiner|mover|leaver|enroller|certifier|approver|provisioner|auditor|knowledge)(?:-agent|\s+agent)?\b/gi, (match, agent) => {
+    const key = agent.toLowerCase();
+    if (seen.has(key)) return match;
+    seen.add(key);
     return agentScopeTip(agent, match, 'inline');
   });
 }
