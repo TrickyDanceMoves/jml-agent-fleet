@@ -43,6 +43,7 @@ electron-app/out/
 electron-app/dist/
 
 # Misc
+.superpowers/
 *.tmp
 .DS_Store
 Thumbs.db
