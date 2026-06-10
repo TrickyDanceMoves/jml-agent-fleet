@@ -1,5 +1,6 @@
 'use strict';
 
+// Locks the approved Uniform Dark Frost material contract.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');

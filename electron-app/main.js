@@ -74,7 +74,7 @@ function readOperations() {
 function loadPanelBounds() { try { return JSON.parse(fs.readFileSync(PANEL_BOUNDS_FILE, 'utf8')); } catch { return null; } }
 function savePanelBounds(b) { try { fs.writeFileSync(PANEL_BOUNDS_FILE, JSON.stringify(b)); } catch {} }
 const CERT_SCRIPT    = path.join(AGENTS_DIR, 'certifier', 'Invoke-CertificationCampaign.ps1');
-const AGENT_DIRS     = ['joiner','mover','leaver','enroller','approver','provisioner','auditor'];
+const AGENT_DIRS     = ['joiner','mover','leaver','enroller','approver','provisioner','auditor','certifier'];
 
 // ── AI provider abstraction ───────────────────────────────────────────────────
 const { loadConfig: _loadProviderConfig, saveConfig: _saveProviderConfig, buildProvider } = require('./providers');
@@ -488,7 +488,7 @@ function pushOverlayUpdate(partial) {
 const _certAlerted = new Set();
 function pollCertExpiry() {
   try {
-    const agents = ['joiner','mover','leaver','enroller','approver','auditor'];
+    const agents = ['joiner','mover','leaver','enroller','approver','provisioner','auditor','certifier'];
     const certs  = agents.map(ag => {
       try {
         const cfg = readJson(path.join(AGENTS_DIR, ag, 'config.json'));
@@ -2730,6 +2730,7 @@ const MOCK_APPROVALS = [
 
 // JS injected into renderer for tabs that show empty state by default
 const TAB_INJECT = {
+  'glass-screen': `(function(){ if (window._gsCaptureDemo) window._gsCaptureDemo(); })();`,
   approver: `
     (function(){
       const c = document.getElementById('messages-approver');
@@ -2900,6 +2901,12 @@ async function runCapture() {
       }
     } catch (_) {}
   `);
+  // --glass-qc: force the Glass theme for a visual QC pass of the frosted material
+  if (process.argv.includes('--glass-qc')) {
+    await win.webContents.executeJavaScript(
+      `document.documentElement.dataset.theme = 'glass';
+       try { localStorage.setItem('jmlTheme', 'glass'); } catch (_) {}`);
+  }
   await sleep(1200);
 
   // Pre-send mock data so dashboard/certs show content without Graph connection
@@ -2967,6 +2974,7 @@ async function runCapture() {
     // handlers can't connect to Entra in capture mode and would overwrite mock data
     // with error responses.  Mock data is re-sent inside the loop instead (see below).
     ['dashboard',      null, 2000],
+    ['glass-screen',   null, 1400],
     ['approver',       null, 600],
     ['auditor',        null, 600],
     ['security',       `window.api.getSecurityReports(); window.api.getAgentHealth();`, 2500],

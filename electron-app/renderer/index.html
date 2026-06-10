@@ -41,6 +41,10 @@
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
             <span>Dashboard</span>
           </button>
+          <button class="nav-item" data-tab="glass-screen" title="Glass Screen">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M2 12h4l3-8 4 16 3-8h6"/></svg>
+            <span>Glass Screen</span>
+          </button>
 
           <!-- RUN -->
           <div class="nav-section">Run</div>
@@ -605,7 +609,7 @@
           <div class="dash-section span-1 dash-hidden" data-section="certs">
             <div class="panel">
               <div class="panel-h">
-                <div class="ttl">Agent Certs <span class="cnt" id="dash-certs-cnt">· 8 agents</span></div>
+                <div class="ttl">Agent Certs <span class="cnt" id="dash-certs-cnt">· 8 agent certs</span></div>
                 <button class="btn-text-link" data-jump-tab="certs">OPEN →</button>
               </div>
               <div style="padding:14px;display:flex;flex-direction:column;gap:6px;font-family:var(--mono);font-size:11.5px;color:var(--text-2)">
@@ -664,6 +668,40 @@
           </div>
           </div><!-- /#dash-sections -->
 
+        </section>
+
+        <!-- =====================================================
+             VIEW · GLASS SCREEN (architectural replay)
+             ===================================================== -->
+        <section class="view" id="view-glass-screen">
+          <div class="head">
+            <div>
+              <h1 class="h1">Glass Screen <span class="sub">architectural replay · agents in motion</span></h1>
+              <p class="desc">Select a run from the audit trail and watch it travel through the fleet — request, risk gate, agent execution, outcome, evidence seal.</p>
+            </div>
+            <div class="row-flex">
+              <button class="btn ghost" id="gs-replay" disabled>Replay</button>
+            </div>
+          </div>
+
+          <div class="card gs-stage-card">
+            <div class="gs-stage" id="gs-stage">
+              <div class="gs-track" id="gs-track"><div class="gs-track-fill" id="gs-track-fill"></div></div>
+              <div class="gs-nodes" id="gs-nodes"></div>
+              <div class="gs-traveler" id="gs-traveler" style="display:none"></div>
+            </div>
+            <div class="gs-caption" id="gs-caption">Select a run below to replay its path through the fleet.</div>
+          </div>
+
+          <div class="card gs-runs-card">
+            <div class="gs-runs-head">
+              <span class="gs-runs-ttl">Audit Trail</span>
+              <span class="gs-runs-cnt" id="gs-run-count"></span>
+            </div>
+            <div class="gs-runs" id="gs-runs">
+              <div class="empty-row" style="padding:16px">Loading audit trail…</div>
+            </div>
+          </div>
         </section>
 
         <!-- =====================================================
