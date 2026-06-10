@@ -5573,87 +5573,101 @@ label { font-size: 12.5px; color: var(--text-2); }
 }
 
 /* ============================================================
-   GLASS THEME — frosted, translucent shell
+   GLASS THEME — Uniform Dark Frost
    Opt-in via Settings → Appearance (localStorage.jmlTheme = 'glass',
-   applied as <html data-theme="glass">). The main window is created
-   with transparent:true + backgroundMaterial:'mica', so translucent
-   surfaces here read as true glass on Windows 11 and degrade to a
-   dark tint elsewhere. Tokens get alpha, key shell surfaces get
-   backdrop blur.
+   applied as <html data-theme="glass">). Contract:
+   - Empty shell areas: ~4% tint, desktop/mica bleeds through fully.
+   - Sidebar/topbar chrome: 6–12% tint + heavy blur.
+   - Every text-holding panel (cards, tables, chat, modals): one
+     uniform dark frost (~60%) so text reads on any wallpaper.
+   - Rows inside panels stay flat — the parent carries the frost.
+   - Text brightened instead of shadowed; no text-shadow.
    ============================================================ */
 html[data-theme="glass"] {
-  --surface:  oklch(0.20 0.012 260 / 0.28);
-  --elev:     oklch(0.235 0.014 260 / 0.32);
-  --elev-2:   oklch(0.27 0.016 260 / 0.38);
-  --bg-2:     oklch(0.17 0.010 260 / 0.22);
-  --border:        oklch(0.55 0.014 260 / 0.22);
-  --border-strong: oklch(0.65 0.016 260 / 0.30);
-  --glass-blur: blur(22px) saturate(1.4);
+  /* Uniform panel material — every card/table/modal resolves to this */
+  --surface:  oklch(0.155 0.010 260 / 0.60);
+  --elev:     oklch(0.175 0.012 260 / 0.64);
+  --elev-2:   oklch(0.20 0.014 260 / 0.68);
+  /* Row hover / inset wells inside panels: a flat step, not a slab */
+  --bg-2:     oklch(0.30 0.012 260 / 0.30);
+  --border:        oklch(0.60 0.014 260 / 0.20);
+  --border-strong: oklch(0.70 0.016 260 / 0.28);
+  /* Brighter secondary text — readability instead of shadows */
+  --text:   oklch(0.98 0.004 260);
+  --text-2: oklch(0.85 0.010 260);
+  --muted:  oklch(0.70 0.012 260);
+  --glass-blur: blur(24px) saturate(1.4);
 }
 
-/* Very light base wash — desktop/mica bleeds through heavily */
+/* Empty shell: almost fully see-through (~4% tint + faint aurora) */
 html[data-theme="glass"] body {
   background:
-    radial-gradient(1100px 500px at 85% -10%, oklch(0.40 0.08 290 / 0.10), transparent 60%),
-    radial-gradient(900px 460px at -10% 110%, oklch(0.40 0.06 220 / 0.08), transparent 60%),
-    oklch(0.12 0.006 260 / 0.45);
+    radial-gradient(1100px 500px at 85% -10%, oklch(0.45 0.08 290 / 0.05), transparent 60%),
+    radial-gradient(900px 460px at -10% 110%, oklch(0.45 0.06 220 / 0.04), transparent 60%),
+    oklch(0.10 0.005 260 / 0.04);
 }
 
-/* Primary chrome surfaces: very thin frosted panes */
+/* Chrome: thin frosted panes (6–12%) */
 html[data-theme="glass"] .sidebar {
-  background: oklch(0.10 0.006 260 / 0.32);
+  background: oklch(0.10 0.006 260 / 0.12);
   backdrop-filter: var(--glass-blur);
 }
 html[data-theme="glass"] .topbar {
-  background: oklch(0.10 0.006 260 / 0.28);
+  background: oklch(0.10 0.006 260 / 0.08);
   backdrop-filter: var(--glass-blur);
 }
 html[data-theme="glass"] .compose,
 html[data-theme="glass"] .chat-input {
-  background: oklch(0.12 0.008 260 / 0.26);
+  background: oklch(0.10 0.006 260 / 0.10);
   backdrop-filter: var(--glass-blur);
 }
 html[data-theme="glass"] .compose .field,
 html[data-theme="glass"] .chat-input-wrap {
-  background: oklch(0.16 0.010 260 / 0.28);
+  background: oklch(0.14 0.010 260 / 0.55);
 }
 
-/* Floating panels pick up blur */
+/* Uniform dark frost on every text panel; blur so wallpaper noise
+   never interferes with reading */
 html[data-theme="glass"] .card,
+html[data-theme="glass"] .approval-card,
 html[data-theme="glass"] .modal,
 html[data-theme="glass"] .q-panel,
-html[data-theme="glass"] .ac-dropdown {
+html[data-theme="glass"] .ac-dropdown,
+html[data-theme="glass"] .chat-shell,
+html[data-theme="glass"] .welcome-msg {
   backdrop-filter: var(--glass-blur);
 }
+/* chat shell base style gradients into --bg-2; force the uniform material */
+html[data-theme="glass"] .chat-shell { background: var(--surface); }
 
-/* User bubble: very light tinted glass */
+/* User bubble: tinted frost, same density as panels */
 html[data-theme="glass"] .msg.me .bubble,
 html[data-theme="glass"] .message.user .message-bubble {
   background: linear-gradient(135deg,
-    color-mix(in oklch, var(--cyan-dim) 20%, transparent),
-    color-mix(in oklch, var(--violet-dim) 18%, transparent));
-  border: 1px solid oklch(0.60 0.04 250 / 0.25);
-  backdrop-filter: blur(14px) saturate(1.3);
+    color-mix(in oklch, var(--cyan-dim) 30%, oklch(0.155 0.010 260 / 0.55)),
+    color-mix(in oklch, var(--violet-dim) 26%, oklch(0.155 0.010 260 / 0.55)));
+  border: 1px solid oklch(0.60 0.04 250 / 0.30);
+  backdrop-filter: var(--glass-blur);
   box-shadow: none;
 }
 
-/* Assistant replies: no card box — text flows inline with a hairline left accent */
+/* Assistant replies: flat inside the frosted chat shell — hairline
+   accent only, the parent panel provides the readable backing */
 html[data-theme="glass"] .message.assistant .message-body {
   background: none;
   border: none;
-  border-left: 2px solid oklch(0.60 0.06 260 / 0.35);
+  border-left: 2px solid oklch(0.60 0.06 260 / 0.40);
   border-radius: 0;
   padding: 2px 0 2px 12px;
   backdrop-filter: none;
   box-shadow: none;
 }
 html[data-theme="glass"] .message.assistant[data-agent="approver"] .message-body {
-  border-left-color: oklch(0.65 0.10 200 / 0.45);
+  border-left-color: oklch(0.70 0.10 200 / 0.55);
 }
 html[data-theme="glass"] .message.assistant[data-agent="auditor"] .message-body {
-  border-left-color: oklch(0.62 0.12 155 / 0.45);
+  border-left-color: oklch(0.68 0.12 155 / 0.55);
 }
 
-/* Welcome card + tool drawers: whisper-light */
-html[data-theme="glass"] .welcome-msg { background: oklch(0.16 0.008 260 / 0.22); backdrop-filter: blur(12px); border: 1px solid oklch(0.50 0.010 260 / 0.15); }
-html[data-theme="glass"] .tool-result-drawer { background: oklch(0.12 0.008 260 / 0.30); backdrop-filter: blur(10px); }
+html[data-theme="glass"] .welcome-msg { background: oklch(0.155 0.010 260 / 0.50); border: 1px solid oklch(0.60 0.010 260 / 0.15); }
+html[data-theme="glass"] .tool-result-drawer { background: oklch(0.12 0.008 260 / 0.45); backdrop-filter: blur(12px); }

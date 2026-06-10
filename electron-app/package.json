@@ -6,7 +6,8 @@
   "scripts": {
     "start": "electron .",
     "capture": "electron . --capture --disable-gpu",
-    "build": "electron-builder --win --x64"
+    "build": "electron-builder --win --x64",
+    "test": "node --test \"test/**/*.test.js\""
   },
   "build": {
     "appId": "com.jml.console",
