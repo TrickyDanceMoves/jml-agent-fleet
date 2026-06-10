@@ -2928,7 +2928,10 @@ function renderMarkdown(text) {
     i++;
   }
 
-  return decorateAgentMentions(out.join('')) + renderV2ChatEnhancements(text);
+  // Agent-mention tooltip decoration removed from chat replies: the injected
+  // scope-tooltip markup (role/can/permission rows) rendered as garbled inline
+  // text inside agent prose. agentScopeTip stays in use for the activity feed.
+  return out.join('');
 }
 
 function inlineMarkdown(text) {
@@ -2968,16 +2971,6 @@ function agentScopeTip(agent, label, className) {
       '<div class="tip-row"><span class="k">can</span><span class="v ok">' + escHtml(meta.scopes.join(', ')) + '</span></div>' +
     '</span>' +
   '</span>';
-}
-
-function decorateAgentMentions(html) {
-  const seen = new Set();
-  return html.replace(/\b(joiner|mover|leaver|enroller|certifier|approver|provisioner|auditor|knowledge)(?:-agent|\s+agent)?\b/gi, (match, agent) => {
-    const key = agent.toLowerCase();
-    if (seen.has(key)) return match;
-    seen.add(key);
-    return agentScopeTip(agent, match, 'inline');
-  });
 }
 
 function renderV2ChatEnhancements(text) {

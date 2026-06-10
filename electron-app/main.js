@@ -101,7 +101,8 @@ LEAVER: userPrincipalName (two-stage: Soft then Hard)
 Rules:
 - Never invent or guess values
 - Always confirm full details before calling a tool
-- For leavers, explain the two-stage process and confirm each stage
+- For leavers, confirm each stage before executing it (no need to explain the
+  two-stage model unless asked — a one-line "Soft stage next: disables sign-in" is enough)
 - Auto-generate UPNs as firstname.lastname@${domain}
 - Use lookup_user to verify a user exists (or disambiguate a partial name) before operating on them
 - Use list_available_licenses / list_groups to confirm exact SKU and group names before assigning them
@@ -140,13 +141,23 @@ When the current operator is helpdesk and they request a Hard leaver:
 2. Proceed with submit_leaver_hard — the system will automatically route it.
 3. Show the approval token and tell them to notify an admin.
 
-FORMATTING RULES (always follow):
-- Always write UPNs in full (e.g. sarah.chen@${domain}). Never abbreviate to "..." or truncate the domain.
-- Do not use # or ## markdown headings. Use **bold** labels or plain prose to organize sections.
-- Keep paragraphs to 2-3 sentences. Lead with the result; put supporting detail below.
-- Use a table when presenting 3+ attributes of a single entity (user details, license assignments, group list).
-- Use a bullet list for 3+ discrete items; inline prose for 1-2 items.
-- **Bold** key values: names, UPNs, risk levels, ticket numbers, decision outcomes.
+READ-ONLY TENANT QUERIES:
+You also have the auditor's query_* tools (user counts, licenses, recent joins/leavers,
+admin roles, groups, JML activity, stale accounts, guests). Use them freely to answer
+questions or verify state — they are read-only and safe in any mode. Use lookup_user
+for a single-user deep dive.
+
+RESPONSE STYLE (always follow):
+- Be brief. Routine confirmations and acknowledgements: 1-3 short sentences.
+- Lead with the outcome. One line of what happened, then only essential details.
+- Never explain the JML process, leaver stages, agent roles, or permission scopes
+  (User.RW, Group.RW, etc.) unless the operator explicitly asks how something works.
+- Never enumerate your tools or describe what you are about to do — just do it.
+- Always write UPNs in full (e.g. sarah.chen@${domain}). Never truncate.
+- No # or ## headings. Use **bold** labels sparingly for key values: names, UPNs,
+  risk levels, tokens, outcomes.
+- Use a table only for 4+ attributes of one entity; a short list for 3+ items;
+  plain prose otherwise.
 `.trim(); }
 
 function buildAuditorSystem(domain) { return `
@@ -190,12 +201,14 @@ You have two roles:
 
    FREEZE WINDOWS: Identity changes are blocked on weekends (Saturday and Sunday, all day).
 
-FORMATTING RULES (always follow):
-- Always write UPNs in full (e.g. sarah.chen@${domain}). Never abbreviate to "..." or truncate the domain.
-- Do not use # or ## markdown headings. Use **bold** labels or plain prose to organize information.
-- Use a table when presenting 3+ attributes of a single entity; bullets for 3+ discrete items.
-- **Bold** key values: counts, names, dates, risk indicators.
-- Keep paragraphs to 2-3 sentences. Lead with the answer, details below.
+RESPONSE STYLE (always follow):
+- Be brief. Lead with the answer — the number or finding first, context after.
+- Never recite system internals (agent roles, permission scopes, stage definitions)
+  unless the operator explicitly asks how something works.
+- Always write UPNs in full (e.g. sarah.chen@${domain}). Never truncate.
+- No # or ## headings. **Bold** the key values: counts, names, dates, risk indicators.
+- Use a table only for 4+ attributes of one entity; a short list for 3+ items;
+  plain prose otherwise. Keep paragraphs to 2-3 sentences.
 `.trim(); }
 
 // ── Tool definitions ──────────────────────────────────────────────────────────
@@ -340,6 +353,11 @@ const AUDITOR_TOOLS = [
   { name: 'query_user_detail',    description: 'Deep-dive a single user by UPN or display name: profile, status, manager, licenses, groups, last sign-in.',
     input_schema: { type: 'object', properties: { upnOrName: { type: 'string' } }, required: ['upnOrName'] } }
 ];
+
+// The Approver also gets every read-only tenant query (RBAC-safe for all roles:
+// reads never mutate state). query_user_detail is excluded — the Approver's
+// lookup_user covers the same need.
+APPROVER_TOOLS.push(...AUDITOR_TOOLS.filter(t => t.name !== 'query_user_detail'));
 
 // ── PS1 dispatch ──────────────────────────────────────────────────────────────
 function writePayloadFile(payload) {
@@ -880,7 +898,25 @@ function executeTool(agent, toolName, input, whatif) {
     return _parseMultilineJson(raw, 'No output from auditor query script');
   }
 
+  // Approver read-only tenant queries — same dispatch as the auditor branch.
+  if (AUDITOR_QUERY_MAP[toolName]) {
+    const params = { QueryType: AUDITOR_QUERY_MAP[toolName] };
+    if (input.days) params.Days = input.days;
+    if (input.topN) params.TopN = input.topN;
+    const raw = runPs(path.join(AGENTS_DIR, 'auditor', 'Invoke-AuditorQuery.ps1'), params);
+    return _parseMultilineJson(raw, 'No output from auditor query script');
+  }
+
   const w = whatif ? true : false;
+
+  // RBAC: read-only operator roles can never reach a submit tool, regardless of
+  // what the model decides. Enforced in code, not just the system prompt.
+  if (toolName.startsWith('submit_')) {
+    const role = (currentRole || 'viewer').toLowerCase();
+    if (role === 'viewer' || role === 'guest') {
+      return { error: 'RBAC: the current operator role is read-only. Submit operations require a helpdesk or admin account.' };
+    }
+  }
 
   // LIVE-mode risk gate: every submit_* in Live mode requires a fresh score_risk
   // result. The gate is enforced here — not just in the system prompt — so a

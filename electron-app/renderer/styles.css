@@ -1475,13 +1475,24 @@ body.maximized, body.maximized .app { border-radius: 0; }
   border-color: color-mix(in oklch, var(--border-strong) 80%, transparent);
 }
 .message-body { display: flex; flex-direction: column; gap: 4px; flex: 1; min-width: 0; max-width: 680px; }
-/* assistant turn: subtle left-border card so each response has a clear boundary */
+/* assistant turn: frosted glass card with a faint per-agent tint */
 .message.assistant .message-body {
-  border-left: 2px solid var(--border-strong);
-  padding-left: 12px;
+  background: linear-gradient(180deg,
+    oklch(0.24 0.014 260 / 0.50),
+    oklch(0.20 0.012 260 / 0.38));
+  border: 1px solid oklch(0.40 0.016 260 / 0.35);
+  border-radius: 14px;
+  padding: 11px 15px 12px;
+  backdrop-filter: blur(14px) saturate(1.15);
+  box-shadow: 0 4px 18px oklch(0.08 0.01 260 / 0.25),
+              inset 0 1px 0 oklch(0.98 0.005 260 / 0.05);
 }
-.message.assistant[data-agent="approver"] .message-body { border-left-color: color-mix(in oklab, var(--cyan) 55%, transparent); }
-.message.assistant[data-agent="auditor"]  .message-body { border-left-color: color-mix(in oklab, var(--emerald) 55%, transparent); }
+.message.assistant[data-agent="approver"] .message-body {
+  border-color: color-mix(in oklch, var(--cyan) 22%, oklch(0.40 0.016 260 / 0.35));
+}
+.message.assistant[data-agent="auditor"] .message-body {
+  border-color: color-mix(in oklch, var(--emerald) 20%, oklch(0.40 0.016 260 / 0.35));
+}
 
 /* agent name + timestamp header above each assistant turn */
 .message-meta {
@@ -5560,3 +5571,66 @@ label { font-size: 12.5px; color: var(--text-2); }
   .mono, pre, code, .tag { color: #111 !important; }
   .tag { border-color: #888 !important; background: #f3f3f3 !important; }
 }
+
+/* ============================================================
+   GLASS THEME — frosted, translucent shell
+   The main window is created with transparent:true +
+   backgroundMaterial:'mica', so translucent surfaces here read
+   as true glass on Windows 11 and degrade to a dark tint elsewhere.
+   Applied as an override layer: tokens get alpha, key shell
+   surfaces get backdrop blur.
+   ============================================================ */
+:root {
+  --surface:  oklch(0.20 0.012 260 / 0.62);
+  --elev:     oklch(0.235 0.014 260 / 0.66);
+  --elev-2:   oklch(0.27 0.016 260 / 0.72);
+  --bg-2:     oklch(0.17 0.010 260 / 0.58);
+  --border:        oklch(0.32 0.014 260 / 0.65);
+  --border-strong: oklch(0.42 0.016 260 / 0.70);
+  --glass-blur: blur(18px) saturate(1.2);
+}
+
+/* Shell: let the mica/desktop tint show through a dark wash + aurora accents */
+body {
+  background:
+    radial-gradient(1100px 500px at 85% -10%, oklch(0.30 0.06 290 / 0.16), transparent 60%),
+    radial-gradient(900px 460px at -10% 110%, oklch(0.30 0.05 220 / 0.13), transparent 60%),
+    oklch(0.145 0.008 260 / 0.84);
+}
+
+/* Primary chrome surfaces become frosted panes */
+.sidebar {
+  background: oklch(0.125 0.008 260 / 0.66);
+  backdrop-filter: var(--glass-blur);
+}
+.topbar {
+  background: oklch(0.125 0.008 260 / 0.60);
+  backdrop-filter: var(--glass-blur);
+}
+.compose, .chat-input {
+  background: oklch(0.15 0.010 260 / 0.55);
+  backdrop-filter: var(--glass-blur);
+}
+.compose .field, .chat-input-wrap {
+  background: oklch(0.19 0.012 260 / 0.55);
+}
+
+/* Cards and elevated panels pick up the translucent tokens automatically;
+   add blur to the ones that float above scrolling content */
+.card, .modal, .q-panel, .ac-dropdown {
+  backdrop-filter: var(--glass-blur);
+}
+
+/* User bubble: tinted glass instead of opaque gradient */
+.msg.me .bubble, .message.user .message-bubble {
+  background: linear-gradient(135deg,
+    color-mix(in oklch, var(--cyan-dim) 38%, transparent),
+    color-mix(in oklch, var(--violet-dim) 34%, transparent));
+  border: 1px solid oklch(0.45 0.04 250 / 0.45);
+  backdrop-filter: blur(12px) saturate(1.15);
+  box-shadow: 0 4px 16px oklch(0.08 0.01 260 / 0.22);
+}
+
+/* Welcome card + tool drawers join the glass language */
+.welcome-msg { background: oklch(0.17 0.010 260 / 0.45); backdrop-filter: blur(10px); }
+.tool-result-drawer { background: oklch(0.15 0.010 260 / 0.60); backdrop-filter: blur(10px); }
