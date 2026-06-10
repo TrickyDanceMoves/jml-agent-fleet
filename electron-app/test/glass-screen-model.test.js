@@ -107,11 +107,39 @@ test('selecting history with no active operation enters replay mode', () => {
   assert.equal(vm.operation.id, 'old-2');
 });
 
-test('idle with no active operation shows Fleet Ready and the last completed run', () => {
-  const past = op({ id: 'old-1', status: 'succeeded', outcome: 'success' });
+test('idle with stale history shows Fleet Ready and the last completed run', () => {
+  const past = op({
+    id: 'old-1', status: 'succeeded', outcome: 'success',
+    updatedAt: new Date(T0 - 30 * 60 * 1000).toISOString(),
+    completedAt: new Date(T0 - 30 * 60 * 1000).toISOString(),
+  });
   const vm = buildGlassScreenViewModel({ operations: [past], now: T0 });
   assert.equal(vm.mode, 'idle');
   assert.equal(vm.eyebrow, 'FLEET READY');
+  assert.match(vm.currentDecision.toLowerCase(), /appear here automatically/);
+});
+
+test('a just-failed operation holds ACTION FAILED before relaxing to Fleet Ready', () => {
+  const failed = op({
+    id: 'f-1', status: 'failed', outcome: 'failed',
+    error: 'Graph certificate authentication failed',
+    updatedAt: new Date(T0 - 8000).toISOString(),
+    completedAt: new Date(T0 - 8000).toISOString(),
+  });
+  const vm = buildGlassScreenViewModel({ operations: [failed], now: T0 });
+  assert.equal(vm.eyebrow, 'ACTION FAILED');
+  assert.match(vm.currentDecision.toLowerCase(), /failed/);
+  assert.ok(vm.recovery, 'failure must surface a recovery action');
+});
+
+test('a just-completed operation holds COMPLETED before relaxing to Fleet Ready', () => {
+  const done = op({
+    id: 'd-1', status: 'succeeded', outcome: 'success',
+    updatedAt: new Date(T0 - 8000).toISOString(),
+    completedAt: new Date(T0 - 8000).toISOString(),
+  });
+  const vm = buildGlassScreenViewModel({ operations: [done], now: T0 });
+  assert.equal(vm.eyebrow, 'COMPLETED');
 });
 
 test('selectActiveOperation returns the newest running or awaiting operation', () => {

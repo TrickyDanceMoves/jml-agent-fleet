@@ -477,6 +477,7 @@
     glassScreenState.selectedId = fx.selectedId;
     glassScreenState.replayDone = false;
     glassScreenState.lastRenderedStageKey = 'capture';
+    el('gs-details')?.removeAttribute('open');
     render();
   }
 
