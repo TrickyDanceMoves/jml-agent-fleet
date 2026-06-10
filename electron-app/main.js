@@ -2654,6 +2654,7 @@ const MOCK_APPROVALS = [
 
 // JS injected into renderer for tabs that show empty state by default
 const TAB_INJECT = {
+  'glass-screen': `(function(){ if (window._gsCaptureDemo) window._gsCaptureDemo(); })();`,
   approver: `
     (function(){
       const c = document.getElementById('messages-approver');
@@ -2889,6 +2890,7 @@ async function runCapture() {
     // handlers can't connect to Entra in capture mode and would overwrite mock data
     // with error responses.  Mock data is re-sent inside the loop instead (see below).
     ['dashboard',      null, 2000],
+    ['glass-screen',   null, 1400],
     ['approver',       null, 600],
     ['auditor',        null, 600],
     ['security',       `window.api.getSecurityReports(); window.api.getAgentHealth();`, 2500],
