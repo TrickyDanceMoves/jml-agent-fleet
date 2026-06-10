@@ -2730,7 +2730,7 @@ const MOCK_APPROVALS = [
 
 // JS injected into renderer for tabs that show empty state by default
 const TAB_INJECT = {
-  'glass-screen': `(function(){ if (window._gsCaptureDemo) window._gsCaptureDemo(); })();`,
+  'glass-screen': `(function(){ window.JmlGlassScreen?.captureState('running'); })();`,
   approver: `
     (function(){
       const c = document.getElementById('messages-approver');
