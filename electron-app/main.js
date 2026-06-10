@@ -2640,6 +2640,7 @@ ipcMain.handle('verify-operator-pin', (event, { user, pin }) => {
 // ── Screenshot capture mode (npm start -- --capture) ─────────────────────────
 const CAPTURE_MODE = process.argv.includes('--capture');
 const GLASS_CAPTURE_MODE = process.argv.includes('--glass-qc');
+const GS_STATES_QC_MODE = process.argv.includes('--gs-states');
 const CAPTURE_OUT = GLASS_CAPTURE_MODE
   ? path.join(__dirname, '..', '.superpowers', 'glass-qc')
   : path.join(__dirname, '..', 'docs', 'images');
@@ -3085,6 +3086,99 @@ async function runCapture() {
   app.quit();
 }
 
+// ── Glass Screen state QC (npm start -- --gs-states) ─────────────────────────
+// Renders every Command Center fixture state via JmlGlassScreen.captureState
+// and saves review artifacts for the design acceptance gate. Review-only:
+// output goes to .superpowers/glass-screen-qc/, never docs/images.
+async function runGlassScreenQc() {
+  const OUT = path.join(__dirname, '..', '.superpowers', 'glass-screen-qc');
+  fs.mkdirSync(OUT, { recursive: true });
+  currentOperator = 'Nick';
+  process.env.JML_CONSOLE_OPERATOR = 'Nick';
+
+  win = new BrowserWindow({
+    width: 1440, height: 1000,
+    frame: false,
+    icon: APP_ICON,
+    transparent: true,
+    backgroundColor: '#00000000',
+    backgroundMaterial: 'mica',
+    webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, nodeIntegration: false, sandbox: false }
+  });
+  win.loadFile(path.join(__dirname, 'renderer', 'index.html'));
+  await new Promise(r => win.webContents.once('did-finish-load', r));
+  await win.webContents.executeJavaScript(`
+    try {
+      localStorage.setItem('jmlTheme', 'glass');
+      document.documentElement.dataset.theme = 'glass';
+      document.querySelector('[data-tab="glass-screen"]')?.click();
+    } catch (_) {}
+  `);
+  await sleep(900);
+
+  async function snap(name) {
+    win.webContents.invalidate();
+    await win.webContents.executeJavaScript(
+      'new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))'
+    );
+    await sleep(350);
+    let img;
+    for (let a = 0; a < 3; a++) {
+      try { img = await win.webContents.capturePage(); break; }
+      catch { await sleep(500); }
+    }
+    if (img) { fs.writeFileSync(path.join(OUT, name + '.png'), img.toPNG()); console.log('Captured:', name); }
+    else console.error('capturePage failed for', name);
+  }
+
+  const STATES = ['idle', 'running', 'awaiting-approval', 'failed', 'partial', 'success', 'replay'];
+  for (const state of STATES) {
+    await win.webContents.executeJavaScript(`window.JmlGlassScreen.captureState(${JSON.stringify(state)})`);
+    // let one-shot settles finish so screenshots show the resting state
+    await sleep(state === 'failed' ? 700 : 600);
+    await snap(state);
+  }
+
+  // Deliberate replay in motion: capture mid-sequence
+  await win.webContents.executeJavaScript(`
+    window.JmlGlassScreen.captureState('replay');
+    document.getElementById('gs-replay')?.click();
+  `);
+  await sleep(1400);
+  await snap('replay-in-motion');
+
+  // Details drawer open on the failed state
+  await win.webContents.executeJavaScript(`
+    window.JmlGlassScreen.captureState('failed');
+    document.getElementById('gs-details')?.setAttribute('open', '');
+  `);
+  await sleep(700);
+  await snap('failed-details-open');
+
+  // Narrow-window layouts
+  for (const [w, h] of [[1100, 800], [900, 760]]) {
+    win.setSize(w, h, false);
+    await win.webContents.executeJavaScript(`window.JmlGlassScreen.captureState('running')`);
+    await sleep(700);
+    await snap(`running-${w}x${h}`);
+  }
+  win.setSize(1440, 1000, false);
+
+  // Reduced motion: emulate the media feature, state must appear immediately
+  try {
+    win.webContents.debugger.attach('1.3');
+    await win.webContents.debugger.sendCommand('Emulation.setEmulatedMedia', {
+      features: [{ name: 'prefers-reduced-motion', value: 'reduce' }]
+    });
+    await win.webContents.executeJavaScript(`window.JmlGlassScreen.captureState('running')`);
+    await sleep(500);
+    await snap('running-reduced-motion');
+    win.webContents.debugger.detach();
+  } catch (e) { console.error('Reduced-motion emulation failed:', e.message); }
+
+  app.quit();
+}
+
 // ── First-run setup ───────────────────────────────────────────────────────────
 ipcMain.handle('complete-first-run', (event, { winAuth, tenantId, primaryDomain } = {}) => {
   try {
@@ -3182,6 +3276,7 @@ function ensureDataDirs() {
 
 app.whenReady().then(() => {
   app.setAppUserModelId('com.jml.console');
+  if (GS_STATES_QC_MODE) { runGlassScreenQc().catch(e => { console.error('Glass QC error:', e); app.quit(); process.exitCode = 1; }); return; }
   if (CAPTURE_MODE) { runCapture().catch(e => { console.error('Capture error:', e); app.quit(); process.exitCode = 1; }); return; }
   createTray();
   ensureDataDirs();

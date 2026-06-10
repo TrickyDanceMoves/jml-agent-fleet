@@ -231,6 +231,14 @@
         action: { label: 'Open Operations', target: 'operations' },
       };
     }
+    if (status === 'awaiting-approval') {
+      return {
+        tone: 'partial',
+        message: 'This action is held until a second approver releases it.',
+        detail: null,
+        action: { label: 'Open Approvals', target: 'approvals' },
+      };
+    }
     return null;
   }
 
@@ -267,12 +275,18 @@
     };
   }
 
+  // A terminal operation keeps owning the hero (ACTION FAILED / COMPLETED)
+  // for a short window after it finishes, so the outcome is readable before
+  // the page relaxes to FLEET READY.
+  const RECENT_HOLD_MS = 10 * 60 * 1000;
+
   function buildGlassScreenViewModel({ operations = [], selectedId = null, now = Date.now() } = {}) {
     const active = selectActiveOperation(operations);
     const recentOps = recentTerminalOperations(operations, 3);
 
     let mode;
     let operation;
+    let recentHold = false;
     if (active) {
       // Live always wins — a fresh live operation interrupts any historical
       // replay the user had selected.
@@ -284,16 +298,17 @@
     } else {
       mode = 'idle';
       operation = recentOps[0] || null;
+      recentHold = Boolean(operation) && (now - timeOf(operation)) < RECENT_HOLD_MS;
     }
 
     return {
       mode,
       operation,
-      eyebrow: eyebrowFor(mode, operation),
+      eyebrow: recentHold ? eyebrowFor('live', operation) : eyebrowFor(mode, operation),
       title: titleFor(operation),
       metadata: metadataFor(operation),
       elapsedLabel: elapsedLabelFor(operation, now),
-      currentDecision: mode === 'idle' && operation
+      currentDecision: mode === 'idle' && operation && !recentHold
         ? 'Live actions will appear here automatically'
         : formatCurrentDecision(operation),
       // A failed or partial last-completed run keeps its follow-up visible even

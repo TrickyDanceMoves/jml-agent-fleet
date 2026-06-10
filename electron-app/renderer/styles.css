@@ -5893,6 +5893,9 @@ html[data-theme="glass"] .tool-result-drawer {
    ============================================================ */
 .gs-command-center { display: flex; flex-direction: column; gap: 16px; }
 
+/* the .btn display rule must not defeat the hidden attribute */
+#gs-replay[hidden] { display: none !important; }
+
 .visually-hidden {
   position: absolute; width: 1px; height: 1px;
   margin: -1px; padding: 0; border: 0;
@@ -6022,11 +6025,11 @@ html[data-theme="glass"] .tool-result-drawer {
 .gs-recovery-msg { font-size: 13px; color: var(--text); }
 .gs-recovery-detail { font-family: var(--mono); font-size: 11px; color: var(--text-2); overflow-wrap: anywhere; }
 
-/* ── Recent runs: flat rows, subtle hover backing ─────────── */
-.gs-recent-section { display: flex; flex-direction: column; gap: 4px; }
+/* ── Recent runs: flat rows on one frosted island ──────────── */
+.gs-recent-section { display: flex; flex-direction: column; gap: 4px; padding: 14px 16px; }
 .gs-section-head {
   display: flex; align-items: baseline; justify-content: space-between;
-  padding: 0 4px;
+  padding: 0 4px 4px;
   font-size: 12px; font-weight: 600; color: var(--text-2);
 }
 .gs-recent-runs { display: flex; flex-direction: column; }
