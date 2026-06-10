@@ -297,7 +297,7 @@ After installing, open the app and go to **Settings > Tenant Binding** to run th
 
 ### Operations Console
 ```powershell
-cd agents/electron-app
+cd electron-app
 npm install
 npm start
 ```

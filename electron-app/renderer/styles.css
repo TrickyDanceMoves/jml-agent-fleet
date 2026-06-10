@@ -5586,13 +5586,15 @@ label { font-size: 12.5px; color: var(--text-2); }
 }
 
 /* ============================================================
-   GLASS THEME — frosted, translucent shell
+   GLASS THEME — Uniform Dark Frost
    Opt-in via Settings → Appearance (localStorage.jmlTheme = 'glass',
-   applied as <html data-theme="glass">). The main window is created
-   with transparent:true + backgroundMaterial:'mica', so translucent
-   surfaces here read as true glass on Windows 11 and degrade to a
-   dark tint elsewhere. Tokens get alpha, key shell surfaces get
-   backdrop blur.
+   applied as <html data-theme="glass">). Contract:
+   - Empty shell areas: ~4% tint, desktop/mica bleeds through fully.
+   - Sidebar/topbar chrome: 6–12% tint + heavy blur.
+   - Every text-holding panel (cards, tables, chat, modals): one
+     uniform dark frost (~60%) so text reads on any wallpaper.
+   - Rows inside panels stay flat — the parent carries the frost.
+   - Text brightened instead of shadowed; no text-shadow.
    ============================================================ */
 html[data-theme="glass"] {
   --bg:       transparent;
@@ -5634,9 +5636,14 @@ html[data-theme="glass"] .content,
 html[data-theme="glass"] .main,
 html[data-theme="glass"] .view {
   background: transparent;
+  /* Uniform panel material — every card/table/modal resolves to this */
+  /* Row hover / inset wells inside panels: a flat step, not a slab */
+  /* Brighter secondary text — readability instead of shadows */
+
+/* Empty shell: almost fully see-through (~4% tint + faint aurora) */
 }
 
-/* Primary chrome surfaces become frosted panes */
+/* Chrome: thin frosted panes (6–12%) */
 html[data-theme="glass"] .sidebar {
   background: linear-gradient(180deg,
     oklch(0.25 0.018 255 / 0.12),
@@ -5817,7 +5824,7 @@ html[data-theme="glass"] .brand-mark-sm::before {
   box-shadow: 0 0 12px oklch(0.80 0.12 230 / 0.38);
 }
 
-/* User bubble: tinted glass instead of opaque gradient */
+/* User bubble: tinted frost, same density as panels */
 html[data-theme="glass"] .msg.me .bubble,
 html[data-theme="glass"] .message.user .message-bubble {
   background: linear-gradient(135deg,
@@ -5836,3 +5843,102 @@ html[data-theme="glass"] .tool-result-drawer {
   backdrop-filter: var(--glass-panel-blur);
   box-shadow: var(--glass-panel-shadow);
 }
+
+/* Assistant replies: flat inside the frosted chat shell — hairline
+   accent only, the parent panel provides the readable backing */
+
+
+/* ============================================================
+   GLASS SCREEN — architectural replay of fleet runs
+   ============================================================ */
+.gs-stage-card { padding: 0; margin-bottom: 14px; overflow: visible; }
+.gs-stage {
+  position: relative;
+  display: block;
+  padding: 38px 28px 26px;
+  min-height: 150px;
+}
+.gs-track {
+  position: absolute; left: 28px; right: 28px; top: 72px; height: 2px;
+  background: color-mix(in oklch, var(--border) 80%, transparent);
+  border-radius: 1px;
+}
+.gs-track-fill {
+  position: absolute; top: 0; height: 2px; width: 0;
+  background: linear-gradient(90deg, var(--cyan), var(--violet));
+  border-radius: 1px;
+  box-shadow: 0 0 8px color-mix(in oklch, var(--cyan) 50%, transparent);
+}
+.gs-nodes { display: flex; justify-content: space-between; position: relative; }
+.gs-node { display: flex; flex-direction: column; align-items: center; gap: 6px; width: 110px; }
+.gs-node-orb {
+  width: 44px; height: 44px; border-radius: 50%;
+  display: grid; place-items: center;
+  font-size: 16px; color: var(--muted);
+  background: var(--surface);
+  border: 1.5px solid var(--border);
+  transition: border-color .3s, color .3s, box-shadow .3s, transform .3s;
+  position: relative; z-index: 2;
+}
+.gs-node.gs-lit .gs-node-orb {
+  color: var(--gs-hue);
+  border-color: color-mix(in oklch, var(--gs-hue) 65%, transparent);
+  box-shadow: 0 0 14px color-mix(in oklch, var(--gs-hue) 30%, transparent);
+}
+.gs-node.gs-final .gs-node-orb { transform: scale(1.12); }
+.gs-op-initial { font-family: var(--mono); font-weight: 600; font-size: 15px; }
+.gs-node-label { font-size: 12px; font-weight: 600; color: var(--text-2); transition: color .3s; }
+.gs-node.gs-lit .gs-node-label { color: var(--text); }
+.gs-node-sub {
+  font-family: var(--mono); font-size: 10px; color: var(--muted);
+  max-width: 110px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.gs-traveler {
+  position: absolute; top: 58px; width: 28px; height: 28px;
+  margin-left: -14px; border-radius: 8px; z-index: 3;
+  display: grid; place-items: center;
+  background: var(--elev-2);
+  border: 1px solid var(--border-strong);
+  box-shadow: 0 2px 10px oklch(0.08 0.01 260 / 0.45),
+              0 0 12px color-mix(in oklch, currentColor 35%, transparent);
+}
+.gs-traveler-fail { border-color: var(--coral); box-shadow: 0 0 12px color-mix(in oklch, var(--coral) 45%, transparent); }
+.gs-caption {
+  padding: 12px 28px 14px;
+  border-top: 1px solid var(--border);
+  font-family: var(--mono); font-size: 11.5px; color: var(--text-2);
+  min-height: 40px;
+}
+.gs-runs-card { padding: 0; }
+.gs-runs-head {
+  display: flex; align-items: baseline; gap: 10px;
+  padding: 13px 18px 11px; border-bottom: 1px solid var(--border);
+}
+.gs-runs-ttl { font-size: 13px; font-weight: 600; }
+.gs-runs-cnt { font-family: var(--mono); font-size: 10.5px; color: var(--muted); }
+.gs-runs { max-height: 320px; overflow-y: auto; }
+.gs-run {
+  display: flex; align-items: center; gap: 12px;
+  width: 100%; padding: 9px 18px;
+  background: none; border: none; border-bottom: 1px solid var(--border);
+  cursor: pointer; text-align: left;
+  font-family: inherit; font-size: 12px; color: var(--text-2);
+  transition: background .15s;
+}
+.gs-run:hover { background: var(--bg-2); }
+.gs-run.sel { background: color-mix(in oklch, var(--cyan-dim) 14%, transparent); }
+.gs-run-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; background: var(--muted); }
+.gs-run-dot.ok   { background: var(--ok); }
+.gs-run-dot.warn { background: var(--warn); }
+.gs-run-dot.fail { background: var(--coral); }
+.gs-run-ts    { font-family: var(--mono); font-size: 10.5px; color: var(--muted); width: 150px; flex-shrink: 0; }
+.gs-run-agent { font-family: var(--mono); font-size: 11px; width: 84px; flex-shrink: 0; text-transform: capitalize; }
+.gs-run-subj  { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); }
+.gs-run-oc    { font-family: var(--mono); font-size: 10.5px; width: 60px; text-align: right; }
+.gs-run-oc.ok   { color: var(--ok); }
+.gs-run-oc.warn { color: var(--warn); }
+.gs-run-oc.fail { color: var(--coral); }
+.gs-run-mode  { font-family: var(--mono); font-size: 9.5px; color: var(--muted); width: 32px; text-align: right; }
+
+/* Glass theme: stage + runs panels pick up the uniform frost automatically */
+html[data-theme="glass"] .gs-node-orb { backdrop-filter: blur(8px); }

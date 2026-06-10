@@ -9,9 +9,9 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const APP_DIR   = join(__dirname, '..', '..', '..'); // agents/electron-app/
 const OUT_DIR   = join(APP_DIR, '..', 'docs', 'images'); // agents/docs/images/
 const TABS      = [
-  'operator-select', 'jml-fleet-input', 'dashboard', 'approver', 'auditor',
-  'security', 'exports', 'approvals', 'operations', 'certifications',
-  'settings', 'audit-log', 'users', 'certs', 'graph'
+  'operator-select', 'jml-fleet-input', 'dashboard', 'glass-screen', 'approver',
+  'auditor', 'security', 'exports', 'approvals', 'operations', 'certifications',
+  'settings', 'audit-log', 'users', 'integrations', 'certs', 'graph'
 ];
 
 const tab = process.argv[2] || 'dashboard';
