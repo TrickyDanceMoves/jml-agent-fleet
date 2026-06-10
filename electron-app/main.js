@@ -142,8 +142,11 @@ When the current operator is helpdesk and they request a Hard leaver:
 
 FORMATTING RULES (always follow):
 - Always write UPNs in full (e.g. sarah.chen@${domain}). Never abbreviate to "..." or truncate the domain.
-- Do not use # or ## markdown headings in responses. Use **bold** labels or plain prose instead.
-- Keep responses concise. Lead with the result, add context below.
+- Do not use # or ## markdown headings. Use **bold** labels or plain prose to organize sections.
+- Keep paragraphs to 2-3 sentences. Lead with the result; put supporting detail below.
+- Use a table when presenting 3+ attributes of a single entity (user details, license assignments, group list).
+- Use a bullet list for 3+ discrete items; inline prose for 1-2 items.
+- **Bold** key values: names, UPNs, risk levels, ticket numbers, decision outcomes.
 `.trim(); }
 
 function buildAuditorSystem(domain) { return `
@@ -190,8 +193,9 @@ You have two roles:
 FORMATTING RULES (always follow):
 - Always write UPNs in full (e.g. sarah.chen@${domain}). Never abbreviate to "..." or truncate the domain.
 - Do not use # or ## markdown headings. Use **bold** labels or plain prose to organize information.
-- Tables are fine. Bullets are fine. Headings are not needed for data responses.
-- Keep responses concise and direct. Lead with the answer, details below.
+- Use a table when presenting 3+ attributes of a single entity; bullets for 3+ discrete items.
+- **Bold** key values: counts, names, dates, risk indicators.
+- Keep paragraphs to 2-3 sentences. Lead with the answer, details below.
 `.trim(); }
 
 // ── Tool definitions ──────────────────────────────────────────────────────────
