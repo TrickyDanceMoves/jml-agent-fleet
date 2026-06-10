@@ -2193,9 +2193,11 @@ function createMainWindow() {
     minWidth: 900, minHeight: 600,
     frame: false,
     icon: APP_ICON,
-    transparent: true,
+    // No `transparent: true` here — on Windows it disables backgroundMaterial,
+    // leaving the glass theme as flat gray CSS tint with no through-window blur.
+    // Acrylic gives real DWM blur of the desktop behind the window.
     backgroundColor: '#00000000',
-    backgroundMaterial: 'mica',
+    backgroundMaterial: 'acrylic',
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -2205,6 +2207,18 @@ function createMainWindow() {
   });
   win.loadFile(path.join(__dirname, 'renderer', 'index.html'));
   win.setIcon(APP_ICON);
+
+  // QC flag: `--theme=glass` forces a theme at load for visual checks.
+  const themeArg = process.argv.find(a => a.startsWith('--theme='));
+  if (themeArg) {
+    const theme = themeArg.split('=')[1];
+    win.webContents.on('did-finish-load', () => {
+      win.webContents.executeJavaScript(
+        `localStorage.setItem('jmlTheme', ${JSON.stringify(theme)});` +
+        `document.documentElement.dataset.theme = ${JSON.stringify(theme)};`
+      ).catch(() => {});
+    });
+  }
 
   win.on('maximize',   () => { if (!win.isDestroyed()) win.webContents.send('window-maximized', true); });
   win.on('unmaximize', () => { if (!win.isDestroyed()) win.webContents.send('window-maximized', false); });
@@ -3280,7 +3294,16 @@ app.whenReady().then(() => {
   if (CAPTURE_MODE) { runCapture().catch(e => { console.error('Capture error:', e); app.quit(); process.exitCode = 1; }); return; }
   createTray();
   ensureDataDirs();
-  if (isFirstRun()) { createSetupWindow(); } else { createOperatorWindow(); }
+  // QC bypass: `electron . --operator=Nick` skips the selector window so
+  // automated visual checks can reach the main window directly.
+  const opArg = process.argv.find(a => a.startsWith('--operator='));
+  if (opArg) {
+    const name = opArg.split('=')[1] || os.userInfo().username;
+    currentOperator = name;
+    try { currentRole = readJson(OPERATORS_FILE).operators?.[name] || 'admin'; } catch { currentRole = 'admin'; }
+    process.env.JML_CONSOLE_OPERATOR = name;
+    createMainWindow();
+  } else if (isFirstRun()) { createSetupWindow(); } else { createOperatorWindow(); }
 
   // Global hotkey — Ctrl+Shift+J summons palette
   globalShortcut.register('CommandOrControl+Shift+J', () => {
