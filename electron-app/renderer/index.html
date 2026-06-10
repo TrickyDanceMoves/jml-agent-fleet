@@ -671,36 +671,44 @@
         </section>
 
         <!-- =====================================================
-             VIEW · GLASS SCREEN (architectural replay)
+             VIEW · GLASS SCREEN (live command center)
              ===================================================== -->
         <section class="view" id="view-glass-screen">
           <div class="head">
             <div>
-              <h1 class="h1">Glass Screen <span class="sub">architectural replay · agents in motion</span></h1>
-              <p class="desc">Select a run from the audit trail and watch it travel through the fleet — request, risk gate, agent execution, outcome, evidence seal.</p>
+              <h1 class="h1">Glass Screen <span class="sub">live identity operations</span></h1>
+              <p class="desc">Watch active identity actions advance through request, risk, execution, verification, and completion.</p>
             </div>
             <div class="row-flex">
-              <button class="btn ghost" id="gs-replay" disabled>Replay</button>
+              <button class="btn ghost" id="gs-replay" hidden>Replay</button>
             </div>
           </div>
 
-          <div class="card gs-stage-card">
-            <div class="gs-stage" id="gs-stage">
-              <div class="gs-track" id="gs-track"><div class="gs-track-fill" id="gs-track-fill"></div></div>
-              <div class="gs-nodes" id="gs-nodes"></div>
-              <div class="gs-traveler" id="gs-traveler" style="display:none"></div>
-            </div>
-            <div class="gs-caption" id="gs-caption">Select a run below to replay its path through the fleet.</div>
-          </div>
+          <div class="gs-command-center" id="gs-command-center" aria-live="polite">
+            <section class="card gs-live-hero" id="gs-live-hero">
+              <div class="gs-operation-head">
+                <div class="gs-eyebrow" id="gs-eyebrow">FLEET READY</div>
+                <div class="gs-elapsed" id="gs-elapsed"></div>
+              </div>
+              <h2 class="gs-title" id="gs-title">No active operation</h2>
+              <div class="gs-meta" id="gs-meta"></div>
+              <div class="gs-pipeline" id="gs-pipeline" role="list"></div>
+              <div class="gs-current-decision" id="gs-current-decision">Live actions will appear here automatically</div>
+              <div class="gs-recovery" id="gs-recovery" hidden></div>
+            </section>
 
-          <div class="card gs-runs-card">
-            <div class="gs-runs-head">
-              <span class="gs-runs-ttl">Audit Trail</span>
-              <span class="gs-runs-cnt" id="gs-run-count"></span>
-            </div>
-            <div class="gs-runs" id="gs-runs">
-              <div class="empty-row" style="padding:16px">Loading audit trail…</div>
-            </div>
+            <section class="gs-recent-section">
+              <div class="gs-section-head">
+                <span>Recent runs</span>
+                <button class="btn-text-link" id="gs-view-audit">View all in Audit Log</button>
+              </div>
+              <div class="gs-recent-runs" id="gs-recent-runs"></div>
+            </section>
+
+            <details class="card gs-details" id="gs-details">
+              <summary>Run details <span class="gs-details-hint">tools · evidence · raw error</span></summary>
+              <div id="gs-details-body"></div>
+            </details>
           </div>
         </section>
 
@@ -2549,6 +2557,8 @@
   </div>
 
   <script src="mode-ui.js"></script>
+  <script src="glass-screen-model.js"></script>
+  <script src="glass-screen.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
