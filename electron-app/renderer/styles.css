@@ -5582,44 +5582,43 @@ label { font-size: 12.5px; color: var(--text-2); }
    backdrop blur.
    ============================================================ */
 html[data-theme="glass"] {
-  --surface:  oklch(0.20 0.012 260 / 0.62);
-  --elev:     oklch(0.235 0.014 260 / 0.66);
-  --elev-2:   oklch(0.27 0.016 260 / 0.72);
-  --bg-2:     oklch(0.17 0.010 260 / 0.58);
-  --border:        oklch(0.32 0.014 260 / 0.65);
-  --border-strong: oklch(0.42 0.016 260 / 0.70);
-  --glass-blur: blur(18px) saturate(1.2);
+  --surface:  oklch(0.20 0.012 260 / 0.28);
+  --elev:     oklch(0.235 0.014 260 / 0.32);
+  --elev-2:   oklch(0.27 0.016 260 / 0.38);
+  --bg-2:     oklch(0.17 0.010 260 / 0.22);
+  --border:        oklch(0.55 0.014 260 / 0.22);
+  --border-strong: oklch(0.65 0.016 260 / 0.30);
+  --glass-blur: blur(22px) saturate(1.4);
 }
 
-/* Shell: let the mica/desktop tint show through a dark wash + aurora accents */
+/* Very light base wash — desktop/mica bleeds through heavily */
 html[data-theme="glass"] body {
   background:
-    radial-gradient(1100px 500px at 85% -10%, oklch(0.30 0.06 290 / 0.16), transparent 60%),
-    radial-gradient(900px 460px at -10% 110%, oklch(0.30 0.05 220 / 0.13), transparent 60%),
-    oklch(0.145 0.008 260 / 0.84);
+    radial-gradient(1100px 500px at 85% -10%, oklch(0.40 0.08 290 / 0.10), transparent 60%),
+    radial-gradient(900px 460px at -10% 110%, oklch(0.40 0.06 220 / 0.08), transparent 60%),
+    oklch(0.12 0.006 260 / 0.45);
 }
 
-/* Primary chrome surfaces become frosted panes */
+/* Primary chrome surfaces: very thin frosted panes */
 html[data-theme="glass"] .sidebar {
-  background: oklch(0.125 0.008 260 / 0.66);
+  background: oklch(0.10 0.006 260 / 0.32);
   backdrop-filter: var(--glass-blur);
 }
 html[data-theme="glass"] .topbar {
-  background: oklch(0.125 0.008 260 / 0.60);
+  background: oklch(0.10 0.006 260 / 0.28);
   backdrop-filter: var(--glass-blur);
 }
 html[data-theme="glass"] .compose,
 html[data-theme="glass"] .chat-input {
-  background: oklch(0.15 0.010 260 / 0.55);
+  background: oklch(0.12 0.008 260 / 0.26);
   backdrop-filter: var(--glass-blur);
 }
 html[data-theme="glass"] .compose .field,
 html[data-theme="glass"] .chat-input-wrap {
-  background: oklch(0.19 0.012 260 / 0.55);
+  background: oklch(0.16 0.010 260 / 0.28);
 }
 
-/* Cards and elevated panels pick up the translucent tokens automatically;
-   add blur to the ones that float above scrolling content */
+/* Floating panels pick up blur */
 html[data-theme="glass"] .card,
 html[data-theme="glass"] .modal,
 html[data-theme="glass"] .q-panel,
@@ -5627,17 +5626,34 @@ html[data-theme="glass"] .ac-dropdown {
   backdrop-filter: var(--glass-blur);
 }
 
-/* User bubble: tinted glass instead of opaque gradient */
+/* User bubble: very light tinted glass */
 html[data-theme="glass"] .msg.me .bubble,
 html[data-theme="glass"] .message.user .message-bubble {
   background: linear-gradient(135deg,
-    color-mix(in oklch, var(--cyan-dim) 38%, transparent),
-    color-mix(in oklch, var(--violet-dim) 34%, transparent));
-  border: 1px solid oklch(0.45 0.04 250 / 0.45);
-  backdrop-filter: blur(12px) saturate(1.15);
-  box-shadow: 0 4px 16px oklch(0.08 0.01 260 / 0.22);
+    color-mix(in oklch, var(--cyan-dim) 20%, transparent),
+    color-mix(in oklch, var(--violet-dim) 18%, transparent));
+  border: 1px solid oklch(0.60 0.04 250 / 0.25);
+  backdrop-filter: blur(14px) saturate(1.3);
+  box-shadow: none;
 }
 
-/* Welcome card + tool drawers join the glass language */
-html[data-theme="glass"] .welcome-msg { background: oklch(0.17 0.010 260 / 0.45); backdrop-filter: blur(10px); }
-html[data-theme="glass"] .tool-result-drawer { background: oklch(0.15 0.010 260 / 0.60); backdrop-filter: blur(10px); }
+/* Assistant replies: no card box — text flows inline with a hairline left accent */
+html[data-theme="glass"] .message.assistant .message-body {
+  background: none;
+  border: none;
+  border-left: 2px solid oklch(0.60 0.06 260 / 0.35);
+  border-radius: 0;
+  padding: 2px 0 2px 12px;
+  backdrop-filter: none;
+  box-shadow: none;
+}
+html[data-theme="glass"] .message.assistant[data-agent="approver"] .message-body {
+  border-left-color: oklch(0.65 0.10 200 / 0.45);
+}
+html[data-theme="glass"] .message.assistant[data-agent="auditor"] .message-body {
+  border-left-color: oklch(0.62 0.12 155 / 0.45);
+}
+
+/* Welcome card + tool drawers: whisper-light */
+html[data-theme="glass"] .welcome-msg { background: oklch(0.16 0.008 260 / 0.22); backdrop-filter: blur(12px); border: 1px solid oklch(0.50 0.010 260 / 0.15); }
+html[data-theme="glass"] .tool-result-drawer { background: oklch(0.12 0.008 260 / 0.30); backdrop-filter: blur(10px); }
