@@ -177,7 +177,7 @@ function switchTab(tab) {
   if (tab === 'settings')      loadSettings();
   if (tab === 'integrations')  loadIntegrations();
   if (tab === 'users')         loadRecentUsers();
-  if (tab === 'glass-screen' && typeof gsOnShow === 'function') gsOnShow();
+  if (tab === 'glass-screen') window.JmlGlassScreen?.onShow();
 }
 
 // ── Integrations tab loader ────────────────────────────────────────────────────
@@ -2449,7 +2449,7 @@ window.api.onAuditLogData((entries) => {
   _logEntries = entries;
   _logPage = 0;
   renderAuditPage();
-  if (typeof gsOnAuditData === 'function') gsOnAuditData(entries);
+  window.JmlGlassScreen?.onAuditEntries(entries);
 });
 
 // ── Dashboard AI summary ──────────────────────────────────────────────────────
@@ -3546,6 +3546,7 @@ function applyOperationStatus(operation) {
   renderOpsCompleted(mergedCompletedOperations());
   updateDashboardOperationStatus();
   lcApplyOperation(operation);
+  window.JmlGlassScreen?.onOperationStatus(operation);
 }
 
 window.api.onOperationStatus(applyOperationStatus);
@@ -3553,6 +3554,7 @@ window.api.onOperationStatuses(operations => {
   _operationRecords.clear();
   _inflightOps.clear();
   (operations || []).slice().reverse().forEach(applyOperationStatus);
+  window.JmlGlassScreen?.onOperationStatuses(operations || []);
 });
 
 const _csvInput = document.getElementById('bulk-csv-input');
@@ -7663,210 +7665,7 @@ window.api.onModeChanged(({ whatif }) => {
   updateTopbarModePill();
 });
 
-// ── Glass Screen — architectural replay of fleet runs ────────────────────────
-// Select an audit entry and a small agent chip travels the pipeline:
-// request → risk gate → agent execution → outcome → evidence seal.
-const GS_AGENT_GLYPHS = {
-  joiner:      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="16" y1="11" x2="22" y2="11"/></svg>',
-  mover:       '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>',
-  leaver:      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="16" y1="11" x2="22" y2="11"/></svg>',
-  enroller:    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12" y2="18.01"/></svg>',
-  approver:    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/></svg>',
-  provisioner: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>',
-  auditor:     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>',
-  certifier:   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><circle cx="12" cy="8" r="7"/><polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"/></svg>',
-};
-const GS_AGENT_HUES = {
-  joiner: 'var(--cyan)', mover: 'var(--violet)', leaver: 'var(--coral)',
-  enroller: 'var(--amber)', approver: 'var(--cyan)', provisioner: 'var(--violet)',
-  auditor: 'var(--emerald)', certifier: 'var(--emerald)',
-};
-
-let _gsEntries  = [];
-let _gsSelected = null;
-let _gsTimer    = null;
-
-const GS_DEMO_RUNS = [
-  { timestamp: new Date(Date.now() - 9e5).toISOString(),  agent: 'joiner', action: 'create-account', subject: 'amelia.chen@contoso.com',  outcome: 'success', operator: 'Nick', whatif: true,  hash: 'a3f8c1d92b4e6708', _demo: true },
-  { timestamp: new Date(Date.now() - 54e5).toISOString(), agent: 'leaver', action: 'soft-offboard',  subject: 'robert.martinez@contoso.com', outcome: 'partial', operator: 'Helpdesk I/II', whatif: true, hash: 'be71d40a9c25f3e8', _demo: true },
-  { timestamp: new Date(Date.now() - 18e6).toISOString(), agent: 'mover',  action: 'transfer-groups', subject: 'lena.fischer@contoso.com', outcome: 'failed', operator: 'Nick', whatif: false, hash: 'c90247aef13b85d6', _demo: true },
-];
-
-function gsStages(e) {
-  const agent = (e.agent || 'approver').toLowerCase();
-  const op    = e.operator || 'Operator';
-  return [
-    { glyph: '<span class="gs-op-initial">' + escHtml(op.charAt(0).toUpperCase()) + '</span>',
-      label: op, sub: 'request', hue: 'var(--text-2)' },
-    { glyph: GS_AGENT_GLYPHS.approver, label: 'Approver', sub: 'risk gate', hue: GS_AGENT_HUES.approver },
-    { glyph: GS_AGENT_GLYPHS[agent] || GS_AGENT_GLYPHS.approver,
-      label: agent.charAt(0).toUpperCase() + agent.slice(1),
-      sub: e.action || 'execute', hue: GS_AGENT_HUES[agent] || 'var(--cyan)' },
-    { glyph: e.outcome === 'success' ? '✓' : e.outcome === 'partial' ? '◐' : '✕',
-      label: 'Outcome', sub: e.outcome || '—',
-      hue: e.outcome === 'success' ? 'var(--ok)' : e.outcome === 'partial' ? 'var(--warn)' : 'var(--coral)' },
-    { glyph: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>',
-      label: 'Audit Chain', sub: e.hash ? String(e.hash).slice(0, 10) + '…' : 'sealed', hue: 'var(--emerald)' },
-  ];
-}
-
-function gsRenderNodes(e) {
-  const wrap = document.getElementById('gs-nodes');
-  if (!wrap) return;
-  wrap.innerHTML = gsStages(e).map((s, i) => `
-    <div class="gs-node" data-gs-node="${i}" style="--gs-hue:${s.hue}">
-      <div class="gs-node-orb">${s.glyph}</div>
-      <div class="gs-node-label">${escHtml(s.label)}</div>
-      <div class="gs-node-sub">${escHtml(s.sub)}</div>
-    </div>`).join('');
-}
-
-function gsStopTimers() {
-  if (_gsTimer) { clearTimeout(_gsTimer); _gsTimer = null; }
-}
-
-function gsPlay(e, instant) {
-  gsStopTimers();
-  gsRenderNodes(e);
-  const agent    = (e.agent || 'approver').toLowerCase();
-  const traveler = document.getElementById('gs-traveler');
-  const fill     = document.getElementById('gs-track-fill');
-  const caption  = document.getElementById('gs-caption');
-  const nodes    = Array.from(document.querySelectorAll('.gs-node'));
-  const stage    = document.getElementById('gs-stage');
-  const replayBtn = document.getElementById('gs-replay');
-  if (!traveler || !fill || !nodes.length || !stage) return;
-  if (replayBtn) replayBtn.disabled = false;
-
-  const stages = gsStages(e);
-  const failStep = e.outcome === 'failed' ? 3 : null;
-  const captions = [
-    `${e.operator || 'Operator'} submits the request${e.details && e.details.ticketRef ? ' (' + e.details.ticketRef + ')' : ''}`,
-    'Approver scores risk and opens the gate',
-    `${stages[2].label} executes ${e.action || 'the operation'} on ${e.subject || 'the target'}`,
-    e.outcome === 'success' ? 'Operation completed successfully'
-      : e.outcome === 'partial' ? 'Operation partially completed — review follow-ups'
-      : 'Operation failed — rolled back, nothing committed',
-    'Evidence hashed and sealed to the audit chain',
-  ];
-
-  traveler.innerHTML = GS_AGENT_GLYPHS[agent] || GS_AGENT_GLYPHS.approver;
-  traveler.style.color = GS_AGENT_HUES[agent] || 'var(--cyan)';
-  traveler.style.display = 'grid';
-  traveler.classList.remove('gs-traveler-fail');
-
-  const stageRect = stage.getBoundingClientRect();
-  const centers = nodes.map(n => {
-    const r = n.getBoundingClientRect();
-    return r.left - stageRect.left + r.width / 2;
-  });
-
-  function arriveAt(i) {
-    nodes[i].classList.add('gs-lit');
-    if (i === nodes.length - 1 || i === failStep) nodes[i].classList.add('gs-final');
-    if (caption) caption.textContent = captions[i];
-  }
-
-  if (instant) {
-    const last = failStep !== null ? failStep : nodes.length - 1;
-    for (let i = 0; i <= last; i++) arriveAt(i);
-    traveler.style.transition = 'none';
-    traveler.style.left = centers[last] + 'px';
-    fill.style.transition = 'none';
-    fill.style.width = (centers[last] - centers[0]) + 'px';
-    fill.style.left = centers[0] + 'px';
-    if (failStep !== null) traveler.classList.add('gs-traveler-fail');
-    return;
-  }
-
-  nodes.forEach(n => n.classList.remove('gs-lit', 'gs-final'));
-  traveler.style.transition = 'none';
-  traveler.style.left = centers[0] + 'px';
-  fill.style.transition = 'none';
-  fill.style.left = centers[0] + 'px';
-  fill.style.width = '0px';
-  // reflow so the reset takes before animating
-  void traveler.offsetWidth;
-  traveler.style.transition = 'left .85s cubic-bezier(.45,.05,.35,1)';
-  fill.style.transition = 'width .85s cubic-bezier(.45,.05,.35,1)';
-
-  arriveAt(0);
-  let step = 0;
-  const lastStep = failStep !== null ? failStep : nodes.length - 1;
-  function hop() {
-    if (step >= lastStep) {
-      if (failStep !== null) traveler.classList.add('gs-traveler-fail');
-      return;
-    }
-    step++;
-    traveler.style.left = centers[step] + 'px';
-    fill.style.width = (centers[step] - centers[0]) + 'px';
-    _gsTimer = setTimeout(() => { arriveAt(step); _gsTimer = setTimeout(hop, 420); }, 850);
-  }
-  _gsTimer = setTimeout(hop, 550);
-}
-
-function gsRenderRuns(entries) {
-  const list = document.getElementById('gs-runs');
-  const cnt  = document.getElementById('gs-run-count');
-  if (!list) return;
-  const isDemo = entries.length && entries[0]._demo;
-  if (cnt) cnt.textContent = isDemo ? 'demo data — run an operation to populate' : entries.length + ' runs';
-  list.innerHTML = entries.slice(0, 60).map((e, i) => {
-    const ts  = e.timestamp ? new Date(e.timestamp).toLocaleString() : '—';
-    const agent = (e.agent || '—').toLowerCase();
-    const oc  = e.outcome || '—';
-    const ocCls = oc === 'success' ? 'ok' : oc === 'partial' ? 'warn' : oc === 'failed' ? 'fail' : '';
-    return `<button class="gs-run" data-gs-run="${i}">
-      <span class="gs-run-dot ${ocCls}"></span>
-      <span class="gs-run-ts">${escHtml(ts)}</span>
-      <span class="gs-run-agent" style="color:${GS_AGENT_HUES[agent] || 'var(--text-2)'}">${escHtml(agent)}</span>
-      <span class="gs-run-subj">${escHtml(e.subject || '—')}</span>
-      <span class="gs-run-oc ${ocCls}">${escHtml(oc)}</span>
-      <span class="gs-run-mode">${e.whatif ? 'Safe' : 'Live'}</span>
-    </button>`;
-  }).join('') || '<div class="empty-row" style="padding:16px">No runs recorded yet.</div>';
-
-  list.querySelectorAll('[data-gs-run]').forEach(btn => {
-    btn.addEventListener('click', () => {
-      list.querySelectorAll('.gs-run').forEach(b => b.classList.remove('sel'));
-      btn.classList.add('sel');
-      _gsSelected = entries[parseInt(btn.dataset.gsRun, 10)];
-      gsPlay(_gsSelected);
-    });
-  });
-}
-
-function gsOnAuditData(entries) {
-  _gsEntries = (entries && entries.length) ? entries : GS_DEMO_RUNS;
-  if (document.getElementById('view-glass-screen')?.classList.contains('active')) {
-    gsRenderRuns(_gsEntries);
-  }
-}
-
-function gsOnShow() {
-  const entries = (window._lastAuditEntries && window._lastAuditEntries.length)
-    ? window._lastAuditEntries : (_gsEntries.length ? _gsEntries : GS_DEMO_RUNS);
-  _gsEntries = entries;
-  gsRenderRuns(entries);
-  if (typeof window.api?.getAuditLog === 'function') { try { window.api.getAuditLog(); } catch (_) {} }
-  if (!_gsSelected) {
-    _gsSelected = entries[0];
-    const first = document.querySelector('#gs-runs .gs-run');
-    if (first) first.classList.add('sel');
-  }
-  if (_gsSelected) gsPlay(_gsSelected);
-}
-
-document.getElementById('gs-replay')?.addEventListener('click', () => {
-  if (_gsSelected) gsPlay(_gsSelected);
-});
-
-// Capture-mode hook: render the completed state instantly for screenshots
-window._gsCaptureDemo = function () {
-  _gsEntries = GS_DEMO_RUNS;
-  gsRenderRuns(_gsEntries);
-  _gsSelected = GS_DEMO_RUNS[0];
-  document.querySelector('#gs-runs .gs-run')?.classList.add('sel');
-  gsPlay(_gsSelected, true);
-};
+// ── Glass Screen — live Command Center ──────────────────────────────────────
+// All state, rendering, and motion live in glass-screen.js (window.JmlGlassScreen),
+// backed by the pure view-model in glass-screen-model.js. app.js only forwards
+// operation-status IPC events, audit entries, and tab activation to it.
