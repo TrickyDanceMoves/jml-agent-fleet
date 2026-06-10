@@ -5172,14 +5172,14 @@ if (typeof window.api?.onHrQueue === 'function') {
   loadNotificationRules();
 })();
 
-// ── Theme switcher (warm oklch ↔ preview purple/blue) ───────────────────────
+// ── Theme switcher (warm oklch / preview purple-blue / glass frosted) ───────
 (function() {
   const THEME_KEY = 'jmlTheme';
-  const VALID = new Set(['warm', 'preview']);
+  const VALID = new Set(['warm', 'preview', 'glass']);
   function applyTheme(name) {
     if (!VALID.has(name)) name = 'warm';
-    if (name === 'preview') document.documentElement.dataset.theme = 'preview';
-    else delete document.documentElement.dataset.theme;
+    if (name === 'warm') delete document.documentElement.dataset.theme;
+    else document.documentElement.dataset.theme = name;
   }
   let saved = 'warm';
   try { const s = localStorage.getItem(THEME_KEY); if (VALID.has(s)) saved = s; } catch (_) {}

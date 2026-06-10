@@ -1,5 +1,11 @@
 'use strict';
 
+// Follow the console's theme choice (Settings → Appearance)
+try {
+  const t = localStorage.getItem('jmlTheme');
+  if (t === 'glass' || t === 'preview') document.documentElement.dataset.theme = t;
+} catch (_) {}
+
 const PREFS_KEY    = 'jml-docked-sections';
 const ORDER_KEY    = 'jml-docked-order';
 const COLLAPSE_KEY = 'jml-docked-collapsed';

@@ -5574,13 +5574,14 @@ label { font-size: 12.5px; color: var(--text-2); }
 
 /* ============================================================
    GLASS THEME — frosted, translucent shell
-   The main window is created with transparent:true +
-   backgroundMaterial:'mica', so translucent surfaces here read
-   as true glass on Windows 11 and degrade to a dark tint elsewhere.
-   Applied as an override layer: tokens get alpha, key shell
-   surfaces get backdrop blur.
+   Opt-in via Settings → Appearance (localStorage.jmlTheme = 'glass',
+   applied as <html data-theme="glass">). The main window is created
+   with transparent:true + backgroundMaterial:'mica', so translucent
+   surfaces here read as true glass on Windows 11 and degrade to a
+   dark tint elsewhere. Tokens get alpha, key shell surfaces get
+   backdrop blur.
    ============================================================ */
-:root {
+html[data-theme="glass"] {
   --surface:  oklch(0.20 0.012 260 / 0.62);
   --elev:     oklch(0.235 0.014 260 / 0.66);
   --elev-2:   oklch(0.27 0.016 260 / 0.72);
@@ -5591,7 +5592,7 @@ label { font-size: 12.5px; color: var(--text-2); }
 }
 
 /* Shell: let the mica/desktop tint show through a dark wash + aurora accents */
-body {
+html[data-theme="glass"] body {
   background:
     radial-gradient(1100px 500px at 85% -10%, oklch(0.30 0.06 290 / 0.16), transparent 60%),
     radial-gradient(900px 460px at -10% 110%, oklch(0.30 0.05 220 / 0.13), transparent 60%),
@@ -5599,30 +5600,36 @@ body {
 }
 
 /* Primary chrome surfaces become frosted panes */
-.sidebar {
+html[data-theme="glass"] .sidebar {
   background: oklch(0.125 0.008 260 / 0.66);
   backdrop-filter: var(--glass-blur);
 }
-.topbar {
+html[data-theme="glass"] .topbar {
   background: oklch(0.125 0.008 260 / 0.60);
   backdrop-filter: var(--glass-blur);
 }
-.compose, .chat-input {
+html[data-theme="glass"] .compose,
+html[data-theme="glass"] .chat-input {
   background: oklch(0.15 0.010 260 / 0.55);
   backdrop-filter: var(--glass-blur);
 }
-.compose .field, .chat-input-wrap {
+html[data-theme="glass"] .compose .field,
+html[data-theme="glass"] .chat-input-wrap {
   background: oklch(0.19 0.012 260 / 0.55);
 }
 
 /* Cards and elevated panels pick up the translucent tokens automatically;
    add blur to the ones that float above scrolling content */
-.card, .modal, .q-panel, .ac-dropdown {
+html[data-theme="glass"] .card,
+html[data-theme="glass"] .modal,
+html[data-theme="glass"] .q-panel,
+html[data-theme="glass"] .ac-dropdown {
   backdrop-filter: var(--glass-blur);
 }
 
 /* User bubble: tinted glass instead of opaque gradient */
-.msg.me .bubble, .message.user .message-bubble {
+html[data-theme="glass"] .msg.me .bubble,
+html[data-theme="glass"] .message.user .message-bubble {
   background: linear-gradient(135deg,
     color-mix(in oklch, var(--cyan-dim) 38%, transparent),
     color-mix(in oklch, var(--violet-dim) 34%, transparent));
@@ -5632,5 +5639,5 @@ body {
 }
 
 /* Welcome card + tool drawers join the glass language */
-.welcome-msg { background: oklch(0.17 0.010 260 / 0.45); backdrop-filter: blur(10px); }
-.tool-result-drawer { background: oklch(0.15 0.010 260 / 0.60); backdrop-filter: blur(10px); }
+html[data-theme="glass"] .welcome-msg { background: oklch(0.17 0.010 260 / 0.45); backdrop-filter: blur(10px); }
+html[data-theme="glass"] .tool-result-drawer { background: oklch(0.15 0.010 260 / 0.60); backdrop-filter: blur(10px); }
