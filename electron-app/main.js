@@ -2816,6 +2816,12 @@ async function runCapture() {
       document.querySelector('.layout')?.classList.remove('sidebar-collapsed');
     } catch (_) {}
   `);
+  // --glass-qc: force the Glass theme for a visual QC pass of the frosted material
+  if (process.argv.includes('--glass-qc')) {
+    await win.webContents.executeJavaScript(
+      `document.documentElement.dataset.theme = 'glass';
+       try { localStorage.setItem('jmlTheme', 'glass'); } catch (_) {}`);
+  }
   await sleep(1200);
 
   // Pre-send mock data so dashboard/certs show content without Graph connection
