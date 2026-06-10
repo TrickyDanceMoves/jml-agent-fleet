@@ -5604,14 +5604,14 @@ html[data-theme="glass"] {
   --bg-2:     oklch(0.18 0.010 260 / 0.07);
   --text:     oklch(0.985 0.004 250);
   --text-2:   oklch(0.92 0.008 250);
-  --muted:    oklch(0.82 0.012 250);
-  --dim:      oklch(0.74 0.014 250);
+  --muted:    oklch(0.84 0.012 250);
+  --dim:      oklch(0.78 0.014 250);
   --border:        oklch(0.78 0.018 250 / 0.28);
   --border-strong: oklch(0.90 0.022 245 / 0.48);
   --glass-blur: blur(28px) saturate(1.25);
   --glass-panel-bg: linear-gradient(155deg,
-    oklch(0.25 0.014 255 / 0.66),
-    oklch(0.12 0.008 260 / 0.62));
+    oklch(0.25 0.014 255 / 0.74),
+    oklch(0.12 0.008 260 / 0.70));
   --glass-panel-border: oklch(0.88 0.020 245 / 0.32);
   --glass-panel-blur: blur(28px) saturate(1.22);
   --glass-panel-shadow:
@@ -5632,7 +5632,6 @@ html[data-theme="glass"] body {
     oklch(0.16 0.008 260 / 0.04);
 }
 html[data-theme="glass"] .layout,
-html[data-theme="glass"] .content,
 html[data-theme="glass"] .main,
 html[data-theme="glass"] .view {
   background: transparent;
@@ -5643,18 +5642,45 @@ html[data-theme="glass"] .view {
 /* Empty shell: almost fully see-through (~4% tint + faint aurora) */
 }
 
-/* Chrome: thin frosted panes (6–12%) */
-html[data-theme="glass"] .sidebar {
-  background: linear-gradient(180deg,
-    oklch(0.25 0.018 255 / 0.12),
-    oklch(0.16 0.010 260 / 0.06));
-  backdrop-filter: var(--glass-blur);
-  box-shadow: inset -1px 0 oklch(0.92 0.02 245 / 0.08);
+/* Floating shell: sidebar and topbar are detached frosted islands —
+   the desktop shows through fully in the gutters between them. */
+html[data-theme="glass"] .layout {
+  gap: 10px;
+  padding: 10px;
 }
-html[data-theme="glass"] .topbar {
-  background: oklch(0.23 0.014 255 / 0.08);
+html[data-theme="glass"] .sidebar {
+  /* Dense enough dark frost that nav text reads on any wallpaper —
+     the floating feel comes from the gutters/radius, not low alpha. */
+  background: linear-gradient(180deg,
+    oklch(0.21 0.014 255 / 0.62),
+    oklch(0.13 0.008 260 / 0.56));
   backdrop-filter: var(--glass-blur);
-  box-shadow: inset 0 -1px oklch(0.92 0.02 245 / 0.08);
+  border: 1px solid var(--glass-panel-border);
+  border-right: 1px solid var(--glass-panel-border);
+  border-radius: 16px;
+  box-shadow:
+    inset 0 1px oklch(0.96 0.01 250 / 0.10),
+    0 18px 44px oklch(0.06 0.01 260 / 0.30);
+}
+/* Content column is the second island: a readable frost slab that
+   backs every loose label/paragraph, with cards stacking on top. */
+html[data-theme="glass"] .content {
+  background: linear-gradient(180deg,
+    oklch(0.18 0.012 258 / 0.50),
+    oklch(0.12 0.008 260 / 0.44));
+  backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-panel-border);
+  border-radius: 16px;
+  box-shadow:
+    inset 0 1px oklch(0.96 0.01 250 / 0.08),
+    0 18px 44px oklch(0.06 0.01 260 / 0.28);
+}
+/* Topbar reads as the content island's header strip. */
+html[data-theme="glass"] .topbar {
+  background: oklch(0.22 0.014 255 / 0.18);
+  backdrop-filter: var(--glass-blur);
+  border-bottom: 1px solid oklch(0.88 0.020 245 / 0.16);
+  border-radius: 16px 16px 0 0;
 }
 html[data-theme="glass"] .compose,
 html[data-theme="glass"] .chat-input {
@@ -5664,6 +5690,18 @@ html[data-theme="glass"] .chat-input {
 html[data-theme="glass"] .compose .field,
 html[data-theme="glass"] .chat-input-wrap {
   background: oklch(0.18 0.012 260 / 0.68);
+}
+
+/* Page headers float on the bare shell — give them the panel frost so
+   titles and descriptions read on any wallpaper. */
+html[data-theme="glass"] .view > .head,
+html[data-theme="glass"] .v2-page-title {
+  background: var(--glass-panel-bg);
+  border: 1px solid var(--glass-panel-border);
+  backdrop-filter: var(--glass-panel-blur);
+  box-shadow: var(--glass-panel-shadow);
+  border-radius: 14px;
+  padding: 14px 18px;
 }
 
 /* Readability panes: localized contrast without darkening the window itself. */
