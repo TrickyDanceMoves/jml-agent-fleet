@@ -11,7 +11,7 @@ const OUT_DIR   = join(APP_DIR, '..', 'docs', 'images'); // agents/docs/images/
 const TABS      = [
   'operator-select', 'jml-fleet-input', 'dashboard', 'approver', 'auditor',
   'security', 'exports', 'approvals', 'operations', 'certifications',
-  'settings', 'audit-log', 'users', 'certs', 'graph'
+  'settings', 'audit-log', 'users', 'integrations', 'certs', 'graph'
 ];
 
 const tab = process.argv[2] || 'dashboard';

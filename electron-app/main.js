@@ -37,7 +37,7 @@ const AI_PROVIDER_CONFIG_FILE = path.join(AGENTS_DIR, 'approver', 'ai-provider.j
 function loadPanelBounds() { try { return JSON.parse(fs.readFileSync(PANEL_BOUNDS_FILE, 'utf8')); } catch { return null; } }
 function savePanelBounds(b) { try { fs.writeFileSync(PANEL_BOUNDS_FILE, JSON.stringify(b)); } catch {} }
 const CERT_SCRIPT    = path.join(AGENTS_DIR, 'certifier', 'Invoke-CertificationCampaign.ps1');
-const AGENT_DIRS     = ['joiner','mover','leaver','enroller','approver','provisioner','auditor'];
+const AGENT_DIRS     = ['joiner','mover','leaver','enroller','approver','provisioner','auditor','certifier'];
 
 // ── AI provider abstraction ───────────────────────────────────────────────────
 const { loadConfig: _loadProviderConfig, saveConfig: _saveProviderConfig, buildProvider } = require('./providers');
@@ -451,7 +451,7 @@ function pushOverlayUpdate(partial) {
 const _certAlerted = new Set();
 function pollCertExpiry() {
   try {
-    const agents = ['joiner','mover','leaver','enroller','approver','auditor'];
+    const agents = ['joiner','mover','leaver','enroller','approver','provisioner','auditor','certifier'];
     const certs  = agents.map(ag => {
       try {
         const cfg = readJson(path.join(AGENTS_DIR, ag, 'config.json'));
