@@ -1,5 +1,11 @@
 'use strict';
 
+// Follow the console's theme choice (Settings → Appearance)
+try {
+  const t = localStorage.getItem('jmlTheme');
+  if (t === 'glass' || t === 'preview') document.documentElement.dataset.theme = t;
+} catch (_) {}
+
 // ── State ─────────────────────────────────────────────────────────────────────
 let _anchorY   = null;
 let _winX      = null;
