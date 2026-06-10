@@ -2109,8 +2109,13 @@ function createSetupWindow() {
 }
 
 function createMainWindow() {
+  // Clamp to the work area so the title-bar controls are never offscreen
+  // (e.g. on small laptops or high DPI scaling where 1200x780 overflows).
+  const wa = screen.getPrimaryDisplay().workArea;
   win = new BrowserWindow({
-    width: 1200, height: 780,
+    width: Math.min(1200, wa.width), height: Math.min(780, wa.height),
+    x: wa.x + Math.max(0, Math.floor((wa.width  - Math.min(1200, wa.width))  / 2)),
+    y: wa.y + Math.max(0, Math.floor((wa.height - Math.min(780, wa.height)) / 2)),
     minWidth: 900, minHeight: 600,
     frame: false,
     icon: APP_ICON,
