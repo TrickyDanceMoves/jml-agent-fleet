@@ -209,6 +209,7 @@ Move Glass appearance values into shared theme tokens used by the main console, 
 - Retain visible borders and focus rings.
 - Maintain readable text contrast and a solid fallback when backdrop filtering is unavailable.
 - Do not make assistant message cards permanently Glass-specific unless their theme tokens preserve readability in all palettes.
+- Preserve the existing JML concentric rounded-square logo silhouette, dimensions, and collapsed-sidebar behavior. In Glass only, restyle its layers with translucent cyan, ice-blue, and violet gradients, a fine highlight border, and a restrained ambient glow. Make the recessed dark-blue middle layer mostly transparent so the backdrop remains visible through the mark. Warm and Preview keep their existing logo treatments.
 
 Theme preference becomes a shared non-secret setting, while each device may temporarily override it for the current session.
 

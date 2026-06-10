@@ -73,7 +73,11 @@ $licenses = @($user.assignedLicenses | ForEach-Object {
 
 # Last sign-in
 $lastSignIn = $null
-try { $lastSignIn = $user.signInActivity?.lastSignInDateTime } catch {}
+try {
+    if ($user.signInActivity) {
+        $lastSignIn = $user.signInActivity.lastSignInDateTime
+    }
+} catch {}
 
 @{
     found             = $true
