@@ -5624,12 +5624,23 @@ html[data-theme="glass"] {
   --scrollbar-thumb-hover: oklch(0.82 0.03 245 / 0.45);
 }
 
-/* Shell: preserve the desktop/Mica layer and use color as light, not fill. */
+/* Shell: body and app are fully transparent — Mica shows through the
+   gutters between islands with zero tint. Aurora accents sit on the
+   layout layer so they only paint inside the windowed area. */
 html[data-theme="glass"] body {
+  background: transparent;
+}
+html[data-theme="glass"] .app {
+  background: transparent;
+  box-shadow: none;
+}
+/* Faint aurora colour-light on the layout slab (not the window shell) */
+html[data-theme="glass"] .layout::before {
+  content: '';
+  position: fixed; inset: 0; pointer-events: none; z-index: 0;
   background:
-    radial-gradient(1000px 520px at 92% -8%, oklch(0.72 0.10 275 / 0.055), transparent 62%),
-    radial-gradient(850px 500px at -8% 108%, oklch(0.76 0.08 220 / 0.045), transparent 64%),
-    oklch(0.16 0.008 260 / 0.04);
+    radial-gradient(1000px 520px at 92% -8%, oklch(0.72 0.10 275 / 0.06), transparent 62%),
+    radial-gradient(850px 500px at -8% 108%, oklch(0.76 0.08 220 / 0.05), transparent 64%);
 }
 html[data-theme="glass"] .layout,
 html[data-theme="glass"] .main,

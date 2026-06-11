@@ -23,19 +23,17 @@ function blockFor(selector) {
 }
 
 test('glass shell remains visibly transparent instead of becoming a dark theme', () => {
-  const bodyAlpha = alphaFor(
-    'html[data-theme="glass"] body',
-    /oklch\([^/]+\/\s*([0-9.]+)\s*\)\s*;/,
-  );
   const sidebarAlpha = alphaFor(
     'html[data-theme="glass"] .sidebar',
     /background:[\s\S]*?oklch\([^/]+\/\s*([0-9.]+)\s*\)/,
   );
 
-  assert.ok(bodyAlpha <= 0.08, `glass body alpha ${bodyAlpha} is too opaque`);
-  // Floating shell: sidebar is a detached frosted island. Its frost is
-  // dense enough (~60%) that nav text reads on any wallpaper; the
-  // see-through feel comes from the gutters around it, not low alpha.
+  // Body and .app must be fully transparent so Mica shows through the
+  // gutters between islands with zero gray tint.
+  assert.match(blockFor('html[data-theme="glass"] body'), /background:\s*transparent/);
+  assert.match(blockFor('html[data-theme="glass"] .app'), /background:\s*transparent/);
+  // Sidebar island frost: dense enough (~60%) that nav text reads on
+  // any wallpaper; see-through feel comes from the gutters, not low alpha.
   assert.ok(sidebarAlpha <= 0.68, `glass sidebar alpha ${sidebarAlpha} is too opaque`);
   assert.ok(sidebarAlpha >= 0.45, `glass sidebar alpha ${sidebarAlpha} too thin for readable nav text`);
   assert.match(css, /html\[data-theme="glass"\]\s+\.layout,[\s\S]*?background:\s*transparent/s);
