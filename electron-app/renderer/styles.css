@@ -5624,23 +5624,18 @@ html[data-theme="glass"] {
   --scrollbar-thumb-hover: oklch(0.82 0.03 245 / 0.45);
 }
 
-/* Shell: body and app are fully transparent — Mica shows through the
-   gutters between islands with zero tint. Aurora accents sit on the
-   layout layer so they only paint inside the windowed area. */
+/* Shell: glass paints its own soft neutral backdrop (matches the QC
+   captures) instead of relying on OS Mica — the dark frost islands
+   float crisply on it regardless of wallpaper or platform. */
 html[data-theme="glass"] body {
-  background: transparent;
+  background:
+    radial-gradient(1100px 560px at 90% -10%, oklch(0.88 0.030 285 / 0.55), transparent 60%),
+    radial-gradient(900px 520px at -10% 110%, oklch(0.88 0.030 220 / 0.45), transparent 62%),
+    linear-gradient(160deg, oklch(0.86 0.006 255), oklch(0.74 0.010 255));
 }
 html[data-theme="glass"] .app {
   background: transparent;
   box-shadow: none;
-}
-/* Faint aurora colour-light on the layout slab (not the window shell) */
-html[data-theme="glass"] .layout::before {
-  content: '';
-  position: fixed; inset: 0; pointer-events: none; z-index: 0;
-  background:
-    radial-gradient(1000px 520px at 92% -8%, oklch(0.72 0.10 275 / 0.06), transparent 62%),
-    radial-gradient(850px 500px at -8% 108%, oklch(0.76 0.08 220 / 0.05), transparent 64%);
 }
 html[data-theme="glass"] .layout,
 html[data-theme="glass"] .main,
