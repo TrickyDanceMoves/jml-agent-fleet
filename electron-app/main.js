@@ -403,18 +403,9 @@ function writePayloadFile(payload) {
   return p;
 }
 
-function runPs(scriptPath, params = {}) {
-  if (!fs.existsSync(scriptPath)) throw new Error('Script not found: ' + scriptPath);
-  const args = ['-NonInteractive', '-File', scriptPath];
-  for (const [k, v] of Object.entries(params)) {
-    if (v === null || v === undefined) continue;
-    if (typeof v === 'boolean') { if (v) args.push('-' + k); }
-    else if (Array.isArray(v))  { args.push('-' + k, v.join(',')); }
-    else                        { args.push('-' + k, String(v)); }
-  }
-  return execFileSync('powershell', args, { encoding: 'utf8', timeout: 120000 });
-}
-
+// NOTE: there is intentionally no synchronous runPs — execFileSync in the
+// main process blocks the event loop and freezes every window. Use
+// runPsAsync (script files) or runPsCommand (inline commands).
 function runPsAsync(scriptPath, params = {}) {
   return new Promise((resolve, reject) => {
     if (!fs.existsSync(scriptPath)) { reject(new Error('Script not found: ' + scriptPath)); return; }
@@ -426,9 +417,63 @@ function runPsAsync(scriptPath, params = {}) {
       else                        { args.push('-' + k, String(v)); }
     }
     execFile('powershell', args, { encoding: 'utf8', timeout: 120000 }, (err, stdout) => {
-      if (err) reject(err); else resolve(stdout);
+      if (err) { err.stdout = stdout; reject(err); } else resolve(stdout);
     });
   });
+}
+
+// Async inline-PowerShell runner. Query/search IPC handlers must use this
+// instead of execFileSync — a sync child process blocks the entire main
+// process event loop, freezing every window until Graph responds.
+function runPsCommand(ps, { timeout = 60000 } = {}) {
+  return new Promise((resolve, reject) => {
+    execFile('powershell', ['-NonInteractive', '-Command', ps],
+      { encoding: 'utf8', timeout, maxBuffer: 16 * 1024 * 1024, windowsHide: true },
+      (err, stdout) => err ? reject(err) : resolve(String(stdout ?? '')));
+  });
+}
+
+// ── Warm Graph session ────────────────────────────────────────────────────────
+// Cold Graph queries pay powershell.exe startup + module import + cert auth
+// (3-8s) on every call. A persistent worker (lib/graph-worker.ps1) holds one
+// authenticated auditor connection so repeat queries only pay the Graph round
+// trip. Infrastructure failures fall back to a cold spawn; script errors are
+// surfaced to the caller untouched.
+const { GraphPsSession } = require('./lib/graph-ps-session');
+let _graphSession = null;
+function getGraphSession() {
+  if (!_graphSession) {
+    _graphSession = new GraphPsSession({
+      command: 'powershell',
+      args: ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass',
+        '-File', path.join(__dirname, 'lib', 'graph-worker.ps1'),
+        '-ConfigPath', path.join(AGENTS_DIR, 'auditor', 'config.json'),
+        '-AgentsRoot', AGENTS_DIR],
+    });
+  }
+  return _graphSession;
+}
+
+function auditorGraphPreamble() {
+  const cfgPath = path.join(AGENTS_DIR, 'auditor', 'config.json');
+  return `
+$OutputEncoding = New-Object System.Text.UTF8Encoding $false
+[Console]::OutputEncoding = New-Object System.Text.UTF8Encoding $false
+Import-Module Microsoft.Graph.Authentication -ErrorAction SilentlyContinue
+$cfg = [System.IO.File]::ReadAllText('${cfgPath.replace(/'/g, "''")}') | ConvertFrom-Json
+$agentsRoot = '${AGENTS_DIR}'
+. (Join-Path $agentsRoot 'shared\\Helpers.ps1')
+Connect-AgentGraph -Config $cfg
+`;
+}
+
+async function runAuditorGraph(body, { timeout = 60000 } = {}) {
+  try {
+    return await getGraphSession().run(body, { timeout });
+  } catch (e) {
+    if (!e.sessionError) throw e; // real query error — do not retry cold
+    return runPsCommand(auditorGraphPreamble() + body, { timeout });
+  }
 }
 
 // ── System tray + toast notifications ────────────────────────────────────────
@@ -920,10 +965,10 @@ const AUDITOR_QUERY_MAP = {
   query_guest_users:    'GuestUsers'
 };
 
-function executeTool(agent, toolName, input, whatif) {
+async function executeTool(agent, toolName, input, whatif) {
   if (agent === 'auditor') {
     if (toolName === 'query_user_detail') {
-      const raw = runPs(path.join(AGENTS_DIR, 'auditor', 'Invoke-LookupUser.ps1'), { UpnOrName: input.upnOrName });
+      const raw = await runPsAsync(path.join(AGENTS_DIR, 'auditor', 'Invoke-LookupUser.ps1'), { UpnOrName: input.upnOrName });
       return _parseMultilineJson(raw, 'No output from user lookup script');
     }
     const queryType = AUDITOR_QUERY_MAP[toolName];
@@ -931,7 +976,7 @@ function executeTool(agent, toolName, input, whatif) {
     const params = { QueryType: queryType };
     if (input.days) params.Days = input.days;
     if (input.topN) params.TopN = input.topN;
-    const raw = runPs(script, params);
+    const raw = await runPsAsync(script, params);
     return _parseMultilineJson(raw, 'No output from auditor query script');
   }
 
@@ -940,7 +985,7 @@ function executeTool(agent, toolName, input, whatif) {
     const params = { QueryType: AUDITOR_QUERY_MAP[toolName] };
     if (input.days) params.Days = input.days;
     if (input.topN) params.TopN = input.topN;
-    const raw = runPs(path.join(AGENTS_DIR, 'auditor', 'Invoke-AuditorQuery.ps1'), params);
+    const raw = await runPsAsync(path.join(AGENTS_DIR, 'auditor', 'Invoke-AuditorQuery.ps1'), params);
     return _parseMultilineJson(raw, 'No output from auditor query script');
   }
 
@@ -974,26 +1019,26 @@ function executeTool(agent, toolName, input, whatif) {
 
   switch (toolName) {
     case 'lookup_user': {
-      const raw = runPs(path.join(AGENTS_DIR, 'auditor', 'Invoke-LookupUser.ps1'), { UpnOrName: input.upnOrName });
+      const raw = await runPsAsync(path.join(AGENTS_DIR, 'auditor', 'Invoke-LookupUser.ps1'), { UpnOrName: input.upnOrName });
       return _parseMultilineJson(raw, 'No output from user lookup script');
     }
     case 'list_available_licenses': {
-      const raw = runPs(path.join(AGENTS_DIR, 'auditor', 'Invoke-AuditorQuery.ps1'), { QueryType: 'LicenseReport' });
+      const raw = await runPsAsync(path.join(AGENTS_DIR, 'auditor', 'Invoke-AuditorQuery.ps1'), { QueryType: 'LicenseReport' });
       return _parseMultilineJson(raw, 'No output from license report');
     }
     case 'list_groups': {
-      const raw = runPs(path.join(AGENTS_DIR, 'auditor', 'Invoke-ListGroups.ps1'), input.filter ? { Filter: input.filter } : {});
+      const raw = await runPsAsync(path.join(AGENTS_DIR, 'auditor', 'Invoke-ListGroups.ps1'), input.filter ? { Filter: input.filter } : {});
       return _parseMultilineJson(raw, 'No output from group list script');
     }
     case 'suggest_provisioning': {
-      const raw = runPs(path.join(AGENTS_DIR, 'auditor', 'Invoke-ProvisioningRecommendation.ps1'), {
+      const raw = await runPsAsync(path.join(AGENTS_DIR, 'auditor', 'Invoke-ProvisioningRecommendation.ps1'), {
         Department: input.department,
         JobTitle:   input.jobTitle
       });
       return _parseMultilineJson(raw, 'No output from recommendation script');
     }
     case 'score_risk': {
-      const raw = runPs(path.join(AGENTS_DIR, 'auditor', 'Invoke-RiskScore.ps1'), {
+      const raw = await runPsAsync(path.join(AGENTS_DIR, 'auditor', 'Invoke-RiskScore.ps1'), {
         Operation:         input.operation,
         UserPrincipalName: input.userPrincipalName,
         Licenses:          input.licenses,
@@ -1013,7 +1058,7 @@ function executeTool(agent, toolName, input, whatif) {
         mobilePhone: input.mobilePhone, officeLocation: input.officeLocation,
         ticketRef: input.ticketRef
       });
-      try { return parsePs1Output(runPs(path.join(AGENTS_DIR, 'joiner', 'Invoke-JoinerProcess.ps1'), { PayloadPath: _pf, WhatIf: w })); }
+      try { return parsePs1Output(await runPsAsync(path.join(AGENTS_DIR, 'joiner', 'Invoke-JoinerProcess.ps1'), { PayloadPath: _pf, WhatIf: w })); }
       finally { try { fs.unlinkSync(_pf); } catch {} }
     }
     case 'submit_enroller': {
@@ -1025,7 +1070,7 @@ function executeTool(agent, toolName, input, whatif) {
         groups: input.groups,
         ticketRef: input.ticketRef
       });
-      try { return parsePs1Output(runPs(path.join(AGENTS_DIR, 'enroller', 'Invoke-EnrollerProcess.ps1'), { PayloadPath: _pfEnr, WhatIf: w })); }
+      try { return parsePs1Output(await runPsAsync(path.join(AGENTS_DIR, 'enroller', 'Invoke-EnrollerProcess.ps1'), { PayloadPath: _pfEnr, WhatIf: w })); }
       finally { try { fs.unlinkSync(_pfEnr); } catch {} }
     }
     case 'submit_mover':
@@ -1041,7 +1086,7 @@ function executeTool(agent, toolName, input, whatif) {
           groupsToRemove: input.groupsToRemove,
           ticketRef: input.ticketRef
         });
-        try { return parsePs1Output(runPs(path.join(AGENTS_DIR, 'mover', 'Invoke-MoverProcess.ps1'), { PayloadPath: _pf, WhatIf: w })); }
+        try { return parsePs1Output(await runPsAsync(path.join(AGENTS_DIR, 'mover', 'Invoke-MoverProcess.ps1'), { PayloadPath: _pf, WhatIf: w })); }
         finally { try { fs.unlinkSync(_pf); } catch {} }
       }
     case 'submit_leaver_soft':
@@ -1060,7 +1105,7 @@ function executeTool(agent, toolName, input, whatif) {
         return { approvalRequired: true, message: 'Hard-stage leavers require admin approval in Live mode. This request would be queued for admin sign-off.' };
       }
       try {
-        return parsePs1Output(runPs(path.join(AGENTS_DIR, 'leaver', 'Invoke-LeaverProcess.ps1'), {
+        return parsePs1Output(await runPsAsync(path.join(AGENTS_DIR, 'leaver', 'Invoke-LeaverProcess.ps1'), {
           UserPrincipalName: input.userPrincipalName, Stage: _stage, WhatIf: w, OperatorRole: currentRole
         }));
       } catch (_lErr) {
@@ -1153,7 +1198,7 @@ async function runAgentLoop(sender, agent, userText) {
         let result;
         let toolError = null;
         try {
-          result = executeTool(agent, tool.name, tool.input, agentState.whatif);
+          result = await executeTool(agent, tool.name, tool.input, agentState.whatif);
           const classified = classifyToolResult(result);
           // Pass structured result for cards that render it (risk score, provisioning suggestions)
           const sendResult = (tool.name === 'score_risk' || tool.name === 'suggest_provisioning') ? result : undefined;
@@ -1322,9 +1367,7 @@ ipcMain.handle('export-evidence-packet', async (event, payload) => {
     let integrity = 'not run';
     try {
       const verifyScript = path.join(AGENTS_DIR, 'shared', 'Verify-AuditLog.ps1');
-      const out = execFileSync('powershell',
-        ['-NonInteractive', '-File', verifyScript, '-AuditLogPath', auditPath],
-        { encoding: 'utf8', timeout: 60000 });
+      const out = await runPsAsync(verifyScript, { AuditLogPath: auditPath });
       const line = out.trim().split('\n').map(l => l.trim()).filter(Boolean).pop() || '';
       integrity = line;
     } catch (e) {
@@ -1548,7 +1591,7 @@ ipcMain.on('panel-save-bounds', (_, bounds) => { savePanelBounds(bounds); });
 
 ipcMain.on('panel-request-refresh', () => { pushFreshPanelData(); });
 
-ipcMain.handle('panel-approve-pending', (event, { id, writeToken }) => {
+ipcMain.handle('panel-approve-pending', async (event, { id, writeToken }) => {
   const role = (currentRole || 'viewer').toLowerCase();
   if (role === 'viewer' || role === 'guest') return { ok: false, error: 'Read-only role — blocked' };
   if (!writeToken) return { ok: false, error: 'PIN verification required' };
@@ -1563,13 +1606,13 @@ ipcMain.handle('panel-approve-pending', (event, { id, writeToken }) => {
     let raw;
     if (tool === 'submit_joiner') {
       const pf = writePayloadFile({ givenName: inp.givenName, surname: inp.surname, userPrincipalName: inp.userPrincipalName, department: inp.department, jobTitle: inp.jobTitle, usageLocation: inp.usageLocation });
-      try { raw = runPs(path.join(AGENTS_DIR, 'joiner', 'Invoke-JoinerProcess.ps1'), { PayloadPath: pf }); }
+      try { raw = await runPsAsync(path.join(AGENTS_DIR, 'joiner', 'Invoke-JoinerProcess.ps1'), { PayloadPath: pf }); }
       finally { try { fs.unlinkSync(pf); } catch {} }
     } else {
       const stage = inp.stage || (tool.includes('hard') ? 'Hard' : 'Soft');
       const params = { UserPrincipalName: inp.userPrincipalName, Stage: stage, OperatorRole: 'admin' };
       if (inp.ticketRef) params.TicketRef = inp.ticketRef;
-      raw = runPs(path.join(AGENTS_DIR, 'leaver', 'Invoke-LeaverProcess.ps1'), params);
+      raw = await runPsAsync(path.join(AGENTS_DIR, 'leaver', 'Invoke-LeaverProcess.ps1'), params);
     }
     parsePs1Output(raw);
     fs.unlinkSync(file);
@@ -1674,7 +1717,7 @@ function requireWriteToken(event, payload, eventName) {
   return true;
 }
 
-ipcMain.on('approve-pending', (event, payload) => {
+ipcMain.on('approve-pending', async (event, payload) => {
   if (!requireWriteToken(event, payload, 'approve-result')) return;
   const { id } = payload || {};
   try {
@@ -1695,13 +1738,13 @@ ipcMain.on('approve-pending', (event, payload) => {
     let raw;
     if (tool === 'submit_joiner') {
       const pf = writePayloadFile({ givenName: inp.givenName, surname: inp.surname, userPrincipalName: inp.userPrincipalName, department: inp.department, jobTitle: inp.jobTitle, usageLocation: inp.usageLocation });
-      try { raw = runPs(path.join(AGENTS_DIR, 'joiner', 'Invoke-JoinerProcess.ps1'), { PayloadPath: pf }); }
+      try { raw = await runPsAsync(path.join(AGENTS_DIR, 'joiner', 'Invoke-JoinerProcess.ps1'), { PayloadPath: pf }); }
       finally { try { fs.unlinkSync(pf); } catch {} }
     } else {
       const stage = inp.stage || (tool.includes('hard') ? 'Hard' : 'Soft');
       const params = { UserPrincipalName: inp.userPrincipalName, Stage: stage, OperatorRole: 'admin' };
       if (inp.ticketRef) params.TicketRef = inp.ticketRef;
-      raw = runPs(path.join(AGENTS_DIR, 'leaver', 'Invoke-LeaverProcess.ps1'), params);
+      raw = await runPsAsync(path.join(AGENTS_DIR, 'leaver', 'Invoke-LeaverProcess.ps1'), params);
     }
     const result = parsePs1Output(raw);
     fs.unlinkSync(file);
@@ -1740,10 +1783,10 @@ ipcMain.on('run-bulk-import', async (event, { rows, whatif }) => {
           userPrincipalName: row.userPrincipalName, department: row.department,
           jobTitle: row.jobTitle, usageLocation: row.usageLocation
         });
-        try { raw = runPs(path.join(AGENTS_DIR, 'joiner', 'Invoke-JoinerProcess.ps1'), { PayloadPath: _pf2, WhatIf: !!whatif }); }
+        try { raw = await runPsAsync(path.join(AGENTS_DIR, 'joiner', 'Invoke-JoinerProcess.ps1'), { PayloadPath: _pf2, WhatIf: !!whatif }); }
         finally { try { fs.unlinkSync(_pf2); } catch {} }
       } else if (op === 'leaver') {
-        raw = runPs(path.join(AGENTS_DIR, 'leaver', 'Invoke-LeaverProcess.ps1'), {
+        raw = await runPsAsync(path.join(AGENTS_DIR, 'leaver', 'Invoke-LeaverProcess.ps1'), {
           UserPrincipalName: row.userPrincipalName, Stage: row.stage || 'Soft',
           TicketRef: row.ticketRef, WhatIf: !!whatif
         });
@@ -1759,7 +1802,7 @@ ipcMain.on('run-bulk-import', async (event, { rows, whatif }) => {
           groupsToRemove: row.groupsToRemove,
           ticketRef: row.ticketRef
         });
-        try { raw = runPs(path.join(AGENTS_DIR, 'mover', 'Invoke-MoverProcess.ps1'), { PayloadPath: _pfMover, WhatIf: !!whatif }); }
+        try { raw = await runPsAsync(path.join(AGENTS_DIR, 'mover', 'Invoke-MoverProcess.ps1'), { PayloadPath: _pfMover, WhatIf: !!whatif }); }
         finally { try { fs.unlinkSync(_pfMover); } catch {} }
       } else {
         throw new Error('Unknown operation: ' + row.operation);
@@ -1795,9 +1838,9 @@ ipcMain.on('delete-scheduled-op', (event, { id }) => {
 });
 
 // ── Certifications tab ────────────────────────────────────────────────────────
-ipcMain.on('run-certification', (event, { campaignType, whatif }) => {
+ipcMain.on('run-certification', async (event, { campaignType, whatif }) => {
   try {
-    const raw    = runPs(CERT_SCRIPT, { CampaignType: campaignType, WhatIf: !!whatif });
+    const raw    = await runPsAsync(CERT_SCRIPT, { CampaignType: campaignType, WhatIf: !!whatif });
     const lines  = raw.trim().split('\n')
       .filter(l => /\[Certifier\]/.test(l))
       .map(l => l.replace(/^\[\d{2}:\d{2}:\d{2}\] /, '').trim());
@@ -1946,13 +1989,6 @@ ipcMain.handle('get-access-snapshot', async (_, { upn }) => {
   try {
     const cfgPath = path.join(AGENTS_DIR, 'auditor', 'config.json');
     const ps = `
-$OutputEncoding = New-Object System.Text.UTF8Encoding $false
-[Console]::OutputEncoding = New-Object System.Text.UTF8Encoding $false
-Import-Module Microsoft.Graph.Authentication -ErrorAction SilentlyContinue
-$cfg = [System.IO.File]::ReadAllText('${cfgPath.replace(/'/g, "''")}') | ConvertFrom-Json
-$agentsRoot = '${AGENTS_DIR}'
-. (Join-Path $agentsRoot 'shared\\Helpers.ps1')
-Connect-AgentGraph -Config $cfg
 $uid = '${String(upn).replace(/'/g, "''")}'
 $user = Invoke-GraphWithRetry -Method GET -Uri "https://graph.microsoft.com/v1.0/users/$uid\`?\`$select=displayName,userPrincipalName,accountEnabled,department,jobTitle"
 $lic  = Invoke-GraphWithRetry -Method GET -Uri "https://graph.microsoft.com/v1.0/users/$uid/licenseDetails?\`$select=skuPartNumber"
@@ -1966,7 +2002,7 @@ $grp  = Invoke-GraphWithRetry -Method GET -Uri "https://graph.microsoft.com/v1.0
   groups         = @($grp.value | ForEach-Object { $_.displayName })
 } | ConvertTo-Json -Depth 4 -Compress
 `;
-    const raw = execFileSync('powershell', ['-NonInteractive', '-Command', ps], { encoding: 'utf8', timeout: 60000 }).split(String.fromCharCode(0xFEFF)).join('');
+    const raw = (await runAuditorGraph(ps)).split(String.fromCharCode(0xFEFF)).join('');
     const snap = _parseMultilineJson(raw, 'No output from snapshot query');
     if (snap && snap.error) return { ok: false, error: snap.error };
     return { ok: true, snapshot: snap };
@@ -1979,13 +2015,13 @@ $grp  = Invoke-GraphWithRetry -Method GET -Uri "https://graph.microsoft.com/v1.0
 // Read-only: runs the same risk/policy engine as score_risk without executing.
 // Returns the decision (allow / warn / requires_approval / blocked), matched
 // policies, risk level, and dual-approval requirement.
-ipcMain.handle('simulate-policy', (_, payload) => {
+ipcMain.handle('simulate-policy', async (_, payload) => {
   const { operation, userPrincipalName, licenses, groups, newDepartment } = payload || {};
   if (!operation || !userPrincipalName) {
     return { ok: false, error: 'operation and userPrincipalName are required' };
   }
   try {
-    const raw = runPs(path.join(AGENTS_DIR, 'auditor', 'Invoke-RiskScore.ps1'), {
+    const raw = await runPsAsync(path.join(AGENTS_DIR, 'auditor', 'Invoke-RiskScore.ps1'), {
       Operation:         operation,
       UserPrincipalName: userPrincipalName,
       Licenses:          licenses || '',
@@ -2027,7 +2063,7 @@ ipcMain.handle('quarantine-agent', async (event, payload) => {
     };
     if (whatif) args.WhatIf = true;
     if (revoke) args.Revoke = true;
-    const raw = runPs(path.join(AGENTS_DIR, 'provisioner', 'Invoke-AgentQuarantine.ps1'), args);
+    const raw = await runPsAsync(path.join(AGENTS_DIR, 'provisioner', 'Invoke-AgentQuarantine.ps1'), args);
     const result = _parseMultilineJson(raw, 'No output from quarantine script');
     return result;
   } catch (err) {
@@ -3330,7 +3366,7 @@ app.whenReady().then(() => {
   pollLastEvent();
   pollHrQueue();
 
-  setInterval(() => {
+  setInterval(async () => {
     const ops  = loadScheduled();
     const now  = new Date();
     let changed = false;
@@ -3348,10 +3384,10 @@ app.whenReady().then(() => {
             userPrincipalName: payload.userPrincipalName, department: payload.department,
             jobTitle: payload.jobTitle, usageLocation: payload.usageLocation
           });
-          try { raw = runPs(path.join(AGENTS_DIR, 'joiner', 'Invoke-JoinerProcess.ps1'), { PayloadPath: _pf3, WhatIf: w }); }
+          try { raw = await runPsAsync(path.join(AGENTS_DIR, 'joiner', 'Invoke-JoinerProcess.ps1'), { PayloadPath: _pf3, WhatIf: w }); }
           finally { try { fs.unlinkSync(_pf3); } catch {} }
         } else if (opName === 'leaver') {
-          raw = runPs(path.join(AGENTS_DIR, 'leaver', 'Invoke-LeaverProcess.ps1'), {
+          raw = await runPsAsync(path.join(AGENTS_DIR, 'leaver', 'Invoke-LeaverProcess.ps1'), {
             UserPrincipalName: payload.userPrincipalName, Stage: payload.stage || 'Soft',
             TicketRef: payload.ticketRef, WhatIf: w
           });
@@ -3367,7 +3403,7 @@ app.whenReady().then(() => {
             groupsToRemove: payload.groupsToRemove,
             ticketRef: payload.ticketRef
           });
-          try { raw = runPs(path.join(AGENTS_DIR, 'mover', 'Invoke-MoverProcess.ps1'), { PayloadPath: _pfMover, WhatIf: w }); }
+          try { raw = await runPsAsync(path.join(AGENTS_DIR, 'mover', 'Invoke-MoverProcess.ps1'), { PayloadPath: _pfMover, WhatIf: w }); }
           finally { try { fs.unlinkSync(_pfMover); } catch {} }
         }
         op.status = 'executed';
@@ -3382,27 +3418,23 @@ app.whenReady().then(() => {
 });
 
 app.on('window-all-closed', () => { if (quitting) app.quit(); });
-app.on('will-quit', () => { globalShortcut.unregisterAll(); });
+app.on('will-quit', () => { globalShortcut.unregisterAll(); _graphSession?.dispose(); });
 
 // ── Feature: User Lookup ──────────────────────────────────────────────────────
-ipcMain.on('search-users', (event, { query }) => {
+let _userSearchSeq = 0;
+ipcMain.on('search-users', async (event, { query }) => {
+  const seq = ++_userSearchSeq;
   try {
     const cfgPath = path.join(AGENTS_DIR, 'auditor', 'config.json');
     const cfg = readJson(cfgPath);
     const ps = `
-$OutputEncoding = New-Object System.Text.UTF8Encoding $false
-[Console]::OutputEncoding = New-Object System.Text.UTF8Encoding $false
-Import-Module Microsoft.Graph.Authentication -ErrorAction SilentlyContinue
-$cfg = [System.IO.File]::ReadAllText('${cfgPath.replace(/'/g, "''")}') | ConvertFrom-Json
-$agentsRoot = '${AGENTS_DIR}'
-. (Join-Path $agentsRoot 'shared\\Helpers.ps1')
-Connect-AgentGraph -Config $cfg
 $q = '${query.replace(/'/g, "''")}'
 $uri = "https://graph.microsoft.com/v1.0/users?\`$search=\`"displayName:$q\`" OR \`"userPrincipalName:$q\`"&\`$select=id,displayName,userPrincipalName,accountEnabled&\`$top=25&\`$count=true"
 $resp = Invoke-MgGraphRequest -Method GET -Uri $uri -Headers @{'ConsistencyLevel'='eventual'} -ErrorAction Stop
 if ($resp.value -and @($resp.value).Count -gt 0) { @($resp.value) | ConvertTo-Json -Depth 2 -Compress } else { '[]' }
 `;
-    const raw = execFileSync('powershell', ['-NonInteractive', '-Command', ps], { encoding: 'utf8', timeout: 60000 }).split(String.fromCharCode(0xFEFF)).join('');
+    const raw = (await runAuditorGraph(ps)).split(String.fromCharCode(0xFEFF)).join('');
+    if (seq !== _userSearchSeq) return; // superseded by a newer keystroke
     const jsonLine = raw.trim().split('\n').map(l => l.split(String.fromCharCode(0xFEFF)).join('')).filter(l => l.trim().startsWith('[') || l.trim().startsWith('{')).slice(-1)[0] || '[]';
     let users = [];
     try {
@@ -3419,21 +3451,15 @@ if ($resp.value -and @($resp.value).Count -gt 0) { @($resp.value) | ConvertTo-Js
     if (_sharedUserCache.length > 500) _sharedUserCache = _sharedUserCache.slice(-500);
     event.sender.send('user-search-results', { users });
   } catch (err) {
+    if (seq !== _userSearchSeq) return;
     event.sender.send('user-search-results', { users: [], error: err.message });
   }
 });
 
-ipcMain.on('get-user-detail', (event, { userId }) => {
+ipcMain.on('get-user-detail', async (event, { userId }) => {
   try {
     const cfgPath = path.join(AGENTS_DIR, 'auditor', 'config.json');
     const ps = `
-$OutputEncoding = New-Object System.Text.UTF8Encoding $false
-[Console]::OutputEncoding = New-Object System.Text.UTF8Encoding $false
-Import-Module Microsoft.Graph.Authentication -ErrorAction SilentlyContinue
-$cfg = [System.IO.File]::ReadAllText('${cfgPath.replace(/'/g, "''")}') | ConvertFrom-Json
-$agentsRoot = '${AGENTS_DIR}'
-. (Join-Path $agentsRoot 'shared\\Helpers.ps1')
-Connect-AgentGraph -Config $cfg
 $uid = '${userId.replace(/'/g, "''")}'
 $user = Invoke-GraphWithRetry -Method GET -Uri "https://graph.microsoft.com/v1.0/users/$uid\`?\`$select=id,displayName,userPrincipalName,accountEnabled,department,jobTitle,officeLocation,usageLocation,createdDateTime"
 $licensesRaw = Invoke-GraphWithRetry -Method GET -Uri "https://graph.microsoft.com/v1.0/users/$uid/licenseDetails?\`$select=skuPartNumber"
@@ -3448,7 +3474,7 @@ $out = @{
 }
 $out | ConvertTo-Json -Depth 4 -Compress
 `;
-    const raw = execFileSync('powershell', ['-NonInteractive', '-Command', ps], { encoding: 'utf8', timeout: 60000 }).split(String.fromCharCode(0xFEFF)).join('');
+    const raw = (await runAuditorGraph(ps)).split(String.fromCharCode(0xFEFF)).join('');
     const jsonLine = raw.trim().split('\n').map(l => l.trim()).filter(l => l.startsWith('{') || l.startsWith('[')).slice(-1)[0] || '';
     let detail = {};
     try { if (jsonLine) detail = JSON.parse(jsonLine); } catch {}
@@ -3459,7 +3485,7 @@ $out | ConvertTo-Json -Depth 4 -Compress
 });
 
 // ── Feature: Quick Mover ──────────────────────────────────────────────────────
-ipcMain.on('run-quick-mover', (event, payload) => {
+ipcMain.on('run-quick-mover', async (event, payload) => {
   if (!requireWriteToken(event, payload, 'quick-op-result')) return;
   const { upn, newDepartment, newJobTitle, newManager, whatif } = payload || {};
   const pf = writePayloadFile({
@@ -3469,7 +3495,7 @@ ipcMain.on('run-quick-mover', (event, payload) => {
     manager:    newManager    || null
   });
   try {
-    const raw    = runPs(path.join(AGENTS_DIR, 'mover', 'Invoke-MoverProcess.ps1'), { PayloadPath: pf, WhatIf: !!whatif });
+    const raw    = await runPsAsync(path.join(AGENTS_DIR, 'mover', 'Invoke-MoverProcess.ps1'), { PayloadPath: pf, WhatIf: !!whatif });
     const result = parsePs1Output(raw);
     event.sender.send('quick-op-result', { type: 'mover', lines: result.lines, data: result.data });
   } catch (err) {
@@ -3480,11 +3506,11 @@ ipcMain.on('run-quick-mover', (event, payload) => {
 });
 
 // ── Feature: Quick Leaver ─────────────────────────────────────────────────────
-ipcMain.on('run-quick-leaver', (event, payload) => {
+ipcMain.on('run-quick-leaver', async (event, payload) => {
   if (!requireWriteToken(event, payload, 'quick-op-result')) return;
   const { upn, stage, reason, whatif } = payload || {};
   try {
-    const raw    = runPs(path.join(AGENTS_DIR, 'leaver', 'Invoke-LeaverProcess.ps1'), {
+    const raw    = await runPsAsync(path.join(AGENTS_DIR, 'leaver', 'Invoke-LeaverProcess.ps1'), {
       UserPrincipalName: upn, Stage: stage || 'Soft',
       TicketRef: reason || '', WhatIf: !!whatif, OperatorRole: currentRole
     });
@@ -3503,11 +3529,11 @@ ipcMain.on('run-quick-leaver', (event, payload) => {
 });
 
 // ── Feature: Stale Accounts ───────────────────────────────────────────────────
-ipcMain.on('get-stale-accounts', (event, { days }) => {
+ipcMain.on('get-stale-accounts', async (event, { days }) => {
   try {
     const script = path.join(AGENTS_DIR, 'auditor', 'Invoke-AuditorQuery.ps1');
     if (!fs.existsSync(script)) { event.sender.send('stale-accounts', { accounts: [], error: 'Auditor not configured' }); return; }
-    const raw      = runPs(script, { QueryType: 'StaleAccounts', Days: days || 90, TopN: 100 });
+    const raw      = await runPsAsync(script, { QueryType: 'StaleAccounts', Days: days || 90, TopN: 100 });
     const jsonLine = raw.trim().split('\n').filter(l => l.trim().startsWith('{')).pop();
     let data = {};
     try { if (jsonLine) data = JSON.parse(jsonLine); } catch {}
@@ -3523,7 +3549,7 @@ ipcMain.on('get-stale-accounts', (event, { days }) => {
   }
 });
 
-ipcMain.on('disable-stale-accounts', (event, { userIds }) => {
+ipcMain.on('disable-stale-accounts', async (event, { userIds }) => {
   try {
     const cfgPath = path.join(AGENTS_DIR, 'joiner', 'config.json');
     if (!fs.existsSync(cfgPath)) { event.sender.send('stale-disable-result', { ok: false, error: 'Joiner config not found' }); return; }
@@ -3547,7 +3573,7 @@ foreach ($id in $ids) {
 }
 @{ disabled = $disabled } | ConvertTo-Json
 `;
-    const raw = execFileSync('powershell', ['-NonInteractive', '-Command', ps], { encoding: 'utf8', timeout: 120000 });
+    const raw = await runPsCommand(ps, { timeout: 120000 });
     const jsonLine = raw.trim().split('\n').filter(l => l.trim().startsWith('{')).pop();
     let result = { disabled: 0 };
     try { if (jsonLine) result = JSON.parse(jsonLine); } catch {}
@@ -3558,17 +3584,10 @@ foreach ($id in $ids) {
 });
 
 // ── Feature: License Utilization ──────────────────────────────────────────────
-ipcMain.on('get-license-utilization', (event) => {
+ipcMain.on('get-license-utilization', async (event) => {
   try {
     const cfgPath = path.join(AGENTS_DIR, 'auditor', 'config.json');
     const ps = `
-$OutputEncoding = New-Object System.Text.UTF8Encoding $false
-[Console]::OutputEncoding = New-Object System.Text.UTF8Encoding $false
-Import-Module Microsoft.Graph.Authentication -ErrorAction SilentlyContinue
-$cfg = [System.IO.File]::ReadAllText('${cfgPath.replace(/'/g, "''")}') | ConvertFrom-Json
-$agentsRoot = '${AGENTS_DIR}'
-. (Join-Path $agentsRoot 'shared\\Helpers.ps1')
-Connect-AgentGraph -Config $cfg
 $resp = Invoke-GraphWithRetry -Method GET -Uri "https://graph.microsoft.com/v1.0/subscribedSkus?\`$select=skuPartNumber,prepaidUnits,consumedUnits"
 $skus = $resp.value | ForEach-Object {
   @{
@@ -3580,7 +3599,7 @@ $skus = $resp.value | ForEach-Object {
 }
 @{ skus = @($skus) } | ConvertTo-Json -Depth 3 -Compress
 `;
-    const raw = execFileSync('powershell', ['-NonInteractive', '-Command', ps], { encoding: 'utf8', timeout: 60000 }).split(String.fromCharCode(0xFEFF)).join('');
+    const raw = (await runAuditorGraph(ps)).split(String.fromCharCode(0xFEFF)).join('');
     const jsonLine = raw.trim().split('\n').map(l => l.trim()).filter(l => l.startsWith('{')).slice(-1)[0];
     let data = { skus: [] };
     try { if (jsonLine) data = JSON.parse(jsonLine); } catch {}
@@ -3620,22 +3639,15 @@ ipcMain.on('get-cert-expiry', (event) => {
 });
 
 // ── Feature: SoD Conflict Tester ─────────────────────────────────────────────
-ipcMain.on('test-sod-conflict', (event, { groupA, groupB, upn }) => {
+ipcMain.on('test-sod-conflict', async (event, { groupA, groupB, upn }) => {
   try {
     const script = path.join(AGENTS_DIR, 'shared', 'Invoke-SoDCheck.ps1');
     const cfgPath = path.join(AGENTS_DIR, 'auditor', 'config.json');
     const ps = `
-$OutputEncoding = New-Object System.Text.UTF8Encoding $false
-[Console]::OutputEncoding = New-Object System.Text.UTF8Encoding $false
-Import-Module Microsoft.Graph.Authentication -ErrorAction SilentlyContinue
-$cfg = [System.IO.File]::ReadAllText('${cfgPath.replace(/'/g, "''")}') | ConvertFrom-Json
-$agentsRoot = '${AGENTS_DIR}'
-. (Join-Path $agentsRoot 'shared\\Helpers.ps1')
-Connect-AgentGraph -Config $cfg
 $result = & '${script.replace(/\\/g, '\\\\')}' -UserPrincipalName '${(upn || 'test@test.com').replace(/'/g, "''")}' -IncomingGroups @('${groupA.replace(/'/g, "''")}','${groupB.replace(/'/g, "''")}')
 $result | ConvertTo-Json -Depth 3 -Compress
 `;
-    const raw = execFileSync('powershell', ['-NonInteractive', '-Command', ps], { encoding: 'utf8', timeout: 60000 }).split(String.fromCharCode(0xFEFF)).join('');
+    const raw = (await runAuditorGraph(ps)).split(String.fromCharCode(0xFEFF)).join('');
     const jsonLine = raw.trim().split('\n').map(l => l.trim()).filter(l => l.startsWith('{')).slice(-1)[0];
     let result = {};
     try { if (jsonLine) result = JSON.parse(jsonLine); } catch {}
@@ -3646,7 +3658,7 @@ $result | ConvertTo-Json -Depth 3 -Compress
 });
 
 // ── Feature: Graph Query Runner ───────────────────────────────────────────────
-ipcMain.on('run-graph-query', (event, payload) => {
+ipcMain.on('run-graph-query', async (event, payload) => {
   try {
     const { method, url, body } = payload || {};
     const verb = String(method || 'GET').toUpperCase();
@@ -3659,17 +3671,10 @@ ipcMain.on('run-graph-query', (event, payload) => {
       ? `-Body ('${safeBody.replace(/'/g, "''")}' | ConvertFrom-Json)`
       : '';
     const ps = `
-$OutputEncoding = New-Object System.Text.UTF8Encoding $false
-[Console]::OutputEncoding = New-Object System.Text.UTF8Encoding $false
-Import-Module Microsoft.Graph.Authentication -ErrorAction SilentlyContinue
-$cfg = [System.IO.File]::ReadAllText('${cfgPath.replace(/'/g, "''")}') | ConvertFrom-Json
-$agentsRoot = '${AGENTS_DIR}'
-. (Join-Path $agentsRoot 'shared\\Helpers.ps1')
-Connect-AgentGraph -Config $cfg
 $resp = Invoke-GraphWithRetry -Method ${verb} -Uri '${safeUrl}' ${bodyBlock}
 $resp | ConvertTo-Json -Depth 6 -Compress
 `;
-    const raw = execFileSync('powershell', ['-NonInteractive', '-Command', ps], { encoding: 'utf8', timeout: 60000 }).split(String.fromCharCode(0xFEFF)).join('');
+    const raw = (await runAuditorGraph(ps)).split(String.fromCharCode(0xFEFF)).join('');
     const jsonLine = raw.trim().split('\n').map(l => l.trim()).filter(l => l.startsWith('{') || l.startsWith('[')).slice(-1)[0] || '';
     let result = null;
     try { result = jsonLine ? JSON.parse(jsonLine) : raw.trim(); } catch { result = raw.trim(); }
@@ -3711,17 +3716,10 @@ ipcMain.on('suggest-graph-query', async (event, { description }) => {
 });
 
 // ── Feature: PIM Roles ────────────────────────────────────────────────────────
-ipcMain.on('get-pim-roles', (event) => {
+ipcMain.on('get-pim-roles', async (event) => {
   try {
     const cfgPath = path.join(AGENTS_DIR, 'auditor', 'config.json');
     const ps = `
-$OutputEncoding = New-Object System.Text.UTF8Encoding $false
-[Console]::OutputEncoding = New-Object System.Text.UTF8Encoding $false
-Import-Module Microsoft.Graph.Authentication -ErrorAction SilentlyContinue
-$cfg = [System.IO.File]::ReadAllText('${cfgPath.replace(/'/g, "''")}') | ConvertFrom-Json
-$agentsRoot = '${AGENTS_DIR}'
-. (Join-Path $agentsRoot 'shared\\Helpers.ps1')
-Connect-AgentGraph -Config $cfg
 try {
   $elig = Invoke-GraphWithRetry -Method GET -Uri "https://graph.microsoft.com/v1.0/roleManagement/directory/roleEligibilitySchedules?\`$expand=roleDefinition"
   $active = Invoke-GraphWithRetry -Method GET -Uri "https://graph.microsoft.com/v1.0/roleManagement/directory/roleAssignmentSchedules?\`$expand=roleDefinition"
@@ -3738,7 +3736,7 @@ try {
   @{ ok=$false; error=$_.Exception.Message; roles=@() } | ConvertTo-Json -Depth 2 -Compress
 }
 `;
-    const raw = execFileSync('powershell', ['-NonInteractive', '-Command', ps], { encoding: 'utf8', timeout: 60000 }).split(String.fromCharCode(0xFEFF)).join('');
+    const raw = (await runAuditorGraph(ps)).split(String.fromCharCode(0xFEFF)).join('');
     const jsonLine = raw.trim().split('\n').map(l => l.trim()).filter(l => l.startsWith('{')).slice(-1)[0];
     let data = { ok: false, roles: [] };
     try { if (jsonLine) data = JSON.parse(jsonLine); } catch {}
@@ -3748,7 +3746,7 @@ try {
   }
 });
 
-ipcMain.on('activate-pim-role', (event, { roleDefinitionId, justification, durationHours }) => {
+ipcMain.on('activate-pim-role', async (event, { roleDefinitionId, justification, durationHours }) => {
   try {
     const cfgPath = path.join(AGENTS_DIR, 'auditor', 'config.json');
     const cfg = readJson(cfgPath);
@@ -3779,7 +3777,7 @@ try {
   @{ ok=$false; error=$_.Exception.Message } | ConvertTo-Json -Compress
 }
 `;
-    const raw = execFileSync('powershell', ['-NonInteractive', '-Command', ps], { encoding: 'utf8', timeout: 60000 }).split(String.fromCharCode(0xFEFF)).join('');
+    const raw = (await runPsCommand(ps)).split(String.fromCharCode(0xFEFF)).join('');
     const jsonLine = raw.trim().split('\n').map(l => l.trim()).filter(l => l.startsWith('{')).slice(-1)[0];
     let result = { ok: false };
     try { if (jsonLine) result = JSON.parse(jsonLine); } catch {}
