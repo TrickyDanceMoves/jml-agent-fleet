@@ -11,16 +11,17 @@ Updated: June 11, 2026
   and will erase uncommitted work.
 - Before changing files, run `git status -sb` and preserve work from other sessions.
 
-## Current State
+## Current State (hackathon submission prep, 2026-06-11)
 
-- Glass Screen Command Center is implemented and committed through `b014d3c`.
-- All 48 automated tests pass.
-- Glass state capture passes for idle, running, approval, failure, partial, success,
-  replay, reduced motion, and narrow layouts.
-- Full console capture passes for all 16 views.
-- Async PowerShell and warm Graph-session work is committed as `e35fe07`.
-- The branch is one commit ahead of `origin/main`.
-- The only uncommitted work should be this review handoff and review document.
+- Glass Screen Command Center implemented; crisp transparent floating shell final
+  (`b014d3c` — acrylic explicitly rejected by the user; do not reintroduce OS blur).
+- Async PowerShell everywhere + warm Graph session (`e35fe07`): no UI freezes,
+  repeat queries ~360ms.
+- Hybrid Entra Agent ID migration COMPLETE (`d7d5796`): Auditor + Approver validated
+  live over FMI; write agents stay on SPs (platform constraint).
+- Approver rail infrastructure errors sanitized (`c14072b`).
+- All 48 automated tests pass; full 16-view capture refreshed in docs/images with
+  the rail fix included; README aligned with current state + hackathon CTA.
 
 ## Build Priority
 
@@ -37,7 +38,9 @@ Implement in this order:
    FMI (live UserSummary query), Approver cut over and validated (token minted as agent
    identity). Execution SPs retained for write agents (platform blocks write scopes on
    agent identities). SP retirement for the two read agents deferred until soak.
-3. Sanitize infrastructure errors in the Approver rail. Keep raw output in details.
+3. ✅ DONE 2026-06-11 — Approver rail errors sanitized (`lcSummarizeError` in app.js):
+   one human-readable line in the rail; raw output stays on the operation record
+   for the Glass Screen details drawer and audit.
 4. Upgrade replay from dot animation to narrated stage replay.
 5. Clarify the Fleet Ready idle hero.
 6. Emit real stage events earlier than `submit_*` so Request, Risk, Execute, and Verify
