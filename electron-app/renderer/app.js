@@ -787,6 +787,20 @@ function lcMarkComplete() {
   // event is the authority for success, partial completion, or failure.
 }
 
+// One-line, human-readable failure summary for the lifecycle rail. The raw
+// infrastructure error stays on the operation record — Glass Screen's details
+// drawer and the audit trail carry the full text; the rail never does.
+function lcSummarizeError(error) {
+  if (!error) return null;
+  const text = String(error);
+  if (/certificate|ClientCertificateCredential/i.test(text)) return 'Graph certificate authentication failed';
+  if (/auth|token|credential|401|403/i.test(text)) return 'Graph authentication failed';
+  const line = text.split('\n').map(l => l.trim())
+    .find(l => l && !/^Command failed:/i.test(l) && !/^At /.test(l) && !/^\+/.test(l))
+    || text.split('\n')[0].trim();
+  return line.length > 140 ? line.slice(0, 137) + '…' : line;
+}
+
 function lcApplyOperation(operation) {
   if (!operation || !operation.stage) return;
   lcAdvanceTo(operation.stage);
@@ -794,7 +808,7 @@ function lcApplyOperation(operation) {
   if (operation.status === 'running') return;
   _lcCapturing = false;
   _lcTerminalState = operation.status;
-  _lcTerminalError = operation.error || null;
+  _lcTerminalError = lcSummarizeError(operation.error);
   if (operation.status === 'succeeded') {
     _lcDoneSet.add(operation.stage);
     _lcCurrent = null;
