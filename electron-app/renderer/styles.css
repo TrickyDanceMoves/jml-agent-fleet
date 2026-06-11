@@ -5624,14 +5624,13 @@ html[data-theme="glass"] {
   --scrollbar-thumb-hover: oklch(0.82 0.03 245 / 0.45);
 }
 
-/* Shell: glass paints its own soft neutral backdrop (matches the QC
-   captures) instead of relying on OS Mica — the dark frost islands
-   float crisply on it regardless of wallpaper or platform. */
+/* Shell: fully transparent — the window's acrylic material supplies the
+   blurred desktop behind the islands. Any paint here covers the blur
+   and turns the theme into a flat backdrop (the original "grayish" bug).
+   Containers without DWM (cloud QC) see the acrylic fallback instead;
+   do not re-add a painted backdrop to compensate. */
 html[data-theme="glass"] body {
-  background:
-    radial-gradient(1100px 560px at 90% -10%, oklch(0.88 0.030 285 / 0.55), transparent 60%),
-    radial-gradient(900px 520px at -10% 110%, oklch(0.88 0.030 220 / 0.45), transparent 62%),
-    linear-gradient(160deg, oklch(0.86 0.006 255), oklch(0.74 0.010 255));
+  background: transparent;
 }
 html[data-theme="glass"] .app {
   background: transparent;
