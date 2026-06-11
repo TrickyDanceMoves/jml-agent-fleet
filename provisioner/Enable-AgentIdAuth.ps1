@@ -41,7 +41,10 @@ function Get-RestError {
 
 $tenantId = (Get-Content (Join-Path $agentsRoot "joiner\config.json") -Raw | ConvertFrom-Json).TenantId
 $clientId = "14d82eec-204b-4c2f-b7e8-296a70dab67e"
-$scope    = "https://graph.microsoft.com/Application.ReadWrite.All offline_access openid profile"
+# Blueprint credential writes are governed by the agent-identity scope, not the
+# generic application scope — Application.ReadWrite.All alone gets
+# Authorization_RequestDenied on .../agentIdentityBlueprint/addPassword.
+$scope    = "https://graph.microsoft.com/AgentIdentityBlueprint.ReadWrite.All https://graph.microsoft.com/Application.ReadWrite.All offline_access openid profile"
 
 Write-Log "Requesting device code..."
 $dc = Invoke-RestMethod -Method POST -Uri "https://login.microsoftonline.com/$tenantId/oauth2/v2.0/devicecode" -Body @{ client_id = $clientId; scope = $scope }

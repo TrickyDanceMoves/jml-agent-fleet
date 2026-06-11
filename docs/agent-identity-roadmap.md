@@ -153,15 +153,22 @@ story than "convert everything to Agent ID."
 1. ✅ **Create agent identities** — `New-AgentIdentities.ps1` (done; 6 created).
 2. ✅ **Grant permissions** — `Grant-AgentIdentityPermissions.ps1` (done; 14 granted, write
    scopes blocked as above). Auditor + Approver fully permissioned as Agent IDs.
-3. ☐ **Add and validate a credential on the live blueprint**. Tooling exists in
-   `Enable-AgentIdAuth.ps1`; prefer `addKey` or federation for the durable state after the
-   initial secret-based validation.
+3. ✅ **Add and validate a credential on the live blueprint** (2026-06-11).
+   `Enable-AgentIdAuth.ps1` added the FMI secret — note it required consenting
+   `AgentIdentityBlueprint.ReadWrite.All`; `Application.ReadWrite.All` alone is
+   denied on the blueprint `addPassword` endpoint. Follow-up: replace the secret
+   with `addKey` or a federated credential for the durable state.
 4. ✅ **Implement the two-step FMI flow in `shared/Helpers.ps1`** as the opt-in
    `Connect-AgentGraph` mode selected by `"AuthMode": "agentid"`. The legacy certificate
-   path remains available in parallel. Live Auditor validation is still pending.
-5. ☐ **Cut over the read agents only** (Auditor, Approver) to Agent ID; retire their SPs.
+   path remains available in parallel.
+5. ✅ **Read agents cut over** (2026-06-11): `auditor/config.json` and
+   `approver/config.json` now carry `"AuthMode": "agentid"` and both validated live —
+   Auditor ran `Invoke-AuditorQuery -QueryType UserSummary` over FMI; Approver minted a
+   Graph token as its agent identity (clientId `32019f19-…`) and queried users.
+   Legacy cert/secret fields are retained as fallback; **SP retirement is the only
+   remaining step** and is deliberately deferred until the Agent ID path has soaked.
    **Write agents (Joiner/Mover/Leaver/Enroller) stay on SPs** — the write scopes they need are
-   blocked for agent identities (see KEY CONSTRAINT). Final state = hybrid by design.
+   blocked for agent identities (see KEY CONSTRAINT). Final state = hybrid by design. ✅ ACHIEVED.
 
 `Remove-OrphanBlueprints.ps1` cleans up duplicate "JML Agent Fleet Blueprint" apps from
 failed creation runs (keeps the one backing the live identities).

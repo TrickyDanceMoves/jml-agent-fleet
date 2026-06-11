@@ -32,8 +32,11 @@ Implement in this order:
 
 1. Make operation status authoritative across chat, lifecycle, Dashboard, Operations,
    Glass Screen, Agent Certificates, and Audit.
-2. Complete the hybrid Entra Agent ID migration: validate Auditor over FMI, then cut
-   over Approver; retain execution SPs for write agents.
+2. ✅ DONE 2026-06-11 — hybrid Entra Agent ID migration complete: blueprint FMI secret
+   added (required AgentIdentityBlueprint.ReadWrite.All consent), Auditor validated over
+   FMI (live UserSummary query), Approver cut over and validated (token minted as agent
+   identity). Execution SPs retained for write agents (platform blocks write scopes on
+   agent identities). SP retirement for the two read agents deferred until soak.
 3. Sanitize infrastructure errors in the Approver rail. Keep raw output in details.
 4. Upgrade replay from dot animation to narrated stage replay.
 5. Clarify the Fleet Ready idle hero.
