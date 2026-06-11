@@ -28,9 +28,9 @@ test('glass shell remains visibly transparent instead of becoming a dark theme',
     /background:[\s\S]*?oklch\([^/]+\/\s*([0-9.]+)\s*\)/,
   );
 
-  // Body and .app must be fully transparent so Mica shows through the
-  // gutters between islands with zero gray tint.
-  assert.match(blockFor('html[data-theme="glass"] body'), /background:\s*transparent/);
+  // Body paints its own light neutral backdrop (the QC-approved look)
+  // so the floating islands render identically on any platform.
+  assert.match(blockFor('html[data-theme="glass"] body'), /linear-gradient\(160deg,\s*oklch\(0\.8/);
   assert.match(blockFor('html[data-theme="glass"] .app'), /background:\s*transparent/);
   // Sidebar island frost: dense enough (~60%) that nav text reads on
   // any wallpaper; see-through feel comes from the gutters, not low alpha.
