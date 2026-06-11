@@ -5624,11 +5624,11 @@ html[data-theme="glass"] {
   --scrollbar-thumb-hover: oklch(0.82 0.03 245 / 0.45);
 }
 
-/* Shell: fully transparent — the window's acrylic material supplies the
-   blurred desktop behind the islands. Any paint here covers the blur
-   and turns the theme into a flat backdrop (the original "grayish" bug).
-   Containers without DWM (cloud QC) see the acrylic fallback instead;
-   do not re-add a painted backdrop to compensate. */
+/* Shell: fully transparent — the window itself is transparent and the
+   desktop shows through the island gutters CRISP, with no OS blur
+   (user decision 2026-06-11: acrylic was tried and rejected). Any paint
+   here turns the theme into a flat backdrop (the "grayish" bug); cloud
+   QC containers must not re-add a painted backdrop to compensate. */
 html[data-theme="glass"] body {
   background: transparent;
 }
@@ -5654,11 +5654,12 @@ html[data-theme="glass"] .layout {
   padding: 10px;
 }
 html[data-theme="glass"] .sidebar {
-  /* Dense enough dark frost that nav text reads on any wallpaper —
-     the floating feel comes from the gutters/radius, not low alpha. */
+  /* Dense dark frost: without OS blur, anything behind the window shows
+     through CRISP, so islands must be near-solid for text to read.
+     The floating feel comes from the fully-transparent gutters. */
   background: linear-gradient(180deg,
-    oklch(0.21 0.014 255 / 0.62),
-    oklch(0.13 0.008 260 / 0.56));
+    oklch(0.21 0.014 255 / 0.86),
+    oklch(0.13 0.008 260 / 0.82));
   backdrop-filter: var(--glass-blur);
   border: 1px solid var(--glass-panel-border);
   border-right: 1px solid var(--glass-panel-border);
@@ -5671,8 +5672,8 @@ html[data-theme="glass"] .sidebar {
    backs every loose label/paragraph, with cards stacking on top. */
 html[data-theme="glass"] .content {
   background: linear-gradient(180deg,
-    oklch(0.18 0.012 258 / 0.50),
-    oklch(0.12 0.008 260 / 0.44));
+    oklch(0.18 0.012 258 / 0.88),
+    oklch(0.12 0.008 260 / 0.84));
   backdrop-filter: var(--glass-blur);
   border: 1px solid var(--glass-panel-border);
   border-radius: 16px;
