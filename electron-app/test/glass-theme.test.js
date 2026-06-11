@@ -28,30 +28,31 @@ test('glass shell remains visibly transparent instead of becoming a dark theme',
     /background:[\s\S]*?oklch\([^/]+\/\s*([0-9.]+)\s*\)/,
   );
 
-  // Body and app shell are fully transparent: the window's acrylic
-  // material provides the blurred desktop. Painting anything here
-  // covers the blur and regresses to the flat "grayish" look.
+  // Body and app shell are fully transparent: the window is transparent
+  // and the desktop shows through the gutters crisp (no OS blur, by
+  // user decision). Painting anything here regresses to a flat backdrop.
   assert.match(blockFor('html[data-theme="glass"] body'), /background:\s*transparent/);
   assert.doesNotMatch(blockFor('html[data-theme="glass"] body'), /linear-gradient/);
   assert.match(blockFor('html[data-theme="glass"] .app'), /background:\s*transparent/);
-  // Sidebar island frost: dense enough (~60%) that nav text reads on
-  // any wallpaper; see-through feel comes from the gutters, not low alpha.
-  assert.ok(sidebarAlpha <= 0.68, `glass sidebar alpha ${sidebarAlpha} is too opaque`);
-  assert.ok(sidebarAlpha >= 0.45, `glass sidebar alpha ${sidebarAlpha} too thin for readable nav text`);
+  // Sidebar island frost: near-solid (~85%). Without OS blur the desktop
+  // shows through islands CRISP, so readable text needs dense backing;
+  // the see-through feel comes from the fully transparent gutters.
+  assert.ok(sidebarAlpha <= 0.92, `glass sidebar alpha ${sidebarAlpha} is fully opaque — keep a hint of glow`);
+  assert.ok(sidebarAlpha >= 0.72, `glass sidebar alpha ${sidebarAlpha} too thin — crisp desktop bleed makes nav text unreadable`);
   assert.match(css, /html\[data-theme="glass"\]\s+\.layout,[\s\S]*?background:\s*transparent/s);
   // Floating shell geometry: gutters around the grid, rounded islands —
   // sidebar and content column float separately over the desktop.
   assert.match(blockFor('html[data-theme="glass"] .layout'), /gap:\s*10px/);
   assert.match(blockFor('html[data-theme="glass"] .sidebar'), /border-radius:\s*16px/);
   assert.match(blockFor('html[data-theme="glass"] .content'), /border-radius:\s*16px/);
-  // Content island carries a readable frost so loose labels/paragraphs
-  // outside cards still read on any wallpaper.
+  // Content island carries near-solid frost so loose labels/paragraphs
+  // never compete with crisp desktop bleed-through.
   const contentAlpha = alphaFor(
     'html[data-theme="glass"] .content',
     /background:[\s\S]*?oklch\([^/]+\/\s*([0-9.]+)\s*\)/,
   );
-  assert.ok(contentAlpha >= 0.35 && contentAlpha <= 0.60,
-    `glass content alpha ${contentAlpha} outside readable-but-translucent band`);
+  assert.ok(contentAlpha >= 0.75 && contentAlpha <= 0.92,
+    `glass content alpha ${contentAlpha} outside dense-island band`);
 });
 
 test('glass theme provides readable text and localized control backings', () => {

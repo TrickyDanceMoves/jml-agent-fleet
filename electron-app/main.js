@@ -2193,11 +2193,12 @@ function createMainWindow() {
     minWidth: 900, minHeight: 600,
     frame: false,
     icon: APP_ICON,
-    // No `transparent: true` here — on Windows it disables backgroundMaterial,
-    // leaving the glass theme as flat gray CSS tint with no through-window blur.
-    // Acrylic gives real DWM blur of the desktop behind the window.
+    // Crisp transparent floating shell (user decision 2026-06-11): the desktop
+    // shows through the island gutters unblurred. Deliberately NO
+    // backgroundMaterial — acrylic/mica blur was tried and rejected, and it
+    // also goes solid gray whenever the window loses focus.
+    transparent: true,
     backgroundColor: '#00000000',
-    backgroundMaterial: 'acrylic',
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
