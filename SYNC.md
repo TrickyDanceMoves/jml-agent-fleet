@@ -32,12 +32,14 @@ Implement in this order:
 
 1. Make operation status authoritative across chat, lifecycle, Dashboard, Operations,
    Glass Screen, Agent Certificates, and Audit.
-2. Sanitize infrastructure errors in the Approver rail. Keep raw output in details.
-3. Upgrade replay from dot animation to narrated stage replay.
-4. Clarify the Fleet Ready idle hero.
-5. Emit real stage events earlier than `submit_*` so Request, Risk, Execute, and Verify
+2. Complete the hybrid Entra Agent ID migration: validate Auditor over FMI, then cut
+   over Approver; retain execution SPs for write agents.
+3. Sanitize infrastructure errors in the Approver rail. Keep raw output in details.
+4. Upgrade replay from dot animation to narrated stage replay.
+5. Clarify the Fleet Ready idle hero.
+6. Emit real stage events earlier than `submit_*` so Request, Risk, Execute, and Verify
    are observed rather than inferred.
-6. Preserve and runtime-test the async Graph session work from `e35fe07`.
+7. Preserve and runtime-test the async Graph session work from `e35fe07`.
 
 ## Acceptance Gate
 
@@ -45,6 +47,7 @@ Do not push the next UI revision until Codex has reviewed:
 
 - one live successful Joiner
 - one certificate-authentication failure
+- Auditor and Approver Agent ID authentication status
 - one awaiting-approval Leaver
 - one partial result
 - one interrupted replay when a new live operation arrives

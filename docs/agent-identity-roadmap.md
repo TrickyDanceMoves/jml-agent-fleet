@@ -153,10 +153,12 @@ story than "convert everything to Agent ID."
 1. ✅ **Create agent identities** — `New-AgentIdentities.ps1` (done; 6 created).
 2. ✅ **Grant permissions** — `Grant-AgentIdentityPermissions.ps1` (done; 14 granted, write
    scopes blocked as above). Auditor + Approver fully permissioned as Agent IDs.
-3. ☐ **Add a credential to the blueprint** (`addPassword`/`addKey`/federated) for the FMI flow.
-4. ☐ **Implement the two-step FMI flow in `shared/Helpers.ps1`** as a new `Connect-AgentGraph`
-   mode, selected by a per-agent `config.json` flag (e.g. `"AuthMode": "agentid"`), running in
-   **parallel** with the existing cert path. Validate **Auditor** first (read-only, fully permissioned).
+3. ☐ **Add and validate a credential on the live blueprint**. Tooling exists in
+   `Enable-AgentIdAuth.ps1`; prefer `addKey` or federation for the durable state after the
+   initial secret-based validation.
+4. ✅ **Implement the two-step FMI flow in `shared/Helpers.ps1`** as the opt-in
+   `Connect-AgentGraph` mode selected by `"AuthMode": "agentid"`. The legacy certificate
+   path remains available in parallel. Live Auditor validation is still pending.
 5. ☐ **Cut over the read agents only** (Auditor, Approver) to Agent ID; retire their SPs.
    **Write agents (Joiner/Mover/Leaver/Enroller) stay on SPs** — the write scopes they need are
    blocked for agent identities (see KEY CONSTRAINT). Final state = hybrid by design.

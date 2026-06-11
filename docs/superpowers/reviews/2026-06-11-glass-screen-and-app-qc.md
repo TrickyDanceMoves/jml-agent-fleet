@@ -29,6 +29,40 @@ information hierarchy, and motion behavior rather than missing static layout con
 
 ## P0: Operational Truth
 
+### 0. Agent ID migration is built but not cut over
+
+Six Entra Agent IDs have been created and their grantable permissions assigned. The
+two-step FMI authentication path also exists in `shared/Helpers.ps1`, with setup tooling
+in `provisioner/Enable-AgentIdAuth.ps1`. However, the live Auditor and Approver configs
+still have no `AuthMode: agentid`, `BlueprintAppId`, or `AgentAppId`, so they continue to
+authenticate through certificate-backed app-registration service principals.
+
+The correct target is hybrid, not an all-agent conversion:
+
+- Auditor and Approver migrate to Agent IDs.
+- Joiner, Mover, Leaver, and Enroller retain least-privilege execution SPs because Entra
+  rejects `User.ReadWrite.All` and `GroupMember.ReadWrite.All` for Agent IDs.
+- The Provisioner remains the gated control-plane identity.
+
+Required behavior:
+
+- Add a blueprint credential using the existing setup script, preferably replacing the
+  temporary secret with a certificate or federated credential after validation.
+- Enable `AuthMode: agentid` for Auditor first and run read-query, warm-session, audit,
+  quarantine, and Conditional Access tests.
+- Cut over Approver only after Auditor is stable.
+- Display identity type and authentication path per agent in Agent Certificates and
+  Settings: `Agent ID / FMI`, `Execution SP / certificate`, or degraded.
+- Never label the fleet "migrated" while live configs still use the legacy path.
+- Retire only the Auditor and Approver legacy app registrations after parallel validation.
+
+Relevant code and documentation:
+
+- `docs/agent-identity-roadmap.md`
+- `shared/Helpers.ps1`
+- `provisioner/Enable-AgentIdAuth.ps1`
+- `provisioner/Grant-AgentIdentityPermissions.ps1`
+
 ### 1. A run can look successful and failed at the same time
 
 The Approver capture says `Soft leaver complete` while the lifecycle rail contains a
