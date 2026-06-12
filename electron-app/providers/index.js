@@ -34,6 +34,13 @@ const DEFAULT_CONFIG = {
     baseUrl:    'http://localhost:11434',
     agentModel: 'llama3.1',
     fastModel:  'llama3.1'
+  },
+  // Local Qwen — served by any OpenAI-compatible local runtime (Ollama's /v1
+  // endpoint by default; LM Studio / vLLM work by changing the base URL).
+  qwen: {
+    baseUrl:    'http://localhost:11434',
+    agentModel: 'qwen3:14b',
+    fastModel:  'qwen3:4b'
   }
 };
 
@@ -123,6 +130,16 @@ function buildProvider(config) {
         agentModel:   c.agentModel || 'llama3.1',
         fastModel:    c.fastModel  || 'llama3.1',
         providerName: 'ollama'
+      });
+    }
+    case 'qwen': {
+      const c = config.qwen || {};
+      return new OpenAICompatProvider({
+        apiKey:       'local',
+        baseURL:      `${(c.baseUrl || 'http://localhost:11434').replace(/\/$/, '')}/v1`,
+        agentModel:   c.agentModel || 'qwen3:14b',
+        fastModel:    c.fastModel  || 'qwen3:4b',
+        providerName: 'qwen'
       });
     }
     default:

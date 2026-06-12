@@ -243,6 +243,7 @@ The agent intelligence layer is fully abstracted behind a provider interface (`e
 | OpenAI | OpenAI API with model selection. |
 | Anthropic Claude | Claude API with separate agent (Opus) and fast (Haiku) model slots. |
 | Ollama | Local inference — no API key or network egress required. |
+| Qwen (local) | Qwen 3 family via any OpenAI-compatible local runtime (Ollama `/v1` by default; LM Studio or vLLM by changing the base URL). No API key or egress. |
 
 Switch providers in **Settings → AI Provider** without restarting the app or losing conversation history. The Anthropic message and tool-call format is used as the internal canonical format; each provider adapter converts on the fly.
 

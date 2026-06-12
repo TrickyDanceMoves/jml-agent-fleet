@@ -234,9 +234,9 @@
             </button>
             <button class="v2-triage-card warn" data-jump-tab="approvals" id="triage-approvals">
               <span class="label" id="triage-appr-label">Approvals</span>
-              <span class="title" id="triage-appr-title">Hard leaver awaiting 2nd approval</span>
-              <span class="meta" id="triage-appr-meta">sales-ops / expires in 22 min</span>
-              <span class="sub" id="triage-appr-sub">Plus 2 sensitive group changes</span>
+              <span class="title" id="triage-appr-title">Checking approval queue…</span>
+              <span class="meta" id="triage-appr-meta"></span>
+              <span class="sub" id="triage-appr-sub"></span>
               <span class="v2-triage-cta">Review queue <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="13" height="13"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span>
             </button>
             <button class="v2-triage-card info" data-jump-tab="certs" id="triage-certs">
@@ -2216,6 +2216,7 @@
                       <option value="azure-openai">Azure OpenAI</option>
                       <option value="openai">OpenAI</option>
                       <option value="ollama">Ollama (local)</option>
+                      <option value="qwen">Qwen (local)</option>
                     </select>
                   </div>
                 </div>
@@ -2309,6 +2310,22 @@
                   <div class="set-row">
                     <div><div class="lbl">Fast model</div><div class="desc">Model for quick utility calls (can be the same).</div></div>
                     <div class="val right-ctrl"><input id="ai-ollama-fast-model" type="text" placeholder="llama3.1" style="font-family:var(--mono);font-size:12px;width:200px"></div>
+                  </div>
+                </div>
+
+                <!-- Qwen (local) fields -->
+                <div class="ai-prov-section" id="ai-prov-qwen" style="display:none">
+                  <div class="set-row">
+                    <div><div class="lbl">Base URL</div><div class="desc">OpenAI-compatible local server. Ollama default: <code>http://localhost:11434</code>; LM Studio: <code>http://localhost:1234</code>; vLLM: your serve address.</div></div>
+                    <div class="val right-ctrl"><input id="ai-qwen-url" type="text" placeholder="http://localhost:11434" style="font-family:var(--mono);font-size:12px;width:260px"></div>
+                  </div>
+                  <div class="set-row">
+                    <div><div class="lbl">Agent model</div><div class="desc">Qwen model tag for agent tasks (e.g. <code>qwen3:14b</code>, <code>qwen3:32b</code>). Pull first: <code>ollama pull qwen3:14b</code>.</div></div>
+                    <div class="val right-ctrl"><input id="ai-qwen-agent-model" type="text" placeholder="qwen3:14b" style="font-family:var(--mono);font-size:12px;width:200px"></div>
+                  </div>
+                  <div class="set-row">
+                    <div><div class="lbl">Fast model</div><div class="desc">Smaller Qwen for quick utility calls (e.g. <code>qwen3:4b</code>).</div></div>
+                    <div class="val right-ctrl"><input id="ai-qwen-fast-model" type="text" placeholder="qwen3:4b" style="font-family:var(--mono);font-size:12px;width:200px"></div>
                   </div>
                 </div>
 
