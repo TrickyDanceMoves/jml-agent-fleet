@@ -215,7 +215,7 @@ Do not use an endlessly pulsing orb.
 
 Replay is deliberate and may sequence known stages.
 
-- Default stage interval: 650ms
+- Default stage interval: 850ms (demo-tuned 2026-06-12; was 650ms)
 - Transition duration: 350ms
 - Pause at failure or approval state
 - Replay button changes to `Replay again` after completion
