@@ -44,10 +44,10 @@ test('old replay widget CSS is removed', () => {
   }
 });
 
-test('connector progress transition is 400ms ease-out', () => {
+test('connector progress transition is 350ms ease-out (demo-tuned)', () => {
   const fill = css.match(/\.gs-connector-fill\s*\{[^}]*\}/);
   assert.ok(fill, 'gs-connector-fill rule missing');
-  assert.match(fill[0], /transition[^;]*400ms\s+ease-out/, 'connector must glide 400ms ease-out');
+  assert.match(fill[0], /transition[^;]*350ms\s+ease-out/, 'connector must glide 350ms ease-out');
 });
 
 test('stage activation transition is 250ms', () => {

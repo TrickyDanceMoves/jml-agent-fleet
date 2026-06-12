@@ -185,7 +185,7 @@ Motion communicates state change only.
 
 ### Stage Advance
 
-- Connector progress: 400ms ease-out
+- Connector progress: 350ms ease-out (demo-tuned 2026-06-12; was 400ms)
 - New stage activation: 250ms color and scale settle
 - Completed stage check: 180ms opacity/scale settle
 - No bounce
@@ -215,7 +215,7 @@ Do not use an endlessly pulsing orb.
 
 Replay is deliberate and may sequence known stages.
 
-- Default stage interval: 850ms (demo-tuned 2026-06-12; was 650ms)
+- Default stage interval: 750ms (demo-tuned 2026-06-12 per Codex review; was 650ms)
 - Transition duration: 350ms
 - Pause at failure or approval state
 - Replay button changes to `Replay again` after completion
