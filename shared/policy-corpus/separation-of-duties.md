@@ -6,13 +6,13 @@ corpus via Foundry IQ; a match escalates risk and requires explicit review.
 
 ## Prohibited group combinations
 
-- **Sales-Team ⊕ Finance-Approvers** — a user who books revenue must not also
+- **Sales-Team + Finance-Approvers** — a user who books revenue must not also
   approve the corresponding financial entries. Co-membership is a SoD violation.
-- **Engineering-All ⊕ Production-DBA** — write access to product code and to the
+- **Engineering-All + Production-DBA** — write access to product code and to the
   production datastore on one identity defeats change-control segregation.
-- **Helpdesk-Operators ⊕ Identity-Admins** — ticket handlers must not also hold
+- **Helpdesk-Operators + Identity-Admins** — ticket handlers must not also hold
   directory-admin rights; this is the classic privilege-escalation path.
-- **Procurement ⊕ Vendor-Management** — raising a purchase order and onboarding
+- **Procurement + Vendor-Management** — raising a purchase order and onboarding
   the paying vendor must be two people.
 
 ## Sensitive single memberships (dual approval required)

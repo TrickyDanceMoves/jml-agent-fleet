@@ -27,6 +27,11 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+# Windows PowerShell 5.1 defaults to TLS 1.0; Azure AI Search requires TLS 1.2.
+[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+# PS 5.1 sends "Expect: 100-continue"; Azure Search drops larger POSTs that use
+# it ("unexpected error occurred on a send"). Disable it for document uploads.
+[Net.ServicePointManager]::Expect100Continue = $false
 $agentsRoot = Split-Path $PSScriptRoot -Parent
 $corpusDir  = Join-Path $agentsRoot "shared\policy-corpus"
 $endpoint   = $SearchEndpoint.TrimEnd('/')
@@ -50,26 +55,50 @@ Invoke-RestMethod -Method PUT -Headers $headers `
     -Uri "$endpoint/indexes/$IndexName`?api-version=$ApiVersion" -Body $indexSchema | Out-Null
 Log "Index ready."
 
-# 2. Build documents from the corpus (one record per H2 section for finer grounding)
+# 2. Build documents: one record per H2 (##) section, so each upload stays small
+#    (some networks run a TLS-inspection appliance that 413s multi-KB POSTs).
 $docs = @()
 Get-ChildItem -Path $corpusDir -Filter *.md | ForEach-Object {
     $file = $_
     $text = Get-Content $file.FullName -Raw
-    $title = ($text -split "`n" | Where-Object { $_ -match '^#\s' } | Select-Object -First 1) -replace '^#\s*', ''
-    if (-not $title) { $title = $file.BaseName }
-    # Whole-file record (keeps cross-section context)
-    $docs += @{
-        id      = ($file.BaseName -replace '[^a-zA-Z0-9_-]', '-')
-        title   = $title
-        content = $text
-        url     = "shared/policy-corpus/$($file.Name)"
+    $fileTitle = ($text -split "`n" | Where-Object { $_ -match '^#\s' } | Select-Object -First 1) -replace '^#\s*', ''
+    if (-not $fileTitle) { $fileTitle = $file.BaseName }
+    $base = ($file.BaseName -replace '[^a-zA-Z0-9_-]', '-')
+
+    # Split on "## " headings; the preamble before the first ## becomes section 0.
+    $sections = [regex]::Split($text, '(?m)^(?=##\s)')
+    $n = 0
+    foreach ($sec in $sections) {
+        $secText = $sec.Trim()
+        if (-not $secText) { continue }
+        $secTitle = ($secText -split "`n" | Where-Object { $_ -match '^#{1,2}\s' } | Select-Object -First 1) -replace '^#{1,2}\s*', ''
+        if (-not $secTitle) { $secTitle = $fileTitle }
+        $docs += @{
+            id      = "$base-$n"
+            title   = "$fileTitle - $secTitle"
+            content = $secText
+            url     = "shared/policy-corpus/$($file.Name)"
+        }
+        $n++
     }
 }
 
-Log ("Uploading " + $docs.Count + " policy documents...")
-$payload = @{ value = @($docs | ForEach-Object { $_ + @{ '@search.action' = 'mergeOrUpload' } }) } | ConvertTo-Json -Depth 8
-Invoke-RestMethod -Method POST -Headers $headers `
-    -Uri "$endpoint/indexes/$IndexName/docs/index?api-version=$ApiVersion" -Body $payload | Out-Null
+Log ("Uploading " + $docs.Count + " policy sections (one request each)...")
+$uploadUri = "$endpoint/indexes/$IndexName/docs/index?api-version=$ApiVersion"
+$uploaded = 0
+foreach ($doc in $docs) {
+    $payload = @{ value = @($doc + @{ '@search.action' = 'mergeOrUpload' }) } | ConvertTo-Json -Depth 8
+    $tmp = [System.IO.Path]::GetTempFileName()
+    [System.IO.File]::WriteAllText($tmp, $payload, (New-Object System.Text.UTF8Encoding($false)))
+    # curl.exe (bundled) is robust where PS 5.1 Invoke-RestMethod is not.
+    $curlOut = & curl.exe --silent --show-error --fail-with-body -X POST $uploadUri `
+        -H "api-key: $AdminKey" -H "Content-Type: application/json; charset=utf-8" `
+        --data-binary "@$tmp" 2>&1
+    $curlExit = $LASTEXITCODE
+    Remove-Item $tmp -Force -ErrorAction SilentlyContinue
+    if ($curlExit -ne 0) { Log ("Section '" + $doc.id + "' failed (curl " + $curlExit + "): " + $curlOut) "ERROR"; exit 1 }
+    $uploaded++
+}
 
-Log "Done. Policy corpus published to '$IndexName'."
+Log ("Done. " + $uploaded + " sections published to '$IndexName'.")
 Log "Next: set approver/foundry-iq.json -> enabled:true, mode 'search', index '$IndexName' (or point a Foundry knowledge agent at this index and use mode 'retrieve')."

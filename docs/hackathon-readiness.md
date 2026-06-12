@@ -31,7 +31,7 @@ The blocking gap is the track requirement to use at least one Microsoft IQ layer
 
 ## Blocking Finding — RESOLVED 2026-06-12
 
-### P0 - Enterprise Agents requires a Microsoft IQ layer ✅ DONE
+### P0 - Enterprise Agents requires a Microsoft IQ layer ✅ DONE & LIVE
 
 The track requires at least one of Foundry IQ, Work IQ, Fabric IQ, or Web IQ.
 **JML now integrates Foundry IQ** (Azure AI Foundry knowledge retrieval) to ground
@@ -39,6 +39,13 @@ risk and approval decisions in the JML policy corpus (SoD rules, approved access
 patterns, freeze windows, offboarding playbook). The grounding source and citations
 are shown in the Approver risk card, the Glass Screen run details, and the audit
 record.
+
+**Live as of 2026-06-12**: the policy corpus is published to an Azure AI Search
+index in the project's pay-as-you-go subscription; the running app's FoundryIQ
+client returns grounded citations against it (e.g. a leaver query returns the
+offboarding playbook's dual-approval requirement and the SoD policy). Endpoint and
+key live in the gitignored `approver/foundry-iq.json`; reproduce with
+`provisioner/Publish-PolicyCorpus.ps1`.
 
 Acceptance evidence — all met:
 
