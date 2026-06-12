@@ -213,6 +213,23 @@ function applyIntegrationsConfig(cfg) {
   // Show edit buttons only for admins
   const isAdmin = currentOperatorRole() === 'admin';
   document.querySelectorAll('.int-admin-only').forEach(btn => { btn.style.display = isAdmin ? '' : 'none'; });
+
+  // Sync the dashboard Integrations widget with the real config — dots and
+  // count reflect what is actually enabled, never a hardcoded "connected".
+  const dashSync = [['bamboo', bb], ['teams', tm], ['sentinel', st]];
+  let connected = 0;
+  for (const [key, c] of dashSync) {
+    const row = document.querySelector(`.dash-mini-row[data-conn="${key}"]`);
+    if (!row) continue;
+    const dot = row.querySelector('.dash-mini-dot');
+    if (dot) dot.style.background = c.enabled ? 'var(--emerald)' : 'var(--border-strong)';
+    const meta = row.querySelector('.dash-mini-meta');
+    if (meta && !c.enabled) meta.textContent = 'not configured';
+    else if (meta && key === 'teams') meta.textContent = tm.channel || 'connected';
+    if (c.enabled) connected++;
+  }
+  const dashCnt = document.getElementById('dash-int-cnt');
+  if (dashCnt) dashCnt.textContent = connected ? `· ${connected} connected` : '· not configured';
 }
 
 function loadIntegrations() {
@@ -2566,6 +2583,14 @@ window.api.onDashboardStats((data) => {
   if (data.error) {
     document.getElementById('stat-users-detail').textContent = data.error;
     document.getElementById('stat-activity-detail').textContent = '';
+    // Don't leave the heading stuck on "loading…" when the tenant isn't
+    // connected yet — state it plainly.
+    const sub = document.getElementById('dash-headline-sub');
+    if (sub && sub.textContent.includes('loading')) sub.textContent = 'tenant not connected';
+    const pageSub = document.getElementById('dash-page-sub');
+    if (pageSub && pageSub.textContent.includes('loading')) {
+      pageSub.textContent = 'Connect a tenant in Settings → Tenant to bring the fleet online.';
+    }
     return;
   }
 
