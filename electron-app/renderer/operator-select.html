@@ -281,8 +281,7 @@
     });
     window.api.onEntraDeviceCode(d => {
       entraStatus.innerHTML =
-        `Code <b class="entra-code">${d.userCode}</b> — enter it in the browser window that just opened (${d.verificationUri}). Waiting for sign-in…`;
-      window.api.openExternal(d.verificationUri);
+        `Code <b class="entra-code">${d.userCode}</b> is pre-filled in the sign-in window — confirm it and sign in. Waiting…`;
     });
     window.api.onEntraSigninResult(r => {
       if (r.ok) {

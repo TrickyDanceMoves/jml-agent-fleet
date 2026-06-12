@@ -118,6 +118,13 @@ services move data and host the control plane.
 - **Risk scoring**: `Invoke-RiskScore.ps1` produces a 0–100 risk score across: baseline operation risk, active freeze windows, sensitive licenses/groups, SoD conflicts, and dual-approval requirements
 - Risk gates every Live-mode submission: low (<25) proceeds, medium (25–49) warns, high (50–79) requires explicit confirmation, critical (≥80 or blocked) is rejected
 
+### Microsoft IQ — Foundry IQ Policy Grounding
+Every risk and approval decision is **grounded in the organization's own identity-governance policy corpus** using **Foundry IQ** (Azure AI Foundry knowledge retrieval) — the project's Microsoft IQ layer for the Enterprise Agents track.
+- The Approver's `score_risk` call retrieves relevant policy from a corpus of SoD rules, approved access patterns, freeze windows, and the offboarding playbook (`shared/policy-corpus/`), and **cites the source documents** in the risk card, the Glass Screen run details, and the audit record.
+- A grounded policy match (SoD violation, freeze window) escalates the operation's risk level and reasons.
+- **Fail-closed**: when grounding is configured but the Foundry IQ service is unreachable, the decision is marked blocked — the control plane refuses to act on ungrounded policy rather than guessing. (`electron-app/lib/foundry-iq.js`, contract locked by `test/foundry-iq.test.js`.)
+- Publish the corpus to an Azure AI Search index with `provisioner/Publish-PolicyCorpus.ps1`; enable in `approver/foundry-iq.json` (copy from the committed `.config.example.json`).
+
 ### Security Controls
 - **SoD policy engine**: `shared/sod-policy.json` defines incompatible group pairs; violations block or warn before any submit
 - **PIM for Groups**: Just-in-time activation for privileged group membership with time-limited access

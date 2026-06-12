@@ -32,6 +32,8 @@ approver/operator-activity.jsonl
 approver/ai-traces.jsonl
 # AI provider config (contains API keys)
 approver/ai-provider.json
+# Foundry IQ grounding config (contains the knowledge/search key)
+approver/foundry-iq.json
 # Lifecycle operation history (runtime state, contains tenant UPNs)
 approver/operations.jsonl
 # Scheduled operations queue (runtime state)

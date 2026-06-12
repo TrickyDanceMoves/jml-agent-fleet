@@ -3109,7 +3109,36 @@ function renderRiskScoreCard(data) {
     ? '<div class="risk-score-meta">baseline ' + base + ' + ' + (reasons.length) + ' modifier' + (reasons.length !== 1 ? 's' : '') + '</div>'
     : '';
 
+  // ── Foundry IQ grounding: cited policy block ─────────────────────────────────
+  // The Microsoft IQ layer makes the decision auditable — every risk call can
+  // show which policy documents grounded it, or that it failed closed.
+  let groundingHtml = '';
+  const g = d.grounding;
+  if (g) {
+    if (g.unavailable) {
+      groundingHtml =
+        '<div class="risk-grounding unavailable">' +
+          '<div class="risk-grounding-head">⚠ Foundry IQ — policy grounding unavailable (failed closed)</div>' +
+          '<div class="risk-grounding-note">' + escHtml(g.error || 'Grounding service unreachable') + '</div>' +
+        '</div>';
+    } else {
+      const cites = (g.citations || []).slice(0, 4).map(c =>
+        '<li><span class="cite-title">' + escHtml(c.title || 'policy') + '</span>' +
+        (c.snippet ? '<span class="cite-snippet">' + escHtml(c.snippet.slice(0, 160)) + '</span>' : '') +
+        '</li>').join('');
+      groundingHtml =
+        '<div class="risk-grounding">' +
+          '<div class="risk-grounding-head">◆ Grounded by Foundry IQ' +
+            (g.summary ? '<span class="risk-grounding-sum">' + escHtml(g.summary.slice(0, 180)) + '</span>' : '') +
+          '</div>' +
+          (cites ? '<ul class="risk-cites">' + cites + '</ul>'
+                 : '<div class="risk-grounding-note">No matching policy documents.</div>') +
+        '</div>';
+    }
+  }
+
   return '<div class="v2-chat-card v2-risk-card">' +
+    '<div class="v2-risk-top">' +
     '<div class="v2-risk-gauge-wrap">' +
       '<svg class="v2-risk-gauge" width="56" height="56" viewBox="0 0 56 56">' +
         '<circle cx="28" cy="28" r="' + r + '" fill="none" stroke="var(--surface-2)" stroke-width="5"/>' +
@@ -3124,6 +3153,8 @@ function renderRiskScoreCard(data) {
       '<div class="v2-risk-heading">Risk assessment ' + badges + '</div>' +
       '<div class="risk-list">' + reasonsHtml + '</div>' +
     '</div>' +
+    '</div>' +
+    groundingHtml +
   '</div>';
 }
 

@@ -104,6 +104,16 @@
     push('Mode', op.whatif === undefined ? null : (op.whatif ? 'Safe (WhatIf)' : 'Live'));
     push('Ticket', op.details?.ticketRef || op.ticketRef || null);
     push('Outcome', op.outcome || model.normalizeStatus(op));
+    // Foundry IQ policy grounding — names the Microsoft IQ layer and its citations
+    if (op.grounding) {
+      if (op.grounding.unavailable) {
+        push('Policy grounding', 'Foundry IQ unavailable — failed closed');
+      } else {
+        const cites = (op.grounding.citations || []).map(c => c.title).filter(Boolean).join(', ');
+        push('Policy grounding', 'Foundry IQ' + (cites ? ' — ' + cites : ''));
+        if (op.grounding.summary) push('Policy finding', sanitizeRaw(op.grounding.summary, 300));
+      }
+    }
     push('Raw error', sanitizeRaw(op.error));
     push('Audit hash', op.hash || null);
     return rows;

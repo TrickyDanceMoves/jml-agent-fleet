@@ -5013,10 +5013,29 @@ label { font-size: 12.5px; color: var(--text-2); }
 
 .v2-risk-card {
   display: flex;
-  gap: 16px;
-  align-items: flex-start;
+  flex-direction: column;
+  gap: 0;
   padding: 14px 16px;
 }
+.v2-risk-top { display: flex; gap: 16px; align-items: flex-start; }
+
+/* Foundry IQ grounding block — the cited-policy evidence under the score */
+.risk-grounding {
+  margin-top: 12px; padding: 10px 12px;
+  border-top: 1px solid var(--border);
+  border-radius: 0 0 8px 8px;
+}
+.risk-grounding-head {
+  font-size: 12px; font-weight: 600; color: var(--cyan);
+  display: flex; flex-direction: column; gap: 3px;
+}
+.risk-grounding-sum { font-weight: 400; color: var(--text-2); font-size: 11.5px; line-height: 1.5; }
+.risk-cites { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.risk-cites li { display: flex; flex-direction: column; gap: 1px; padding-left: 10px; border-left: 2px solid color-mix(in oklch, var(--cyan) 45%, transparent); }
+.cite-title { font-family: var(--mono); font-size: 11px; color: var(--text); }
+.cite-snippet { font-size: 11px; color: var(--muted); line-height: 1.45; }
+.risk-grounding.unavailable .risk-grounding-head { color: var(--coral); }
+.risk-grounding-note { font-size: 11px; color: var(--muted); margin-top: 4px; }
 
 .v2-risk-gauge-wrap {
   display: flex;

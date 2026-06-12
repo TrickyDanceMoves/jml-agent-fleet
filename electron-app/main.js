@@ -91,6 +91,35 @@ function getAIProvider() {
   return _cachedProvider;
 }
 
+// ── Foundry IQ knowledge grounding ────────────────────────────────────────────
+// Microsoft IQ layer (Enterprise Agents track): grounds risk/approval decisions
+// in the JML policy corpus via Azure AI Foundry knowledge retrieval. Fail-closed
+// when configured-but-unavailable so the control plane never acts on ungrounded
+// policy. Config at approver/foundry-iq.json (gitignored — holds the key).
+const { FoundryIQ, GroundingUnavailableError } = require('./lib/foundry-iq');
+const FOUNDRY_IQ_CONFIG_FILE = path.join(AGENTS_DIR, 'approver', 'foundry-iq.json');
+let _foundryIq = null;
+function getFoundryIQ() {
+  if (!_foundryIq) {
+    let cfg = {};
+    try { cfg = readJson(FOUNDRY_IQ_CONFIG_FILE); } catch {}
+    _foundryIq = new FoundryIQ(cfg);
+  }
+  return _foundryIq;
+}
+function buildPolicyQuery(input = {}) {
+  const parts = [
+    input.operation && `Operation: ${input.operation}`,
+    input.userPrincipalName && `User: ${input.userPrincipalName}`,
+    input.newDepartment && `Target department: ${input.newDepartment}`,
+    input.groups && `Groups: ${Array.isArray(input.groups) ? input.groups.join(', ') : input.groups}`,
+    input.licenses && `Licenses: ${Array.isArray(input.licenses) ? input.licenses.join(', ') : input.licenses}`,
+  ].filter(Boolean);
+  return `Identity governance policy check. ${parts.join('. ')}. ` +
+    `Cite separation-of-duties rules, approved access patterns, freeze windows, ` +
+    `and offboarding requirements relevant to this operation.`;
+}
+
 // AI observability — append a trace line per model turn (provider, model, latency,
 // tokens). Gives Foundry-style run telemetry regardless of which provider is active.
 const AI_TRACES_FILE = path.join(AGENTS_DIR, 'approver', 'ai-traces.jsonl');
@@ -1046,7 +1075,34 @@ async function executeTool(agent, toolName, input, whatif) {
         NewDepartment:     input.newDepartment
       });
       const res = _parseMultilineJson(raw, 'No output from risk score script');
-      if (res && !res.error) state.approver.lastRisk = { ...res, ts: Date.now() };
+      if (res && res.error) return res;
+
+      // Foundry IQ grounding: cite the org's own policy corpus for this decision.
+      // Fail-closed — if grounding is configured but unavailable, the risk result
+      // is marked blocked so the Live gate refuses to proceed on ungrounded policy.
+      const iq = getFoundryIQ();
+      if (iq.isConfigured()) {
+        try {
+          const g = await iq.retrieve(buildPolicyQuery(input));
+          res.grounding = {
+            source: 'Foundry IQ',
+            summary: g.answer || null,
+            citations: g.citations || [],
+          };
+          // A grounded SoD/freeze hit escalates the engine result.
+          if (/violation|prohibited|freeze|blocked|denied/i.test(g.answer || '')) {
+            res.reasons = [...(res.reasons || []), 'Foundry IQ policy match: ' + g.answer.slice(0, 160)];
+            if (res.riskLevel !== 'critical') res.riskLevel = 'high';
+          }
+        } catch (e) {
+          if (e instanceof GroundingUnavailableError) {
+            res.blocked = true;
+            res.grounding = { source: 'Foundry IQ', unavailable: true, error: e.message, citations: [] };
+            res.reasons = [...(res.reasons || []), 'Policy grounding unavailable — failing closed (no decision without cited policy).'];
+          } else { throw e; }
+        }
+      }
+      state.approver.lastRisk = { ...res, ts: Date.now() };
       return res;
     }
     case 'submit_joiner': {
@@ -1188,6 +1244,9 @@ async function runAgentLoop(sender, agent, userText) {
             status: 'running',
             outcome: null,
             error: null,
+            // Carry the Foundry IQ policy grounding from the gating score_risk
+            // onto the operation so the Glass Screen details drawer can cite it.
+            grounding: state.approver.lastRisk?.grounding || null,
             startedAt: new Date().toISOString(),
             updatedAt: new Date().toISOString(),
           };
@@ -2314,6 +2373,21 @@ ipcMain.on('entra-signin-start', async (event) => {
     if (!dc.device_code) throw new Error(dc.error_description || 'Could not start device-code sign-in');
     send('entra-device-code', { userCode: dc.user_code, verificationUri: dc.verification_uri || 'https://microsoft.com/devicelogin' });
 
+    // In-app sign-in popup: loads the real Microsoft device-auth page with the
+    // code pre-filled (otc param), so the operator only confirms and signs in.
+    // Sandboxed, no preload — it is a plain Microsoft login page.
+    let authWin = new BrowserWindow({
+      width: 480, height: 680,
+      parent: (operatorWin && !operatorWin.isDestroyed()) ? operatorWin : undefined,
+      autoHideMenuBar: true,
+      title: 'Microsoft Entra sign-in',
+      backgroundColor: '#ffffff',
+      webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true },
+    });
+    authWin.on('closed', () => { authWin = null; });
+    authWin.loadURL(`https://login.microsoftonline.com/${tenantId}/oauth2/deviceauth?otc=${encodeURIComponent(dc.user_code)}`);
+    const closeAuthWin = () => { try { if (authWin && !authWin.isDestroyed()) authWin.close(); } catch {} };
+
     const deadline = Date.now() + (dc.expires_in || 900) * 1000;
     let interval = Math.max(5, dc.interval || 5) * 1000;
     let token = null;
@@ -2324,8 +2398,10 @@ ipcMain.on('entra-signin-start', async (event) => {
       if (tok.access_token) { token = tok.access_token; break; }
       if (tok.error === 'authorization_pending') continue;
       if (tok.error === 'slow_down') { interval += 5000; continue; }
+      closeAuthWin();
       throw new Error(tok.error_description || tok.error || 'Sign-in failed');
     }
+    closeAuthWin();
     if (!token) throw new Error('Sign-in timed out — try again');
 
     const me = await (await fetch('https://graph.microsoft.com/v1.0/me?$select=displayName,userPrincipalName',
