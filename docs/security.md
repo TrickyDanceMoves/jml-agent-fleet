@@ -4,50 +4,58 @@
 
 | Control | Status | Detail |
 |---|---|---|
-| App-only auth (no user context) | ✅ Active | Client credentials, no delegated permissions |
-| Certificate-based auth | ✅ Active | NonExportable RSA-2048, DPAPI secret fallback |
-| Isolated app registrations | ✅ Active | One app reg per agent, no shared credentials |
-| Least-privilege roles | ✅ Active | Only roles required for each agent function |
-| Provisioner disabled at rest | ✅ Active | Enabled only during active provisioning sessions |
-| Hash-chained audit log | ✅ Active | SHA256 chain, verified by `Verify-AuditLog.ps1` |
-| Circuit breaker | ✅ Active | Halts after 3 consecutive Graph API failures |
-| Retry with backoff | ✅ Active | Exponential backoff on 429/503/504 |
-| Ticket correlation | ✅ Active | `ticketRef` required and logged on all leaver ops |
-| Dual approval for leavers | ✅ Active | Pending token, 30-min expiry, second admin required |
-| Operator RBAC | ✅ Active | admin / helpdesk / viewer in `operators.json` |
-| Policy guardrails | ✅ Active | Sensitive licenses + freeze windows in `policies.json` |
-| Credential expiry alerts | ✅ Active | 60-day warning via `Test-CredentialExpiry` |
-| Purview IRM integration | ✅ Active | Termination record on every leaver run |
-| Workload Identity CA policy | ⚠️ Gap | Requires Entra Workload Identities Premium (separate SKU, ~$3/SP/month, not included in Entra Suite). Risk accepted; mitigated by cert-only auth. |
+| Application-only auth | Active | FMI Agent ID tokens or service-principal tokens; no delegated permissions |
+| Agent ID authentication | Active | Approver and Auditor use first-class Entra Agent IDs through FMI |
+| Certificate-based execution auth | Active | NonExportable RSA-2048 with DPAPI secret fallback |
+| Isolated workload identities | Active | Separate Agent IDs or service principals by responsibility |
+| Least privilege | Active | Each execution identity receives only the roles required for its function |
+| Provisioner disabled at rest | Active | Enabled only during controlled provisioning sessions |
+| Hash-chained audit log | Active | SHA-256 chain verified by `Verify-AuditLog.ps1` |
+| Circuit breaker | Active | Halts after three consecutive Graph API failures |
+| Retry with backoff | Active | Exponential backoff on 429, 503, and 504 |
+| Ticket correlation | Active | `ticketRef` is required and logged for leaver operations |
+| Dual approval for leavers | Active | Hard cleanup requires a second operator and expiring token |
+| Operator RBAC | Active | Admin, helpdesk, and viewer roles in `operators.json` |
+| Policy guardrails | Active | Sensitive entitlements and freeze windows in `policies.json` |
+| Credential expiry alerts | Active | 60-day warning through `Test-CredentialExpiry` |
+| Purview integration path | Implemented | Termination records can flow to the configured HR connector |
+| Workload Identity Conditional Access | Gap | Service-principal enforcement requires Entra Workload Identities Premium; Agent ID policy must be verified separately |
 
 ## Audit Log Format
 
-Location: `agents/audit.jsonl`
+Location: `audit.jsonl`
 
 ```json
 {
   "timestamp": "2026-05-07T18:49:23.000Z",
   "agent": "leaver",
   "action": "LeaverProcess",
-  "subject": "user@domain.com",
+  "subject": "user@contoso.com",
   "whatif": false,
   "outcome": "success",
-  "details": { "ticketRef": "INC-001", "accountDisabled": true, ... },
+  "details": {
+    "ticketRef": "INC-001",
+    "accountDisabled": true
+  },
   "prevHash": "abc123...",
   "hash": "def456..."
 }
 ```
 
 Validate integrity:
+
 ```powershell
-.\agents\shared\Verify-AuditLog.ps1
+.\shared\Verify-AuditLog.ps1
 ```
 
-Secondary sinks: Windows Application Event Log (source `JMLAgents`, EventIds 1001–1004) and Teams webhook.
+Secondary sinks include Windows Event Log, Microsoft Sentinel, Azure Blob Storage,
+and Teams notifications when configured.
 
 ## Known Gaps
 
-| Gap | Risk Level | Mitigation |
+| Gap | Risk | Mitigation |
 |---|---|---|
-| No Workload Identity CA (IP restriction) | Low | Mitigated by cert-only auth and isolated app regs. CA policy script ready (`New-AgentConditionalAccess.ps1`); requires Entra Workload Identities Premium (separate purchase, not in Entra Suite). |
-| No MFA on agent accounts | Low | App-only accounts have no password; cannot be phished or MFA-bypassed via interactive login. |
+| Service-principal Workload Identity CA not verified | Medium | Certificate auth, isolated identities, least privilege, and quarantine controls; policy script requires the premium SKU |
+| Agent ID Conditional Access not verified | Medium | Native owner and sponsor governance, read-only Agent ID scopes, and separate write execution identities |
+| Electron sandbox disabled | Medium | CSP, context isolation, bounded preload APIs, and documented migration path |
+| Tenant-specific public artifacts | Medium | Sanitize screenshots and move tenant-bound identifiers to ignored runtime config before submission |
