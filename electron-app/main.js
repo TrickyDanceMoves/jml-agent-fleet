@@ -1019,12 +1019,28 @@ const AUDITOR_QUERY_MAP = {
   query_guest_users:    'GuestUsers'
 };
 
+// Directory queries (auditor + approver share them) run as the Auditor app, which
+// needs its own config.json + credential. Entra *operator* sign-in does not supply
+// that. Return a clear, actionable error instead of letting the PS script fail with
+// an opaque Connect-MgGraph message that the agent then relays as "integration problem".
+function auditorQueryUnavailable() {
+  const cfgPath = path.join(AGENTS_DIR, 'auditor', 'config.json');
+  let cfg = null;
+  try { if (fs.existsSync(cfgPath)) cfg = readJson(cfgPath); } catch {}
+  if (!cfg || !cfg.TenantId || !cfg.ClientId || !(cfg.CertThumbprint || cfg.EncryptedSecret)) {
+    return { error: 'Directory queries are unavailable: the Auditor agent has no app credential configured yet. Connect a tenant and set up the Auditor app registration (Settings → Tenant) with a certificate or secret, then retry.' };
+  }
+  return null;
+}
+
 async function executeTool(agent, toolName, input, whatif) {
   if (agent === 'auditor') {
     if (toolName === 'query_user_detail') {
       const raw = await runPsAsync(path.join(AGENTS_DIR, 'auditor', 'Invoke-LookupUser.ps1'), { UpnOrName: input.upnOrName });
       return _parseMultilineJson(raw, 'No output from user lookup script');
     }
+    const unavailable = auditorQueryUnavailable();
+    if (unavailable) return unavailable;
     const queryType = AUDITOR_QUERY_MAP[toolName];
     const script = path.join(AGENTS_DIR, 'auditor', 'Invoke-AuditorQuery.ps1');
     const params = { QueryType: queryType };
@@ -1036,6 +1052,8 @@ async function executeTool(agent, toolName, input, whatif) {
 
   // Approver read-only tenant queries — same dispatch as the auditor branch.
   if (AUDITOR_QUERY_MAP[toolName]) {
+    const unavailable = auditorQueryUnavailable();
+    if (unavailable) return unavailable;
     const params = { QueryType: AUDITOR_QUERY_MAP[toolName] };
     if (input.days) params.Days = input.days;
     if (input.topN) params.TopN = input.topN;
