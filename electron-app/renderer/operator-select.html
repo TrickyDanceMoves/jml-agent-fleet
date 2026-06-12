@@ -96,7 +96,8 @@
       flex-shrink: 0;
     }
     .op-meta { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
-    .op-name { font-weight: 500; color: var(--text); }
+    .op-name { font-weight: 500; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .op-domain { font-family: var(--mono); font-size: 10px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .op-role {
       font-family: var(--mono); font-size: 10px;
       padding: 2px 7px; border-radius: 4px;
@@ -217,7 +218,13 @@
     };
     const initials = name => {
       if (!name) return '?';
-      return name.split(/[.\s_-]+/).map(s => s[0]).join('').slice(0, 2).toUpperCase() || name.slice(0, 2).toUpperCase();
+      const local = name.split('@')[0]; // UPNs: initials from the local part
+      return local.split(/[.\s_-]+/).map(s => s[0]).join('').slice(0, 2).toUpperCase() || local.slice(0, 2).toUpperCase();
+    };
+    // UPNs render as local part + small domain line so long names never clip
+    const splitName = name => {
+      const at = (name || '').indexOf('@');
+      return at === -1 ? { local: name, domain: '' } : { local: name.slice(0, at), domain: name.slice(at) };
     };
 
     window.api.getOperatorsForLogin().then(data => {
@@ -230,15 +237,17 @@
         return;
       }
 
-      list.innerHTML = entries.map(([name, role]) =>
-        `<button class="op-btn" data-name="${name}" data-role="${role || ''}">
+      list.innerHTML = entries.map(([name, role]) => {
+        const { local, domain } = splitName(name);
+        return `<button class="op-btn" data-name="${name}" data-role="${role || ''}" title="${name}">
           <span class="op-av">${initials(name)}</span>
           <span class="op-meta">
-            <span class="op-name">${name}</span>
+            <span class="op-name">${local}</span>
+            ${domain ? `<span class="op-domain">${domain}</span>` : ''}
           </span>
           <span class="op-role ${roleClass(role)}">${role || 'user'}</span>
-        </button>`
-      ).join('');
+        </button>`;
+      }).join('');
 
       list.querySelectorAll('.op-btn').forEach(btn => {
         btn.addEventListener('click', () => {

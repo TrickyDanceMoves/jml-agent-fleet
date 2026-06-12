@@ -4888,7 +4888,13 @@ function updateDashGreeting(name) {
 function setSidebarOperator(name) {
   currentOperatorName = name || null;
   const nameEl = document.getElementById('sidebar-operator-name');
-  if (nameEl) nameEl.textContent = name || '—';
+  if (nameEl) {
+    // Entra UPNs: show the readable local part; the full identity lives in
+    // the tooltip (and is what the audit chain records).
+    const display = name && name.includes('@') ? name.split('@')[0] : (name || '—');
+    nameEl.textContent = display;
+    nameEl.title = name || '';
+  }
   const av = document.getElementById('sidebar-operator-avatar');
   if (av) {
     const base = name || '?';
