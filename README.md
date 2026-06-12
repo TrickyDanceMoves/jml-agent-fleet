@@ -176,7 +176,7 @@ Desktop app (`agents/electron-app/`) with a frameless operator selector at start
 - Each agent has an isolated app registration with least-privilege Graph API permissions
 - No agent can modify other app registrations; only the Provisioner can, and it is disabled at rest
 - Certificate-based auth (`Connect-AgentGraph` in `Helpers.ps1`) with DPAPI-encrypted secret fallback
-- Conditional Access automation is included. Service-principal enforcement requires Microsoft Entra Workload Identities Premium; Agent ID policy is a separate hackathon-readiness item tracked in [`docs/hackathon-readiness.md`](docs/hackathon-readiness.md)
+- Conditional Access, stated precisely: (1) `New-AgentConditionalAccess.ps1` automates a named-location policy for the service principals, but **SP enforcement requires Microsoft Entra Workload Identities Premium**, which the demo tenant does not hold — no SP policy is deployed; (2) the demo tenant **has an enabled Agent ID-scoped CA policy** (`AgentGeneralCAPol`, target `AllAgentIdResources`, grant `block`) verified via Graph — currently pre-staged with an empty principal scope, demonstrating that Agent ID CA works with the tenant's existing P1/P2 licensing where SP CA cannot
 - `Test-AgentPermissions.ps1` detects and optionally repairs permission drift
 
 ### Agent Identity — Hybrid Entra Agent ID (live)
@@ -292,7 +292,7 @@ Honest current state, so reviewers know what's proven vs. planned:
 | Credentials | NonExportable cert (SPs); blueprint secret (Agent IDs), DPAPI-protected | Federated identity credentials (no stored secret) |
 | JIT privilege | Control-plane (Provisioner at-rest disable + approval) | Agent-scoped governance as Entra supports it |
 | Operator RBAC | Local Windows username / PIN | Entra-backed operator identity + group-derived role |
-| Conditional Access | Script present, needs Workload Identities Premium (P2) | Enabled CA for agent identities |
+| Conditional Access | Agent ID-scoped CA policy enabled in tenant (pre-staged, empty principal scope); SP CA script present but unenforceable without Workload Identities Premium | Scope the Agent ID policy to the live agent identities after soak |
 | Hackathon IQ layer | Not yet integrated | Add and demonstrate at least one Microsoft IQ layer before Enterprise Agents submission |
 | AI observability | ✅ Per-turn run telemetry (provider, model, latency, tokens) in Settings → AI Provider | Foundry-native trace correlation IDs |
 | Copilot integration | ✅ OpenAPI action surface + Power Platform connector (`api/apiProperties.json`, `docs/copilot-studio-setup.md`) | Live Copilot Studio agent in tenant |
