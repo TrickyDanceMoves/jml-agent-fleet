@@ -131,7 +131,7 @@ On June 12, 2026:
 ## Go-Live Checklist
 
 - [x] Add and demonstrate one Microsoft IQ layer. **(Foundry IQ — done 2026-06-12)**
-- [ ] Sanitize public tenant identifiers and screenshots.
+- [x] Sanitize public tenant identifiers and screenshots. **(Verified 2026-06-12: no tenant identifiers in tracked files; captures sanitize the domain.)**
 - [x] Add API and worker tests. **(Done 2026-06-12: `api/test/` 6 tests — canonical
   schema, BambooHR adapter, api-key gate; `worker/test/` 10 tests — dispatch routing,
   PIM activate/deactivate ordering, payload shapes, queue retry/dead-letter semantics.
@@ -141,7 +141,7 @@ On June 12, 2026:
   Graph: `AgentGeneralCAPol` enabled, target `AllAgentIdResources`, grant `block`,
   principal scope empty/pre-staged. No SP policy — Workload Identities Premium not
   held. README wording updated to match.)**
-- [ ] Decide repository license and add community health files.
-- [ ] Record the demo using synthetic identities.
-- [ ] Run CI, dependency audits, tenant smoke tests, and link checks.
+- [x] Decide repository license and add community health files. **(MIT + CONTRIBUTING + SECURITY.)**
+- [x] Record the demo using synthetic identities. **(2026-06-12: 90-second narrated cut rendered from sanitized captures — `.superpowers/jml-demo-video`, output `out/jml-demo-90s.mp4`.)**
+- [x] Run CI, dependency audits, and link checks. **(2026-06-12: quality gate green; npm audit 0 vulnerabilities incl. dev after esbuild 0.28.1 override; doc links verified.)**
 - [ ] Verify the five-minute public video and final submission links.
