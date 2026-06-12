@@ -4017,7 +4017,7 @@ function loadSettings() {
 
 // ── AI Provider settings ──────────────────────────────────────────────────────
 (function () {
-  const SECTIONS = ['claude', 'openai', 'azure-foundry', 'azure-openai', 'ollama', 'qwen'];
+  const SECTIONS = ['claude', 'openai', 'azure-foundry', 'azure-openai', 'ollama', 'lmstudio', 'qwen'];
 
   function showSection(provider) {
     SECTIONS.forEach(p => {
@@ -4071,6 +4071,10 @@ function loadSettings() {
     setVal('ai-ollama-fast-model', ol.fastModel  || 'llama3.1');
 
     // Qwen (local)
+    const lm = cfg.lmstudio || {};
+    setVal('ai-lmstudio-url',        lm.baseUrl    || 'http://localhost:1234');
+    setVal('ai-lmstudio-agent-model',lm.agentModel || 'qwen2.5-7b-instruct');
+    setVal('ai-lmstudio-fast-model', lm.fastModel  || 'qwen2.5-7b-instruct');
     const qw = cfg.qwen || {};
     setVal('ai-qwen-url',        qw.baseUrl    || 'http://localhost:11434');
     setVal('ai-qwen-agent-model',qw.agentModel || 'qwen3:14b');
@@ -4085,7 +4089,7 @@ function loadSettings() {
   function updateStatusPip(provider) {
     const pip = document.getElementById('ai-provider-status-pip');
     if (!pip) return;
-    const labels = { claude: 'Claude', openai: 'OpenAI', 'azure-foundry': 'Azure AI Foundry', 'azure-openai': 'Azure OpenAI', ollama: 'Ollama' };
+    const labels = { claude: 'Claude', openai: 'OpenAI', 'azure-foundry': 'Azure AI Foundry', 'azure-openai': 'Azure OpenAI', ollama: 'Ollama', lmstudio: 'LM Studio', qwen: 'Qwen' };
     pip.innerHTML = `<span class="d" style="background:var(--green)"></span>${labels[provider] || provider || 'None'}`;
   }
 
@@ -4127,6 +4131,11 @@ function loadSettings() {
         baseUrl:    getVal('ai-ollama-url')         || 'http://localhost:11434',
         agentModel: getVal('ai-ollama-agent-model') || 'llama3.1',
         fastModel:  getVal('ai-ollama-fast-model')  || 'llama3.1'
+      },
+      lmstudio: {
+        baseUrl:    getVal('ai-lmstudio-url')         || 'http://localhost:1234',
+        agentModel: getVal('ai-lmstudio-agent-model') || 'qwen2.5-7b-instruct',
+        fastModel:  getVal('ai-lmstudio-fast-model')  || 'qwen2.5-7b-instruct'
       },
       qwen: {
         baseUrl:    getVal('ai-qwen-url')         || 'http://localhost:11434',

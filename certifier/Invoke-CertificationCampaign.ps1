@@ -45,7 +45,11 @@ param(
 $ErrorActionPreference = "Stop"
 
 $agentsRoot = Split-Path $PSScriptRoot -Parent
-$config     = Get-Content (Join-Path $agentsRoot "provisioner\config.json") | ConvertFrom-Json
+# Certifier's own least-privilege identity (New-CertifierAgent.ps1); falls back
+# to the legacy Provisioner credential if certifier has not been provisioned yet.
+$ownConfig  = Join-Path $PSScriptRoot "config.json"
+$config     = if (Test-Path $ownConfig) { Get-Content $ownConfig | ConvertFrom-Json }
+              else { Get-Content (Join-Path $agentsRoot "provisioner\config.json") | ConvertFrom-Json }
 $certCfg    = Get-Content (Join-Path $agentsRoot "shared\access-cert-config.json") | ConvertFrom-Json
 $pimCfg     = Get-Content (Join-Path $agentsRoot "shared\pim-config.json") | ConvertFrom-Json
 

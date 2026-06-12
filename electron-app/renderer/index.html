@@ -463,7 +463,7 @@
           <div class="dash-section span-1" data-section="fleet">
             <div class="panel">
               <div class="panel-h">
-                <div class="ttl">Agent Fleet <span class="cnt" id="dash-fleet-count">· 7 agents</span></div>
+                <div class="ttl">Agent Fleet <span class="cnt" id="dash-fleet-count">· 8 agents</span></div>
                 <button class="btn-text-link" id="dash-open-fleet">VIEW ALL →</button>
               </div>
               <div class="agent-grid" id="dash-agent-grid">
@@ -2224,6 +2224,7 @@
                       <option value="azure-openai">Azure OpenAI</option>
                       <option value="openai">OpenAI</option>
                       <option value="ollama">Ollama (local)</option>
+                      <option value="lmstudio">LM Studio (local)</option>
                       <option value="qwen">Qwen (local)</option>
                     </select>
                   </div>
@@ -2321,7 +2322,22 @@
                   </div>
                 </div>
 
-                <!-- Qwen (local) fields -->
+                <!-- LM Studio (local) fields -->
+                <div class="ai-prov-section" id="ai-prov-lmstudio" style="display:none">
+                  <div class="set-row">
+                    <div><div class="lbl">Base URL</div><div class="desc">LM Studio local server (Developer tab → Start Server). Default: <code>http://localhost:1234</code>. Free — no API key.</div></div>
+                    <div class="val right-ctrl"><input id="ai-lmstudio-url" type="text" placeholder="http://localhost:1234" style="font-family:var(--mono);font-size:12px;width:260px"></div>
+                  </div>
+                  <div class="set-row">
+                    <div><div class="lbl">Agent model</div><div class="desc">Model identifier as shown in LM Studio (e.g. <code>qwen2.5-7b-instruct</code>). Pick one with tool-calling support.</div></div>
+                    <div class="val right-ctrl"><input id="ai-lmstudio-agent-model" type="text" placeholder="qwen2.5-7b-instruct" style="font-family:var(--mono);font-size:12px;width:200px"></div>
+                  </div>
+                  <div class="set-row">
+                    <div><div class="lbl">Fast model</div><div class="desc">Smaller model for quick utility calls (can be the same identifier).</div></div>
+                    <div class="val right-ctrl"><input id="ai-lmstudio-fast-model" type="text" placeholder="qwen2.5-7b-instruct" style="font-family:var(--mono);font-size:12px;width:200px"></div>
+                  </div>
+                </div>
+
                 <div class="ai-prov-section" id="ai-prov-qwen" style="display:none">
                   <div class="set-row">
                     <div><div class="lbl">Base URL</div><div class="desc">OpenAI-compatible local server. Ollama default: <code>http://localhost:11434</code>; LM Studio: <code>http://localhost:1234</code>; vLLM: your serve address.</div></div>

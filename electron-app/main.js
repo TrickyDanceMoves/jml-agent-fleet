@@ -2040,7 +2040,7 @@ ipcMain.handle('save-ai-provider-config', (_, { config }) => {
     // Merge: preserve existing API keys when the UI sends back masked '••••' placeholders
     const merged = JSON.parse(JSON.stringify(_aiProviderConfig));
     merged.provider = config.provider;
-    for (const key of ['claude', 'openai', 'azure-foundry', 'azure-openai', 'ollama']) {
+    for (const key of ['claude', 'openai', 'azure-foundry', 'azure-openai', 'ollama', 'lmstudio', 'qwen']) {
       if (!config[key]) continue;
       if (!merged[key]) merged[key] = {};
       Object.assign(merged[key], config[key]);
@@ -3129,6 +3129,14 @@ async function runCapture() {
   // ── Operator selector ──────────────────────────────────────────────────────
   createOperatorWindow();
   await new Promise(r => operatorWin.webContents.once('did-finish-load', r));
+  // QC flag parity with createMainWindow: `--theme=glass` forces the theme on
+  // the OOBE selector so its theme-specific brand mark can be captured.
+  const opThemeArg = process.argv.find(a => a.startsWith('--theme='));
+  if (opThemeArg) {
+    await operatorWin.webContents.executeJavaScript(
+      `document.documentElement.dataset.theme = ${JSON.stringify(opThemeArg.split('=')[1])};`
+    ).catch(() => {});
+  }
   await sleep(1000);
   let selImg; for (let a=0;a<3;a++){try{selImg=await operatorWin.webContents.capturePage();break;}catch(e){await sleep(600);}}
   if (selImg) fs.writeFileSync(path.join(CAPTURE_OUT, 'operator-select.png'), selImg.toPNG());

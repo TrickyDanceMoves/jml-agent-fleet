@@ -1,6 +1,6 @@
 # JML Agent Fleet
 
-AI-powered identity lifecycle automation for Microsoft Entra ID. Seven agents — two AI-backed (Approver, Auditor) and five PowerShell — handle the full Joiner/Mover/Leaver (JML) workflow with zero-trust architecture, UEBA, drift detection, AI-assisted provisioning, and end-to-end HRIS integration, replicating core capabilities of enterprise IGA platforms like SailPoint and Saviynt.
+AI-powered identity lifecycle automation for Microsoft Entra ID. Eight agents — two AI-backed (Approver, Auditor) and six PowerShell — handle the full Joiner/Mover/Leaver (JML) workflow with zero-trust architecture, UEBA, drift detection, AI-assisted provisioning, and end-to-end HRIS integration, replicating core capabilities of enterprise IGA platforms like SailPoint and Saviynt.
 
 The reasoning agents run as **first-class Microsoft Entra Agent IDs** (live, hybrid by design — see [Agent Identity](#agent-identity--hybrid-entra-agent-id-live)), every operation streams through a live **Glass Screen command center**, and the AI layer is **provider-agnostic**: Approver and Auditor agents run on any OpenAI-compatible backend — **Azure AI Foundry**, Azure OpenAI, OpenAI, Anthropic Claude, or a local Ollama instance — switchable from Settings with no code change.
 
@@ -98,13 +98,13 @@ The design response: AI works inside guardrails rather than replacing the admin.
 | **Provisioner** | Manages app registrations (disabled at rest, enabled only during provisioning sessions) |
 | **Auditor** | UEBA, drift detection, Identity Protection scans, access certification campaigns |
 
-**Taxonomy (so the counts are unambiguous):** there are **seven operational agents**
-(the table above). They are supported by non-agent services — the **API** (Azure
-Functions), the **queue Worker**, the **Certifier** campaign runner, the **Purview**
-HR connector, and the **Electron console**. Counting Entra app registrations, the
-fleet currently provisions **eight** (the seven agents plus the Certifier service), which
-is why some operational views show "8 app registrations." Agents reason and act;
-services move data and host the control plane.
+**Taxonomy (so the counts are unambiguous):** there are **eight operational agents** —
+the seven in the table above plus the **Certifier** (access review campaigns), which
+holds its own least-privilege app registration (AccessReview.ReadWrite.All +
+directory reads). They are supported by non-agent services — the **API** (Azure
+Functions), the **queue Worker**, the **Purview** HR connector, and the **Electron
+console**. The fleet provisions **eight** Entra app registrations, one per agent.
+Agents reason and act; services move data and host the control plane.
 
 ## Key Features
 
