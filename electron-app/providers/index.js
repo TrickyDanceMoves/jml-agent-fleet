@@ -41,6 +41,13 @@ const DEFAULT_CONFIG = {
     baseUrl:    'http://localhost:11434',
     agentModel: 'qwen3:14b',
     fastModel:  'qwen3:4b'
+  },
+  // LM Studio — local OpenAI-compatible server (Developer tab → Start Server).
+  // Free; pick models with tool-calling support for the agent chats.
+  lmstudio: {
+    baseUrl:    'http://localhost:1234',
+    agentModel: 'qwen2.5-7b-instruct',
+    fastModel:  'qwen2.5-7b-instruct'
   }
 };
 
@@ -130,6 +137,16 @@ function buildProvider(config) {
         agentModel:   c.agentModel || 'llama3.1',
         fastModel:    c.fastModel  || 'llama3.1',
         providerName: 'ollama'
+      });
+    }
+    case 'lmstudio': {
+      const c = config.lmstudio || {};
+      return new OpenAICompatProvider({
+        apiKey:       'lm-studio',
+        baseURL:      `${(c.baseUrl || 'http://localhost:1234').replace(/\/$/, '')}/v1`,
+        agentModel:   c.agentModel || 'qwen2.5-7b-instruct',
+        fastModel:    c.fastModel  || 'qwen2.5-7b-instruct',
+        providerName: 'lmstudio'
       });
     }
     case 'qwen': {

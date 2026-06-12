@@ -31,6 +31,16 @@ Use the full review in:
 
 Implement in this order:
 
+0. ✅ DONE 2026-06-12 (Codex QC: PASS) — incorporate the user-approved,
+   truly transparent Glass JML logo into the OOBE surfaces
+   (`electron-app/renderer/setup.html` and
+   `electron-app/renderer/operator-select.html`). The approved source and
+   implementation acceptance criteria are in
+   `.superpowers/claude-oobe-glass-logo-handoff.md`. The outer rounded-square
+   middle must remain an actual transparent hole (`fill="none"`), not a
+   transparent child that reveals a filled parent gradient. Preserve the Warm
+   and Preview logo treatments. Do not commit or push until Codex completes
+   runtime QC.
 1. Make operation status authoritative across chat, lifecycle, Dashboard, Operations,
    Glass Screen, Agent Certificates, and Audit.
 2. ✅ DONE 2026-06-11 — hybrid Entra Agent ID migration complete: blueprint FMI secret
