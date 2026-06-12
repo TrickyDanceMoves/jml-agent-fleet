@@ -21,6 +21,12 @@ const REPORTS_DIR   = path.join(__dirname, '..', 'auditor', 'reports');
 const TENANT_DOMAIN   = 'contoso.onmicrosoft.com';
 const SETUP_FILE      = path.join(AGENTS_DIR, 'approver', 'setup.json');
 const INT_CONFIG_FILE = path.join(AGENTS_DIR, 'approver', 'integrations.config.json');
+// Durable tenant config — the source of truth for which tenant the console is
+// wired to. Written by the first-run wizard and Settings → Tenant regardless of
+// whether per-agent config.json credential files exist yet (they don't on a
+// fresh install). Until this is written, the console stays unconfigured/stateless
+// rather than displaying a placeholder tenant.
+const TENANT_CONFIG_FILE = path.join(AGENTS_DIR, 'approver', 'tenant.json');
 
 // Stamp every child process with the console operator identity so Write-AuditEntry picks it up
 process.env.JML_CONSOLE_OPERATOR = os.userInfo().username;
@@ -28,6 +34,19 @@ process.env.JML_CONSOLE_OPERATOR = os.userInfo().username;
 // BOM-safe JSON file reader — config files saved by PS/VS Code may have UTF-8 BOM
 function readJson(filePath) {
   return JSON.parse(fs.readFileSync(filePath, 'utf8').split(String.fromCharCode(0xFEFF)).join(''));
+}
+
+// Durable tenant config helpers. tenant.json is the console-level source of truth
+// so the tenant survives even when no agent credential files exist yet.
+function readTenantConfig() {
+  try { if (fs.existsSync(TENANT_CONFIG_FILE)) return readJson(TENANT_CONFIG_FILE) || {}; } catch {}
+  return {};
+}
+function writeTenantConfig(patch) {
+  const next = { ...readTenantConfig(), ...patch, updatedAt: new Date().toISOString() };
+  fs.mkdirSync(path.dirname(TENANT_CONFIG_FILE), { recursive: true });
+  fs.writeFileSync(TENANT_CONFIG_FILE, JSON.stringify(next, null, 2) + '\n', 'utf8');
+  return next;
 }
 
 const PENDING_DIR    = path.join(AGENTS_DIR, 'approver', 'pending');
@@ -137,8 +156,14 @@ const state = {
 };
 
 // ── System prompts ────────────────────────────────────────────────────────────
-// Reads PrimaryDomain from the first available agent config; falls back to TENANT_DOMAIN.
+// Resolves the active tenant domain: durable tenant.json first, then any agent
+// config that carries a PrimaryDomain, then the neutral example domain. The
+// example is only ever used in prompt/export text, never presented as a
+// configured value in the UI (the UI reads get-tenant-config, which returns
+// empty until a tenant is actually saved).
 function getActiveTenantDomain() {
+  const t = readTenantConfig();
+  if (t.primaryDomain) return t.primaryDomain;
   for (const agent of AGENT_DIRS) {
     try {
       const cfgPath = path.join(AGENTS_DIR, agent, 'config.json');
@@ -2480,8 +2505,12 @@ ipcMain.handle('set-operator-auth-windows', (event, { user }) => {
 
 // ── Tenant onboarding: read/write each agent's config.json TenantId ──────────
 ipcMain.handle('get-tenant-config', () => {
-  // Read first available config.json to surface tenant settings
-  const out = { tenantId: '', primaryDomain: '', region: '', clientIds: {}, agents: [] };
+  // tenant.json is the source of truth; agent config.json values fill any gaps.
+  const t = readTenantConfig();
+  const out = {
+    tenantId: t.tenantId || '', primaryDomain: t.primaryDomain || '',
+    region: t.region || '', clientIds: {}, agents: [], configured: !!t.tenantId
+  };
   for (const agent of AGENT_DIRS) {
     const cfgPath = path.join(AGENTS_DIR, agent, 'config.json');
     if (!fs.existsSync(cfgPath)) { out.agents.push({ agent, exists: false }); continue; }
@@ -2502,6 +2531,16 @@ ipcMain.handle('get-tenant-config', () => {
 // Compute a diff of what save-tenant-config would change, without writing.
 ipcMain.handle('preview-tenant-config', (event, { tenantId, primaryDomain, region, clientIds }) => {
   const changes = [];
+  // The durable tenant.json is always part of the diff so the save flow has
+  // something to apply even on a fresh install where no agent config.json
+  // files exist yet — otherwise the renderer reports "no changes" and the
+  // tenant is never written.
+  const cur = readTenantConfig();
+  const tdiff = {};
+  if (tenantId && (cur.tenantId || '') !== tenantId) tdiff.TenantId = { from: cur.tenantId || '', to: tenantId };
+  if (primaryDomain && (cur.primaryDomain || '') !== primaryDomain) tdiff.PrimaryDomain = { from: cur.primaryDomain || '', to: primaryDomain };
+  if (region && (cur.region || '') !== region) tdiff.Region = { from: cur.region || '', to: region };
+  changes.push({ agent: 'tenant.json', exists: true, diff: tdiff });
   for (const agent of AGENT_DIRS) {
     const cfgPath = path.join(AGENTS_DIR, agent, 'config.json');
     if (!fs.existsSync(cfgPath)) { changes.push({ agent, exists: false }); continue; }
@@ -2524,7 +2563,16 @@ ipcMain.handle('save-tenant-config', (event, { tenantId, primaryDomain, region, 
   if (!tenantId || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(tenantId)) {
     return { ok: false, error: 'Tenant ID must be a GUID' };
   }
+  // Persist to the durable source of truth first — this is what makes the save
+  // succeed on a fresh install where no agent config.json files exist yet.
+  let tenantConfigError = null;
+  try {
+    writeTenantConfig({ tenantId, primaryDomain: primaryDomain || '', region: region || '' });
+  } catch (e) { tenantConfigError = e.message; }
+
   const updated = []; const skipped = []; const errors = [];
+  if (tenantConfigError) errors.push({ agent: 'tenant.json', error: tenantConfigError });
+  // Opportunistically mirror into any agent configs that already exist.
   for (const agent of AGENT_DIRS) {
     const cfgPath = path.join(AGENTS_DIR, agent, 'config.json');
     if (!fs.existsSync(cfgPath)) { skipped.push(agent); continue; }
@@ -2542,7 +2590,9 @@ ipcMain.handle('save-tenant-config', (event, { tenantId, primaryDomain, region, 
     }
   }
   logOperatorActivity('tenant.config.saved', { tenantId, primaryDomain, region, updated, errors: errors.length });
-  return { ok: true, updated, skipped, errors };
+  // Saved to tenant.json even if every agent config was absent → ok unless the
+  // durable write itself failed.
+  return { ok: !tenantConfigError, updated, skipped, errors };
 });
 
 // Read recent operator activity (most recent first). Used by Settings → Operators audit view.
@@ -3405,13 +3455,17 @@ ipcMain.handle('complete-first-run', (event, { winAuth, tenantId, primaryDomain 
     }
 
     if (tenantId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(tenantId)) {
+      const domain = primaryDomain ? String(primaryDomain).slice(0, 200) : '';
+      // Durable source of truth — persists even when no agent config.json exists.
+      try { writeTenantConfig({ tenantId, primaryDomain: domain }); } catch {}
+      // Mirror into any agent configs that already exist.
       for (const agent of AGENT_DIRS) {
         const cfgPath = path.join(AGENTS_DIR, agent, 'config.json');
         if (!fs.existsSync(cfgPath)) continue;
         try {
           const cfg = readJson(cfgPath);
           cfg.TenantId = tenantId;
-          if (primaryDomain) cfg.PrimaryDomain = String(primaryDomain).slice(0, 200);
+          if (domain) cfg.PrimaryDomain = domain;
           fs.writeFileSync(cfgPath, JSON.stringify(cfg, null, 2), 'utf8');
         } catch {}
       }

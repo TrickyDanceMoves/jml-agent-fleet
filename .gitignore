@@ -42,6 +42,8 @@ approver/operations.jsonl
 approver/scheduled.json
 # Notification routing rules — operator-specific, optional to commit
 approver/notification-rules.json
+# Durable tenant binding written by the setup wizard (contains the live tenant ID/domain)
+approver/tenant.json
 
 # Auditor report outputs (contain tenant UPNs / security findings)
 auditor/reports/

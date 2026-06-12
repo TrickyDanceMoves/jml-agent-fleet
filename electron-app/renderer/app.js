@@ -3158,34 +3158,6 @@ function renderRiskScoreCard(data) {
   '</div>';
 }
 
-function renderPlanPreviewCard() {
-  // [num, op, subject, agentKey, dur, reversible]
-  // reversible: true = ↺ (can roll back), false = → (permanent)
-  const rows = [
-    ['01', 'graph.user.disable',              'robert.martinez@contoso.com', 'leaver',  '~0.4s', true],
-    ['02', 'graph.user.revokeSignInSessions', '3 active sessions',           'leaver',  '~0.8s', false],
-    ['03', 'purview.irm.submit',              'termination record',           'leaver',  '~0.6s', true],
-    ['04', 'audit.write',                     'audit trail entry',            'auditor', '~0.2s', false],
-  ];
-  const agentTag = key => {
-    const colours = { leaver: 'crit', joiner: 'ok', mover: 'warn', auditor: 'info', approver: 'violet', certifier: 'cyan' };
-    return '<span class="tag ' + (colours[key] || 'info') + '">' + escHtml(key) + '</span>';
-  };
-  return '<div class="plan-list v2-chat-card">' + rows.map(r =>
-    '<div class="plan-row">' +
-      '<span class="step-num">' + r[0] + '</span>' +
-      '<span class="step-body">' +
-        '<span class="step-op">' + escHtml(r[1]) + '</span>' +
-        '<span class="step-sub">' + escHtml(r[2]) + '</span>' +
-      '</span>' +
-      '<span class="step-meta">' +
-        agentTag(r[3]) +
-        '<span class="step-dur">' + r[4] + '</span>' +
-        '<span class="step-rev ' + (r[5] ? 'ok' : 'warn') + '">' + (r[5] ? '&#x21BA;' : '&rarr;') + '</span>' +
-      '</span>' +
-    '</div>'
-  ).join('') + '</div>';
-}
 
 
 document.getElementById('refresh-approvals').addEventListener('click', loadApprovals);
