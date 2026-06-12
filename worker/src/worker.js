@@ -16,6 +16,7 @@ const fs = require('fs');
 const { QueueServiceClient } = require('@azure/storage-queue');
 const { TableClient } = require('@azure/data-tables');
 const { dispatch } = require('./agent-dispatcher');
+const { createMessageHandler } = require('./message-handler');
 
 const CONFIG_PATH = path.join(__dirname, '..', 'worker.config.json');
 if (!fs.existsSync(CONFIG_PATH)) {
@@ -37,61 +38,12 @@ const tableClient = TableClient.fromConnectionString(
   config.statusTable || 'jmlstatus'
 );
 
-async function updateStatus(eventId, status, extra = {}) {
-  try {
-    await tableClient.upsertEntity(
-      { partitionKey: 'jml', rowKey: eventId, status, updatedAt: new Date().toISOString(), ...extra },
-      'Merge'
-    );
-  } catch (e) {
-    console.error(`[WORKER] Status update failed for ${eventId}: ${e.message}`);
-  }
-}
-
-async function processMessage(msg) {
-  let event;
-  try {
-    const json = Buffer.from(msg.messageText, 'base64').toString('utf8');
-    event = JSON.parse(json);
-  } catch (e) {
-    console.error(`[WORKER] Unparseable message ${msg.messageId} — discarding: ${e.message}`);
-    await queueClient.deleteMessage(msg.messageId, msg.popReceipt);
-    return;
-  }
-
-  const { eventId, eventType } = event;
-  const label = `${eventType} ${eventId} [${event.employee?.email}]`;
-
-  if (msg.dequeueCount > MAX_RETRIES) {
-    console.error(`[WORKER] ${label} exceeded ${MAX_RETRIES} retries — dead-lettering`);
-    await updateStatus(eventId, 'dead-lettered', { error: `Exceeded ${MAX_RETRIES} retries` });
-    await queueClient.deleteMessage(msg.messageId, msg.popReceipt);
-    return;
-  }
-
-  console.log(`[WORKER] Processing ${label} (attempt ${msg.dequeueCount})`);
-  await updateStatus(eventId, 'processing', { startedAt: new Date().toISOString() });
-
-  let result;
-  try {
-    result = dispatch(event);
-  } catch (e) {
-    console.error(`[WORKER] Dispatch threw for ${label}: ${e.message}`);
-    await updateStatus(eventId, 'failed', { error: e.message });
-    return; // leave in queue — visibility timeout will re-expose it for retry
-  }
-
-  if (result.exitCode === 0) {
-    console.log(`[WORKER] ${label} — completed (exit 0)`);
-    await updateStatus(eventId, 'completed', { completedAt: new Date().toISOString(), exitCode: 0 });
-    await queueClient.deleteMessage(msg.messageId, msg.popReceipt);
-  } else {
-    const errSnippet = (result.stderr || result.stdout).slice(-800);
-    console.error(`[WORKER] ${label} — failed (exit ${result.exitCode})\n${errSnippet}`);
-    await updateStatus(eventId, 'failed', { error: `Exit ${result.exitCode}`, stderr: errSnippet });
-    // Leave in queue for retry up to MAX_RETRIES
-  }
-}
+const { processMessage } = createMessageHandler({
+  queueClient,
+  tableClient,
+  dispatch,
+  maxRetries: MAX_RETRIES
+});
 
 async function poll() {
   try {

@@ -5,6 +5,7 @@
   "description": "JML REST API and webhook receiver (Azure Functions v4)",
   "main": "src/functions/*.js",
   "scripts": {
+    "test": "node --test test/*.test.js",
     "start": "func start",
     "start:local": "func start --port 7071"
   },

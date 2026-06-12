@@ -132,8 +132,15 @@ On June 12, 2026:
 
 - [x] Add and demonstrate one Microsoft IQ layer. **(Foundry IQ — done 2026-06-12)**
 - [ ] Sanitize public tenant identifiers and screenshots.
-- [ ] Add API and worker tests.
-- [ ] Confirm Conditional Access state in the demo tenant.
+- [x] Add API and worker tests. **(Done 2026-06-12: `api/test/` 6 tests — canonical
+  schema, BambooHR adapter, api-key gate; `worker/test/` 10 tests — dispatch routing,
+  PIM activate/deactivate ordering, payload shapes, queue retry/dead-letter semantics.
+  Worker refactored for testability: `src/message-handler.js` factory + injectable
+  `dispatch` overrides. CI quality gate already runs `npm test` in both.)**
+- [x] Confirm Conditional Access state in the demo tenant. **(Verified 2026-06-12 via
+  Graph: `AgentGeneralCAPol` enabled, target `AllAgentIdResources`, grant `block`,
+  principal scope empty/pre-staged. No SP policy — Workload Identities Premium not
+  held. README wording updated to match.)**
 - [ ] Decide repository license and add community health files.
 - [ ] Record the demo using synthetic identities.
 - [ ] Run CI, dependency audits, tenant smoke tests, and link checks.

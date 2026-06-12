@@ -5,6 +5,7 @@
   "description": "JML queue worker — polls Azure Storage Queue and invokes PS1 agents",
   "main": "src/worker.js",
   "scripts": {
+    "test": "node --test test/*.test.js",
     "start": "node src/worker.js"
   },
   "dependencies": {
