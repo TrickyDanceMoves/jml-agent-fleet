@@ -5948,24 +5948,25 @@ html[data-theme="glass"] .tool-result-drawer {
 }
 .gs-stage-orb {
   position: relative;
-  width: 38px; height: 38px; border-radius: 50%;
+  width: 42px; height: 42px; border-radius: 50%;
   display: grid; place-items: center;
   font-size: 14px; color: var(--muted);
   border: 1.5px solid var(--border);
   background: transparent;
   transition: color 250ms ease, border-color 250ms ease, box-shadow 250ms ease, transform 250ms ease;
 }
-.gs-stage-orb svg { display: block; }
-.gs-op-initial { font-family: var(--mono); font-weight: 600; font-size: 14px; }
-/* Corner state badge: state stays readable on top of the identity icon */
+.gs-stage-orb svg { display: block; width: 18px; height: 18px; }
+.gs-op-initial { font-family: var(--mono); font-weight: 600; font-size: 15px; }
+/* Corner state badge: state stays readable on top of the identity icon —
+   sized for projector legibility, near-opaque backing */
 .gs-stage-badge {
-  position: absolute; top: -5px; right: -5px;
-  width: 16px; height: 16px; border-radius: 50%;
+  position: absolute; top: -6px; right: -6px;
+  width: 18px; height: 18px; border-radius: 50%;
   display: grid; place-items: center;
-  font-size: 9.5px; line-height: 1;
+  font-size: 11px; font-weight: 700; line-height: 1;
   color: var(--text);
-  background: oklch(0.18 0.012 260 / 0.95);
-  border: 1px solid var(--border-strong);
+  background: oklch(0.18 0.012 260 / 0.97);
+  border: 1.5px solid var(--border-strong);
 }
 .gs-stage-badge[data-state="succeeded"] { color: var(--ok);    border-color: color-mix(in oklch, var(--ok) 60%, transparent); }
 .gs-stage-badge[data-state="partial"]   { color: var(--warn);  border-color: color-mix(in oklch, var(--warn) 60%, transparent); }
@@ -6007,15 +6008,19 @@ html[data-theme="glass"] .tool-result-drawer {
   40%  { transform: scale(1.1); box-shadow: 0 0 18px color-mix(in oklch, var(--coral) 50%, transparent); }
   100% { transform: scale(1); }
 }
-.gs-stage-label { font-size: 12px; font-weight: 600; color: var(--text-2); }
+.gs-stage-label { font-size: 12.5px; font-weight: 600; color: var(--text-2); }
 .gs-stage[data-state="active"] .gs-stage-label,
-.gs-stage[data-state="failed"] .gs-stage-label { color: var(--text); }
+.gs-stage[data-state="awaiting-approval"] .gs-stage-label,
+.gs-stage[data-state="failed"] .gs-stage-label { color: var(--text); font-weight: 700; }
 .gs-stage-state {
-  font-family: var(--mono); font-size: 9.5px; color: var(--muted);
+  font-family: var(--mono); font-size: 10px; color: var(--dim);
   min-height: 12px;
 }
+.gs-stage[data-state="active"] .gs-stage-state,
+.gs-stage[data-state="awaiting-approval"] .gs-stage-state,
+.gs-stage[data-state="failed"] .gs-stage-state { color: var(--text-2); }
 .gs-connector {
-  flex: 1; height: 2px; margin-top: 19px; min-width: 18px;
+  flex: 1; height: 2px; margin-top: 21px; min-width: 18px;
   background: color-mix(in oklch, var(--border) 80%, transparent);
   border-radius: 1px; overflow: hidden;
 }
@@ -6023,7 +6028,7 @@ html[data-theme="glass"] .tool-result-drawer {
   height: 100%; width: 100%;
   background: linear-gradient(90deg, var(--cyan), var(--violet));
   transform: scaleX(0); transform-origin: left center;
-  transition: transform 400ms ease-out;
+  transition: transform 350ms ease-out;
 }
 .gs-connector-fill[data-filled="true"] { transform: scaleX(1); }
 

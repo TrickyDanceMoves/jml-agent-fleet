@@ -367,9 +367,10 @@
   // Sequences only the known final stage states (650ms cadence). Stops at a
   // failure / approval stage and never pretends to be live execution.
 
-  // Demo-tuned: each stage holds long enough to read its label and owner icon
-  // (~850ms cadence ≈ 4.5s for a full five-stage replay) without losing the room.
-  const REPLAY_INTERVAL = 850;
+  // Demo-tuned (Codex design review 2026-06-12): each stage holds long enough
+  // to read its label and owner icon without losing the room. 650ms was too
+  // fast to comprehend the five stages; 850ms dragged for glancing judges.
+  const REPLAY_INTERVAL = 750;
 
   function prefersReducedMotion() {
     return typeof matchMedia === 'function'
