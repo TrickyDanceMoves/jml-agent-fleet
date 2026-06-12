@@ -122,8 +122,12 @@
       transition: border-color .15s, color .15s, background .15s;
     }
     .btn-continue:hover { border-color: var(--border-strong); color: var(--text); background: var(--bg-2); }
-    .btn-entra { color: var(--text); border-color: var(--cyan-dim); }
-    .btn-entra:hover { border-color: var(--cyan); background: oklch(0.22 0.04 200 / .25); }
+    .btn-entra {
+      color: var(--text); border-color: var(--cyan-dim);
+      background: linear-gradient(135deg, oklch(0.30 0.06 200 / .55), oklch(0.28 0.06 280 / .45));
+      font-weight: 600; font-size: 13px; padding: 11px 14px;
+    }
+    .btn-entra:hover { border-color: var(--cyan); background: linear-gradient(135deg, oklch(0.34 0.07 200 / .65), oklch(0.32 0.07 280 / .55)); color: var(--text); }
     .btn-entra:disabled { opacity: .55; cursor: default; }
     .entra-status {
       font-family: var(--mono); font-size: 11px; color: var(--text-2);
@@ -186,26 +190,20 @@
     </div>
     <div class="divider"></div>
     <div class="prompt">Who is operating this session? All actions will be signed with this identity's certificate and recorded to the audit chain.</div>
-    <div class="operator-list" id="operator-list">
-      <div class="no-ops">Loading operators…</div>
-    </div>
-    <div class="guest-row">
-      <div class="guest-divider"></div>
-      <span class="guest-label">or</span>
-      <div class="guest-divider"></div>
-    </div>
     <button class="btn-continue btn-entra" id="btn-entra">
       <svg viewBox="0 0 21 21" width="13" height="13" style="vertical-align:-2px;margin-right:7px"><rect x="1" y="1" width="9" height="9" fill="#f25022"/><rect x="11" y="1" width="9" height="9" fill="#7fba00"/><rect x="1" y="11" width="9" height="9" fill="#00a4ef"/><rect x="11" y="11" width="9" height="9" fill="#ffb900"/></svg>
       Sign in with Microsoft Entra ID
     </button>
     <div class="entra-status" id="entra-status" style="display:none"></div>
-    <button class="btn-continue" id="btn-guest">Continue as <span id="guest-name">guest</span></button>
-    <div class="win-map">
-      <span class="k">Win-Auth</span>
-      <b id="winauth-name">—</b>
-      <span class="arrow">→</span>
-      <span class="k">Console</span>
+    <div class="guest-row">
+      <div class="guest-divider"></div>
+      <span class="guest-label">or select a local operator</span>
+      <div class="guest-divider"></div>
     </div>
+    <div class="operator-list" id="operator-list">
+      <div class="no-ops">Loading operators…</div>
+    </div>
+    <button class="btn-continue" id="btn-guest">Continue as <span id="guest-name">guest</span></button>
   </div>
 
   <script>
@@ -253,7 +251,6 @@
     });
 
     document.getElementById('guest-name').textContent = window.api.currentUser;
-    document.getElementById('winauth-name').textContent = window.api.currentUser;
     document.getElementById('btn-guest').addEventListener('click', () => {
       // Guest = read-only viewer; no PIN required
       window.api.selectOperator(window.api.currentUser, 'guest');
