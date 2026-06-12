@@ -153,6 +153,37 @@
     'awaiting-approval': '⏸',
   };
 
+  // Identity icons: each pipeline stage shows WHO owns it, not just state.
+  // State is carried by orb color + the corner badge + the text sub-label.
+  const ICON_SVG = (paths, extra = '') =>
+    `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16" ${extra}>${paths}</svg>`;
+
+  const AGENT_ICONS = {
+    joiner: ICON_SVG('<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="16" y1="11" x2="22" y2="11"/>'),
+    mover: ICON_SVG('<polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/>'),
+    leaver: ICON_SVG('<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="16" y1="11" x2="22" y2="11"/>'),
+    enroller: ICON_SVG('<rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12" y2="18.01"/>'),
+    provisioner: ICON_SVG('<path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>'),
+    approver: ICON_SVG('<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/>'),
+    auditor: ICON_SVG('<circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>'),
+  };
+
+  const STAGE_OWNER_ICONS = {
+    request: op => `<span class="gs-op-initial">${esc(String(op?.operator || 'O').charAt(0).toUpperCase())}</span>`,
+    risk: () => AGENT_ICONS.approver,
+    execute: op => AGENT_ICONS[String(op?.agent || '').toLowerCase()] || AGENT_ICONS.provisioner,
+    verify: () => AGENT_ICONS.auditor,
+    complete: () => ICON_SVG('<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>'),
+  };
+
+  // Corner badge keeps the state readable on top of the identity icon.
+  const BADGE_GLYPHS = {
+    succeeded: '✓',
+    partial: '◐',
+    failed: '✕',
+    'awaiting-approval': '⏸',
+  };
+
   const STAGE_STATE_LABELS = {
     pending: 'pending',
     active: 'in progress',
@@ -166,7 +197,7 @@
     return state !== 'pending';
   }
 
-  function renderPipeline(stages, enteredStageId) {
+  function renderPipeline(stages, enteredStageId, operation) {
     const wrap = el('gs-pipeline');
     if (!wrap) return;
     const parts = [];
@@ -176,10 +207,14 @@
         parts.push(`<div class="gs-connector"><div class="gs-connector-fill" data-filled="${filled}"></div></div>`);
       }
       const entered = s.id === enteredStageId;
+      const icon = (STAGE_OWNER_ICONS[s.id] || (() => STAGE_GLYPHS[s.state] || '○'))(operation);
+      const badge = BADGE_GLYPHS[s.state]
+        ? `<span class="gs-stage-badge" data-state="${esc(s.state)}">${BADGE_GLYPHS[s.state]}</span>`
+        : '';
       parts.push(`
         <div class="gs-stage" role="listitem" data-state="${esc(s.state)}" data-entered="${entered}"
              aria-label="${esc(s.label)}: ${esc(STAGE_STATE_LABELS[s.state] || s.state)}">
-          <div class="gs-stage-orb" aria-hidden="true">${STAGE_GLYPHS[s.state] || '○'}</div>
+          <div class="gs-stage-orb" aria-hidden="true">${icon}${badge}</div>
           <div class="gs-stage-label">${esc(s.label)}</div>
           <div class="gs-stage-state">${esc(STAGE_STATE_LABELS[s.state] || '')}</div>
         </div>`);
@@ -310,7 +345,7 @@
     const stageKey = `${vm.operation?.id || 'none'}:${activeStage ? activeStage.id + ':' + activeStage.state : 'none'}`;
     const entered = stageKey !== glassScreenState.lastRenderedStageKey ? activeStage?.id : null;
     glassScreenState.lastRenderedStageKey = stageKey;
-    renderPipeline(stages, entered);
+    renderPipeline(stages, entered, vm.operation);
 
     renderRecovery(vm);
     renderRecent(vm);
@@ -332,7 +367,9 @@
   // Sequences only the known final stage states (650ms cadence). Stops at a
   // failure / approval stage and never pretends to be live execution.
 
-  const REPLAY_INTERVAL = 650;
+  // Demo-tuned: each stage holds long enough to read its label and owner icon
+  // (~850ms cadence ≈ 4.5s for a full five-stage replay) without losing the room.
+  const REPLAY_INTERVAL = 850;
 
   function prefersReducedMotion() {
     return typeof matchMedia === 'function'
@@ -372,7 +409,7 @@
             : i === step ? (step === stopIdx ? s.state : 'active')
             : 'pending',
         }));
-        renderPipeline(frame, finalStages[step].id);
+        renderPipeline(frame, finalStages[step].id, vm.operation);
         if (step === stopIdx) {
           glassScreenState.replaying = false;
           glassScreenState.replayDone = true;

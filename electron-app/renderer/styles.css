@@ -5947,6 +5947,7 @@ html[data-theme="glass"] .tool-result-drawer {
   min-width: 64px; flex-shrink: 0; text-align: center;
 }
 .gs-stage-orb {
+  position: relative;
   width: 38px; height: 38px; border-radius: 50%;
   display: grid; place-items: center;
   font-size: 14px; color: var(--muted);
@@ -5954,6 +5955,22 @@ html[data-theme="glass"] .tool-result-drawer {
   background: transparent;
   transition: color 250ms ease, border-color 250ms ease, box-shadow 250ms ease, transform 250ms ease;
 }
+.gs-stage-orb svg { display: block; }
+.gs-op-initial { font-family: var(--mono); font-weight: 600; font-size: 14px; }
+/* Corner state badge: state stays readable on top of the identity icon */
+.gs-stage-badge {
+  position: absolute; top: -5px; right: -5px;
+  width: 16px; height: 16px; border-radius: 50%;
+  display: grid; place-items: center;
+  font-size: 9.5px; line-height: 1;
+  color: var(--text);
+  background: oklch(0.18 0.012 260 / 0.95);
+  border: 1px solid var(--border-strong);
+}
+.gs-stage-badge[data-state="succeeded"] { color: var(--ok);    border-color: color-mix(in oklch, var(--ok) 60%, transparent); }
+.gs-stage-badge[data-state="partial"]   { color: var(--warn);  border-color: color-mix(in oklch, var(--warn) 60%, transparent); }
+.gs-stage-badge[data-state="failed"]    { color: var(--coral); border-color: color-mix(in oklch, var(--coral) 60%, transparent); }
+.gs-stage-badge[data-state="awaiting-approval"] { color: var(--warn); border-color: color-mix(in oklch, var(--warn) 60%, transparent); }
 .gs-stage[data-state="active"] .gs-stage-orb {
   color: var(--violet);
   border-color: color-mix(in oklch, var(--violet) 65%, transparent);
