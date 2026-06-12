@@ -816,8 +816,9 @@ function createDockedPanel() {
   });
   dockedWin.webContents.once('did-finish-load', () => {
     pushFreshPanelData();
-    // Overlay rich sample data so the panel shows meaningful content in dev
-    setTimeout(() => pushPanelUpdate(buildMockPanelData()), 300);
+    // Sample-data overlay is capture/QC only — production panels must show
+    // real (possibly empty) state, never fake approvals or events.
+    if (CAPTURE_MODE) setTimeout(() => pushPanelUpdate(buildMockPanelData()), 300);
   });
 }
 
@@ -2914,7 +2915,8 @@ const MOCK_AGENT_HEALTH = [
   { name:'enroller',    status:'warning',      credentialType:'certificate', daysUntilExpiry:312, lastActivity: new Date(Date.now()-86400000*6).toISOString(),  lastOutcome:'partial' },
   { name:'approver',    status:'healthy',      credentialType:'certificate', daysUntilExpiry:312, lastActivity: new Date(Date.now()-86400000*1).toISOString(),  lastOutcome:'success' },
   { name:'provisioner', status:'unconfigured', credentialType:'certificate', daysUntilExpiry:null, lastActivity: null, lastOutcome: null },
-  { name:'auditor',     status:'healthy',      credentialType:'certificate', daysUntilExpiry:312, lastActivity: new Date(Date.now()-86400000*0.5).toISOString(), lastOutcome:'success' }
+  { name:'auditor',     status:'healthy',      credentialType:'certificate', daysUntilExpiry:312, lastActivity: new Date(Date.now()-86400000*0.5).toISOString(), lastOutcome:'success' },
+  { name:'certifier',   status:'healthy',      credentialType:'certificate', daysUntilExpiry:312, lastActivity: new Date(Date.now()-86400000*3).toISOString(),  lastOutcome:'success' }
 ];
 const MOCK_CERT_EXPIRY = [
   { agent:'joiner',      thumbprint:'A1B2C3D4E5F6',  expiry: new Date(Date.now()+86400000*312).toISOString(), daysLeft:312 },
@@ -2923,7 +2925,8 @@ const MOCK_CERT_EXPIRY = [
   { agent:'enroller',    thumbprint:'D4E5F6A1B2C3',  expiry: new Date(Date.now()+86400000*312).toISOString(), daysLeft:312 },
   { agent:'approver',    thumbprint:'E5F6A1B2C3D4',  expiry: new Date(Date.now()+86400000*47).toISOString(),  daysLeft:47  },
   { agent:'provisioner', thumbprint:null,             expiry: null, daysLeft: null },
-  { agent:'auditor',     thumbprint:'F6A1B2C3D4E5',  expiry: new Date(Date.now()+86400000*312).toISOString(), daysLeft:312 }
+  { agent:'auditor',     thumbprint:'F6A1B2C3D4E5',  expiry: new Date(Date.now()+86400000*312).toISOString(), daysLeft:312 },
+  { agent:'certifier',   thumbprint:'A7B8C9D0E1F2',  expiry: new Date(Date.now()+86400000*312).toISOString(), daysLeft:312 }
 ];
 // ── Docked panel sample data (dev / demo) ─────────────────────────────────────
 function buildMockPanelData() { return {
