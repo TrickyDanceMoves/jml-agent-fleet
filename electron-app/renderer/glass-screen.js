@@ -273,6 +273,8 @@
         glassScreenState.selectedId = id;
         glassScreenState.replayDone = false;
         render();
+        // Selecting a run starts its replay immediately — no second click.
+        runReplay();
       });
     });
   }
@@ -401,6 +403,10 @@
     glassScreenState.replayDone = false;
     const btn = el('gs-replay');
     if (btn) btn.disabled = true;
+
+    // Start from the run's default state — all stages pending — so the
+    // replay visibly travels the pipeline instead of jumping in fully lit.
+    renderPipeline(finalStages.map(s => ({ ...s, state: 'pending' })), null, vm.operation);
 
     for (let step = 0; step <= stopIdx; step++) {
       const timer = setTimeout(() => {

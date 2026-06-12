@@ -240,7 +240,9 @@ body.maximized, body.maximized .app { border-radius: 0; }
 }
 
 /* ---------- Shell layout (sidebar full-height, topbar lives inside main) ---------- */
-.layout { display: grid; grid-template-columns: 248px 1fr; flex: 1; min-height: 0; transition: grid-template-columns .25s cubic-bezier(.4, 1.4, .55, 1); }
+/* Floating-shell geometry is theme-wide: sidebar and content are rounded
+   islands with gutters between them, in every theme (glass adds frost). */
+.layout { display: grid; grid-template-columns: 248px 1fr; flex: 1; min-height: 0; gap: 10px; padding: 10px; transition: grid-template-columns .25s cubic-bezier(.4, 1.4, .55, 1); }
 .layout.sidebar-collapsed { grid-template-columns: 60px 1fr; }
 .sidebar-collapse {
   margin-left: auto; width: 24px; height: 24px;
@@ -295,7 +297,8 @@ body.maximized, body.maximized .app { border-radius: 0; }
 
 /* ---------- Sidebar ---------- */
 .sidebar {
-  border-right: 1px solid var(--border);
+  border: 1px solid var(--border);
+  border-radius: 16px;
   background: oklch(12% 0.008 260);
   display: flex; flex-direction: column;
   overflow: hidden; font-size: 13.5px;
@@ -509,12 +512,15 @@ body.maximized, body.maximized .app { border-radius: 0; }
 .content, .main {
   display: flex; flex-direction: column;
   min-width: 0; min-height: 0; overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 16px;
 }
 .topbar {
   position: sticky; top: 0; z-index: 5;
   display: flex; align-items: center; gap: 12px;
   padding: 0 14px 0 18px; height: 48px;
   border-bottom: 1px solid var(--border);
+  border-radius: 16px 16px 0 0;
   background: oklch(12% 0.008 260);
   backdrop-filter: blur(10px);
   flex-shrink: 0;

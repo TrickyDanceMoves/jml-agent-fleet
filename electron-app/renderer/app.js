@@ -3203,6 +3203,7 @@ window.api.onPendingApprovals((data) => {
   if (apprCard) {
     apprCard.className = 'v2-triage-card ' + (items.length > 2 ? 'crit' : items.length > 0 ? 'warn' : 'info');
   }
+  const apprSub = document.getElementById('triage-appr-sub');
   if (items.length > 0 && apprTitle) {
     const first = items[0];
     const tool = (first.tool || '').toLowerCase();
@@ -3210,11 +3211,18 @@ window.api.onPendingApprovals((data) => {
       ? tool.charAt(0).toUpperCase() + tool.slice(1).replace(/_/g, ' ') + ' awaiting approval'
       : 'Operation awaiting approval';
     if (apprMeta) {
+      const subject = (first.input || first).userPrincipalName || '';
       const token = first.token || first.id || '';
-      apprMeta.textContent = token ? 'token ' + token.slice(0, 6) + '…' : 'pending review';
+      apprMeta.textContent = subject ? subject.split('@')[0]
+        : token ? 'token ' + token.slice(0, 6) + '…' : 'pending review';
     }
+    if (apprSub) apprSub.textContent = items.length > 1
+      ? 'Plus ' + (items.length - 1) + ' more pending'
+      : '';
   } else if (apprTitle) {
     apprTitle.textContent = 'No pending approvals';
+    if (apprMeta) apprMeta.textContent = 'queue is clear';
+    if (apprSub) apprSub.textContent = '';
   }
   if (items.length === 0) {
     listEl.innerHTML = `<div class="empty-state">
@@ -3976,7 +3984,7 @@ function loadSettings() {
 
 // ── AI Provider settings ──────────────────────────────────────────────────────
 (function () {
-  const SECTIONS = ['claude', 'openai', 'azure-foundry', 'azure-openai', 'ollama'];
+  const SECTIONS = ['claude', 'openai', 'azure-foundry', 'azure-openai', 'ollama', 'qwen'];
 
   function showSection(provider) {
     SECTIONS.forEach(p => {
@@ -4029,6 +4037,12 @@ function loadSettings() {
     setVal('ai-ollama-agent-model',ol.agentModel || 'llama3.1');
     setVal('ai-ollama-fast-model', ol.fastModel  || 'llama3.1');
 
+    // Qwen (local)
+    const qw = cfg.qwen || {};
+    setVal('ai-qwen-url',        qw.baseUrl    || 'http://localhost:11434');
+    setVal('ai-qwen-agent-model',qw.agentModel || 'qwen3:14b');
+    setVal('ai-qwen-fast-model', qw.fastModel  || 'qwen3:4b');
+
     updateStatusPip(cfg.provider);
   }
 
@@ -4080,6 +4094,11 @@ function loadSettings() {
         baseUrl:    getVal('ai-ollama-url')         || 'http://localhost:11434',
         agentModel: getVal('ai-ollama-agent-model') || 'llama3.1',
         fastModel:  getVal('ai-ollama-fast-model')  || 'llama3.1'
+      },
+      qwen: {
+        baseUrl:    getVal('ai-qwen-url')         || 'http://localhost:11434',
+        agentModel: getVal('ai-qwen-agent-model') || 'qwen3:14b',
+        fastModel:  getVal('ai-qwen-fast-model')  || 'qwen3:4b'
       }
     };
   }
