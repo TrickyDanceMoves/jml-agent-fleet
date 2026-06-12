@@ -83,14 +83,19 @@ function invokePIM(action, agentName, justification) {
   }
 }
 
-function dispatch(event) {
+// overrides ({ invokePs1, invokePIM }) lets unit tests observe dispatch without
+// spawning PowerShell or touching PIM; production callers pass nothing.
+function dispatch(event, overrides = {}) {
+  const runPs1 = overrides.invokePs1 || invokePs1;
+  const runPIM = overrides.invokePIM || invokePIM;
+
   const { eventType, eventId } = event;
   const agentName   = EVENT_TYPE_TO_AGENT[eventType];
   const justification = `JML ${eventType} ${event.ticketRef || event.eventId}`;
 
   if (!agentName) throw new Error(`Unknown eventType: ${eventType}`);
 
-  invokePIM('Activate', agentName, justification);
+  runPIM('Activate', agentName, justification);
 
   try {
     if (eventType === 'hire') {
@@ -98,7 +103,7 @@ function dispatch(event) {
       const payloadPath = writePayloadFile('joiner', eventId, payload);
       const scriptPath  = path.join(AGENTS_ROOT, 'joiner', 'Invoke-JoinerProcess.ps1');
       try {
-        return invokePs1(scriptPath, ['-PayloadPath', payloadPath]);
+        return runPs1(scriptPath, ['-PayloadPath', payloadPath]);
       } finally {
         fs.rmSync(payloadPath, { force: true });
       }
@@ -108,7 +113,7 @@ function dispatch(event) {
       const scriptPath = path.join(AGENTS_ROOT, 'leaver', 'Invoke-LeaverProcess.ps1');
       const args = ['-UserPrincipalName', event.employee.email, '-Stage', 'Both'];
       if (event.ticketRef) args.push('-TicketRef', event.ticketRef);
-      return invokePs1(scriptPath, args);
+      return runPs1(scriptPath, args);
     }
 
     if (eventType === 'transfer') {
@@ -116,14 +121,14 @@ function dispatch(event) {
       const payloadPath = writePayloadFile('mover', eventId, payload);
       const scriptPath  = path.join(AGENTS_ROOT, 'mover', 'Invoke-MoverProcess.ps1');
       try {
-        return invokePs1(scriptPath, ['-PayloadPath', payloadPath]);
+        return runPs1(scriptPath, ['-PayloadPath', payloadPath]);
       } finally {
         fs.rmSync(payloadPath, { force: true });
       }
     }
   } finally {
-    invokePIM('Deactivate', agentName, justification);
+    runPIM('Deactivate', agentName, justification);
   }
 }
 
-module.exports = { dispatch };
+module.exports = { dispatch, buildJoinerPayload, buildMoverPayload, EVENT_TYPE_TO_AGENT };
