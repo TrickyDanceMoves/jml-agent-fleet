@@ -125,6 +125,8 @@
     operations: [],
     auditEntries: [],
     selectedId: null,
+    selectedStageId: null,   // pinned pipeline stage for the detail card
+    detailOpId: null,        // which operation the stage selection belongs to
     replaying: false,
     replayDone: false,
     lastRenderedStageKey: null,
@@ -221,15 +223,65 @@
       const badge = BADGE_GLYPHS[s.state]
         ? `<span class="gs-stage-badge" data-state="${esc(s.state)}">${BADGE_GLYPHS[s.state]}</span>`
         : '';
+      const selected = s.id === glassScreenState.selectedStageId;
       parts.push(`
-        <div class="gs-stage" role="listitem" data-state="${esc(s.state)}" data-entered="${entered}"
-             aria-label="${esc(s.label)}: ${esc(STAGE_STATE_LABELS[s.state] || s.state)}">
+        <button class="gs-stage" type="button" role="listitem" tabindex="0"
+             data-stage-id="${esc(s.id)}" data-state="${esc(s.state)}" data-entered="${entered}"
+             data-selected="${selected}"
+             aria-label="${esc(s.label)} stage: ${esc(STAGE_STATE_LABELS[s.state] || s.state)}. Select for detail.">
           <div class="gs-stage-orb" aria-hidden="true">${icon}${badge}</div>
           <div class="gs-stage-label">${esc(s.label)}</div>
           <div class="gs-stage-state">${esc(STAGE_STATE_LABELS[s.state] || '')}</div>
-        </div>`);
+        </button>`);
     });
     wrap.innerHTML = parts.join('');
+
+    // Hover previews and click/keyboard selects the stage detail. Hover is
+    // transient (restores the selected stage on leave); click pins it.
+    wrap.querySelectorAll('.gs-stage').forEach(btn => {
+      const id = btn.dataset.stageId;
+      btn.addEventListener('mouseenter', () => renderStageDetail(id, operation, true));
+      btn.addEventListener('mouseleave', () => renderStageDetail(glassScreenState.selectedStageId, operation, false));
+      btn.addEventListener('focus', () => renderStageDetail(id, operation, true));
+      btn.addEventListener('click', () => {
+        glassScreenState.selectedStageId = (glassScreenState.selectedStageId === id) ? null : id;
+        renderPipeline(stagesCache.stages, null, operation);
+        renderStageDetail(glassScreenState.selectedStageId, operation, false);
+      });
+    });
+  }
+
+  // Cache the last-rendered stages so a click can re-render the pipeline
+  // (to update the selected ring) without recomputing the view model.
+  const stagesCache = { stages: [] };
+
+  // Renders the per-stage detail card below the pipeline. `transient` hover
+  // previews don't change the pinned selection.
+  function renderStageDetail(stageId, operation, transient) {
+    const box = el('gs-stage-detail');
+    if (!box) return;
+    if (!stageId || !operation) {
+      if (!transient) { box.hidden = true; box.innerHTML = ''; }
+      return;
+    }
+    const d = model.stageDetail(stageId, operation);
+    if (!d) { box.hidden = true; box.innerHTML = ''; return; }
+    const acts = (d.activities || []).map(a => `
+      <li class="gs-act" data-status="${esc(a.status || 'pending')}">
+        <span class="gs-act-dot" aria-hidden="true"></span>
+        <span class="gs-act-name">${esc(a.name)}</span>
+        <span class="gs-act-note">${esc(a.note || '')}</span>
+      </li>`).join('');
+    box.hidden = false;
+    box.dataset.state = d.state;
+    box.innerHTML = `
+      <div class="gs-stage-detail-head">
+        <span class="gs-sd-label">${esc(d.label)}</span>
+        <span class="gs-sd-owner">${esc(d.owner)}</span>
+        <span class="gs-sd-state" data-state="${esc(d.state)}">${esc(STAGE_STATE_LABELS[d.state] || d.state)}</span>
+      </div>
+      <div class="gs-sd-purpose">${esc(d.purpose)}</div>
+      <ul class="gs-act-list">${acts}</ul>`;
   }
 
   function metaChips(vm) {
@@ -357,7 +409,15 @@
     const stageKey = `${vm.operation?.id || 'none'}:${activeStage ? activeStage.id + ':' + activeStage.state : 'none'}`;
     const entered = stageKey !== glassScreenState.lastRenderedStageKey ? activeStage?.id : null;
     glassScreenState.lastRenderedStageKey = stageKey;
+
+    // Drop a pinned stage selection when the operation itself changes.
+    if (glassScreenState.detailOpId !== (vm.operation?.id || null)) {
+      glassScreenState.detailOpId = vm.operation?.id || null;
+      glassScreenState.selectedStageId = null;
+    }
+    stagesCache.stages = stages;
     renderPipeline(stages, entered, vm.operation);
+    renderStageDetail(glassScreenState.selectedStageId, vm.operation, false);
 
     renderRecovery(vm);
     renderRecent(vm);
@@ -529,10 +589,20 @@
     const fx = fixtureOps(name);
     glassScreenState.operations = fx.ops;
     glassScreenState.selectedId = fx.selectedId;
+    glassScreenState.selectedStageId = null;
+    glassScreenState.detailOpId = null;
     glassScreenState.replayDone = false;
     glassScreenState.lastRenderedStageKey = 'capture';
     el('gs-details')?.removeAttribute('open');
     render();
+    // 'running' fixture also pins the active stage so the per-stage detail
+    // card is visible in the QC capture.
+    if (name === 'running') {
+      glassScreenState.selectedStageId = 'execute';
+      const vm = model.buildGlassScreenViewModel({ operations: glassScreenState.operations, selectedId: glassScreenState.selectedId });
+      renderPipeline(stagesCache.stages, null, vm.operation);
+      renderStageDetail('execute', vm.operation, false);
+    }
   }
 
   // ── Wiring ─────────────────────────────────────────────────────────────────

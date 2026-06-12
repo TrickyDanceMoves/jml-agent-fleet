@@ -13,6 +13,7 @@ const {
   recentTerminalOperations,
   formatCurrentDecision,
   mapPipeline,
+  stageDetail,
 } = require('../renderer/glass-screen-model');
 
 const T0 = Date.parse('2026-06-10T12:00:00.000Z');
@@ -168,4 +169,53 @@ test('formatCurrentDecision produces a human sentence, never a raw tool name', (
   const decision = formatCurrentDecision(op({ status: 'running' }));
   assert.doesNotMatch(decision, /submit_joiner/);
   assert.ok(decision.length > 0);
+});
+
+test('stageDetail returns owner, purpose, and concrete activities per stage', () => {
+  const running = op({ status: 'running' });
+  const exec = stageDetail('execute', running);
+  assert.equal(exec.label, 'Execute');
+  assert.ok(exec.owner.length > 0);
+  assert.ok(exec.purpose.length > 0);
+  assert.ok(exec.activities.length >= 1);
+  // joiner execute shows the create-identity Graph call
+  assert.ok(exec.activities.some(a => /\/users/.test(a.name)));
+});
+
+test('stageDetail execute calls differ by agent and leaver stage', () => {
+  const joiner = stageDetail('execute', op({ agent: 'joiner', status: 'running' }));
+  assert.ok(joiner.activities.some(a => /POST \/users/.test(a.name)), 'joiner creates a user');
+
+  const leaverSoft = stageDetail('execute', op({ agent: 'leaver', stage: 'soft', status: 'running' }));
+  assert.ok(leaverSoft.activities.some(a => /revokeSignInSessions/.test(a.name)), 'soft leaver revokes sessions');
+
+  const leaverHard = stageDetail('execute', op({ agent: 'leaver', stage: 'hard', status: 'running' }));
+  assert.ok(leaverHard.activities.some(a => /assignLicense/.test(a.name)), 'hard leaver removes licenses');
+});
+
+test('stageDetail risk surfaces Foundry IQ grounding when present', () => {
+  const grounded = op({
+    status: 'running',
+    grounding: { source: 'Foundry IQ', citations: [{ title: 'SoD Policy' }] },
+  });
+  const risk = stageDetail('risk', grounded);
+  const iq = risk.activities.find(a => /Foundry IQ/.test(a.name));
+  assert.ok(iq, 'risk stage should list the IQ grounding activity');
+  assert.match(iq.note, /SoD Policy/);
+});
+
+test('stageDetail marks pending stages as not-yet-run', () => {
+  const running = op({ status: 'running' }); // verify + complete are pending
+  const verify = stageDetail('verify', running);
+  assert.equal(verify.state, 'pending');
+  assert.ok(verify.activities.every(a => a.status === 'pending'));
+});
+
+test('stageDetail failed execute marks its calls failed, not done', () => {
+  const failed = op({ status: 'failed', outcome: 'failed', error: 'boom' });
+  const exec = stageDetail('execute', failed);
+  assert.equal(exec.state, 'failed');
+  assert.ok(exec.activities.every(a => a.status === 'failed'));
+  // and a downstream stage never shows done on a failure
+  assert.notEqual(stageDetail('complete', failed).state, 'succeeded');
 });

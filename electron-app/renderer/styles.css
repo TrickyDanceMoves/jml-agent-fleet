@@ -5970,7 +5970,45 @@ html[data-theme="glass"] .tool-result-drawer {
 .gs-stage {
   display: flex; flex-direction: column; align-items: center; gap: 6px;
   min-width: 64px; flex-shrink: 0; text-align: center;
+  /* interactive: each stage opens its detail */
+  background: none; border: 0; padding: 4px 2px; margin: 0;
+  font: inherit; color: inherit; cursor: pointer;
+  border-radius: 10px;
+  transition: transform 150ms ease, background 150ms ease;
 }
+.gs-stage:hover { background: color-mix(in oklch, var(--bg-2) 60%, transparent); transform: translateY(-1px); }
+.gs-stage:focus-visible { outline: 2px solid var(--cyan); outline-offset: 1px; }
+.gs-stage[data-selected="true"] { background: color-mix(in oklch, var(--cyan-dim) 14%, transparent); }
+/* (selected-orb ring rule lives after the base .gs-stage-orb definition below) */
+
+/* Per-stage detail card under the pipeline — fills out the hero with the
+   concrete calls/checks each stage runs. */
+.gs-stage-detail {
+  margin: 4px 0 14px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: color-mix(in oklch, var(--bg-2) 50%, transparent);
+}
+.gs-stage-detail-head { display: flex; align-items: baseline; gap: 10px; }
+.gs-sd-label { font-size: 13px; font-weight: 650; color: var(--text); }
+.gs-sd-owner { font-family: var(--mono); font-size: 10.5px; color: var(--text-2); }
+.gs-sd-state { margin-left: auto; font-family: var(--mono); font-size: 10px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.gs-sd-state[data-state="active"] { color: var(--violet); }
+.gs-sd-state[data-state="failed"] { color: var(--coral); }
+.gs-sd-state[data-state="succeeded"] { color: var(--ok); }
+.gs-sd-state[data-state="partial"], .gs-sd-state[data-state="awaiting-approval"] { color: var(--warn); }
+.gs-sd-purpose { font-size: 12px; color: var(--text-2); margin: 5px 0 10px; line-height: 1.5; }
+.gs-act-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.gs-act { display: grid; grid-template-columns: 14px minmax(0, auto) 1fr; align-items: baseline; gap: 8px; }
+.gs-act-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--muted); align-self: center; }
+.gs-act[data-status="done"] .gs-act-dot { background: var(--ok); }
+.gs-act[data-status="running"] .gs-act-dot { background: var(--violet); box-shadow: 0 0 6px color-mix(in oklch, var(--violet) 50%, transparent); }
+.gs-act[data-status="failed"] .gs-act-dot { background: var(--coral); }
+.gs-act[data-status="partial"] .gs-act-dot, .gs-act[data-status="awaiting"] .gs-act-dot { background: var(--warn); }
+.gs-act-name { font-family: var(--mono); font-size: 11.5px; color: var(--text); white-space: nowrap; }
+.gs-act-note { font-size: 11.5px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; }
+.gs-act[data-status="pending"] .gs-act-name { color: var(--text-2); }
 .gs-stage-orb {
   position: relative;
   width: 42px; height: 42px; border-radius: 50%;
@@ -5981,6 +6019,7 @@ html[data-theme="glass"] .tool-result-drawer {
   transition: color 250ms ease, border-color 250ms ease, box-shadow 250ms ease, transform 250ms ease;
 }
 .gs-stage-orb svg { display: block; width: 18px; height: 18px; }
+.gs-stage[data-selected="true"] .gs-stage-orb { box-shadow: 0 0 0 2px color-mix(in oklch, var(--cyan) 55%, transparent); }
 .gs-op-initial { font-family: var(--mono); font-weight: 600; font-size: 15px; }
 /* Corner state badge: state stays readable on top of the identity icon —
    sized for projector legibility, near-opaque backing */

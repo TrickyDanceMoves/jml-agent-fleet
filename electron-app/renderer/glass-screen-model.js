@@ -99,6 +99,152 @@
     return PIPELINE_STAGES.map(id => ({ id, label: STAGE_LABELS[id], state: states[id] }));
   }
 
+  // ── Per-stage detail ───────────────────────────────────────────────────────
+  // The pipeline shows WHAT advanced; this fills in WHAT each stage actually
+  // does for a given operation — the concrete Graph calls, risk checks,
+  // verification read-backs, and audit seal. These activities are deterministic
+  // from the agent + tool (they ARE the calls each agent makes), so the detail
+  // is accurate without the backend emitting granular per-stage events.
+
+  const STAGE_OWNERS = {
+    request:  'Operator',
+    risk:     'Approver agent',
+    execute:  null,            // per-agent, resolved below
+    verify:   'Auditor agent',
+    complete: 'Audit chain',
+  };
+
+  const STAGE_PURPOSE = {
+    request:  'Operator captures intent and submits the change under their identity.',
+    risk:     'Approver scores risk, checks policy, and gates the operation.',
+    execute:  'The lifecycle agent applies the change to Microsoft Entra over Graph.',
+    verify:   'Auditor reads tenant state back to confirm the change landed.',
+    complete: 'Outcome is hash-chained to the audit log and replicated to SIEM.',
+  };
+
+  // The Graph calls each agent performs in Execute, keyed by agent (+ leaver stage).
+  function executeCalls(operation) {
+    const agent = String(operation?.agent || '').toLowerCase();
+    const stage = String(operation?.stage || '').toLowerCase();
+    switch (agent) {
+      case 'joiner': return [
+        { name: 'POST /users', note: 'create the Entra identity' },
+        { name: 'POST /users/{id}/assignLicense', note: 'assign licenses' },
+        { name: 'POST /groups/{id}/members/$ref', note: 'add group memberships' },
+      ];
+      case 'mover': return [
+        { name: 'PATCH /users/{id}', note: 'update department, title, manager' },
+        { name: 'POST /users/{id}/assignLicense', note: 'add / remove licenses' },
+        { name: 'POST · DELETE /groups/{id}/members', note: 'reconcile group membership' },
+      ];
+      case 'leaver': return stage === 'hard'
+        ? [
+            { name: 'POST /users/{id}/assignLicense', note: 'remove all licenses' },
+            { name: 'DELETE /groups/{id}/members/{uid}', note: 'remove group memberships' },
+          ]
+        : [
+            { name: 'PATCH /users/{id}', note: 'set accountEnabled = false' },
+            { name: 'POST /users/{id}/revokeSignInSessions', note: 'revoke active sessions' },
+          ];
+      case 'enroller': return [
+        { name: 'POST /deviceManagement/enroll', note: 'enroll the device' },
+        { name: 'POST /groups/{id}/members/$ref', note: 'add to compliance group' },
+      ];
+      default: return [
+        { name: 'Microsoft Graph', note: 'apply the requested change' },
+      ];
+    }
+  }
+
+  function verifyChecks(operation) {
+    const agent = String(operation?.agent || '').toLowerCase();
+    if (agent === 'leaver') return [
+      { name: 'GET /users/{id}?$select=accountEnabled', note: 'confirm account disabled' },
+      { name: 'GET /users/{id}/licenseDetails', note: 'confirm licenses removed' },
+      { name: 'GET /users/{id}/memberOf', note: 'confirm group removal' },
+    ];
+    return [
+      { name: 'GET /users/{id}', note: 'confirm attributes applied' },
+      { name: 'GET /users/{id}/licenseDetails', note: 'confirm license state' },
+      { name: 'GET /users/{id}/memberOf', note: 'confirm group membership' },
+    ];
+  }
+
+  // Map a stage's lifecycle state onto an activity status.
+  function activityStatusFor(stageState) {
+    if (stageState === 'succeeded') return 'done';
+    if (stageState === 'active')    return 'running';
+    if (stageState === 'failed')    return 'failed';
+    if (stageState === 'partial')   return 'partial';
+    if (stageState === 'awaiting-approval') return 'awaiting';
+    return 'pending';
+  }
+
+  function stageDetail(stageId, operation, now = Date.now()) {
+    const stages = mapPipeline(operation);
+    const stage  = stages.find(s => s.id === stageId);
+    if (!stage) return null;
+    const st  = stage.state;
+    const aSt = activityStatusFor(st);
+    const meta = metadataFor(operation);
+    let activities = [];
+
+    switch (stageId) {
+      case 'request':
+        activities = [
+          { name: 'Operator intent', note: titleFor(operation), status: 'done' },
+          { name: 'Mode', note: meta.mode === 'SAFE' ? 'Safe (WhatIf) — no tenant writes' : 'Live', status: 'done' },
+          { name: 'Ticket', note: meta.ticket || 'none', status: meta.ticket ? 'done' : 'pending' },
+        ];
+        break;
+      case 'risk': {
+        activities = [
+          { name: 'Invoke-RiskScore.ps1', note: 'baseline risk, sensitive licenses/groups', status: aSt },
+          { name: 'SoD policy check', note: 'separation-of-duties conflicts', status: aSt },
+          { name: 'Freeze-window check', note: 'active change-freeze policy', status: aSt },
+        ];
+        const g = operation?.grounding;
+        if (g && !g.unavailable) {
+          activities.push({ name: 'Foundry IQ grounding', note: (g.citations || []).map(c => c.title).filter(Boolean).join(', ') || 'policy corpus', status: 'done' });
+        } else if (g && g.unavailable) {
+          activities.push({ name: 'Foundry IQ grounding', note: 'unavailable — failed closed', status: 'failed' });
+        }
+        if (st === 'awaiting-approval') {
+          activities.push({ name: 'Dual approval', note: 'awaiting a second approver', status: 'awaiting' });
+        }
+        break;
+      }
+      case 'execute':
+        activities = executeCalls(operation).map(c => ({ ...c, status: aSt }));
+        break;
+      case 'verify':
+        activities = verifyChecks(operation).map(c => ({ ...c, status: aSt }));
+        break;
+      case 'complete':
+        activities = [
+          { name: 'Write-AuditEntry', note: 'hash-chained JSONL + Windows Event Log', status: aSt === 'pending' ? 'pending' : 'done' },
+          { name: 'Sentinel · Blob export', note: 'replicate evidence to SIEM', status: aSt === 'pending' ? 'pending' : 'done' },
+          { name: 'Audit hash', note: operation?.hash || 'sealed on completion', status: operation?.hash ? 'done' : (aSt === 'pending' ? 'pending' : 'done') },
+        ];
+        break;
+      default:
+        activities = [];
+    }
+
+    const owner = STAGE_OWNERS[stageId] ||
+      (operation?.agent ? String(operation.agent).toUpperCase() + ' agent' : 'agent');
+
+    return {
+      id: stageId,
+      label: stage.label,
+      state: st,
+      stateLabel: st,
+      owner,
+      purpose: STAGE_PURPOSE[stageId] || '',
+      activities,
+    };
+  }
+
   // ── Presentation formatting ────────────────────────────────────────────────
   const AGENT_ACTIONS = {
     joiner: 'Provisioning',
@@ -329,6 +475,7 @@
     buildGlassScreenViewModel,
     formatCurrentDecision,
     mapPipeline,
+    stageDetail,
     normalizeStatus,
     titleFor,
     eyebrowFor,
