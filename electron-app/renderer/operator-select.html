@@ -305,6 +305,13 @@
       }
       const allAuth = await window.api.getOperatorAuth();
       const a = allAuth && allAuth[name];
+      // Windows authentication means "trust the current OS session" — exactly as
+      // promised when it was set up ("no PIN needed"). Don't re-prompt for the
+      // Windows password here; the logged-in session is the proof of identity.
+      if (a && a.set && a.mode === 'windows') {
+        window.api.selectOperator(name, role);
+        return;
+      }
       if (!a || !a.set) {
         // No auth configured yet — offer PIN setup or Windows-auth path
         const choice = await showAuthChoice(name);
