@@ -19,7 +19,7 @@ The blocking gap is the track requirement to use at least one Microsoft IQ layer
 | Product concept | Ready | Clear identity-governance problem and differentiated hybrid trust model |
 | Live demo | Ready | Electron console, Glass Screen lifecycle replay, approval and audit surfaces |
 | Microsoft identity platform | Ready | Entra ID, Microsoft Graph, and live Entra Agent ID authentication |
-| Microsoft IQ requirement | **Blocking** | No Foundry IQ, Work IQ, Fabric IQ, or Web IQ integration is present |
+| Microsoft IQ requirement | Ready | Foundry IQ grounds risk/approval decisions on the JML policy corpus with citations and fail-closed behavior (`lib/foundry-iq.js`, 8 tests) |
 | Automated quality | Ready | 48 Electron tests pass; PowerShell parse checks pass; CI now runs the suite |
 | Dependency security | Ready | Production dependency audits report zero known vulnerabilities |
 | Public release | Ready | Installer and portable ZIP are attached to GitHub Release v1.0.0 |
@@ -29,26 +29,29 @@ The blocking gap is the track requirement to use at least one Microsoft IQ layer
 | API and worker tests | Needs work | Validation exists, but API and queue worker do not have automated test scripts |
 | Electron hardening | Accepted gap | Main renderer CSP is present; sandbox remains disabled and is documented |
 
-## Blocking Finding
+## Blocking Finding — RESOLVED 2026-06-12
 
-### P0 - Enterprise Agents requires a Microsoft IQ layer
+### P0 - Enterprise Agents requires a Microsoft IQ layer ✅ DONE
 
-The track announcement requires at least one of Foundry IQ, Work IQ, Fabric IQ, or
-Web IQ. Azure AI Foundry inference support does not by itself satisfy that
-requirement.
+The track requires at least one of Foundry IQ, Work IQ, Fabric IQ, or Web IQ.
+**JML now integrates Foundry IQ** (Azure AI Foundry knowledge retrieval) to ground
+risk and approval decisions in the JML policy corpus (SoD rules, approved access
+patterns, freeze windows, offboarding playbook). The grounding source and citations
+are shown in the Approver risk card, the Glass Screen run details, and the audit
+record.
 
-Recommended implementation: use **Foundry IQ** to ground the Approver and Auditor in
-the JML policy corpus, including SoD rules, approved access patterns, operating
-procedures, and recovery playbooks. Display the grounding source and citation in the
-Approver response and Glass Screen run details.
+Acceptance evidence — all met:
 
-Acceptance evidence:
+1. ✅ Module calls the IQ layer — `electron-app/lib/foundry-iq.js`, invoked from the
+   Approver `score_risk` path in `main.js`.
+2. ✅ Tests verify grounded output and fail-closed behavior —
+   `electron-app/test/foundry-iq.test.js` (8 tests incl. three fail-closed paths).
+3. ✅ A grounded policy match escalates risk and is cited in the UI; fail-closed
+   blocks Live submits when grounding is configured-but-unavailable.
+4. ✅ README and this doc name the exact IQ layer; architecture/case-study to match.
 
-1. A repository module or service calls the chosen IQ layer.
-2. A test verifies grounded output and fail-closed behavior when grounding is
-   unavailable.
-3. The demo shows a cited policy result affecting a risk or approval decision.
-4. The README, architecture, case study, and submission form name the exact IQ layer.
+Corpus: `shared/policy-corpus/*.md`. Publish: `provisioner/Publish-PolicyCorpus.ps1`.
+Enable: `approver/foundry-iq.json` (from `approver/foundry-iq.config.example.json`).
 
 ## High-Priority Findings
 
@@ -120,7 +123,7 @@ On June 12, 2026:
 
 ## Go-Live Checklist
 
-- [ ] Add and demonstrate one Microsoft IQ layer.
+- [x] Add and demonstrate one Microsoft IQ layer. **(Foundry IQ — done 2026-06-12)**
 - [ ] Sanitize public tenant identifiers and screenshots.
 - [ ] Add API and worker tests.
 - [ ] Confirm Conditional Access state in the demo tenant.
