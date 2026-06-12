@@ -1,0 +1,23 @@
+{
+  "_comment": "Operator RBAC. Copy to operators.json (gitignored — it names real operators). Keys are Windows usernames OR Entra UPNs/display names; the value is the role. Roles below map to the tools each operator may invoke.",
+  "operators": {
+    "viewer": "viewer",
+    "Helpdesk I/II": "helpdesk",
+    "admin@contoso.onmicrosoft.com": "admin"
+  },
+  "roles": {
+    "admin": [
+      "submit_joiner",
+      "submit_mover",
+      "submit_leaver_soft",
+      "submit_leaver_hard",
+      "submit_enroller"
+    ],
+    "helpdesk": [
+      "submit_joiner",
+      "submit_enroller"
+    ],
+    "viewer": []
+  },
+  "note": "Add Windows usernames or Entra UPNs under operators with a role. Roles define which tools each operator may invoke."
+}
