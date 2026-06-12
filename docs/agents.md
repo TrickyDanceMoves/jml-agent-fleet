@@ -1,47 +1,54 @@
 # Agent Fleet
 
-## App Registrations
+## Operational Agents
 
-| Agent | Client ID | Config |
+| Agent | Identity type | Runtime config |
 |---|---|---|
-| ClaudeAgentJoiner | `<JOINER-APP-CLIENT-ID>` | `agents/joiner/config.json` |
-| ClaudeAgentMover | `<MOVER-APP-CLIENT-ID>` | `agents/mover/config.json` |
-| ClaudeAgentLeaver | `<LEAVER-APP-CLIENT-ID>` | `agents/leaver/config.json` |
-| ClaudeAgentEnroller | `<ENROLLER-APP-CLIENT-ID>` | `agents/enroller/config.json` |
-| AgentApprover | `<APPROVER-APP-CLIENT-ID>` | `agents/approver/config.json` |
-| ClaudeAgentProvisioner | `<PROVISIONER-APP-CLIENT-ID>` | `agents/provisioner/config.json` |
-| Claude IAM Agent Auditor | see config | `agents/auditor/config.json` |
-| JML-PurviewHRConnector | `<PURVIEW-APP-CLIENT-ID>` | `agents/purview/config.json` |
+| Joiner | Least-privilege execution service principal | `joiner/config.json` |
+| Mover | Least-privilege execution service principal | `mover/config.json` |
+| Leaver | Least-privilege execution service principal | `leaver/config.json` |
+| Enroller | Least-privilege execution service principal | `enroller/config.json` |
+| Approver | Microsoft Entra Agent ID through FMI | `approver/config.json` |
+| Provisioner | Service principal, disabled at rest | `provisioner/config.json` |
+| Auditor | Microsoft Entra Agent ID through FMI | `auditor/config.json` |
 
-## Entra Role Assignments (Least Privilege)
+The API, queue worker, Certifier campaign runner, Purview connector, and Electron
+console support the fleet but are not counted as operational agents.
+
+## Entra Role Assignments
 
 | Agent | User Admin | License Admin | Cloud Device Admin |
 |---|---|---|---|
-| Joiner | ✅ | ✅ | |
-| Mover | ✅ | ✅ | |
-| Enroller | | ✅ | ✅ |
-| Leaver | ✅ | ✅ | |
+| Joiner | Yes | Yes | |
+| Mover | Yes | Yes | |
+| Enroller | | Yes | Yes |
+| Leaver | Yes | Yes | |
 | Approver | | | |
+| Auditor | | | |
 
-## Graph API Permissions (Application type)
+## Microsoft Graph Application Permissions
 
-| App | Permissions |
+| Identity | Permissions |
 |---|---|
 | Joiner | User.ReadWrite.All, Group.Read.All, GroupMember.ReadWrite.All, LicenseAssignment.ReadWrite.All |
 | Mover | User.ReadWrite.All, Group.Read.All, GroupMember.ReadWrite.All, LicenseAssignment.ReadWrite.All |
 | Enroller | User.ReadWrite.All, Group.Read.All, GroupMember.ReadWrite.All, LicenseAssignment.ReadWrite.All |
 | Leaver | User.ReadWrite.All, LicenseAssignment.ReadWrite.All, GroupMember.ReadWrite.All |
-| Approver | User.Read.All, Group.Read.All |
+| Approver Agent ID | User.Read.All, Group.Read.All |
 | Provisioner | Application.ReadWrite.All, AppRoleAssignment.ReadWrite.All |
-| Auditor | User.Read.All, Group.Read.All, Directory.Read.All, AuditLog.Read.All, Reports.Read.All |
+| Auditor Agent ID | User.Read.All, Group.Read.All, Directory.Read.All, AuditLog.Read.All, Reports.Read.All |
 
-## Approver Risk Mitigations
+Microsoft Entra blocks broad directory-write scopes on Agent IDs. The fleet therefore
+keeps privileged mutations on least-privilege execution service principals behind
+the approval and policy control plane.
+
+## Approver Risk Controls
 
 | Control | Detail |
 |---|---|
-| WHATIF/LIVE banner | Prominent mode indicator before every dispatch |
-| Input validation | `Invoke-ValidateInputs.ps1` called pre-dispatch |
-| Dual approval for leaver | Pending token in `approver/pending/`, 30-min expiry |
-| Staged leaver | Soft (disable+revoke) then Hard (licenses+groups) with confirmation |
-| Operator RBAC | `approver/operators.json`: admin / helpdesk / viewer roles |
-| Policy guardrails | `approver/policies.json`: sensitive licenses/groups + freeze windows |
+| Safe / Live session mode | Persistent mode state and visible execution boundary |
+| Input validation | `Invoke-ValidateInputs.ps1` runs before dispatch |
+| Dual approval for leaver | Pending token with a 30-minute expiry and second-operator requirement |
+| Staged leaver | Soft disable and revoke, then approved hard cleanup |
+| Operator RBAC | `approver/operators.json` maps admin, helpdesk, and viewer roles |
+| Policy guardrails | `approver/policies.json` defines sensitive licenses, groups, and freeze windows |

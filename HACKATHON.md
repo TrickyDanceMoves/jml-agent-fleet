@@ -1,122 +1,179 @@
-# Hackathon Submission Guide — Agents League / Microsoft AI Skills Fest
+# Agents League Hackathon Submission Guide
 
-**Track:** Enterprise Agents  
-**Deadline:** June 12, 2026 (registration) · June 14, 2026 (hacking closes)  
-**Prize:** $6,468 — Best Enterprise Agent ($55,552 pool)  
-**Format:** Virtual, global · public GitHub repo + 5-min demo video
+**Track:** Enterprise Agents
 
----
+**Registration deadline:** June 30, 2026
+
+**Coding period:** June 1 through July 12, 2026
+
+**Submission deadline:** July 12, 2026 at 11:59 PM Pacific Time
+
+**Format:** Virtual, global, public code repository, and public demo video up to five minutes
+
+Official references:
+
+- [Enterprise Agents track announcement](https://devblogs.microsoft.com/microsoft365dev/agents-league-hackathon-2026-enterprise-agents/)
+- [Registration and official rules](https://info.microsoft.com/Agents-League-Hackathon-Registration.html)
+
+## Current Decision
+
+**Demo readiness: GO with the checklist below.**
+
+**Enterprise Agents submission eligibility: NO-GO until a Microsoft IQ layer is integrated and demonstrated.**
+
+The Enterprise Agents challenge asks teams to use at least one Microsoft IQ layer:
+Foundry IQ, Work IQ, Fabric IQ, or Web IQ. Azure AI Foundry model inference is
+already supported, but model hosting alone is not a Microsoft IQ integration.
+
+Track this and the remaining repository risks in
+[`docs/hackathon-readiness.md`](docs/hackathon-readiness.md).
 
 ## Submission Checklist
 
-- [ ] Register at https://info.microsoft.com/Agents-League-Hackathon-Registration.html
-- [ ] Activate profile on the contest platform
-- [ ] Record 5-min demo video and upload to YouTube or Vimeo (unlisted is fine)
-- [ ] Submit via contest website with:
+- [ ] Register before June 30, 2026.
+- [ ] Integrate and demonstrate at least one Microsoft IQ layer.
+- [ ] Record a public YouTube or Vimeo demo no longer than five minutes.
+- [ ] Confirm the repository and demo disclose every third-party component used.
+- [ ] Use synthetic identities and sanitized tenant evidence in public screenshots.
+- [ ] Run the quality gate and tenant smoke tests.
+- [ ] Submit:
   - [ ] Project name: **JML Agent Fleet**
-  - [ ] Project description (copy from section below)
-  - [ ] Demo video link
-  - [ ] GitHub repo: `https://github.com/TrickyDanceMoves/jml-agent-fleet`
+  - [ ] Project description from this guide
+  - [ ] Public demo video
+  - [ ] GitHub repository: `https://github.com/TrickyDanceMoves/jml-agent-fleet`
+  - [ ] Interactive case study: `https://trickydancemoves.github.io/jml-agent-fleet/docs/case-study.html`
   - [ ] Architecture diagram: `docs/images/JML AI Agent Architecture.png`
-  - [ ] Microsoft tools list (copy from section below)
-  - [ ] Team member info
+  - [ ] Microsoft technologies list
+  - [ ] Team member details
 
----
+## Project Description
 
-## Project Description (copy-paste for submission form)
+**JML Agent Fleet** is an identity lifecycle automation system for Microsoft
+Entra ID. Seven operational agents coordinate Joiner, Mover, Leaver, enrollment,
+approval, provisioning, and audit workflows from an Electron operations console.
 
-**JML Agent Fleet** is an enterprise-grade AI agent system that automates the full identity lifecycle — Joiner, Mover, Leaver — across a Microsoft Entra ID tenant. It replaces fragmented manual IT workflows with auditable, policy-gated agent operations that run from a desktop operations console.
+The system separates reasoning from privileged execution. Approver and Auditor
+authenticate as first-class Microsoft Entra Agent IDs through FMI token exchange.
+Directory-write agents remain on least-privilege service principals because Entra
+blocks broad write scopes on Agent IDs. The model proposes; policy, approval, and
+the execution control plane decide what reaches Microsoft Graph.
 
-Seven agents (two AI-backed, five PowerShell) work together: an Approver agent handles human-in-the-loop provisioning decisions with live risk scoring, peer-group recommendations, and dual-approval gating; an Auditor agent runs UEBA behavioural analysis, drift detection, and Identity Protection scans on schedule. All operations flow through a hash-chained audit log that ingests into Microsoft Sentinel.
+Every lifecycle run appears in the Glass Screen command center as it advances
+through Request, Risk, Execute, Verify, and Complete. Failed and partial runs remain
+failed or partial across the dashboard, operations surfaces, replay, and audit
+evidence. Hard-destructive leaver actions require a second operator approval.
 
-The AI layer is **provider-agnostic**: both agents run on any OpenAI-compatible backend — Azure AI Foundry, Azure OpenAI, OpenAI, Claude, or local Ollama — switchable from Settings without touching code or losing context. The recommended enterprise configuration uses Azure AI Foundry for model governance and deployment.
+The reasoning layer is provider-agnostic and supports Azure AI Foundry, Azure
+OpenAI, OpenAI, Anthropic, Ollama, and Qwen-compatible local runtimes. HR events
+can enter through Azure Functions, validate against the canonical JSON Schema, and
+flow through Azure Storage Queue and Table Storage to the lifecycle agents.
 
-HRIS events (hire, transfer, termination) arrive via Azure Functions v4 webhooks, are validated against a canonical JSON Schema, and queued in Azure Storage Queue for the worker to dispatch to the appropriate agent. BambooHR is implemented; the webhook adapter pattern is extensible to any HRIS.
+The current build includes a tamper-evident SHA-256 audit chain, UEBA and drift
+detection, Microsoft Sentinel and Blob export paths, operator RBAC, Safe and Live
+session modes, and 48 automated console tests.
 
-The operations console is an Electron desktop app with 14 tabs: fleet health, agent chat, access reviews, integrations, security findings, audit log, user lookup, Graph API runner, and more.
+## Microsoft Technologies
 
----
-
-## Microsoft Technologies Used
-
-| Technology | Where used |
+| Technology | Use in JML Agent Fleet |
 |---|---|
-| **Azure AI Foundry** | Recommended AI backend for Approver and Auditor agents; connects via OpenAI-compatible inference endpoint |
-| **Microsoft Entra ID** | Identity platform; all provisioning, group, license, and PIM operations via Graph API |
-| **Microsoft Graph API** | Core API for all user lifecycle operations (create, update, disable, license, group membership) |
-| **Azure Functions v4** | HRIS webhook receiver and event API (`POST /api/jml`, `POST /api/webhooks/{source}`) |
-| **Azure Storage Queue** | Durable event queue for HRIS-triggered identity operations with retry and dead-letter |
-| **Azure Table Storage** | Event status tracking (queued → processing → completed) |
-| **Azure Blob Storage** | Audit log export with SAS token authentication |
-| **Microsoft Sentinel** | SIEM ingestion of audit log and security findings via HTTP Data Collector API (`JML_AuditLog_CL`, `JML_SecurityFindings_CL`) |
-| **Microsoft Purview** | HR Connector integration for employee data ingestion |
-| **Microsoft Identity Platform** | OAuth 2.0 client credentials flow for all agent app registrations |
-| **GitHub Copilot** | Used throughout development for code generation and review |
+| **Microsoft Entra ID** | Source of truth for users, groups, licenses, app identities, and governance |
+| **Microsoft Entra Agent ID** | First-class identities for the Approver and Auditor reasoning agents |
+| **Microsoft Graph API** | User lifecycle, group, license, session, risk, and identity operations |
+| **Azure AI Foundry** | Supported model inference provider for the reasoning agents |
+| **Azure Functions v4** | HRIS webhook and canonical JML event API |
+| **Azure Storage Queue** | Durable event delivery, retry, and dead-letter handling |
+| **Azure Table Storage** | Event status tracking |
+| **Azure Blob Storage** | Optional audit evidence export |
+| **Microsoft Sentinel** | Optional audit and security finding ingestion |
+| **Microsoft Purview** | HR connector integration path |
+| **Microsoft IQ layer** | **Required before submission; not yet implemented** |
 
----
+## Five-Minute Demo
 
-## Demo Video Script (5 minutes)
+### 0:00-0:30 - Thesis
 
-### 0:00 – 0:40 · Problem statement
-*Show the problem slide / case study intro*
-- Identity ops live in the seams: HR tickets, IT approvals, manual group assignments
-- Permissions accumulate silently — access drift is the default state
-- Audit trails span four systems and a spreadsheet
+- Identity operations need AI assistance without giving a model directory-wide authority.
+- Show the case study hero and the hybrid trust model.
 
-### 0:40 – 1:30 · Architecture overview
-*Show architecture diagram*
-- 7 agents, zero-trust isolation, least-privilege Graph API permissions
-- HRIS → Azure Functions → Storage Queue → PowerShell agents → Entra ID
-- Everything written to a hash-chained audit log, shipped to Sentinel
+### 0:30-1:10 - Architecture
 
-### 1:30 – 2:45 · Live demo — Joiner flow
-*Open JML Console → JML Fleet tab*
-- "Onboard Sarah Chen, she's joining as a Senior Engineer in Platform"
-- Watch Approver agent: peer recommendation (which licenses/groups 60% of Platform engineers have), risk score < 25 (low), confirm submit
-- Switch to Audit Log — show the hash-chained entry with ticket ref and operator identity
+- Approver and Auditor run as Entra Agent IDs.
+- Policy-gated write agents use least-privilege service principals.
+- Every action emits lifecycle state and tamper-evident audit evidence.
+- Call out the Microsoft IQ integration once it is implemented.
 
-### 2:45 – 3:30 · Live demo — Leaver flow
-*Still in JML Fleet*
-- "Mark Thompson is leaving today, ticket INC-1234"
-- Risk score (leaver is always medium+), soft leaver: disable + revoke sessions
-- Dual-approval gate fires — second operator must confirm before hard leaver
+### 1:10-2:35 - Joiner
 
-### 3:30 – 4:00 · Security tab
-*Click Security tab*
-- Live UEBA findings (after-hours ops, high-volume changes)
-- Drift detection results (group membership changed outside the agent)
-- Identity Protection risky user signals pulled from Microsoft
+- Start with: "Onboard Sarah Chen as a Platform Engineer in the US."
+- Show peer recommendations, risk score, policy checks, and confirmation.
+- Switch to Glass Screen and follow Request to Complete.
+- Open run details and show the operation ID, ticket, operator, and outcome.
 
-### 4:00 – 4:30 · AI Provider settings
-*Click Settings → AI Provider*
-- Show provider selector: Azure AI Foundry is the enterprise default
-- Enter Foundry endpoint, model, click Test Connection → "connected · azure-foundry"
-- Emphasise: swap provider without losing conversation history
+### 2:35-3:35 - Failure truth and recovery
 
-### 4:30 – 5:00 · Close
-- GitHub repo, case study link
-- "Built on Microsoft Entra ID, Graph API, Azure Functions, Azure Storage, Sentinel, and Azure AI Foundry — the full Microsoft enterprise AI stack"
+- Replay a controlled failed or partial run.
+- Show that Verify and Complete are not marked successful.
+- Show the same outcome on Dashboard, Operations, and Audit Log.
+- Explain the actionable recovery message without exposing raw infrastructure errors.
 
----
+### 3:35-4:20 - Leaver governance
 
-## Judging Criteria Mapping
+- Run a soft leaver in Safe mode.
+- Show the dual-approval gate for the hard-destructive stage.
+- Explain operator RBAC and the Safe versus Live session boundary.
 
-| Criterion (20%) | How JML addresses it |
+### 4:20-5:00 - Evidence and close
+
+- Show UEBA, drift, audit-chain verification, and Sentinel or Blob export controls.
+- Show the Microsoft IQ result or grounding evidence.
+- Close on the public repository, case study, release, and 48-test quality gate.
+
+## Judging Alignment
+
+Official judging is based on concept, impact, Microsoft platform use, and quality
+of implementation.
+
+| Criterion | Evidence |
 |---|---|
-| Accuracy & Relevance | Enterprise Agents track — automates Microsoft 365 / Entra identity operations end-to-end |
-| Reasoning & Multi-step Thinking | Approver runs multi-turn tool-call loops: peer recommendation → risk score → policy check → submit or reject |
-| Creativity & Originality | First open-source IGA-class agent fleet on Microsoft's stack; provider-agnostic AI layer; hash-chained audit |
-| User Experience & Presentation | Production Electron console with 14 tabs, docked panel, overlay mode, operator RBAC, PIN auth |
-| Reliability & Safety | Dual approval, freeze windows, SoD policy, WHATIF mode, circuit breaker, exponential retry, tamper-evident audit |
-| Community vote | — |
+| **Concept** | Hybrid Agent ID architecture separates reasoning from privileged execution |
+| **Impact** | Reduces manual JML work while preserving approval, traceability, and failure truth |
+| **Use of Microsoft Platform** | Entra ID, Entra Agent ID, Microsoft Graph, Azure Functions, Storage, Sentinel, Purview, and the required IQ layer |
+| **Quality of Implementation** | Live console, replayable lifecycle state, fail-closed controls, 48 tests, CI, threat model, and downloadable release |
 
----
+## Judge Setup
 
-## Setup for Judges (30-second path)
+### Fastest path
 
-1. Install: run `dist/JML Console Setup 1.0.0.exe` (per-user, no admin needed)
-2. Open app → Settings → AI Provider → select **Azure AI Foundry** → paste endpoint + key → Save
-3. Settings → Tenant Binding → run Setup Wizard (device-code sign-in, creates app registrations)
-4. JML Fleet tab → start chatting with the Approver agent
+1. Download `JML.Console.Setup.1.0.0.exe` from the
+   [v1.0.0 GitHub Release](https://github.com/TrickyDanceMoves/jml-agent-fleet/releases/tag/v1.0.0).
+2. Install per-user.
+3. Open Settings and configure an AI provider.
+4. Run the Tenant Binding wizard with an authorized lab tenant.
+5. Use Safe mode first.
 
-No PowerShell pre-requisites for the console. Graph PowerShell SDK is only needed if running the PS1 scripts directly.
+### Development path
+
+```powershell
+cd electron-app
+npm ci
+npm test
+npm start
+```
+
+Microsoft Graph PowerShell SDK is required for tenant operations:
+
+```powershell
+Install-Module Microsoft.Graph -Scope CurrentUser
+```
+
+## Final Gate
+
+Before recording or submitting:
+
+```powershell
+cd electron-app
+npm test
+npm audit --omit=dev --audit-level=high
+```
+
+Then run the tenant checks in [`docs/quality-assurance.md`](docs/quality-assurance.md).

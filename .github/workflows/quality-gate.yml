@@ -65,6 +65,13 @@ jobs:
           npm install --no-audit --no-fund
           npm test --if-present
 
+      - name: Electron install + test
+        working-directory: electron-app
+        shell: bash
+        run: |
+          npm ci --no-audit --no-fund
+          npm test
+
       - name: Validate canonical HR event schema is valid JSON Schema
         shell: pwsh
         run: |
