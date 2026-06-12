@@ -2294,6 +2294,57 @@ ipcMain.handle('get-current-operator', () => {
   return { name: currentOperator, role };
 });
 
+// ── Entra operator sign-in (device code) ──────────────────────────────────────
+// Authenticates the human operator against Entra ID instead of trusting the
+// local Windows username: device code → Graph /me → role from operators.json
+// (keyed by UPN, display name, or UPN local part). The audit chain then carries
+// a real directory identity. Windows/PIN selection remains available beside it.
+ipcMain.on('entra-signin-start', async (event) => {
+  const send = (ch, d) => { try { event.sender.send(ch, d); } catch {} };
+  try {
+    const tenantId = readJson(path.join(AGENTS_DIR, 'auditor', 'config.json')).TenantId;
+    const clientId = '14d82eec-204b-4c2f-b7e8-296a70dab67e'; // Microsoft Graph public client
+    const form = body => ({
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams(body).toString(),
+    });
+    const dc = await (await fetch(`https://login.microsoftonline.com/${tenantId}/oauth2/v2.0/devicecode`,
+      form({ client_id: clientId, scope: 'User.Read openid profile' }))).json();
+    if (!dc.device_code) throw new Error(dc.error_description || 'Could not start device-code sign-in');
+    send('entra-device-code', { userCode: dc.user_code, verificationUri: dc.verification_uri || 'https://microsoft.com/devicelogin' });
+
+    const deadline = Date.now() + (dc.expires_in || 900) * 1000;
+    let interval = Math.max(5, dc.interval || 5) * 1000;
+    let token = null;
+    while (Date.now() < deadline) {
+      await sleep(interval);
+      const tok = await (await fetch(`https://login.microsoftonline.com/${tenantId}/oauth2/v2.0/token`,
+        form({ grant_type: 'urn:ietf:params:oauth:grant-type:device_code', client_id: clientId, device_code: dc.device_code }))).json();
+      if (tok.access_token) { token = tok.access_token; break; }
+      if (tok.error === 'authorization_pending') continue;
+      if (tok.error === 'slow_down') { interval += 5000; continue; }
+      throw new Error(tok.error_description || tok.error || 'Sign-in failed');
+    }
+    if (!token) throw new Error('Sign-in timed out — try again');
+
+    const me = await (await fetch('https://graph.microsoft.com/v1.0/me?$select=displayName,userPrincipalName',
+      { headers: { Authorization: `Bearer ${token}` } })).json();
+    const upn = me.userPrincipalName || '';
+    if (!upn) throw new Error((me.error && me.error.message) || 'Could not resolve the signed-in identity');
+
+    let role = 'viewer';
+    try {
+      const ops = readJson(OPERATORS_FILE).operators || {};
+      role = ops[upn] || ops[me.displayName] || ops[upn.split('@')[0]] || 'viewer';
+    } catch {}
+    logOperatorActivity('entra.signin', { target: upn, role });
+    send('entra-signin-result', { ok: true, name: upn, displayName: me.displayName || upn, role });
+  } catch (e) {
+    send('entra-signin-result', { ok: false, error: e.message });
+  }
+});
+
 ipcMain.on('select-operator', (event, { name, role }) => {
   currentOperator = name;
   currentRole     = role || 'viewer';

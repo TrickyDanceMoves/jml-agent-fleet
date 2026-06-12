@@ -12,8 +12,8 @@ Five minutes to the core of it:
 
 1. **The thesis** — autonomous AI agents should *propose* identity changes, never own directory-write authority. Microsoft Entra itself enforces this: write scopes are blocked on agent identities. This project's hybrid architecture (reasoning agents on **Entra Agent IDs**, execution behind a policy-gated control plane on least-privilege service principals) isn't a workaround — it's the platform-aligned answer, running live in a real tenant.
 2. **See it** — the [screenshots below](#screenshots) are real captures from the running console: risk-scored approvals, a tamper-evident hash-chained audit trail replicated to Sentinel/Blob, UEBA findings, and the Glass Screen showing a live operation advance through Request → Risk → Execute → Verify → Complete.
-3. **Run it** — `dist/JML Console Setup 1.0.0.exe` installs per-user; the Setup Wizard binds your tenant and provisions all app registrations with admin-consent links ([Installation](#installation)). Or `npm start` from `electron-app/` for the dev path.
-4. **Audit it** — [threat model](docs/threat-model.md) · [agent identity roadmap (now executed)](docs/agent-identity-roadmap.md) · [Electron hardening](docs/electron-security.md) · 48 automated tests + CI quality gate.
+3. **Run it** — download the published release artifact from [JML Console v1.0.0](https://github.com/TrickyDanceMoves/jml-agent-fleet/releases/tag/v1.0.0); the Setup Wizard binds your tenant and provisions the required identities with admin-consent links ([Installation](#installation)). Or run `npm start` from `electron-app/` for the development path.
+4. **Audit it** — [threat model](docs/threat-model.md) · [agent identity roadmap (now executed)](docs/agent-identity-roadmap.md) · [Electron hardening](docs/electron-security.md) · 48 automated tests enforced by the CI quality gate.
 
 > **The model proposes; policy and approval decide what executes.**
 
@@ -169,7 +169,7 @@ Desktop app (`agents/electron-app/`) with a frameless operator selector at start
 - Each agent has an isolated app registration with least-privilege Graph API permissions
 - No agent can modify other app registrations; only the Provisioner can, and it is disabled at rest
 - Certificate-based auth (`Connect-AgentGraph` in `Helpers.ps1`) with DPAPI-encrypted secret fallback
-- Conditional Access Named Location policy blocks agent sign-ins outside the allowed CIDR (setup pending Entra P2 license)
+- Conditional Access automation is included. Service-principal enforcement requires Microsoft Entra Workload Identities Premium; Agent ID policy is a separate hackathon-readiness item tracked in [`docs/hackathon-readiness.md`](docs/hackathon-readiness.md)
 - `Test-AgentPermissions.ps1` detects and optionally repairs permission drift
 
 ### Agent Identity — Hybrid Entra Agent ID (live)
@@ -286,6 +286,7 @@ Honest current state, so reviewers know what's proven vs. planned:
 | JIT privilege | Control-plane (Provisioner at-rest disable + approval) | Agent-scoped governance as Entra supports it |
 | Operator RBAC | Local Windows username / PIN | Entra-backed operator identity + group-derived role |
 | Conditional Access | Script present, needs Workload Identities Premium (P2) | Enabled CA for agent identities |
+| Hackathon IQ layer | Not yet integrated | Add and demonstrate at least one Microsoft IQ layer before Enterprise Agents submission |
 | AI observability | ✅ Per-turn run telemetry (provider, model, latency, tokens) in Settings → AI Provider | Foundry-native trace correlation IDs |
 | Copilot integration | ✅ OpenAPI action surface + Power Platform connector (`api/apiProperties.json`, `docs/copilot-studio-setup.md`) | Live Copilot Studio agent in tenant |
 | Electron sandbox | `sandbox: false` (preload needs Node); CSP enforced on main renderer | `sandbox: true` after moving Node logic to IPC |
@@ -300,7 +301,7 @@ Planning guidance for the follow-on Azure Network Deployment and Governance Cons
 
 ## Installation
 
-Run `dist/JML Console Setup 1.0.0.exe`. No admin rights required; it installs per-user to `%LOCALAPPDATA%\Programs\JML Console\`.
+Download `JML.Console.Setup.1.0.0.exe` from the [v1.0.0 GitHub Release](https://github.com/TrickyDanceMoves/jml-agent-fleet/releases/tag/v1.0.0). No admin rights are required; it installs per-user to `%LOCALAPPDATA%\Programs\JML Console\`.
 
 **Prerequisite:** Microsoft Graph PowerShell SDK
 ```powershell

@@ -122,6 +122,19 @@
       transition: border-color .15s, color .15s, background .15s;
     }
     .btn-continue:hover { border-color: var(--border-strong); color: var(--text); background: var(--bg-2); }
+    .btn-entra { color: var(--text); border-color: var(--cyan-dim); }
+    .btn-entra:hover { border-color: var(--cyan); background: oklch(0.22 0.04 200 / .25); }
+    .btn-entra:disabled { opacity: .55; cursor: default; }
+    .entra-status {
+      font-family: var(--mono); font-size: 11px; color: var(--text-2);
+      padding: 9px 11px; border: 1px solid var(--border); border-radius: 8px;
+      background: var(--bg-2); line-height: 1.6; word-break: break-all;
+    }
+    .entra-status b.entra-code {
+      color: var(--cyan); font-size: 14px; letter-spacing: .15em;
+      user-select: text; -webkit-user-select: text;
+    }
+    .entra-status.err { color: var(--coral); border-color: oklch(0.45 0.16 24 / .45); }
     .no-ops { font-size: 12px; color: var(--muted); text-align: center; padding: 14px; }
     /* PIN gate dialog */
     .pin-gate-overlay {
@@ -181,6 +194,11 @@
       <span class="guest-label">or</span>
       <div class="guest-divider"></div>
     </div>
+    <button class="btn-continue btn-entra" id="btn-entra">
+      <svg viewBox="0 0 21 21" width="13" height="13" style="vertical-align:-2px;margin-right:7px"><rect x="1" y="1" width="9" height="9" fill="#f25022"/><rect x="11" y="1" width="9" height="9" fill="#7fba00"/><rect x="1" y="11" width="9" height="9" fill="#00a4ef"/><rect x="11" y="11" width="9" height="9" fill="#ffb900"/></svg>
+      Sign in with Microsoft Entra ID
+    </button>
+    <div class="entra-status" id="entra-status" style="display:none"></div>
     <button class="btn-continue" id="btn-guest">Continue as <span id="guest-name">guest</span></button>
     <div class="win-map">
       <span class="k">Win-Auth</span>
@@ -239,6 +257,36 @@
     document.getElementById('btn-guest').addEventListener('click', () => {
       // Guest = read-only viewer; no PIN required
       window.api.selectOperator(window.api.currentUser, 'guest');
+    });
+
+    // ── Entra ID sign-in (device code) ─────────────────────────────────────
+    // Interactive directory authentication replaces local-username trust; the
+    // signed-in UPN becomes the audited operator identity. Role comes from
+    // operators.json (UPN, display name, or UPN local part). The Entra sign-in
+    // itself is the auth — no PIN gate on this path.
+    const entraBtn    = document.getElementById('btn-entra');
+    const entraStatus = document.getElementById('entra-status');
+    entraBtn.addEventListener('click', () => {
+      entraBtn.disabled = true;
+      entraStatus.className = 'entra-status';
+      entraStatus.style.display = '';
+      entraStatus.textContent = 'Requesting sign-in code…';
+      window.api.startEntraOperatorSignin();
+    });
+    window.api.onEntraDeviceCode(d => {
+      entraStatus.innerHTML =
+        `Code <b class="entra-code">${d.userCode}</b> — enter it in the browser window that just opened (${d.verificationUri}). Waiting for sign-in…`;
+      window.api.openExternal(d.verificationUri);
+    });
+    window.api.onEntraSigninResult(r => {
+      if (r.ok) {
+        entraStatus.innerHTML = `Signed in as <b>${r.displayName}</b> · role <b>${r.role}</b> — opening console…`;
+        window.api.selectOperator(r.name, r.role);
+      } else {
+        entraStatus.className = 'entra-status err';
+        entraStatus.textContent = 'Sign-in failed: ' + (r.error || 'unknown error');
+        entraBtn.disabled = false;
+      }
     });
 
     // ── PIN gate for write-access operators ────────────────────────────────
