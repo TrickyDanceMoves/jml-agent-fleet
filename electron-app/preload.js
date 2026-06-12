@@ -122,6 +122,12 @@ contextBridge.exposeInMainWorld('api', {
   onPimRoles:          (cb)      => ipcRenderer.on('pim-roles',           (_, d) => cb(d)),
   onPimActivateResult: (cb)      => ipcRenderer.on('pim-activate-result', (_, d) => cb(d)),
 
+  // Entra operator sign-in (device code) — real directory identity instead of
+  // trusting the local Windows username
+  startEntraOperatorSignin: ()   => ipcRenderer.send('entra-signin-start'),
+  onEntraDeviceCode:        (cb) => ipcRenderer.on('entra-device-code',   (_, d) => cb(d)),
+  onEntraSigninResult:      (cb) => ipcRenderer.on('entra-signin-result', (_, d) => cb(d)),
+
   // Operator identity
   getOperatorsForLogin: ()             => ipcRenderer.invoke('get-operators-for-login'),
   getCurrentOperator:   ()             => ipcRenderer.invoke('get-current-operator'),
