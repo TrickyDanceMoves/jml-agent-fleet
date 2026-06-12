@@ -2386,7 +2386,13 @@ ipcMain.handle('get-current-operator', () => {
 ipcMain.on('entra-signin-start', async (event) => {
   const send = (ch, d) => { try { event.sender.send(ch, d); } catch {} };
   try {
-    const tenantId = readJson(path.join(AGENTS_DIR, 'auditor', 'config.json')).TenantId;
+    // Resolve the tenant from the durable tenant.json first; fall back to an
+    // agent config if one exists. A fresh install has neither, so surface a
+    // clear message instead of an ENOENT from reading a missing file.
+    const tenantId = readTenantConfig().tenantId || (() => {
+      try { return readJson(path.join(AGENTS_DIR, 'auditor', 'config.json')).TenantId; } catch { return ''; }
+    })();
+    if (!tenantId) throw new Error('No tenant connected yet — set your Tenant ID in Settings → Tenant, then try Entra sign-in.');
     const clientId = '14d82eec-204b-4c2f-b7e8-296a70dab67e'; // Microsoft Graph public client
     const form = body => ({
       method: 'POST',

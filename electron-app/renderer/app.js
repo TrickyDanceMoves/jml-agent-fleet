@@ -1699,12 +1699,17 @@ window.api.onSecurityReports((data) => {
     }
     const labelEl = critCard.querySelector('.label');
     const titleEl = critCard.querySelector('.title');
+    const metaEl  = critCard.querySelector('.meta');
     if (labelEl) labelEl.textContent = critCount > 0
       ? `Security · ${critCount} critical`
       : warnCount > 0 ? `Security · ${warnCount} warning` : 'Security · all clear';
-    if (titleEl && critCount === 0 && warnCount === 0) {
-      titleEl.textContent = 'No critical findings';
-    }
+    // Keep title and label consistent — never leave a stale "findings" title when
+    // counts are zero, nor a "no findings" title when there are real findings.
+    if (titleEl) titleEl.textContent =
+      critCount > 0 ? `${critCount} critical finding${critCount !== 1 ? 's' : ''} need review`
+      : warnCount > 0 ? `${warnCount} warning${warnCount !== 1 ? 's' : ''} to review`
+      : 'No security findings yet';
+    if (metaEl) metaEl.textContent = '';
   }
 
   // Sections stay collapsed by default — user clicks a scan card to open one
@@ -6855,6 +6860,13 @@ function loadRecentUsers() {
     const certs = data.certs || [];
     if (!certs.length) {
       bodyEl.innerHTML = '<div class="loading-hint">No certificate data found in agent configs.</div>';
+      // Reset the triage card to a neutral state so it doesn't sit on the
+      // "Checking…" placeholder when no agent certs exist yet.
+      const _t = id => document.getElementById(id);
+      if (_t('triage-certs-label')) _t('triage-certs-label').textContent = 'Rotations';
+      if (_t('triage-certs-title')) _t('triage-certs-title').textContent = 'No certificates configured';
+      if (_t('triage-certs-meta'))  _t('triage-certs-meta').textContent  = '';
+      if (_t('triage-certs-sub'))   _t('triage-certs-sub').textContent   = '';
       return;
     }
 
