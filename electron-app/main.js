@@ -3100,6 +3100,33 @@ async function runCapture() {
   // shell containers and height:auto causes .view.active{flex:1} to collapse to 0.
   // Instead: (1) remove overflow clipping on shells, (2) expand the active view and
   // any tab-specific scroller directly.
+  // Public-repo screenshot hygiene: replace the real tenant domain / operator
+  // UPN with a neutral demo label everywhere it renders, so committed docs
+  // images don't expose tenant topology.
+  const SANITIZE_TENANT = `
+    (function(){
+      var REAL = /[a-z0-9.-]*\\.onmicrosoft\\.com/gi;
+      var DEMO_DOMAIN = 'contoso.onmicrosoft.com';
+      function scrub(node){
+        if (!node) return;
+        node.querySelectorAll('*').forEach(function(el){
+          if (el.children.length === 0 && el.textContent && REAL.test(el.textContent)) {
+            el.textContent = el.textContent.replace(REAL, function(m){
+              var local = m.split('@')[0];
+              return m.indexOf('@') !== -1 ? local + '@' + DEMO_DOMAIN : DEMO_DOMAIN;
+            });
+          }
+          REAL.lastIndex = 0;
+        });
+      }
+      scrub(document.body);
+      ['sidebar-tenant-domain','topbar-tenant-domain'].forEach(function(id){
+        var el = document.getElementById(id);
+        if (el && /onmicrosoft/i.test(el.textContent)) el.textContent = DEMO_DOMAIN;
+      });
+    })();
+  `;
+
   const REMOVE_OVERFLOW = `
     (function(){
       // Shell containers — remove clipping only, preserve flex/grid height
@@ -3243,6 +3270,7 @@ async function runCapture() {
     await sleep(wait);
     if (TAB_INJECT[tab]) await win.webContents.executeJavaScript(TAB_INJECT[tab]);
     await win.webContents.executeJavaScript(REMOVE_OVERFLOW);
+    await win.webContents.executeJavaScript(SANITIZE_TENANT);
     // Force a fresh paint before capture (especially needed in --disable-gpu / software render mode)
     await forceCapturePaint();
     let img;

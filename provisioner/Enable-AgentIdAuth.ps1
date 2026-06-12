@@ -19,7 +19,8 @@
     .\Enable-AgentIdAuth.ps1 -BlueprintAppId 00000000-0000-0000-0000-000000000000
 #>
 param(
-    [string]$BlueprintAppId = "00000000-0000-0000-0000-000000000000"
+    # Blueprint application appId from New-AgentIdentities.ps1 output (tenant-specific).
+    [Parameter(Mandatory)][string]$BlueprintAppId
 )
 
 $ErrorActionPreference = "Stop"

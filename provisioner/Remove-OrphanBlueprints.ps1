@@ -9,7 +9,9 @@
     .\Remove-OrphanBlueprints.ps1 -Execute   # actually delete orphans
 #>
 param(
-    [string]$KeepAppId   = "00000000-0000-0000-0000-000000000000",
+    # appId of the blueprint backing the live agent identities — keep this one,
+    # delete other "JML Agent Fleet Blueprint" apps. Tenant-specific; required.
+    [Parameter(Mandatory)][string]$KeepAppId,
     [string]$DisplayName = "JML Agent Fleet Blueprint",
     [switch]$Execute
 )
