@@ -853,6 +853,8 @@ function lcSetIdle() {
   renderLifecycleMap();
 }
 
+window.__jmlSetApproverInputLifecycle = lcSetIdle;
+
 // Legacy shim — kept so any future callers don't break
 function updateLifecycleState(stepLabel, state) {
   // Replaced by the new state machine above; no-op for legacy calls
