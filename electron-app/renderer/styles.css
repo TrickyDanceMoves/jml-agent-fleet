@@ -1680,18 +1680,9 @@ body.maximized, body.maximized .app { border-radius: 0; }
   0%, 60%, 100% { transform: translateY(0); opacity: 0.35; }
   30% { transform: translateY(-5px); opacity: 1; }
 }
+/* Static label — the bouncing dots are the single "thinking" animation. */
 .thinking-label {
   font-size: 12px; color: var(--muted);
-  animation: thinking-fade 2s ease-in-out infinite;
-}
-@keyframes thinking-fade { 0%, 100% { opacity: .55; } 50% { opacity: 1; } }
-
-.message.thinking .message-avatar {
-  animation: avatar-think 2s ease-in-out infinite;
-}
-@keyframes avatar-think {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.5; filter: brightness(1.3); }
 }
 
 /* Streaming text cursor */
