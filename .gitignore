@@ -52,6 +52,12 @@ auditor/reports/
 electron-app/out/
 electron-app/dist/
 
+# Local state backups — may contain tenant UPNs, PIN hashes, or tenant IDs.
+# Never commit; these are runtime/recovery copies, not source.
+*.bak
+*.fresh-bak
+*.oobebak
+
 # Misc
 .superpowers/
 *.tmp
