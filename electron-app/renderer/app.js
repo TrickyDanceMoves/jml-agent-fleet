@@ -950,10 +950,11 @@ window.api.onChunk(({ agent: chunkAgent, type, text, toolName, success, result }
     }
     if (agent === 'auditor') audTrackTool(toolName, 'running');
 
-    const thinkLbl = msgEl.querySelector('.thinking-label');
-    if (thinkLbl && msgEl.classList.contains('thinking')) {
-      thinkLbl.textContent = formatToolName(toolName) + '…';
-    }
+    // Once a tool starts, its own spinner represents activity — hide the
+    // generic thinking dots so only one "loading" animation runs at a time.
+    const thinkEl = msgEl.querySelector('.thinking-indicator');
+    if (thinkEl) thinkEl.style.display = 'none';
+    msgEl.classList.remove('thinking');
     if (SUBMIT_LABELS[toolName]) {
       const lbl = SUBMIT_LABELS[toolName];
       if (!_submitBatch[agent][toolName]) _submitBatch[agent][toolName] = { el: null, started: 0, done: 0, failed: 0 };
