@@ -2638,11 +2638,52 @@ ipcMain.handle('get-current-operator', () => {
   return { name: currentOperator, role };
 });
 
+// Entra directory roles → app role. A user who already holds an admin-tier
+// directory role in the tenant should not need a hand-maintained operators.json
+// entry to operate the console — their tenant privilege is the source of truth.
+// Keyed by the role *template* GUID (stable across tenants); see
+// https://learn.microsoft.com/entra/identity/role-based-access-control/permissions-reference
+const ENTRA_ROLE_TEMPLATE_TO_APP_ROLE = {
+  '62e90394-69f5-4237-9190-012177145e10': 'admin',    // Global Administrator
+  'e8611ab8-c189-46e8-94e1-60213ab1f814': 'admin',    // Privileged Role Administrator
+  'fe930be7-5e62-47db-91af-98c3a49a38b1': 'admin',    // User Administrator
+  '729827e3-9c14-49f7-bb1b-9608f156bbb8': 'helpdesk', // Helpdesk Administrator
+  '966707d0-3269-4727-9be2-8c3a10f19b9d': 'helpdesk', // Password Administrator
+};
+const APP_ROLE_RANK = { viewer: 0, helpdesk: 1, admin: 2 };
+
+// Resolve the strongest app role granted by the signed-in user's *active*
+// Entra directory roles. Uses transitiveMemberOf so roles assigned via a
+// role-assignable group are caught too (not just directly assigned ones).
+// Least-privileged scope is User.Read — already granted — so no extra consent.
+// Returns null when the user holds no mapped *active* directory role, or on any
+// error; callers fall back to the local operators.json mapping. Note: a role
+// that is PIM-eligible but not currently activated is NOT a membership and will
+// not appear here until the operator activates it.
+async function entraDirectoryAppRole(token) {
+  try {
+    // OData cast → only directory roles (a short list). Cast counts as an
+    // advanced query, so ConsistencyLevel: eventual + $count are required.
+    const res = await fetch(
+      'https://graph.microsoft.com/v1.0/me/transitiveMemberOf/microsoft.graph.directoryRole?$select=roleTemplateId&$count=true',
+      { headers: { Authorization: `Bearer ${token}`, ConsistencyLevel: 'eventual' } });
+    if (!res.ok) return null;
+    const body = await res.json();
+    let best = null;
+    for (const r of (body.value || [])) {
+      const mapped = ENTRA_ROLE_TEMPLATE_TO_APP_ROLE[String(r.roleTemplateId || '').toLowerCase()];
+      if (mapped && (!best || APP_ROLE_RANK[mapped] > APP_ROLE_RANK[best])) best = mapped;
+    }
+    return best;
+  } catch { return null; }
+}
+
 // ── Entra operator sign-in (device code) ──────────────────────────────────────
 // Authenticates the human operator against Entra ID instead of trusting the
-// local Windows username: device code → Graph /me → role from operators.json
-// (keyed by UPN, display name, or UPN local part). The audit chain then carries
-// a real directory identity. Windows/PIN selection remains available beside it.
+// local Windows username: device code → Graph /me → role from the tenant's
+// directory roles (admins are auto-elevated) or operators.json (keyed by UPN,
+// display name, or UPN local part), whichever is higher. The audit chain then
+// carries a real directory identity. Windows/PIN selection remains beside it.
 ipcMain.on('entra-signin-start', async (event) => {
   const send = (ch, d) => { try { event.sender.send(ch, d); } catch {} };
   if (PRESENTATION_MODE) {
@@ -2711,12 +2752,18 @@ ipcMain.on('entra-signin-start', async (event) => {
     const upn = me.userPrincipalName || '';
     if (!upn) throw new Error((me.error && me.error.message) || 'Could not resolve the signed-in identity');
 
-    let role = 'viewer';
+    let localRole = 'viewer';
     try {
       const ops = readJson(OPERATORS_FILE).operators || {};
-      role = ops[upn] || ops[me.displayName] || ops[upn.split('@')[0]] || 'viewer';
+      localRole = ops[upn] || ops[me.displayName] || ops[upn.split('@')[0]] || 'viewer';
     } catch {}
-    logOperatorActivity('entra.signin', { target: upn, role });
+    // Tenant admins are auto-elevated: take the stronger of the directory-role
+    // grant and the local operators.json mapping (never downgrades a configured
+    // operator, never locks out a real tenant admin who isn't in operators.json).
+    const tenantRole = await entraDirectoryAppRole(token);
+    const role = (tenantRole && (APP_ROLE_RANK[tenantRole] || 0) > (APP_ROLE_RANK[localRole] || 0))
+      ? tenantRole : localRole;
+    logOperatorActivity('entra.signin', { target: upn, role, tenantRole: tenantRole || null });
     send('entra-signin-result', { ok: true, name: upn, displayName: me.displayName || upn, role });
   } catch (e) {
     send('entra-signin-result', { ok: false, error: e.message });
