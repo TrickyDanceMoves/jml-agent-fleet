@@ -189,11 +189,22 @@ function getActiveTenantDomain() {
   return TENANT_DOMAIN;
 }
 
+// Human-readable "today" for agent prompts. Without a date anchor an LLM
+// defaults to its training-era year and misreports recent activity (e.g. it
+// claims the last mover runs were in 2023). Computed per request so it never
+// goes stale.
+function currentDateLine() {
+  return new Date().toLocaleDateString('en-US', {
+    weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
+  });
+}
+
 function buildApproverSystem(domain) { return `
 You are the Approver Agent for a JML identity lifecycle management system.
 You are the intelligent gatekeeper for identity change requests in Microsoft Entra ID.
 
 Tenant: ${domain}
+Current date: ${currentDateLine()} — treat this as today for freeze-window and relative-date reasoning.
 UPN format: firstname.lastname@${domain}
 
 Request types:
@@ -267,6 +278,7 @@ RESPONSE STYLE (always follow):
 function buildAuditorSystem(domain) { return `
 You are the JML Audit Agent -- a read-only intelligence layer over Microsoft Entra ID.
 Tenant: ${domain}
+Current date: ${currentDateLine()} — treat this as today. Every timestamp your tools return is accurate; report dates exactly as given and never assume an earlier year or "correct" them.
 
 You NEVER suggest or make changes to the directory. Strictly observational.
 
