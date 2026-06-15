@@ -5,12 +5,12 @@ Target: Microsoft Agents League Hackathon, Enterprise Agents track
 
 ## Executive Decision
 
-The repository is **demo-ready but not yet submission-eligible for the Enterprise
-Agents track**.
+The repository is **submission-ready for the Enterprise Agents track**.
 
 The product has a credible enterprise story, a working release, strong interaction
 design, a differentiated Agent ID architecture, and a passing automated test suite.
-The blocking gap is the track requirement to use at least one Microsoft IQ layer.
+The Enterprise Agents track requirement — use at least one Microsoft IQ layer — is
+met by **Foundry IQ** (live; grounds risk/approval decisions on the JML policy corpus).
 
 ## Readiness Scorecard
 
@@ -20,7 +20,7 @@ The blocking gap is the track requirement to use at least one Microsoft IQ layer
 | Live demo | Ready | Electron console, Glass Screen lifecycle replay, approval and audit surfaces |
 | Microsoft identity platform | Ready | Entra ID, Microsoft Graph, and live Entra Agent ID authentication |
 | Microsoft IQ requirement | Ready | Foundry IQ grounds risk/approval decisions on the JML policy corpus with citations and fail-closed behavior (`lib/foundry-iq.js`, 8 tests) |
-| Automated quality | Ready | 48 Electron tests pass; PowerShell parse checks pass; CI now runs the suite |
+| Automated quality | Ready | 82 Electron tests pass; PowerShell parse checks pass; CI runs the suite |
 | Dependency security | Ready | Production dependency audits report zero known vulnerabilities |
 | Public release | Ready | Installer and portable ZIP are attached to GitHub Release v1.0.0 |
 | Documentation accuracy | Improved | Case study, README, hackathon guide, and QA language aligned to current state |
@@ -118,7 +118,7 @@ is active unless the policy is visible in the demo tenant.
 
 On June 12, 2026:
 
-- `npm test` in `electron-app`: 48 passed, 0 failed.
+- `npm test` in `electron-app`: 82 passed, 0 failed.
 - PowerShell parser check: all repository `.ps1` files parsed cleanly.
 - Production `npm audit` in `electron-app`, `api`, `worker`, `approver`, and `auditor`:
   zero known vulnerabilities.

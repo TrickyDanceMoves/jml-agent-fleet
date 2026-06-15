@@ -20,7 +20,7 @@ Updated: June 11, 2026
 - Hybrid Entra Agent ID migration COMPLETE (`d7d5796`): Auditor + Approver validated
   live over FMI; write agents stay on SPs (platform constraint).
 - Approver rail infrastructure errors sanitized (`c14072b`).
-- All 48 automated tests pass; full 16-view capture refreshed in docs/images with
+- All 82 automated tests pass; full 17-view capture refreshed in docs/images with
   the rail fix included; README aligned with current state + hackathon CTA.
 
 ## Build Priority

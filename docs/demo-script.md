@@ -14,7 +14,7 @@
 
 - [ ] App launched once already so the **Foundry IQ + Graph session are warm** — the
       first risk/query of a cold session takes ~20s; never demo that wait.
-- [ ] Theme set to **Glass**; window **focused** (acrylic blur pauses when the window
+- [ ] Theme set to **Glass** (crisp transparent shell — no OS blur; acrylic was
       loses focus — don't alt-tab mid-shot).
 - [ ] Sidebar **collapsed** for the Glass Screen beat so the pipeline owns the frame.
 - [ ] AI provider reachable (Claude key set, or Qwen models pulled). Verify with
@@ -35,8 +35,8 @@
 Open on the **Dashboard** — fleet health, today's triage, live operations.
 
 ### 0:15 — The architecture in one breath (30s) ⚡
-> "Seven agents. Two reason — Approver and Auditor — and they authenticate as
-> **first-class Microsoft Entra Agent IDs**. Five execute, and they deliberately
+> "Eight agents. Two reason — Approver and Auditor — and they authenticate as
+> **first-class Microsoft Entra Agent IDs**. Six execute, and they deliberately
 > stay on least-privilege service principals — because Entra itself *blocks*
 > directory-write scopes on agent identities. That constraint isn't a limitation we
 > worked around; it's the whole thesis, enforced by the platform."
@@ -104,7 +104,7 @@ OpenAI, Claude, Ollama, Qwen) and **Security** (UEBA/drift/Identity Protection f
   fall back to a pre-recorded clip of this beat. Don't debug live.
 - **Grounding shows "unavailable / failed closed"** → that's *correct, demoable
   behavior*: "notice it refused to proceed rather than guess." Then reconnect.
-- **Glass blur looks gray** → click the window to refocus it (acrylic pauses unfocused).
+- **Glass shell** is a crisp transparent floating island — no acrylic/mica blur (deliberately rejected).
 - **First query is slow** → you skipped the warm-up; talk over it once, never twice.
 
 ## One-paragraph submission blurb (for the form)

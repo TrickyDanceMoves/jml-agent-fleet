@@ -11,6 +11,13 @@ const {
   isLifecycleSubmitTool,
   lifecycleStageForTool,
 } = require('./lib/operation-status');
+const {
+  assertExternalExecutionAllowed,
+  demoReceipt,
+  isDemoMode,
+} = require('./lib/demo-safety');
+
+const PRESENTATION_MODE = isDemoMode(process.argv);
 
 const AGENTS_DIR    = app.isPackaged
   ? path.join(process.resourcesPath, 'agents')
@@ -43,6 +50,7 @@ function readTenantConfig() {
   return {};
 }
 function writeTenantConfig(patch) {
+  assertExternalExecutionAllowed(PRESENTATION_MODE, 'tenant configuration write');
   const next = { ...readTenantConfig(), ...patch, updatedAt: new Date().toISOString() };
   fs.mkdirSync(path.dirname(TENANT_CONFIG_FILE), { recursive: true });
   fs.writeFileSync(TENANT_CONFIG_FILE, JSON.stringify(next, null, 2) + '\n', 'utf8');
@@ -67,6 +75,7 @@ function operationSubject(input = {}) {
 }
 
 function persistOperation(operation) {
+  if (PRESENTATION_MODE) return;
   try {
     fs.mkdirSync(path.dirname(OPERATIONS_FILE), { recursive: true });
     fs.appendFileSync(OPERATIONS_FILE, JSON.stringify(operation) + '\n', 'utf8');
@@ -91,7 +100,10 @@ function readOperations() {
 }
 
 function loadPanelBounds() { try { return JSON.parse(fs.readFileSync(PANEL_BOUNDS_FILE, 'utf8')); } catch { return null; } }
-function savePanelBounds(b) { try { fs.writeFileSync(PANEL_BOUNDS_FILE, JSON.stringify(b)); } catch {} }
+function savePanelBounds(b) {
+  if (PRESENTATION_MODE) return;
+  try { fs.writeFileSync(PANEL_BOUNDS_FILE, JSON.stringify(b)); } catch {}
+}
 const CERT_SCRIPT    = path.join(AGENTS_DIR, 'certifier', 'Invoke-CertificationCampaign.ps1');
 const AGENT_DIRS     = ['joiner','mover','leaver','enroller','approver','provisioner','auditor','certifier'];
 
@@ -143,6 +155,7 @@ function buildPolicyQuery(input = {}) {
 // tokens). Gives Foundry-style run telemetry regardless of which provider is active.
 const AI_TRACES_FILE = path.join(AGENTS_DIR, 'approver', 'ai-traces.jsonl');
 function recordAITrace(agent, trace) {
+  if (PRESENTATION_MODE) return;
   try {
     const line = JSON.stringify({ ts: new Date().toISOString(), agent, ...trace });
     fs.appendFileSync(AI_TRACES_FILE, line + '\n', 'utf8');
@@ -452,6 +465,7 @@ APPROVER_TOOLS.push(...AUDITOR_TOOLS.filter(t => t.name !== 'query_user_detail')
 
 // ── PS1 dispatch ──────────────────────────────────────────────────────────────
 function writePayloadFile(payload) {
+  assertExternalExecutionAllowed(PRESENTATION_MODE, 'agent payload file write');
   const p = path.join(os.tmpdir(), 'jml-payload-' + Date.now() + '.json');
   fs.writeFileSync(p, JSON.stringify(payload), 'utf8');
   return p;
@@ -461,6 +475,7 @@ function writePayloadFile(payload) {
 // main process blocks the event loop and freezes every window. Use
 // runPsAsync (script files) or runPsCommand (inline commands).
 function runPsAsync(scriptPath, params = {}) {
+  assertExternalExecutionAllowed(PRESENTATION_MODE, 'PowerShell agent execution');
   return new Promise((resolve, reject) => {
     if (!fs.existsSync(scriptPath)) { reject(new Error('Script not found: ' + scriptPath)); return; }
     const args = ['-NonInteractive', '-File', scriptPath];
@@ -480,6 +495,7 @@ function runPsAsync(scriptPath, params = {}) {
 // instead of execFileSync — a sync child process blocks the entire main
 // process event loop, freezing every window until Graph responds.
 function runPsCommand(ps, { timeout = 60000 } = {}) {
+  assertExternalExecutionAllowed(PRESENTATION_MODE, 'PowerShell command execution');
   return new Promise((resolve, reject) => {
     execFile('powershell', ['-NonInteractive', '-Command', ps],
       { encoding: 'utf8', timeout, maxBuffer: 16 * 1024 * 1024, windowsHide: true },
@@ -522,6 +538,7 @@ Connect-AgentGraph -Config $cfg
 }
 
 async function runAuditorGraph(body, { timeout = 60000 } = {}) {
+  assertExternalExecutionAllowed(PRESENTATION_MODE, 'Microsoft Graph query');
   try {
     return await getGraphSession().run(body, { timeout });
   } catch (e) {
@@ -703,6 +720,10 @@ function createTray() {
 }
 
 function pushFreshPanelData() {
+  if (PRESENTATION_MODE) {
+    pushPanelUpdate(buildMockPanelData());
+    return;
+  }
   try {
     const files = fs.existsSync(PENDING_DIR)
       ? fs.readdirSync(PENDING_DIR).filter(f => f.endsWith('.json')) : [];
@@ -856,6 +877,14 @@ function createOverlayWindow() {
   });
   overlayWin.webContents.once('did-finish-load', () => {
     overlayWin.webContents.send('overlay-init', { anchorY: overlayAnchorY, winX: X, winW: W });
+    if (PRESENTATION_MODE) {
+      pushOverlayUpdate({
+        approvals: MOCK_APPROVALS.length,
+        pendingList: MOCK_APPROVALS,
+        mode: state.approver.whatif ? 'safe' : 'live',
+      });
+      return;
+    }
     // Push current approval state
     try {
       const files = fs.existsSync(PENDING_DIR) ? fs.readdirSync(PENDING_DIR).filter(f => f.endsWith('.json')) : [];
@@ -951,6 +980,28 @@ function pollTrayApprovals() {
 }
 
 function routeBlockedLeaverToApproval(input, stage, reason, requiredApproverRole) {
+  if (PRESENTATION_MODE) {
+    const token = `demo-${Date.now().toString(36)}`;
+    MOCK_APPROVALS.unshift({
+      id: token,
+      token,
+      tool: `submit_leaver_${stage.toLowerCase()}`,
+      severity: 'crit',
+      requestedBy: currentOperator || DEMO_ADMIN,
+      requestedByRole: currentRole,
+      requiredApproverRole: requiredApproverRole || 'admin',
+      requestedAt: new Date().toISOString(),
+      input: {
+        userPrincipalName: input.userPrincipalName,
+        stage,
+        ticketRef: input.ticketRef || '',
+      },
+      note: reason || 'Synthetic demo approval request.',
+      status: 'pending',
+      demo: true,
+    });
+    return token;
+  }
   if (!fs.existsSync(PENDING_DIR)) fs.mkdirSync(PENDING_DIR, { recursive: true });
   const token = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
   const reqRole = requiredApproverRole || 'admin';
@@ -1035,6 +1086,10 @@ function auditorQueryUnavailable() {
 }
 
 async function executeTool(agent, toolName, input, whatif) {
+  if (PRESENTATION_MODE) {
+    return executeDemoTool(agent, toolName, input || {}, !!whatif);
+  }
+
   if (agent === 'auditor') {
     if (toolName === 'query_user_detail') {
       const raw = await runPsAsync(path.join(AGENTS_DIR, 'auditor', 'Invoke-LookupUser.ps1'), { UpnOrName: input.upnOrName });
@@ -1452,6 +1507,12 @@ ipcMain.on('get-operation-statuses', (event) => {
 // PowerShell verifier reproduces the exact hash format the writer used) rather than
 // re-implementing the hash in JS, which would be fragile across PS/JSON formatting.
 ipcMain.handle('export-evidence-packet', async (event, payload) => {
+  if (PRESENTATION_MODE) {
+    return demoReceipt('export-evidence-packet', {
+      count: Array.isArray(payload?.hashes) ? payload.hashes.length : MOCK_AUDIT.length,
+      integrity: 'simulated verified chain',
+    });
+  }
   const { hashes } = payload || {};
   try {
     const auditPath = path.join(AGENTS_DIR, 'audit.jsonl');
@@ -1554,6 +1615,13 @@ ipcMain.on('get-security-reports', (event) => {
 
 // ── Exports tab ───────────────────────────────────────────────────────────────
 ipcMain.on('get-exports-status', (event) => {
+  if (PRESENTATION_MODE) {
+    event.sender.send('exports-status', {
+      blob: { status: 'healthy', lastRun: _iso(18), exported: 3142, demo: true },
+      sentinel: { status: 'healthy', lastRun: _iso(4), ingested: 3142, demo: true },
+    });
+    return;
+  }
   function readStatus(file) {
     try { return readJson(file); } catch { return null; }
   }
@@ -1565,6 +1633,13 @@ ipcMain.on('get-exports-status', (event) => {
 });
 
 ipcMain.on('run-blob-export', async (event) => {
+  if (PRESENTATION_MODE) {
+    event.sender.send('export-run-result', {
+      type: 'blob',
+      ...demoReceipt('run-blob-export'),
+    });
+    return;
+  }
   const script = path.join(AGENTS_DIR, 'auditor', 'Invoke-BlobExport.ps1');
   try {
     await runPsAsync(script);
@@ -1577,6 +1652,13 @@ ipcMain.on('run-blob-export', async (event) => {
 });
 
 ipcMain.on('run-sentinel-ingest', async (event) => {
+  if (PRESENTATION_MODE) {
+    event.sender.send('export-run-result', {
+      type: 'sentinel',
+      ...demoReceipt('run-sentinel-ingest'),
+    });
+    return;
+  }
   const script = path.join(AGENTS_DIR, 'auditor', 'Invoke-SentinelIngest.ps1');
   try {
     await runPsAsync(script);
@@ -1595,6 +1677,7 @@ function loadScheduled() {
 }
 
 function saveScheduled(ops) {
+  assertExternalExecutionAllowed(PRESENTATION_MODE, 'scheduled operation write');
   const dir = path.dirname(SCHEDULED_FILE);
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
   fs.writeFileSync(SCHEDULED_FILE, JSON.stringify(ops, null, 2), 'utf8');
@@ -1695,6 +1778,13 @@ ipcMain.on('panel-save-bounds', (_, bounds) => { savePanelBounds(bounds); });
 ipcMain.on('panel-request-refresh', () => { pushFreshPanelData(); });
 
 ipcMain.handle('panel-approve-pending', async (event, { id, writeToken }) => {
+  if (PRESENTATION_MODE) {
+    const approval = removeDemoApproval(id);
+    return demoReceipt('approve-pending', {
+      upn: approval?.input?.userPrincipalName || id,
+      writeTokenAccepted: writeToken === 'demo-simulated-token',
+    });
+  }
   const role = (currentRole || 'viewer').toLowerCase();
   if (role === 'viewer' || role === 'guest') return { ok: false, error: 'Read-only role — blocked' };
   if (!writeToken) return { ok: false, error: 'PIN verification required' };
@@ -1729,6 +1819,12 @@ ipcMain.handle('panel-approve-pending', async (event, { id, writeToken }) => {
 });
 
 ipcMain.handle('panel-reject-pending', (_, { id }) => {
+  if (PRESENTATION_MODE) {
+    const approval = removeDemoApproval(id);
+    return demoReceipt('reject-pending', {
+      upn: approval?.input?.userPrincipalName || id,
+    });
+  }
   try {
     const file = path.join(PENDING_DIR, id + '.json');
     let upn = '';
@@ -1821,6 +1917,13 @@ function requireWriteToken(event, payload, eventName) {
 }
 
 ipcMain.on('approve-pending', async (event, payload) => {
+  if (PRESENTATION_MODE) {
+    const approval = removeDemoApproval(payload?.id);
+    event.sender.send('approve-result', demoReceipt('approve-pending', {
+      result: { subject: approval?.input?.userPrincipalName || payload?.id },
+    }));
+    return;
+  }
   if (!requireWriteToken(event, payload, 'approve-result')) return;
   const { id } = payload || {};
   try {
@@ -1860,6 +1963,11 @@ ipcMain.on('approve-pending', async (event, payload) => {
 });
 
 ipcMain.on('reject-pending', (event, { id }) => {
+  if (PRESENTATION_MODE) {
+    removeDemoApproval(id);
+    event.sender.send('reject-result', demoReceipt('reject-pending'));
+    return;
+  }
   try {
     const file = path.join(PENDING_DIR, id + '.json');
     let upn = '';
@@ -1874,6 +1982,25 @@ ipcMain.on('reject-pending', (event, { id }) => {
 
 // ── Operations tab ────────────────────────────────────────────────────────────
 ipcMain.on('run-bulk-import', async (event, { rows, whatif }) => {
+  if (PRESENTATION_MODE) {
+    rows.forEach((row, index) => {
+      event.sender.send('bulk-import-progress', {
+        index,
+        status: 'done',
+        upn: row.userPrincipalName,
+        result: demoReceipt(`bulk-${row.operation || 'operation'}`, {
+          subject: row.userPrincipalName,
+          mode: whatif ? 'safe' : 'live',
+        }),
+      });
+    });
+    event.sender.send('bulk-import-complete', {
+      total: rows.length,
+      demo: true,
+      committed: false,
+    });
+    return;
+  }
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i];
     event.sender.send('bulk-import-progress', { index: i, status: 'running', upn: row.userPrincipalName });
@@ -1920,10 +2047,24 @@ ipcMain.on('run-bulk-import', async (event, { rows, whatif }) => {
 });
 
 ipcMain.on('get-scheduled-ops', (event) => {
+  if (PRESENTATION_MODE) {
+    event.sender.send('scheduled-ops', demoScheduledOps);
+    return;
+  }
   event.sender.send('scheduled-ops', loadScheduled());
 });
 
 ipcMain.on('save-scheduled-op', (event, { op }) => {
+  if (PRESENTATION_MODE) {
+    demoScheduledOps.push({
+      ...op,
+      id: `demo-${Date.now().toString(36)}`,
+      status: 'pending',
+      demo: true,
+    });
+    event.sender.send('scheduled-ops', demoScheduledOps);
+    return;
+  }
   const ops = loadScheduled();
   const newOp = Object.assign({}, op, {
     id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
@@ -1935,6 +2076,12 @@ ipcMain.on('save-scheduled-op', (event, { op }) => {
 });
 
 ipcMain.on('delete-scheduled-op', (event, { id }) => {
+  if (PRESENTATION_MODE) {
+    const index = demoScheduledOps.findIndex((op) => op.id === id);
+    if (index >= 0) demoScheduledOps.splice(index, 1);
+    event.sender.send('scheduled-ops', demoScheduledOps);
+    return;
+  }
   const ops = loadScheduled().filter(o => o.id !== id);
   saveScheduled(ops);
   event.sender.send('scheduled-ops', ops);
@@ -1942,6 +2089,22 @@ ipcMain.on('delete-scheduled-op', (event, { id }) => {
 
 // ── Certifications tab ────────────────────────────────────────────────────────
 ipcMain.on('run-certification', async (event, { campaignType, whatif }) => {
+  if (PRESENTATION_MODE) {
+    event.sender.send('certification-result', {
+      ...demoReceipt('run-certification', {
+        campaignType,
+        mode: whatif ? 'safe' : 'live',
+      }),
+      campaigns: [{
+        id: 'demo-cert-q2',
+        name: `${campaignType || 'Quarterly'} access review`,
+        status: 'simulated',
+        reviewed: 42,
+      }],
+      lines: ['[DEMO] Certification campaign simulated. No access decision was committed.'],
+    });
+    return;
+  }
   try {
     const raw    = await runPsAsync(CERT_SCRIPT, { CampaignType: campaignType, WhatIf: !!whatif });
     const lines  = raw.trim().split('\n')
@@ -1956,6 +2119,10 @@ ipcMain.on('run-certification', async (event, { campaignType, whatif }) => {
 });
 
 ipcMain.on('get-cert-history', (event) => {
+  if (PRESENTATION_MODE) {
+    event.sender.send('cert-history', MOCK_AUDIT.filter((entry) => entry.agent === 'certifier'));
+    return;
+  }
   const auditPath = path.join(AGENTS_DIR, 'audit.jsonl');
   if (!fs.existsSync(auditPath)) { event.sender.send('cert-history', []); return; }
   const lines   = fs.readFileSync(auditPath, 'utf8').trim().split('\n').filter(Boolean);
@@ -1967,6 +2134,19 @@ ipcMain.on('get-cert-history', (event) => {
 
 // ── Settings tab ──────────────────────────────────────────────────────────────
 ipcMain.on('get-policy', (event) => {
+  if (PRESENTATION_MODE) {
+    event.sender.send('policy-data', {
+      policies: {
+        freezeWindows: [{ name: 'Quarter close', active: false }],
+        approvalThreshold: 'high',
+      },
+      sod: {
+        conflicts: [['Finance-Admins', 'Payroll-Operators']],
+      },
+      demo: true,
+    });
+    return;
+  }
   try {
     const policies = fs.existsSync(POLICIES_FILE) ? readJson(POLICIES_FILE) : {};
     const sod      = fs.existsSync(SOD_FILE)       ? readJson(SOD_FILE) : {};
@@ -1977,6 +2157,10 @@ ipcMain.on('get-policy', (event) => {
 });
 
 ipcMain.on('save-policy', (event, { policies, sod }) => {
+  if (PRESENTATION_MODE) {
+    event.sender.send('policy-saved', demoReceipt('save-policy'));
+    return;
+  }
   try {
     fs.writeFileSync(POLICIES_FILE, JSON.stringify(policies, null, 2), 'utf8');
     fs.writeFileSync(SOD_FILE,      JSON.stringify(sod,      null, 2), 'utf8');
@@ -1996,6 +2180,13 @@ ipcMain.on('get-operators', (event) => {
 });
 
 ipcMain.on('save-operators', (event, { operators, roles }) => {
+  if (PRESENTATION_MODE) {
+    MOCK_OPERATORS.operators = { ...operators };
+    MOCK_OPERATORS.roles = { ...roles };
+    event.sender.send('operators-saved', demoReceipt('save-operators'));
+    event.sender.send('operators-data', MOCK_OPERATORS);
+    return;
+  }
   try {
     if (currentRole !== 'admin') {
       const existing = fs.existsSync(OPERATORS_FILE) ? readJson(OPERATORS_FILE) : {};
@@ -2024,6 +2215,17 @@ ipcMain.on('save-operators', (event, { operators, roles }) => {
 
 // ── AI Provider config ────────────────────────────────────────────────────────
 ipcMain.handle('get-ai-provider-config', () => {
+  if (PRESENTATION_MODE) {
+    return {
+      provider: 'azure-foundry',
+      'azure-foundry': {
+        endpoint: 'https://demo-foundry.services.ai.azure.com',
+        deployment: 'gpt-4.1',
+        apiKey: '••••',
+      },
+      demo: true,
+    };
+  }
   _ensureProviderConfig();
   // Mask stored API keys — return length > 0 indicator instead of value
   const safe = JSON.parse(JSON.stringify(_aiProviderConfig));
@@ -2035,6 +2237,7 @@ ipcMain.handle('get-ai-provider-config', () => {
 });
 
 ipcMain.handle('save-ai-provider-config', (_, { config }) => {
+  if (PRESENTATION_MODE) return demoReceipt('save-ai-provider-config');
   try {
     _ensureProviderConfig();
     // Merge: preserve existing API keys when the UI sends back masked '••••' placeholders
@@ -2073,6 +2276,13 @@ ipcMain.handle('get-ai-traces', (_, payload) => {
 });
 
 ipcMain.handle('test-ai-provider', async () => {
+  if (PRESENTATION_MODE) {
+    return {
+      ...demoReceipt('test-ai-provider'),
+      provider: 'Seeded demo provider',
+      text: 'connected',
+    };
+  }
   try {
     const provider = getAIProvider();
     if (!provider) return { ok: false, error: 'No provider configured' };
@@ -2089,6 +2299,21 @@ ipcMain.handle('test-ai-provider', async () => {
 // ── Access snapshot (read-only) for before/after diff ───────────────────────────
 ipcMain.handle('get-access-snapshot', async (_, { upn }) => {
   if (!upn) return { ok: false, error: 'upn required' };
+  if (PRESENTATION_MODE) {
+    const user = MOCK_USERS.find((candidate) => candidate.userPrincipalName === upn) || MOCK_USERS[0];
+    return {
+      ok: true,
+      demo: true,
+      snapshot: {
+        displayName: user.displayName,
+        accountEnabled: user.accountEnabled,
+        department: user.department,
+        jobTitle: user.jobTitle,
+        licenses: user.assignedLicenses,
+        groups: ['Engineering-All'],
+      },
+    };
+  }
   try {
     const cfgPath = path.join(AGENTS_DIR, 'auditor', 'config.json');
     const ps = `
@@ -2123,6 +2348,14 @@ ipcMain.handle('simulate-policy', async (_, payload) => {
   if (!operation || !userPrincipalName) {
     return { ok: false, error: 'operation and userPrincipalName are required' };
   }
+  if (PRESENTATION_MODE) {
+    return {
+      ...demoReceipt('simulate-policy', { subject: userPrincipalName }),
+      decision: /hard|privileged/i.test(operation) ? 'requires_approval' : 'allow',
+      riskLevel: /hard|privileged/i.test(operation) ? 'high' : 'low',
+      matchedPolicies: ['Separation of Duties', 'Human Approval Gate'],
+    };
+  }
   try {
     const raw = await runPsAsync(path.join(AGENTS_DIR, 'auditor', 'Invoke-RiskScore.ps1'), {
       Operation:         operation,
@@ -2150,6 +2383,14 @@ ipcMain.handle('simulate-policy', async (_, payload) => {
 // ── Agent quarantine (kill switch) ─────────────────────────────────────────────
 ipcMain.handle('quarantine-agent', async (event, payload) => {
   const { agent, reason, whatif, revoke, writeToken } = payload || {};
+  if (PRESENTATION_MODE) {
+    return demoReceipt('quarantine-agent', {
+      agent,
+      reason,
+      revoke: !!revoke,
+      mode: whatif ? 'safe' : 'live',
+    });
+  }
   // Real (non-WhatIf) quarantine is a privileged mutation — require a write token
   // and admin role, same gate as other destructive operations.
   if (!whatif) {
@@ -2404,6 +2645,17 @@ ipcMain.handle('get-current-operator', () => {
 // a real directory identity. Windows/PIN selection remains available beside it.
 ipcMain.on('entra-signin-start', async (event) => {
   const send = (ch, d) => { try { event.sender.send(ch, d); } catch {} };
+  if (PRESENTATION_MODE) {
+    send('entra-signin-result', {
+      ok: true,
+      name: DEMO_ADMIN,
+      displayName: 'Demo Administrator',
+      role: 'admin',
+      demo: true,
+      committed: false,
+    });
+    return;
+  }
   try {
     // Resolve the tenant from the durable tenant.json first; fall back to an
     // agent config if one exists. A fresh install has neither, so surface a
@@ -2491,6 +2743,7 @@ function readOperatorAuth() {
   try { return readJson(OPERATOR_AUTH_FILE) || {}; } catch { return {}; }
 }
 function writeOperatorAuth(data) {
+  assertExternalExecutionAllowed(PRESENTATION_MODE, 'operator authentication write');
   fs.writeFileSync(OPERATOR_AUTH_FILE, JSON.stringify(data, null, 2), 'utf8');
 }
 function hashPin(pin, salt) {
@@ -2508,6 +2761,7 @@ ipcMain.handle('get-operator-auth', () => {
 });
 
 ipcMain.handle('set-operator-auth-pin', (event, { user, pin }) => {
+  if (PRESENTATION_MODE) return demoReceipt('set-operator-auth-pin', { user });
   if (!user || !pin || String(pin).length < 4) return { ok: false, error: 'PIN must be at least 4 characters' };
   const data = readOperatorAuth();
   const salt = crypto.randomBytes(16).toString('base64');
@@ -2520,6 +2774,7 @@ ipcMain.handle('set-operator-auth-pin', (event, { user, pin }) => {
 });
 
 ipcMain.handle('set-operator-auth-windows', (event, { user }) => {
+  if (PRESENTATION_MODE) return demoReceipt('set-operator-auth-windows', { user });
   if (!user) return { ok: false, error: 'user required' };
   const data = readOperatorAuth();
   data[user] = { mode: 'windows', updatedAt: new Date().toISOString() };
@@ -2530,6 +2785,22 @@ ipcMain.handle('set-operator-auth-windows', (event, { user }) => {
 
 // ── Tenant onboarding: read/write each agent's config.json TenantId ──────────
 ipcMain.handle('get-tenant-config', () => {
+  if (PRESENTATION_MODE) {
+    return {
+      tenantId: '00000000-0000-0000-0000-000000000000',
+      primaryDomain: 'contoso.onmicrosoft.com',
+      region: 'US',
+      clientIds: {},
+      agents: AGENT_DIRS.map((agent) => ({
+        agent,
+        exists: true,
+        hasCert: !['approver', 'auditor'].includes(agent),
+        identityType: ['approver', 'auditor'].includes(agent) ? 'Agent ID / FMI' : 'Execution SP / certificate',
+      })),
+      configured: true,
+      demo: true,
+    };
+  }
   // tenant.json is the source of truth; agent config.json values fill any gaps.
   const t = readTenantConfig();
   const out = {
@@ -2585,6 +2856,16 @@ ipcMain.handle('preview-tenant-config', (event, { tenantId, primaryDomain, regio
 });
 
 ipcMain.handle('save-tenant-config', (event, { tenantId, primaryDomain, region, clientIds }) => {
+  if (PRESENTATION_MODE) {
+    return demoReceipt('save-tenant-config', {
+      tenantId,
+      primaryDomain,
+      region,
+      updated: [],
+      skipped: AGENT_DIRS,
+      errors: [],
+    });
+  }
   if (!tenantId || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(tenantId)) {
     return { ok: false, error: 'Tenant ID must be a GUID' };
   }
@@ -2656,6 +2937,18 @@ ipcMain.handle('pick-image-file', async () => {
 });
 
 ipcMain.handle('get-operator-activity', (event, { limit }) => {
+  if (PRESENTATION_MODE) {
+    return {
+      entries: MOCK_AUDIT.slice(0, Math.max(1, Math.min(50, limit || 20))).map((entry) => ({
+        timestamp: entry.timestamp,
+        operator: entry.operator,
+        role: entry.operator === 'system' ? 'system' : 'admin',
+        event: entry.action,
+        details: { subject: entry.subject, ticketRef: entry.ticketRef },
+      })),
+      demo: true,
+    };
+  }
   try {
     if (!fs.existsSync(OPERATOR_ACTIVITY_FILE)) return { entries: [] };
     const raw = fs.readFileSync(OPERATOR_ACTIVITY_FILE, 'utf8').replace(/^﻿/, '');
@@ -2673,6 +2966,7 @@ let _signinProc = null;
 let _signinState = { status: 'idle', deviceCode: '', verificationUrl: '', tenantId: '', account: '', error: '' };
 
 function spawnSigninProcess() {
+  assertExternalExecutionAllowed(PRESENTATION_MODE, 'tenant device-code sign-in');
   const { spawn } = require('child_process');
   _signinState = { status: 'pending', deviceCode: '', verificationUrl: '', tenantId: '', account: '', error: '' };
   // 6>&1 redirects the Information stream (Write-Host / stream 6) to stdout so
@@ -2731,6 +3025,17 @@ function spawnSigninProcess() {
 }
 
 ipcMain.handle('start-device-code-signin', () => {
+  if (PRESENTATION_MODE) {
+    _signinState = {
+      status: 'success',
+      deviceCode: 'DEMO-CODE',
+      verificationUrl: 'https://microsoft.com/devicelogin',
+      tenantId: '00000000-0000-0000-0000-000000000000',
+      account: DEMO_ADMIN,
+      demo: true,
+    };
+    return demoReceipt('start-device-code-signin');
+  }
   if ((currentRole || 'viewer') !== 'admin') return { ok: false, error: 'admin required' };
   if (_signinProc) { try { _signinProc.kill(); } catch (_) {} _signinProc = null; }
   spawnSigninProcess();
@@ -2743,6 +3048,20 @@ ipcMain.handle('check-device-code-status', () => {
 });
 
 ipcMain.handle('create-agent-app-registrations', (event, { agentNames }) => {
+  if (PRESENTATION_MODE) {
+    const names = Array.isArray(agentNames) && agentNames.length ? agentNames : AGENT_DIRS;
+    return {
+      ...demoReceipt('create-agent-app-registrations'),
+      created: names.map((agent) => ({
+        agent,
+        appId: `demo-${agent}-app-id`,
+        objectId: `demo-${agent}-object-id`,
+        spId: `demo-${agent}-sp-id`,
+      })),
+      errors: [],
+      tenantId: '00000000-0000-0000-0000-000000000000',
+    };
+  }
   if ((currentRole || 'viewer') !== 'admin') return { ok: false, error: 'admin required' };
   if (_signinState.status !== 'success') return { ok: false, error: 'sign in to the target tenant first' };
   const names = Array.isArray(agentNames) && agentNames.length ? agentNames : AGENT_DIRS;
@@ -2771,12 +3090,22 @@ ipcMain.handle('create-agent-app-registrations', (event, { agentNames }) => {
 // ── Notification routing rules ──────────────────────────────────────────────
 const NOTIFICATION_RULES_FILE = path.join(AGENTS_DIR, 'approver', 'notification-rules.json');
 ipcMain.handle('get-notification-rules', () => {
+  if (PRESENTATION_MODE) {
+    return {
+      rules: [
+        { event: 'operation.failed', channels: ['Teams', 'Sentinel'], severity: 'critical' },
+        { event: 'approval.waiting', channels: ['Teams'], severity: 'warning' },
+      ],
+      demo: true,
+    };
+  }
   try {
     if (!fs.existsSync(NOTIFICATION_RULES_FILE)) return { rules: [] };
     return readJson(NOTIFICATION_RULES_FILE) || { rules: [] };
   } catch (e) { return { rules: [], error: e.message }; }
 });
 ipcMain.handle('save-notification-rules', (event, { rules }) => {
+  if (PRESENTATION_MODE) return demoReceipt('save-notification-rules', { count: rules?.length || 0 });
   if (!Array.isArray(rules)) return { ok: false, error: 'rules must be an array' };
   // Basic validation
   for (const r of rules) {
@@ -2793,6 +3122,7 @@ ipcMain.handle('save-notification-rules', (event, { rules }) => {
 
 // Append a JSONL entry to operator-activity.jsonl. Best-effort, non-blocking.
 function logOperatorActivity(event, details) {
+  if (PRESENTATION_MODE) return;
   try {
     const entry = {
       timestamp: new Date().toISOString(),
@@ -2834,6 +3164,7 @@ function consumeWriteToken(token, expectedUser) {
 // Credentials are passed via stdin as JSON — they never appear on the command line
 // or in process listings. Returns boolean; any error / timeout → false.
 function verifyWindowsCredential(username, password) {
+  assertExternalExecutionAllowed(PRESENTATION_MODE, 'Windows credential verification');
   if (!username || !password) return false;
   const script = [
     "Add-Type -AssemblyName System.DirectoryServices.AccountManagement",
@@ -2892,21 +3223,36 @@ ipcMain.handle('verify-operator-pin', (event, { user, pin }) => {
 
 // ── Screenshot capture mode (npm start -- --capture) ─────────────────────────
 const CAPTURE_MODE = process.argv.includes('--capture');
+const DEMO_DRIVE_MODE = process.argv.includes('--demo-drive');
+const DEMO_STATE_MODE = process.argv.includes('--demo');
+const CAPTURE_CHROME_MODE = process.argv.includes('--capture-chrome');
+const RENDER_DIAGRAM_MODE = process.argv.includes('--render-diagram');
+const HACKATHON_CAPTURE_MODE = process.argv.includes('--hackathon-capture');
 const GLASS_CAPTURE_MODE = process.argv.includes('--glass-qc');
 const GS_STATES_QC_MODE = process.argv.includes('--gs-states');
 const CAPTURE_OUT = GLASS_CAPTURE_MODE
   ? path.join(__dirname, '..', '.superpowers', 'glass-qc')
   : path.join(__dirname, '..', 'docs', 'images');
 
-// Mock data pushed directly to renderer for tabs that need Graph/PS connections
+// Mock data pushed directly to renderer for tabs that need Graph/PS connections.
+// Org-scale numbers so the console reads like a real mid-size tenant.
+const _dmin = (m) => new Date(Date.now() - m * 60000).toISOString();
 const MOCK_DASHBOARD = {
-  users:    { total: 12, enabled: 10, disabled: 2, guests: 0 },
+  users:    { total: 1284, enabled: 1197, disabled: 63, guests: 24 },
   licenses: { licenses: [
-    { sku: 'Microsoft 365 E3',     total: 25, assigned: 10 },
-    { sku: 'Power BI Pro',         total: 5,  assigned: 2  },
-    { sku: 'Intune Device',        total: 10, assigned: 1  }
+    { sku: 'Microsoft 365 E5',     total: 500,  assigned: 472 },
+    { sku: 'Microsoft 365 E3',     total: 750,  assigned: 631 },
+    { sku: 'Power BI Pro',         total: 250,  assigned: 188 },
+    { sku: 'EMS E5',               total: 500,  assigned: 401 },
+    { sku: 'Intune Device',        total: 300,  assigned: 96  }
   ]},
-  activity: { totalEntries: 28, recentEntries: [] }
+  activity: { totalEntries: 3142, recentEntries: [
+    { action: 'graph.user.disable',        agent: 'leaver',   subject: 'robert.martinez@contoso.onmicrosoft.com', outcome: 'success', timestamp: _dmin(3),   details: { ticketRef: 'INC-1042' } },
+    { action: 'approval.granted',          agent: 'approver', subject: 'robert.martinez@contoso.onmicrosoft.com', outcome: 'success', timestamp: _dmin(4),   details: { rule: 'dual-approval' } },
+    { action: 'graph.user.create',         agent: 'joiner',   subject: 'alex.nguyen@contoso.onmicrosoft.com',     outcome: 'success', timestamp: _dmin(46),  details: { ticketRef: 'INC-1025' } },
+    { action: 'graph.group.update',        agent: 'mover',    subject: 'lena.fischer@contoso.onmicrosoft.com',    outcome: 'partial', timestamp: _dmin(140), details: { pending: 2 } },
+    { action: 'license.assign',            agent: 'enroller', subject: 'priya.shah@contoso.onmicrosoft.com',      outcome: 'success', timestamp: _dmin(205), details: {} }
+  ]}
 };
 const MOCK_AGENT_HEALTH = [
   { name:'joiner',      status:'healthy',      credentialType:'certificate', daysUntilExpiry:312, lastActivity: new Date(Date.now()-86400000*2).toISOString(),  lastOutcome:'success' },
@@ -2981,8 +3327,291 @@ const MOCK_APPROVALS = [
       groups: ['Engineering-All', 'Dev-Team'],
     },
     note: 'New hire provisioning — license assignment pending admin sign-off.'
+  },
+  {
+    id: 'INC-1031', token: 'INC-1031',
+    tool: 'submit_mover', severity: 'warn',
+    requestedBy: 'helpdesk2', requestedByRole: 'helpdesk',
+    requestedAt: new Date(Date.now()-3600000*5).toISOString(),
+    status: 'pending',
+    input: {
+      userPrincipalName: 'lena.fischer@contoso.onmicrosoft.com',
+      stage: 'Transfer', ticketRef: 'INC-1031',
+      givenName: 'Lena', surname: 'Fischer',
+      department: 'Platform', jobTitle: 'Engineering Manager',
+      groupsToAdd: ['Platform-Leads'], groupsToRemove: ['Engineering-IC'],
+    },
+    note: 'Department transfer touches a sensitive group — separation-of-duties review required.'
+  },
+  {
+    id: 'INC-1034', token: 'INC-1034',
+    tool: 'submit_leaver_soft', severity: 'warn',
+    requestedBy: 'helpdesk1', requestedByRole: 'helpdesk',
+    requestedAt: new Date(Date.now()-3600000*7).toISOString(),
+    status: 'pending',
+    input: {
+      userPrincipalName: 'marcus.johnson@contoso.onmicrosoft.com',
+      stage: 'Soft', ticketRef: 'INC-1034',
+      givenName: 'Marcus', surname: 'Johnson',
+    },
+    note: 'Contractor end-of-engagement — soft disable pending manager confirmation.'
+  },
+  {
+    id: 'INC-1037', token: 'INC-1037',
+    tool: 'submit_enroller', severity: 'info',
+    requestedBy: 'helpdesk2', requestedByRole: 'helpdesk',
+    requestedAt: new Date(Date.now()-3600000*9).toISOString(),
+    status: 'pending',
+    input: {
+      userPrincipalName: 'priya.shah@contoso.onmicrosoft.com',
+      stage: 'Enroll', ticketRef: 'INC-1037',
+      givenName: 'Priya', surname: 'Shah',
+      department: 'Sales', jobTitle: 'Account Executive',
+      licenses: ['Microsoft 365 E5'],
+    },
+    note: 'Device enrollment + license — routine, awaiting batch sign-off.'
   }
 ];
+const demoScheduledOps = [];
+
+function removeDemoApproval(id) {
+  const index = MOCK_APPROVALS.findIndex((approval) => approval.id === id || approval.token === id);
+  if (index < 0) return null;
+  const [approval] = MOCK_APPROVALS.splice(index, 1);
+  const update = { approvals: MOCK_APPROVALS.length, pendingList: MOCK_APPROVALS };
+  pushPanelUpdate(update);
+  pushOverlayUpdate(update);
+  if (win && !win.isDestroyed()) win.webContents.send('pending-approvals', MOCK_APPROVALS);
+  return approval;
+}
+
+// ── Demo-drive seed data ──────────────────────────────────────────────────────
+// A coherent, realistic fixture so EVERY tab shows a working product during a
+// recording (no OOBE empty states, no Graph errors). Pushed/served only in
+// --demo-drive mode. Synthetic identities on the contoso demo domain.
+const _iso = (minAgo) => new Date(Date.now() - minAgo * 60000).toISOString();
+const MOCK_USERS = [
+  { id: 'u1', displayName: 'Sarah Chen', userPrincipalName: 'sarah.chen@contoso.onmicrosoft.com', department: 'Engineering', jobTitle: 'Staff Engineer', accountEnabled: true,  assignedLicenses: ['Microsoft 365 E3', 'Power BI Pro'], riskLevel: 'low',    riskScore: 12, signInActivity: { lastSignInDateTime: _iso(38) } },
+  { id: 'u2', displayName: 'Robert Martinez', userPrincipalName: 'robert.martinez@contoso.onmicrosoft.com', department: 'Finance', jobTitle: 'Controller', accountEnabled: false, assignedLicenses: [], riskLevel: 'high', riskScore: 82, signInActivity: { lastSignInDateTime: _iso(1620) } },
+  { id: 'u3', displayName: 'Dev Patel', userPrincipalName: 'dev.patel@contoso.onmicrosoft.com', department: 'Engineering', jobTitle: 'Senior Engineer', accountEnabled: true, assignedLicenses: ['Microsoft 365 E3'], riskLevel: 'low', riskScore: 8, signInActivity: { lastSignInDateTime: _iso(12) } },
+  { id: 'u4', displayName: 'Lena Fischer', userPrincipalName: 'lena.fischer@contoso.onmicrosoft.com', department: 'Platform', jobTitle: 'Engineering Manager', accountEnabled: true, assignedLicenses: ['Microsoft 365 E5'], riskLevel: 'medium', riskScore: 44, signInActivity: { lastSignInDateTime: _iso(95) } },
+  { id: 'u5', displayName: 'Yusuf Demir', userPrincipalName: 'yusuf.demir@contoso.onmicrosoft.com', department: 'Security', jobTitle: 'Security Analyst', accountEnabled: true, assignedLicenses: ['Microsoft 365 E5', 'EMS E5'], riskLevel: 'low', riskScore: 5, signInActivity: { lastSignInDateTime: _iso(7) } },
+  { id: 'u6', displayName: 'Marcus Johnson', userPrincipalName: 'marcus.johnson@contoso.onmicrosoft.com', department: 'Contractors', jobTitle: 'Contract Developer', accountEnabled: true, assignedLicenses: ['Microsoft 365 E3'], riskLevel: 'medium', riskScore: 51, signInActivity: { lastSignInDateTime: _iso(220) } },
+  { id: 'u7', displayName: 'Priya Shah', userPrincipalName: 'priya.shah@contoso.onmicrosoft.com', department: 'Sales', jobTitle: 'Account Executive', accountEnabled: true, assignedLicenses: ['Microsoft 365 E5'], riskLevel: 'low', riskScore: 9, signInActivity: { lastSignInDateTime: _iso(21) } },
+  { id: 'u8', displayName: 'Alex Nguyen', userPrincipalName: 'alex.nguyen@contoso.onmicrosoft.com', department: 'Engineering', jobTitle: 'Software Engineer', accountEnabled: true, assignedLicenses: ['Microsoft 365 E3', 'Power BI Pro'], riskLevel: 'low', riskScore: 6, signInActivity: { lastSignInDateTime: _iso(15) } },
+  { id: 'u9', displayName: 'Dana Whitfield', userPrincipalName: 'dana.whitfield@contoso.onmicrosoft.com', department: 'Finance', jobTitle: 'Finance Director', accountEnabled: true, assignedLicenses: ['Microsoft 365 E5'], riskLevel: 'low', riskScore: 11, signInActivity: { lastSignInDateTime: _iso(64) } },
+  { id: 'u10', displayName: 'Omar Haddad', userPrincipalName: 'omar.haddad@contoso.onmicrosoft.com', department: 'IT', jobTitle: 'Systems Administrator', accountEnabled: true, assignedLicenses: ['Microsoft 365 E5', 'EMS E5'], riskLevel: 'medium', riskScore: 38, signInActivity: { lastSignInDateTime: _iso(48) } },
+  { id: 'u11', displayName: 'Grace Okafor', userPrincipalName: 'grace.okafor@contoso.onmicrosoft.com', department: 'HR', jobTitle: 'HR Business Partner', accountEnabled: true, assignedLicenses: ['Microsoft 365 E3'], riskLevel: 'low', riskScore: 7, signInActivity: { lastSignInDateTime: _iso(133) } },
+  { id: 'u12', displayName: 'Tom Becker', userPrincipalName: 'tom.becker@contoso.onmicrosoft.com', department: 'Engineering', jobTitle: 'Principal Engineer', accountEnabled: false, assignedLicenses: [], riskLevel: 'low', riskScore: 4, signInActivity: { lastSignInDateTime: _iso(8800) } },
+];
+const _ev = (subject, agent, minAgo) => ({ subject, agent, timestamp: _iso(minAgo) });
+const MOCK_SECURITY = {
+  ueba: { summary: { critical: 1, warning: 2, info: 1 }, findings: [
+    { severity: 'critical', ruleId: 'UEBA-07', title: 'After-hours privileged offboarding', events: [_ev('robert.martinez@contoso.onmicrosoft.com', 'leaver', 18), _ev('robert.martinez@contoso.onmicrosoft.com', 'leaver', 22)] },
+    { severity: 'warning', ruleId: 'UEBA-03', title: 'Leaver followed by group add', events: [_ev('lena.fischer@contoso.onmicrosoft.com', 'mover', 140)] },
+    { severity: 'warning', ruleId: 'UEBA-11', title: 'Unusual license assignment burst', events: [_ev('dev.patel@contoso.onmicrosoft.com', 'joiner', 320)] },
+    { severity: 'info', ruleId: 'UEBA-01', title: 'New device enrollment', events: [_ev('yusuf.demir@contoso.onmicrosoft.com', 'enroller', 410)] },
+  ]},
+  drift: { summary: { critical: 0, warning: 1, info: 2 }, findings: [
+    { severity: 'warning', ruleId: 'DRIFT-04', title: 'Group membership drift vs. baseline', events: [_ev('Finance-Admins', 'auditor', 60)] },
+    { severity: 'info', ruleId: 'DRIFT-02', title: 'License SKU reallocation', events: [_ev('Engineering-All', 'auditor', 180)] },
+  ]},
+  riskyUsers: { summary: { critical: 1, warning: 1, info: 0 }, users: [
+    { displayName: 'Robert Martinez', upn: 'robert.martinez@contoso.onmicrosoft.com', riskLevel: 'high' },
+    { displayName: 'Lena Fischer', upn: 'lena.fischer@contoso.onmicrosoft.com', riskLevel: 'medium' },
+  ]},
+};
+const MOCK_AUDIT = [
+  { timestamp: _iso(3),   agent: 'leaver',   action: 'graph.user.disable',           subject: 'robert.martinez@contoso.onmicrosoft.com', operator: 'Nick', outcome: 'success', ticketRef: 'INC-1042', whatif: false, details: { stage: 'Hard' } },
+  { timestamp: _iso(3),   agent: 'leaver',   action: 'graph.user.revokeSessions',    subject: 'robert.martinez@contoso.onmicrosoft.com', operator: 'Nick', outcome: 'success', ticketRef: 'INC-1042', whatif: false, details: { sessions: 3 } },
+  { timestamp: _iso(4),   agent: 'approver', action: 'approval.granted',             subject: 'robert.martinez@contoso.onmicrosoft.com', operator: 'Nick', outcome: 'success', ticketRef: 'INC-1042', whatif: false, details: { rule: 'dual-approval' } },
+  { timestamp: _iso(4),   agent: 'approver', action: 'risk.scored',                  subject: 'robert.martinez@contoso.onmicrosoft.com', operator: 'Nick', outcome: 'success', ticketRef: 'INC-1042', whatif: false, details: { score: 68, grounded: true } },
+  { timestamp: _iso(46),  agent: 'joiner',   action: 'graph.user.create',            subject: 'alex.nguyen@contoso.onmicrosoft.com',     operator: 'helpdesk1', outcome: 'success', ticketRef: 'INC-1025', whatif: false, details: {} },
+  { timestamp: _iso(46),  agent: 'joiner',   action: 'license.assign',               subject: 'alex.nguyen@contoso.onmicrosoft.com',     operator: 'helpdesk1', outcome: 'success', ticketRef: 'INC-1025', whatif: false, details: { sku: 'Microsoft 365 E3' } },
+  { timestamp: _iso(47),  agent: 'joiner',   action: 'graph.group.add',              subject: 'alex.nguyen@contoso.onmicrosoft.com',     operator: 'helpdesk1', outcome: 'success', ticketRef: 'INC-1025', whatif: false, details: { groups: 2 } },
+  { timestamp: _iso(92),  agent: 'enroller', action: 'device.enroll',                subject: 'priya.shah@contoso.onmicrosoft.com',      operator: 'helpdesk2', outcome: 'success', ticketRef: 'INC-1009', whatif: false, details: {} },
+  { timestamp: _iso(140), agent: 'mover',    action: 'graph.group.update',           subject: 'lena.fischer@contoso.onmicrosoft.com',    operator: 'Nick', outcome: 'partial', ticketRef: 'INC-1018', whatif: false, details: { pending: 2 } },
+  { timestamp: _iso(168), agent: 'approver', action: 'risk.scored',                  subject: 'lena.fischer@contoso.onmicrosoft.com',    operator: 'Nick', outcome: 'success', ticketRef: 'INC-1018', whatif: false, details: { score: 41, grounded: true } },
+  { timestamp: _iso(205), agent: 'leaver',   action: 'graph.user.disable',           subject: 'tom.becker@contoso.onmicrosoft.com',      operator: 'helpdesk1', outcome: 'success', ticketRef: 'INC-1002', whatif: false, details: { stage: 'Soft' } },
+  { timestamp: _iso(206), agent: 'leaver',   action: 'license.remove',               subject: 'tom.becker@contoso.onmicrosoft.com',      operator: 'helpdesk1', outcome: 'success', ticketRef: 'INC-1002', whatif: false, details: { reclaimed: 1 } },
+  { timestamp: _iso(280), agent: 'mover',    action: 'graph.user.update',            subject: 'omar.haddad@contoso.onmicrosoft.com',     operator: 'Nick', outcome: 'success', ticketRef: 'INC-0994', whatif: false, details: { field: 'department' } },
+  { timestamp: _iso(355), agent: 'enroller', action: 'license.assign',               subject: 'grace.okafor@contoso.onmicrosoft.com',    operator: 'helpdesk2', outcome: 'success', ticketRef: 'INC-0988', whatif: false, details: { sku: 'Microsoft 365 E3' } },
+  { timestamp: _iso(410), agent: 'auditor',  action: 'audit.write',                  subject: 'fleet integrity check',                   operator: 'system', outcome: 'success', ticketRef: '', whatif: false, details: {} },
+  { timestamp: _iso(520), agent: 'certifier',action: 'review.campaign.start',        subject: 'Q2 access review · Finance',               operator: 'Nick', outcome: 'success', ticketRef: '', whatif: false, details: { scope: 'Finance-Admins' } },
+  { timestamp: _iso(640), agent: 'provisioner', action: 'cert.rotate',               subject: 'jml-fleet-mover',                         operator: 'system', outcome: 'success', ticketRef: '', whatif: false, details: {} },
+];
+// HRIS inbound queue (dashboard "identity work origin" lane + Integrations tab)
+const MOCK_HR = { queueDepth: 3, processing: 1, dlq: 0, events: [
+  { eventType: 'employee.terminated', upn: 'robert.martinez@contoso.onmicrosoft.com', status: 'processed',  timestamp: _iso(4),  source: 'bamboohr', subject: 'robert.martinez@contoso.onmicrosoft.com', type: 'employee.terminated', agent: 'leaver' },
+  { eventType: 'employee.hired',      upn: 'alex.nguyen@contoso.onmicrosoft.com',     status: 'processed',  timestamp: _iso(47), source: 'bamboohr', subject: 'alex.nguyen@contoso.onmicrosoft.com', type: 'employee.hired', agent: 'joiner' },
+  { eventType: 'employee.transferred',upn: 'lena.fischer@contoso.onmicrosoft.com',    status: 'processing', timestamp: _iso(2),  source: 'workday',  subject: 'lena.fischer@contoso.onmicrosoft.com', type: 'employee.transferred', agent: 'mover' },
+  { eventType: 'employee.hired',      upn: 'priya.shah@contoso.onmicrosoft.com',      status: 'queued',     timestamp: _iso(1),  source: 'bamboohr', subject: 'priya.shah@contoso.onmicrosoft.com', type: 'employee.hired', agent: 'joiner' },
+]};
+// Live operations (Glass Screen + dashboard Live Operations strip)
+const _opIso = (s) => new Date(Date.now() - s * 1000).toISOString();
+const MOCK_OPERATIONS = [
+  { id: 'op-1042', agent: 'leaver',   toolName: 'submit_leaver_hard', stage: 'complete', subject: 'robert.martinez@contoso.onmicrosoft.com', status: 'succeeded', outcome: 'success', startedAt: _opIso(210), updatedAt: _opIso(180), completedAt: _opIso(180), details: { ticketRef: 'INC-1042' } },
+  { id: 'op-1018', agent: 'mover',    toolName: 'submit_mover',       stage: 'execute',  subject: 'lena.fischer@contoso.onmicrosoft.com',    status: 'running',   outcome: null,      startedAt: _opIso(35),  updatedAt: _opIso(2),   details: { ticketRef: 'INC-1018' } },
+  { id: 'op-1025', agent: 'joiner',   toolName: 'submit_joiner',      stage: 'complete', subject: 'alex.nguyen@contoso.onmicrosoft.com',     status: 'succeeded', outcome: 'success', startedAt: _opIso(2900),updatedAt: _opIso(2860),completedAt: _opIso(2860), details: { ticketRef: 'INC-1025' } },
+];
+// Operator roster for the demo: a clear admin account (plus helpdesk/viewer for
+// RBAC realism). The demo boots as the admin so admin-level tasks are available.
+const DEMO_ADMIN = 'admin@contoso.onmicrosoft.com';
+const MOCK_OPERATORS = { operators: {
+  [DEMO_ADMIN]:                              'admin',
+  'nick.bohanan@contoso.onmicrosoft.com':    'admin',
+  'grace.okafor@contoso.onmicrosoft.com':    'helpdesk',
+  'omar.haddad@contoso.onmicrosoft.com':     'helpdesk',
+  'dana.whitfield@contoso.onmicrosoft.com':  'viewer',
+}, roles: {} };
+
+function executeDemoTool(agent, toolName, input = {}, whatif = true) {
+  const subject = operationSubject(input);
+
+  if (toolName.startsWith('submit_')) {
+    const receipt = demoReceipt(toolName, {
+      subject,
+      mode: whatif ? 'safe' : 'live',
+      outcome: 'simulated',
+      lines: [
+        `[DEMO] ${toolName} simulated for ${subject}.`,
+        '[DEMO] No Microsoft Graph or tenant write was attempted.',
+      ],
+      data: { subject, toolName, mode: whatif ? 'safe' : 'live' },
+    });
+    return receipt;
+  }
+
+  switch (toolName) {
+    case 'lookup_user':
+    case 'query_user_detail': {
+      const q = String(input.upnOrName || input.userPrincipalName || '').toLowerCase();
+      const user = MOCK_USERS.find((candidate) =>
+        candidate.userPrincipalName.toLowerCase() === q
+        || candidate.displayName.toLowerCase().includes(q),
+      ) || MOCK_USERS[0];
+      return { ...user, demo: true };
+    }
+    case 'list_available_licenses':
+    case 'query_license_report':
+      return { ...MOCK_DASHBOARD.licenses, demo: true };
+    case 'list_groups':
+      return {
+        groups: [
+          { displayName: 'Engineering-All', securityEnabled: true },
+          { displayName: 'Finance-Admins', securityEnabled: true },
+          { displayName: 'Platform-Leads', securityEnabled: true },
+          { displayName: 'Sg1-users', securityEnabled: true },
+        ],
+        demo: true,
+      };
+    case 'suggest_provisioning':
+      return {
+        licenses: ['Microsoft 365 E5'],
+        groups: ['Engineering-All'],
+        rationale: 'Synthetic demo recommendation based on the seeded role profile.',
+        demo: true,
+      };
+    case 'score_risk': {
+      const result = {
+        riskLevel: /leaver|hard/i.test(input.operation || '') ? 'high' : 'low',
+        score: /leaver|hard/i.test(input.operation || '') ? 68 : 18,
+        blocked: false,
+        reasons: ['Synthetic demo policy evaluation'],
+        grounding: {
+          source: 'Foundry IQ',
+          summary: 'Demo policy match: human approval and separation of duties are required before privileged execution.',
+          citations: [
+            { title: 'JML Offboarding Playbook', uri: 'demo://policy/offboarding' },
+            { title: 'Separation of Duties Policy', uri: 'demo://policy/sod' },
+          ],
+        },
+        demo: true,
+      };
+      state.approver.lastRisk = { ...result, ts: Date.now() };
+      return result;
+    }
+    case 'query_recent_joins':
+      return { users: MOCK_USERS.filter((user) => user.accountEnabled).slice(0, input.topN || 5), demo: true };
+    case 'query_recent_leavers':
+      return { users: MOCK_USERS.filter((user) => !user.accountEnabled).slice(0, input.topN || 5), demo: true };
+    case 'query_stale_accounts':
+      return { accounts: MOCK_USERS.filter((user) => !user.accountEnabled), demo: true };
+    case 'query_guest_users':
+      return { users: [], demo: true };
+    case 'query_jml_activity':
+      return { entries: MOCK_AUDIT.slice(0, input.topN || 5), demo: true };
+    case 'query_admin_roles':
+      return { roles: [{ displayName: 'Global Administrator', members: [DEMO_ADMIN] }], demo: true };
+    case 'query_group_summary':
+      return { total: 184, security: 126, microsoft365: 42, dynamic: 16, demo: true };
+    case 'query_user_summary':
+    default:
+      return demoReceipt(toolName, {
+        agent,
+        result: { users: MOCK_DASHBOARD.users, licenses: MOCK_DASHBOARD.licenses },
+      });
+  }
+}
+
+function seedDemoData(w) {
+  w.webContents.send('operators-data',    MOCK_OPERATORS);
+  w.webContents.send('dashboard-stats',   MOCK_DASHBOARD);
+  w.webContents.send('agent-health',      MOCK_AGENT_HEALTH);
+  w.webContents.send('cert-expiry', { certs: MOCK_CERT_EXPIRY.map(c => ({ ...c, daysRemaining: c.daysLeft })) });
+  w.webContents.send('pending-approvals', MOCK_APPROVALS);
+  w.webContents.send('security-reports',  MOCK_SECURITY);
+  w.webContents.send('audit-log-data',    MOCK_AUDIT);
+  w.webContents.send('hr-queue',          MOCK_HR);
+  w.webContents.send('operation-statuses', MOCK_OPERATIONS);
+}
+// Replace live IPC handlers with seed responders so tabs that fetch on demand
+// (Users search, Security re-scan, Audit refresh, HR queue, live ops) never hit
+// Graph/Azure in a demo.
+function installDemoHandlers() {
+  // Override every fetch the renderer makes on a timer or on tab-activation, so
+  // the seed is never overwritten by an empty live response.
+  for (const ch of ['search-users', 'get-security-reports', 'get-audit-log', 'get-hr-queue',
+                    'get-operation-statuses', 'get-pending-approvals', 'get-dashboard-stats',
+                    'get-agent-health', 'get-cert-expiry', 'get-operators']) ipcMain.removeAllListeners(ch);
+  ipcMain.on('get-operators', (e) => e.sender.send('operators-data', MOCK_OPERATORS));
+  ipcMain.on('search-users', (e, { query }) => {
+    const q = (query || '').toLowerCase();
+    const users = q ? MOCK_USERS.filter(u => (u.displayName + ' ' + u.userPrincipalName + ' ' + u.department).toLowerCase().includes(q)) : MOCK_USERS;
+    e.sender.send('user-search-results', { users });
+  });
+  ipcMain.on('get-security-reports', (e) => e.sender.send('security-reports', MOCK_SECURITY));
+  ipcMain.on('get-audit-log', (e) => e.sender.send('audit-log-data', MOCK_AUDIT));
+  ipcMain.on('get-hr-queue', (e) => e.sender.send('hr-queue', MOCK_HR));
+  ipcMain.on('get-operation-statuses', (e) => e.sender.send('operation-statuses', MOCK_OPERATIONS));
+  ipcMain.on('get-pending-approvals', (e) => e.sender.send('pending-approvals', MOCK_APPROVALS));
+  ipcMain.on('get-dashboard-stats', (e) => e.sender.send('dashboard-stats', MOCK_DASHBOARD));
+  ipcMain.on('get-agent-health', (e) => e.sender.send('agent-health', MOCK_AGENT_HEALTH));
+  ipcMain.on('get-cert-expiry', (e) => e.sender.send('cert-expiry', { certs: MOCK_CERT_EXPIRY.map(c => ({ ...c, daysRemaining: c.daysLeft })) }));
+  // Invoke handlers (must remove the old handler before re-registering).
+  ipcMain.removeHandler('get-operators-for-login');
+  ipcMain.handle('get-operators-for-login', () => ({ operators: MOCK_OPERATORS.operators }));
+  // Auto-pass the demo PIN gate without minting a production-capable token.
+  // Mutating demo handlers recognize this marker and return simulated receipts.
+  ipcMain.removeHandler('verify-operator-pin');
+  ipcMain.handle('verify-operator-pin', () => ({
+    ok: true,
+    writeToken: 'demo-simulated-token',
+    ttlMs: WRITE_TOKEN_TTL_MS,
+    demo: true,
+    committed: false,
+  }));
+  ipcMain.removeHandler('get-operator-auth');
+  ipcMain.handle('get-operator-auth', () => {
+    const out = {};
+    for (const u of Object.keys(MOCK_OPERATORS.operators)) out[u] = { mode: 'pin', set: true };
+    return out;
+  });
+  // Keep the session admin (the real handler reads the empty operators file and
+  // would downgrade to viewer).
+  ipcMain.removeHandler('get-current-operator');
+  ipcMain.handle('get-current-operator', () => { currentRole = 'admin'; return { name: currentOperator, role: 'admin' }; });
+}
 
 // JS injected into renderer for tabs that show empty state by default
 const TAB_INJECT = {
@@ -3129,14 +3758,16 @@ async function runCapture() {
   // ── Operator selector ──────────────────────────────────────────────────────
   createOperatorWindow();
   await new Promise(r => operatorWin.webContents.once('did-finish-load', r));
-  // QC flag parity with createMainWindow: `--theme=glass` forces the theme on
-  // the OOBE selector so its theme-specific brand mark can be captured.
-  const opThemeArg = process.argv.find(a => a.startsWith('--theme='));
-  if (opThemeArg) {
-    await operatorWin.webContents.executeJavaScript(
-      `document.documentElement.dataset.theme = ${JSON.stringify(opThemeArg.split('=')[1])};`
-    ).catch(() => {});
-  }
+  // Always set the theme explicitly so the OOBE brand mark matches the capture
+  // theme — otherwise a stale localStorage jmlTheme from a prior run leaks the
+  // wrong logo (e.g. glass logo on a default-theme capture).
+  const opTheme = (process.argv.find(a => a.startsWith('--theme=')) || '').split('=')[1] || '';
+  await operatorWin.webContents.executeJavaScript(`
+    try {
+      if (${JSON.stringify(opTheme)}) { localStorage.setItem('jmlTheme', ${JSON.stringify(opTheme)}); document.documentElement.dataset.theme = ${JSON.stringify(opTheme)}; }
+      else { localStorage.removeItem('jmlTheme'); delete document.documentElement.dataset.theme; }
+    } catch (_) {}
+  `).catch(() => {});
   await sleep(1000);
   let selImg; for (let a=0;a<3;a++){try{selImg=await operatorWin.webContents.capturePage();break;}catch(e){await sleep(600);}}
   if (selImg) fs.writeFileSync(path.join(CAPTURE_OUT, 'operator-select.png'), selImg.toPNG());
@@ -3155,29 +3786,25 @@ async function runCapture() {
   });
   win.loadFile(path.join(__dirname, 'renderer', 'index.html'));
   await new Promise(r => win.webContents.once('did-finish-load', r));
+  // Theme: honor `--theme=glass|preview` for clean per-theme screenshot sets;
+  // default (no flag) captures the Warm theme. --glass-qc still forces glass.
+  const _capTheme = (process.argv.find(a => a.startsWith('--theme=')) || '').split('=')[1]
+    || (GLASS_CAPTURE_MODE ? 'glass' : '');
   await win.webContents.executeJavaScript(`
     try {
       localStorage.setItem('jml-sidebar-collapsed', '0');
       document.querySelector('.layout')?.classList.remove('sidebar-collapsed');
-      if (${GLASS_CAPTURE_MODE}) {
-        localStorage.setItem('jmlTheme', 'glass');
-        document.documentElement.dataset.theme = 'glass';
-      }
+      var th = ${JSON.stringify(_capTheme)};
+      if (th) { localStorage.setItem('jmlTheme', th); document.documentElement.dataset.theme = th; }
+      else { localStorage.removeItem('jmlTheme'); delete document.documentElement.dataset.theme; }
     } catch (_) {}
   `);
-  // --glass-qc: force the Glass theme for a visual QC pass of the frosted material
-  if (process.argv.includes('--glass-qc')) {
-    await win.webContents.executeJavaScript(
-      `document.documentElement.dataset.theme = 'glass';
-       try { localStorage.setItem('jmlTheme', 'glass'); } catch (_) {}`);
-  }
   await sleep(1200);
 
-  // Pre-send mock data so dashboard/certs show content without Graph connection
-  win.webContents.send('dashboard-stats',  MOCK_DASHBOARD);
-  win.webContents.send('agent-health',     MOCK_AGENT_HEALTH);
-  win.webContents.send('cert-expiry', { certs: MOCK_CERT_EXPIRY.map(c => ({ ...c, daysRemaining: c.daysLeft })) });
-  win.webContents.send('pending-approvals', MOCK_APPROVALS);
+  // Full demo seed so EVERY tab is populated for screenshots (security, users,
+  // audit, operators, HR queue, live ops) — not just dashboard/approvals.
+  installDemoHandlers();
+  seedDemoData(win);
   await sleep(400);
 
   // Remove overflow constraints so all content is visible in tall screenshots.
@@ -3187,30 +3814,8 @@ async function runCapture() {
   // any tab-specific scroller directly.
   // Public-repo screenshot hygiene: replace the real tenant domain / operator
   // UPN with a neutral demo label everywhere it renders, so committed docs
-  // images don't expose tenant topology.
-  const SANITIZE_TENANT = `
-    (function(){
-      var REAL = /[a-z0-9.-]*\\.onmicrosoft\\.com/gi;
-      var DEMO_DOMAIN = 'contoso.onmicrosoft.com';
-      function scrub(node){
-        if (!node) return;
-        node.querySelectorAll('*').forEach(function(el){
-          if (el.children.length === 0 && el.textContent && REAL.test(el.textContent)) {
-            el.textContent = el.textContent.replace(REAL, function(m){
-              var local = m.split('@')[0];
-              return m.indexOf('@') !== -1 ? local + '@' + DEMO_DOMAIN : DEMO_DOMAIN;
-            });
-          }
-          REAL.lastIndex = 0;
-        });
-      }
-      scrub(document.body);
-      ['sidebar-tenant-domain','topbar-tenant-domain'].forEach(function(id){
-        var el = document.getElementById(id);
-        if (el && /onmicrosoft/i.test(el.textContent)) el.textContent = DEMO_DOMAIN;
-      });
-    })();
-  `;
+  // images don't expose tenant topology. (SANITIZE_TENANT is module-scoped so
+  // --demo-drive recordings get the same scrub.)
 
   const REMOVE_OVERFLOW = `
     (function(){
@@ -3377,6 +3982,280 @@ async function runCapture() {
   app.quit();
 }
 
+// Public-repo hygiene: replace the real tenant domain / UPNs with a neutral
+// demo label everywhere they render. Shared by --capture and --demo-drive.
+const SANITIZE_TENANT = `
+  (function(){
+    var REAL = /[a-z0-9.-]*\\.onmicrosoft\\.com/gi;
+    var DEMO_DOMAIN = 'contoso.onmicrosoft.com';
+    function scrub(node){
+      if (!node) return;
+      node.querySelectorAll('*').forEach(function(el){
+        if (el.children.length === 0 && el.textContent && REAL.test(el.textContent)) {
+          el.textContent = el.textContent.replace(REAL, function(m){
+            var local = m.split('@')[0];
+            return m.indexOf('@') !== -1 ? local + '@' + DEMO_DOMAIN : DEMO_DOMAIN;
+          });
+        }
+        REAL.lastIndex = 0;
+      });
+    }
+    scrub(document.body);
+    ['sidebar-tenant-domain','topbar-tenant-domain'].forEach(function(id){
+      var el = document.getElementById(id);
+      if (el && /onmicrosoft/i.test(el.textContent)) el.textContent = DEMO_DOMAIN;
+    });
+  })();
+`;
+
+// ── Demo drive (npm start -- --demo-drive) ────────────────────────────────────
+// Records real, moving app-usage clips for the demo video: a scripted cursor
+// glides/clicks through the UI, types into inputs, and each scene is captured
+// to a webm via MediaRecorder on the app's own window. Output:
+// ../.superpowers/jml-demo-video/public/clips/<scene>.webm
+
+// ── Chrome capture (docked panel + overlay) for hackathon screenshots ─────────
+async function runCaptureChrome() {
+  currentOperator = DEMO_ADMIN; currentRole = 'admin'; process.env.JML_CONSOLE_OPERATOR = DEMO_ADMIN;
+  installDemoHandlers();
+  const OUT = path.join(__dirname, '..', 'docs', 'images');
+  const glass = (w) => w.webContents.executeJavaScript(`try{localStorage.setItem('jmlTheme','glass');document.documentElement.dataset.theme='glass';}catch(_){}`);
+  const shot = async (w, name) => {
+    let img; for (let i = 0; i < 3; i++) { try { img = await w.webContents.capturePage(); break; } catch (e) { await sleep(500); } }
+    if (img) fs.writeFileSync(path.join(OUT, name), img.toPNG());
+    console.log('Captured:', name);
+  };
+
+  // Docked panel — expanded then slim
+  createDockedPanel();
+  await new Promise(r => dockedWin.webContents.once('did-finish-load', r));
+  await glass(dockedWin); await sleep(500);
+  pushPanelUpdate(buildMockPanelData()); await sleep(1300);
+  await shot(dockedWin, 'docked-expanded.png');
+  await dockedWin.webContents.executeJavaScript(`try{localStorage.setItem('jml-docked-slim','1');}catch(_){} document.body.classList.add('slim-mode','slim-right');`);
+  dockedWin.setSize(200, 240); await sleep(1000);
+  await shot(dockedWin, 'docked-slim.png');
+  try { dockedWin.close(); } catch (_) {} dockedWin = null;
+
+  // Overlay — active then idle
+  createOverlayWindow();
+  await new Promise(r => overlayWin.webContents.once('did-finish-load', r));
+  await glass(overlayWin); await sleep(500);
+  pushPanelUpdate(buildMockPanelData()); await sleep(1200);
+  await shot(overlayWin, 'overlay-active.png');
+  pushPanelUpdate({ approvals: 0, oldestApproval: null, pendingList: [], recentEvents: [], hrQueue: { count: 0, oldestMin: 0 } });
+  await sleep(900);
+  await shot(overlayWin, 'overlay-idle.png');
+  try { overlayWin.close(); } catch (_) {} overlayWin = null;
+
+  await sleep(400);
+  console.log('CHROME CAPTURE COMPLETE');
+  app.quit();
+}
+
+async function runDemoDrive() {
+  const { desktopCapturer } = require('electron');
+  const OUT = path.join(__dirname, '..', '.superpowers', 'jml-demo-video', 'public', 'clips');
+  fs.mkdirSync(OUT, { recursive: true });
+  currentOperator = 'Nick';
+  process.env.JML_CONSOLE_OPERATOR = 'Nick';
+
+  // Fill the primary display so a full-SCREEN capture == the app, full-bleed.
+  // (Screen capture uses DXGI duplication, which is far more reliable than the
+  // per-window WGC capturer that intermittently fails with E_INVALIDARG.)
+  const _disp = screen.getPrimaryDisplay();
+  const SW = _disp.size.width, SH = _disp.size.height;
+  win = new BrowserWindow({
+    width: SW, height: SH, x: 0, y: 0,
+    frame: false, transparent: false, backgroundColor: '#070b13',
+    webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, nodeIntegration: false, sandbox: false }
+  });
+  win.loadFile(path.join(__dirname, 'renderer', 'index.html'));
+  await new Promise(r => win.webContents.once('did-finish-load', r));
+  win.show(); win.focus(); win.moveTop();
+  win.setAlwaysOnTop(true);   // stay composited/foreground so WGC capture starts
+
+  // Capture THIS WINDOW (not the screen): window capture records the app's own
+  // surface regardless of what is layered on top, so a browser/other window in
+  // front can never leak into the recording. The recStart retry handles the
+  // occasional WGC cold-start failure.
+  win.webContents.session.setDisplayMediaRequestHandler(async (request, callback) => {
+    const sources = await desktopCapturer.getSources({ types: ['window'] });
+    const me = sources.find(s => s.name && /JML/i.test(s.name)) || sources[0];
+    callback({ video: me });
+  }, { useSystemPicker: false });
+
+  ipcMain.handle('demo-clip-save', (e, { name, buf }) => {
+    fs.writeFileSync(path.join(OUT, `${name}.webm`), Buffer.from(buf));
+    console.log('CLIP SAVED:', name);
+    return true;
+  });
+
+  await win.webContents.executeJavaScript(`
+    try { localStorage.setItem('jmlTheme','glass'); document.documentElement.dataset.theme='glass'; } catch(_){}
+  `);
+  installDemoHandlers();
+  await sleep(1200);
+  seedDemoData(win);
+  await win.webContents.executeJavaScript(SANITIZE_TENANT);
+  await sleep(400);
+
+  // Inject the visible demo cursor + interaction driver.
+  await win.webContents.executeJavaScript(`
+    (() => {
+      if (window.__drv) return;
+      const cur = document.createElement('div');
+      cur.id = 'demo-cursor';
+      cur.innerHTML = '<svg width="26" height="26" viewBox="0 0 24 24"><path d="M5 2 L5 19 L9.6 15 L12.6 21.6 L15.4 20.3 L12.4 13.8 L19 13.4 Z" fill="#f4f8ff" stroke="#0a1018" stroke-width="1.4" stroke-linejoin="round"/></svg>';
+      cur.style.cssText = 'position:fixed;left:1200px;top:900px;z-index:2147483647;pointer-events:none;filter:drop-shadow(0 2px 6px rgba(0,0,0,.6))';
+      document.body.appendChild(cur);
+      let cx = 1200, cy = 900;
+      const sleep = ms => new Promise(r => setTimeout(r, ms));
+      const ease = t => t < .5 ? 2*t*t : 1 - Math.pow(-2*t+2, 2)/2;
+      async function moveTo(x, y, ms) {
+        const sx = cx, sy = cy, t0 = performance.now();
+        return new Promise(res => {
+          (function step(now) {
+            const t = Math.min(1, (now - t0) / ms), e = ease(t);
+            cx = sx + (x - sx) * e; cy = sy + (y - sy) * e - Math.sin(e * Math.PI) * 18;
+            cur.style.left = cx + 'px'; cur.style.top = cy + 'px';
+            if (t < 1) requestAnimationFrame(step); else res();
+          })(t0);
+        });
+      }
+      function ripple() {
+        const r = document.createElement('div');
+        r.style.cssText = 'position:fixed;left:'+cx+'px;top:'+cy+'px;width:12px;height:12px;border:2px solid #6fe3ff;border-radius:50%;z-index:2147483646;pointer-events:none;transform:translate(-50%,-50%);transition:all .55s ease-out;opacity:.95';
+        document.body.appendChild(r);
+        requestAnimationFrame(() => { r.style.transform = 'translate(-50%,-50%) scale(5)'; r.style.opacity = '0'; });
+        setTimeout(() => r.remove(), 650);
+      }
+      async function clickEl(sel, ms = 700) {
+        const el = document.querySelector(sel);
+        if (!el) { console.warn('drv: missing', sel); return; }
+        const b = el.getBoundingClientRect();
+        await moveTo(b.left + b.width / 2, b.top + Math.min(b.height / 2, 30), ms);
+        ripple(); await sleep(160); el.click();
+      }
+      async function hoverEl(sel, ms = 650) {
+        const el = document.querySelector(sel);
+        if (!el) { console.warn('drv: missing', sel); return; }
+        const b = el.getBoundingClientRect();
+        await moveTo(b.left + b.width / 2, b.top + b.height / 2, ms);
+      }
+      async function typeInto(sel, text, cps = 14) {
+        const el = document.querySelector(sel);
+        if (!el) { console.warn('drv: missing', sel); return; }
+        const b = el.getBoundingClientRect();
+        await moveTo(b.left + 30, b.top + b.height / 2, 600);
+        ripple(); el.focus();
+        for (const ch of text) {
+          el.value += ch;
+          el.dispatchEvent(new Event('input', { bubbles: true }));
+          await sleep(1000 / cps + Math.random() * 40);
+        }
+      }
+      async function scrollView(sel, dy, ms) {
+        const el = document.querySelector(sel);
+        if (!el) return;
+        const start = el.scrollTop, t0 = performance.now();
+        return new Promise(res => {
+          (function step(now) {
+            const t = Math.min(1, (now - t0) / ms);
+            el.scrollTop = start + dy * ease(t);
+            if (t < 1) requestAnimationFrame(step); else res();
+          })(t0);
+        });
+      }
+      let rec = null, chunks = [], stream = null;
+      async function recStart() {
+        if (!stream) {
+          for (let i = 0; i < 4 && !stream; i++) {
+            try { stream = await navigator.mediaDevices.getDisplayMedia({ video: { frameRate: 30, width: 1920, height: 1080 }, audio: false }); }
+            catch (e) { console.warn('getDisplayMedia retry', i, e.message); await sleep(900); }
+          }
+          if (!stream) throw new Error('screen capture failed after retries');
+        }
+        chunks = [];
+        rec = new MediaRecorder(stream, { mimeType: 'video/webm;codecs=vp9', videoBitsPerSecond: 12_000_000 });
+        rec.ondataavailable = e => chunks.push(e.data);
+        rec.start();
+      }
+      async function recStop(name) {
+        await new Promise(res => { rec.onstop = res; rec.stop(); });
+        const buf = await new Blob(chunks, { type: 'video/webm' }).arrayBuffer();
+        await window.api.demoClipSave(name, new Uint8Array(buf));
+      }
+      window.__drv = { moveTo, clickEl, hoverEl, typeInto, scrollView, recStart, recStop, sleep };
+    })();
+  `);
+
+  const run = (js) => win.webContents.executeJavaScript(`(async () => { const d = window.__drv; ${js} })()`);
+
+  // Line-level choreography: every spoken line carries an action that fires the
+  // instant that line begins, then we pad to the line's real audio length (+GAP)
+  // so the recording tracks the voiceover word-for-word. Timings come straight
+  // from scenes.json (written by generate-narration-lines.py).
+  const GAP = 0.18, TAIL = 0.8;
+  const sceneData = JSON.parse(fs.readFileSync(
+    path.join(__dirname, '..', '.superpowers', 'jml-demo-video', 'public', 'scenes.json'), 'utf8'));
+  const byAct = (act) => sceneData.filter(s => s.act === act);
+
+  const j = (v) => JSON.stringify(v);
+  const actionJs = (a) => {
+    switch (a.do) {
+      case 'hover':  return `await d.hoverEl(${j(a.sel)}, 850);`;
+      case 'click':  return `await d.clickEl(${j(a.sel)}, 850);`;
+      case 'type':   return `await d.typeInto(${j(a.sel)}, ${j(a.text)}, 16);`;
+      case 'search': return `await d.typeInto(${j(a.sel)}, ${j(a.text)}, 16); await d.sleep(350); await d.clickEl('#btn-user-search', 700);`;
+      case 'scroll': return `await d.scrollView(${j(a.sel)}, ${a.dy || 320}, 1800);`;
+      case 'replay': return `window.JmlGlassScreen?.captureState('replay'); await d.sleep(650); await d.clickEl('#gs-replay', 850);`;
+      case 'approve_btn': return `{ const ap=[...document.querySelectorAll('#view-approvals button')].find(b=>/approve/i.test(b.textContent)); if(ap){const b=ap.getBoundingClientRect(); await d.moveTo(b.left+b.width/2, b.top+b.height/2, 950);} }`;
+      default:       return `await d.sleep(120);`; // dwell
+    }
+  };
+
+  async function playLine(line) {
+    const t0 = Date.now();
+    if (line.act && line.act.do === 'inject') {
+      if (line.act.what === 'approver') await win.webContents.executeJavaScript(TAB_INJECT.approver);
+    } else if (line.act) {
+      await run(actionJs(line.act));
+    }
+    const left = (line.duration + GAP) * 1000 - (Date.now() - t0);
+    if (left > 0) await sleep(left);
+  }
+
+  async function recordAct(act) {
+    console.log('ACT', act);
+    await run(`await d.recStart(); await d.sleep(400);`);
+    const recStartWall = Date.now();   // t0 of the recording in wall-clock ms
+    const timing = [];                 // real offset each line's action fires
+    for (const scene of byAct(act)) {
+      // re-assert on-demand seed data as we enter data tabs
+      if (scene.id === 'security-evidence') win.webContents.send('security-reports', MOCK_SECURITY);
+      if (scene.id === 'tamper-evident')   win.webContents.send('audit-log-data', MOCK_AUDIT);
+      for (let li = 0; li < scene.lines.length; li++) {
+        timing.push({ scene: scene.id, line: li, offsetMs: Date.now() - recStartWall });
+        await playLine(scene.lines[li]);
+      }
+      await sleep(TAIL * 1000);
+      console.log('  scene done:', scene.id);
+    }
+    await run(`await d.recStop(${j(act)});`);
+    // Real timing -> apply-timing.py aligns audio/captions to the footage exactly.
+    fs.writeFileSync(path.join(OUT, `${act}.timing.json`), JSON.stringify(timing, null, 2));
+    console.log('  timing saved:', act);
+  }
+
+  await recordAct('core');
+  await recordAct('capabilities');
+
+  await sleep(800);
+  console.log('DEMO DRIVE COMPLETE');
+  app.quit();
+}
+
 // ── Glass Screen state QC (npm start -- --gs-states) ─────────────────────────
 // Renders every Command Center fixture state via JmlGlassScreen.captureState
 // and saves review artifacts for the design acceptance gate. Review-only:
@@ -3472,6 +4351,7 @@ async function runGlassScreenQc() {
 
 // ── First-run setup ───────────────────────────────────────────────────────────
 ipcMain.handle('complete-first-run', (event, { winAuth, tenantId, primaryDomain } = {}) => {
+  if (PRESENTATION_MODE) return demoReceipt('complete-first-run', { tenantId, primaryDomain });
   try {
     fs.writeFileSync(SETUP_FILE, JSON.stringify({
       firstRunComplete: true, completedAt: new Date().toISOString(), skipped: false
@@ -3513,6 +4393,7 @@ ipcMain.handle('complete-first-run', (event, { winAuth, tenantId, primaryDomain 
 });
 
 ipcMain.handle('skip-first-run', () => {
+  if (PRESENTATION_MODE) return demoReceipt('skip-first-run');
   try {
     fs.writeFileSync(SETUP_FILE, JSON.stringify({
       firstRunComplete: true, completedAt: new Date().toISOString(), skipped: true
@@ -3531,6 +4412,17 @@ const INT_CONFIG_DEFAULTS = {
 };
 
 ipcMain.handle('get-integrations-config', () => {
+  if (PRESENTATION_MODE) {
+    return {
+      ok: true,
+      demo: true,
+      config: {
+        bamboohr: { enabled: true, label: 'BambooHR demo webhook' },
+        teams: { enabled: true, channel: 'Identity Operations', oncallHandle: 'IAM On Call' },
+        sentinel: { enabled: true, workspaceName: 'jml-demo-workspace', tableName: 'JMLAudit_CL' },
+      },
+    };
+  }
   try {
     if (!fs.existsSync(INT_CONFIG_FILE)) return { ok: true, config: INT_CONFIG_DEFAULTS };
     return { ok: true, config: readJson(INT_CONFIG_FILE) };
@@ -3538,6 +4430,7 @@ ipcMain.handle('get-integrations-config', () => {
 });
 
 ipcMain.handle('save-integrations-config', (event, { config } = {}) => {
+  if (PRESENTATION_MODE) return demoReceipt('save-integrations-config');
   if (currentRole !== 'admin') return { ok: false, error: 'admin role required' };
   const str = (v, max = 200) => typeof v === 'string' ? v.slice(0, max) : '';
   const c = config || {};
@@ -3573,6 +4466,36 @@ app.whenReady().then(() => {
   app.setAppUserModelId('com.jml.console');
   if (GS_STATES_QC_MODE) { runGlassScreenQc().catch(e => { console.error('Glass QC error:', e); app.quit(); process.exitCode = 1; }); return; }
   if (CAPTURE_MODE) { runCapture().catch(e => { console.error('Capture error:', e); app.quit(); process.exitCode = 1; }); return; }
+  if (DEMO_DRIVE_MODE) { runDemoDrive().catch(e => { console.error('Demo drive error:', e); app.quit(); process.exitCode = 1; }); return; }
+  if (CAPTURE_CHROME_MODE) { runCaptureChrome().catch(e => { console.error('Chrome capture error:', e); app.quit(); process.exitCode = 1; }); return; }
+  if (RENDER_DIAGRAM_MODE) {
+    (async () => {
+      const w = new BrowserWindow({ width: 1600, height: 900, show: false, backgroundColor: '#070b13', webPreferences: { offscreen: false } });
+      await w.loadFile(path.join(__dirname, '..', 'docs', 'architecture.html'));
+      await sleep(900);
+      const img = await w.webContents.capturePage();
+      fs.writeFileSync(path.join(__dirname, '..', 'docs', 'images', 'JML AI Agent Architecture.png'), img.toPNG());
+      console.log('DIAGRAM RENDERED');
+      app.quit();
+    })().catch(e => { console.error('Diagram render error:', e); app.quit(); process.exitCode = 1; });
+    return;
+  }
+  if (DEMO_STATE_MODE) {
+    // Interactive, fully-seeded demo: the normal app window populated with the
+    // same fixture the recorder uses (users, security, audit, brain), so it can
+    // be clicked through by hand to pilot or screenshot. No auto-drive.
+    ensureDataDirs();
+    currentOperator = DEMO_ADMIN;
+    currentRole = 'admin';
+    process.env.JML_CONSOLE_OPERATOR = DEMO_ADMIN;
+    installDemoHandlers();
+    createMainWindow();
+    win.webContents.once('did-finish-load', () => {
+      win.webContents.executeJavaScript(`try{localStorage.setItem('jmlTheme','glass');document.documentElement.dataset.theme='glass';}catch(_){}`);
+      setTimeout(() => seedDemoData(win), 1200);
+    });
+    return;
+  }
   createTray();
   ensureDataDirs();
   // QC bypass: `electron . --operator=Nick` skips the selector window so
@@ -3701,6 +4624,18 @@ if ($resp.value -and @($resp.value).Count -gt 0) { @($resp.value) | ConvertTo-Js
 });
 
 ipcMain.on('get-user-detail', async (event, { userId }) => {
+  if (PRESENTATION_MODE) {
+    const user = MOCK_USERS.find((candidate) => candidate.id === userId || candidate.userPrincipalName === userId)
+      || MOCK_USERS[0];
+    event.sender.send('user-detail', {
+      user,
+      licenses: user.assignedLicenses,
+      groups: ['Engineering-All'],
+      manager: { displayName: 'Demo Administrator', userPrincipalName: DEMO_ADMIN },
+      demo: true,
+    });
+    return;
+  }
   try {
     const cfgPath = path.join(AGENTS_DIR, 'auditor', 'config.json');
     const ps = `
@@ -3730,6 +4665,14 @@ $out | ConvertTo-Json -Depth 4 -Compress
 
 // ── Feature: Quick Mover ──────────────────────────────────────────────────────
 ipcMain.on('run-quick-mover', async (event, payload) => {
+  if (PRESENTATION_MODE) {
+    event.sender.send('quick-op-result', {
+      type: 'mover',
+      lines: ['[DEMO] Mover operation simulated. No tenant change was committed.'],
+      data: demoReceipt('run-quick-mover', { subject: payload?.upn }),
+    });
+    return;
+  }
   if (!requireWriteToken(event, payload, 'quick-op-result')) return;
   const { upn, newDepartment, newJobTitle, newManager, whatif } = payload || {};
   const pf = writePayloadFile({
@@ -3751,6 +4694,14 @@ ipcMain.on('run-quick-mover', async (event, payload) => {
 
 // ── Feature: Quick Leaver ─────────────────────────────────────────────────────
 ipcMain.on('run-quick-leaver', async (event, payload) => {
+  if (PRESENTATION_MODE) {
+    event.sender.send('quick-op-result', {
+      type: 'leaver',
+      lines: ['[DEMO] Leaver operation simulated. No tenant change was committed.'],
+      data: demoReceipt('run-quick-leaver', { subject: payload?.upn }),
+    });
+    return;
+  }
   if (!requireWriteToken(event, payload, 'quick-op-result')) return;
   const { upn, stage, reason, whatif } = payload || {};
   try {
@@ -3774,6 +4725,19 @@ ipcMain.on('run-quick-leaver', async (event, payload) => {
 
 // ── Feature: Stale Accounts ───────────────────────────────────────────────────
 ipcMain.on('get-stale-accounts', async (event, { days }) => {
+  if (PRESENTATION_MODE) {
+    event.sender.send('stale-accounts', {
+      accounts: MOCK_USERS.filter((user) => !user.accountEnabled).map((user) => ({
+        id: user.id,
+        displayName: user.displayName,
+        upn: user.userPrincipalName,
+        lastSignIn: user.signInActivity?.lastSignInDateTime || null,
+      })),
+      days: days || 90,
+      demo: true,
+    });
+    return;
+  }
   try {
     const script = path.join(AGENTS_DIR, 'auditor', 'Invoke-AuditorQuery.ps1');
     if (!fs.existsSync(script)) { event.sender.send('stale-accounts', { accounts: [], error: 'Auditor not configured' }); return; }
@@ -3794,6 +4758,13 @@ ipcMain.on('get-stale-accounts', async (event, { days }) => {
 });
 
 ipcMain.on('disable-stale-accounts', async (event, { userIds }) => {
+  if (PRESENTATION_MODE) {
+    event.sender.send('stale-disable-result', {
+      ...demoReceipt('disable-stale-accounts'),
+      disabled: Array.isArray(userIds) ? userIds.length : 0,
+    });
+    return;
+  }
   try {
     const cfgPath = path.join(AGENTS_DIR, 'joiner', 'config.json');
     if (!fs.existsSync(cfgPath)) { event.sender.send('stale-disable-result', { ok: false, error: 'Joiner config not found' }); return; }
@@ -3829,6 +4800,16 @@ foreach ($id in $ids) {
 
 // ── Feature: License Utilization ──────────────────────────────────────────────
 ipcMain.on('get-license-utilization', async (event) => {
+  if (PRESENTATION_MODE) {
+    event.sender.send('license-utilization', {
+      skus: MOCK_DASHBOARD.licenses.licenses.map((license) => ({
+        ...license,
+        available: license.total - license.assigned,
+      })),
+      demo: true,
+    });
+    return;
+  }
   try {
     const cfgPath = path.join(AGENTS_DIR, 'auditor', 'config.json');
     const ps = `
@@ -3884,6 +4865,17 @@ ipcMain.on('get-cert-expiry', (event) => {
 
 // ── Feature: SoD Conflict Tester ─────────────────────────────────────────────
 ipcMain.on('test-sod-conflict', async (event, { groupA, groupB, upn }) => {
+  if (PRESENTATION_MODE) {
+    const conflict = /finance|payroll/i.test(`${groupA} ${groupB}`);
+    event.sender.send('sod-result', {
+      conflict,
+      userPrincipalName: upn,
+      groups: [groupA, groupB],
+      reason: conflict ? 'Synthetic separation-of-duties conflict' : 'No seeded conflict',
+      demo: true,
+    });
+    return;
+  }
   try {
     const script = path.join(AGENTS_DIR, 'shared', 'Invoke-SoDCheck.ps1');
     const cfgPath = path.join(AGENTS_DIR, 'auditor', 'config.json');
@@ -3907,6 +4899,18 @@ ipcMain.on('run-graph-query', async (event, payload) => {
     const { method, url, body } = payload || {};
     const verb = String(method || 'GET').toUpperCase();
     if (!url) { event.sender.send('graph-query-result', { ok: false, error: 'Graph URL is required' }); return; }
+    if (PRESENTATION_MODE) {
+      event.sender.send('graph-query-result', {
+        ...demoReceipt('run-graph-query', {
+          method: verb,
+          url,
+          result: verb === 'GET'
+            ? { value: MOCK_USERS.slice(0, 5) }
+            : { requestBody: body || null },
+        }),
+      });
+      return;
+    }
     if (/^(POST|PATCH|DELETE)$/.test(verb) && !requireWriteToken(event, payload, 'graph-query-result')) return;
     const cfgPath = path.join(AGENTS_DIR, 'auditor', 'config.json');
     const safeUrl  = url.replace(/'/g, "''");
@@ -3961,6 +4965,17 @@ ipcMain.on('suggest-graph-query', async (event, { description }) => {
 
 // ── Feature: PIM Roles ────────────────────────────────────────────────────────
 ipcMain.on('get-pim-roles', async (event) => {
+  if (PRESENTATION_MODE) {
+    event.sender.send('pim-roles', {
+      ok: true,
+      demo: true,
+      roles: [
+        { roleDefinitionId: 'demo-global-reader', roleName: 'Global Reader', status: 'Eligible', expiry: null },
+        { roleDefinitionId: 'demo-user-admin', roleName: 'User Administrator', status: 'Active', expiry: new Date(Date.now() + 3600000).toISOString() },
+      ],
+    });
+    return;
+  }
   try {
     const cfgPath = path.join(AGENTS_DIR, 'auditor', 'config.json');
     const ps = `
@@ -3991,6 +5006,14 @@ try {
 });
 
 ipcMain.on('activate-pim-role', async (event, { roleDefinitionId, justification, durationHours }) => {
+  if (PRESENTATION_MODE) {
+    event.sender.send('pim-activate-result', demoReceipt('activate-pim-role', {
+      roleDefinitionId,
+      justification,
+      durationHours,
+    }));
+    return;
+  }
   try {
     const cfgPath = path.join(AGENTS_DIR, 'auditor', 'config.json');
     const cfg = readJson(cfgPath);

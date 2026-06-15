@@ -6,7 +6,7 @@ This checklist is the release gate for treating JML Fleet as buttoned up and rea
 
 | Area | Status | Notes |
 |---|---|---|
-| Agent count and positioning | Ready | Public README consistently describes seven operational agents. Approver and Auditor are provider-agnostic reasoning agents. |
+| Agent count and positioning | Ready | Public README consistently describes eight operational agents (incl. the Certifier with its own Entra identity). Approver and Auditor are provider-agnostic reasoning agents. |
 | Agent identity positioning | Ready | Approver and Auditor use Entra Agent IDs through FMI; write agents remain on least-privilege service principals by design. |
 | Peer-group recommendations | Ready | `auditor/Invoke-ProvisioningRecommendation.ps1` exists and returns license/group recommendations from same-department peers. |
 | Workload Identity Conditional Access | Accepted gap | Script exists, but production enforcement requires Entra Workload Identities Premium. Documented in `docs/security.md`. |
