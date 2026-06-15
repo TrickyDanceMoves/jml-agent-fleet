@@ -1,9 +1,10 @@
 param(
     [Parameter(Mandatory = $true)]
-    [ValidateSet("UserSummary","LicenseReport","RecentJoins","RecentLeavers","RecentHardLeavers","AdminRoles","GroupSummary","JMLActivity","StaleAccounts","GuestUsers")]
+    [ValidateSet("UserSummary","LicenseReport","RecentJoins","RecentLeavers","RecentHardLeavers","AdminRoles","GroupSummary","JMLActivity","StaleAccounts","GuestUsers","MemberUsers")]
     [string]$QueryType,
     [int]$Days = 30,
-    [int]$TopN  = 20
+    [int]$TopN  = 20,
+    [bool]$EnabledOnly = $false
 )
 
 $ErrorActionPreference = "Stop"
@@ -223,6 +224,30 @@ switch ($QueryType) {
                 -Uri ("https://graph.microsoft.com/v1.0/users?`$filter=userType eq 'Guest'&`$select=displayName,userPrincipalName,accountEnabled,createdDateTime&`$count=true&`$top=" + $TopN) `
                 -Headers @{ ConsistencyLevel = "eventual" }
             $result = @{
+                count = if ($resp."@odata.count") { [int]$resp."@odata.count" } else { $resp.value.Count }
+                users = @($resp.value | ForEach-Object {
+                    @{
+                        displayName       = $_["displayName"]
+                        userPrincipalName = $_["userPrincipalName"]
+                        accountEnabled    = $_["accountEnabled"]
+                        createdDateTime   = $_["createdDateTime"]
+                    }
+                })
+            }
+        } catch {
+            $result = @{ error = $_.Exception.Message }
+        }
+    }
+
+    "MemberUsers" {
+        try {
+            $filter = "userType eq 'Member'"
+            if ($EnabledOnly) { $filter = $filter + " and accountEnabled eq true" }
+            $resp = Invoke-MgGraphRequest -Method GET `
+                -Uri ("https://graph.microsoft.com/v1.0/users?`$filter=" + [uri]::EscapeDataString($filter) + "&`$select=displayName,userPrincipalName,accountEnabled,createdDateTime&`$count=true&`$top=" + $TopN) `
+                -Headers @{ ConsistencyLevel = "eventual" }
+            $result = @{
+                enabledOnly = $EnabledOnly
                 count = if ($resp."@odata.count") { [int]$resp."@odata.count" } else { $resp.value.Count }
                 users = @($resp.value | ForEach-Object {
                     @{
