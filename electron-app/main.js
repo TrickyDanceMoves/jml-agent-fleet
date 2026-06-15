@@ -3222,7 +3222,8 @@ ipcMain.handle('verify-operator-pin', (event, { user, pin }) => {
 });
 
 // ── Screenshot capture mode (npm start -- --capture) ─────────────────────────
-const CAPTURE_MODE = process.argv.includes('--capture');
+const INPUT_CAPTURE_ONLY = process.argv.includes('--capture-jml-input');
+const CAPTURE_MODE = process.argv.includes('--capture') || INPUT_CAPTURE_ONLY;
 const DEMO_DRIVE_MODE = process.argv.includes('--demo-drive');
 const DEMO_STATE_MODE = process.argv.includes('--demo');
 const CAPTURE_CHROME_MODE = process.argv.includes('--capture-chrome');
@@ -3645,6 +3646,7 @@ const TAB_INJECT = {
       const soft = Array.from(document.querySelectorAll('#approver-assist-bar .assist-chip'))
         .find(b => /Soft Leave/i.test(b.textContent));
       if (soft) soft.classList.add('active');
+      window.__jmlSetApproverInputLifecycle?.();
     })();
   `,
   approver: `
@@ -3925,15 +3927,30 @@ async function runCapture() {
   // operation assist-bar, and a request typed into the composer but not yet
   // submitted. This is intentionally distinct from the `approver.png` capture
   // below, which shows the resulting conversation transcript.
-  await win.webContents.executeJavaScript(`document.querySelector('[data-tab="approver"]')?.click()`);
-  await sleep(600);
+  win.webContents.send('operator-switched', { name: DEMO_ADMIN, role: 'admin' });
+  await sleep(150);
+  const activeViewId = await win.webContents.executeJavaScript(`
+    (function(){
+      if (typeof switchTab === 'function') switchTab('approver');
+      else document.querySelector('[data-tab="approver"]')?.click();
+      return document.querySelector('.view.active')?.id || '';
+    })()
+  `);
+  if (activeViewId !== 'view-approver') {
+    throw new Error('JML input capture could not activate the Approver view');
+  }
   try { await win.webContents.executeJavaScript(TAB_INJECT['jml-fleet-input']); } catch (_) {}
+  await win.webContents.executeJavaScript(SANITIZE_TENANT);
   await sleep(900);
   {
     win.webContents.invalidate();
     await sleep(600);
     let img; for (let a=0;a<3;a++){try{img=await win.webContents.capturePage();break;}catch(e){await sleep(600);}}
     if (img) { fs.writeFileSync(path.join(CAPTURE_OUT, 'jml-fleet-input.png'), img.toPNG()); console.log('Captured: jml-fleet-input'); }
+  }
+  if (INPUT_CAPTURE_ONLY) {
+    app.quit();
+    return;
   }
 
   let lastFrameHash = null;
