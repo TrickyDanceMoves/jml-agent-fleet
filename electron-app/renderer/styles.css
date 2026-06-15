@@ -1716,6 +1716,10 @@ body.maximized, body.maximized .app { border-radius: 0; }
   cursor: pointer; font-family: var(--sans);
 }
 .example-chip:hover, .qchip:hover, .assist-chip:hover { color: var(--text); border-color: var(--border-strong); }
+.assist-chip.active {
+  color: var(--accent); border-color: var(--accent);
+  background: color-mix(in oklch, var(--accent) 14%, var(--bg-2));
+}
 .chip-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
 
 /* Composer (input row) */
