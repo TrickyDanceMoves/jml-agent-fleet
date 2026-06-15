@@ -71,8 +71,8 @@ test('glass theme provides readable text and localized control backings', () => 
   assert.match(css, /html\[data-theme="glass"\]\s+\.message\.assistant\s+\.message-body[\s\S]*?background:\s*var\(--glass-panel-bg\)/s);
   assert.match(css, /html\[data-theme="glass"\]\s+\.btn,[\s\S]*?background:\s*var\(--glass-control-bg\)/s);
   assert.match(css, /html\[data-theme="glass"\]\s+input\[type="text"\],[\s\S]*?backdrop-filter:/s);
-  assert.match(css, /html\[data-theme="glass"\]\s+\.brand-mark,[\s\S]*?conic-gradient/s);
-  assert.match(css, /html\[data-theme="glass"\]\s+\.brand-mark::after,[\s\S]*?\/\s*0\.1[0-9]\)/s);
+  assert.match(css, /html\[data-theme="glass"\]\s+\.glass-logo\s*\{[\s\S]*?display:\s*block/s);
+  assert.match(css, /\.glass-logo\s*\{[\s\S]*?drop-shadow\(0 0 7px rgba\(89, 218, 239, \.24\)\)/s);
 });
 
 test('glass nested rows remain flat inside their parent frost panels', () => {

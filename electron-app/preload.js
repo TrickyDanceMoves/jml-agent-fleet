@@ -5,6 +5,7 @@ const os = require('os');
 
 contextBridge.exposeInMainWorld('api', {
   currentUser: os.userInfo().username,
+  demoClipSave:     (name, buf)      => ipcRenderer.invoke('demo-clip-save', { name, buf }),
   sendMessage:      (agent, text)    => ipcRenderer.send('send-message', { agent, text }),
   abortAgent:       (agent)          => ipcRenderer.send('abort-agent', { agent }),
   setMode:          (whatif)         => ipcRenderer.send('set-mode', { whatif }),
