@@ -1,6 +1,6 @@
 param(
     [Parameter(Mandatory = $true)]
-    [ValidateSet("UserSummary","LicenseReport","RecentJoins","RecentLeavers","AdminRoles","GroupSummary","JMLActivity","StaleAccounts","GuestUsers")]
+    [ValidateSet("UserSummary","LicenseReport","RecentJoins","RecentLeavers","RecentHardLeavers","AdminRoles","GroupSummary","JMLActivity","StaleAccounts","GuestUsers")]
     [string]$QueryType,
     [int]$Days = 30,
     [int]$TopN  = 20
@@ -95,6 +95,42 @@ switch ($QueryType) {
             }
         } catch {
             $result = @{ error = "AuditLog.Read.All permission required"; details = $_.Exception.Message }
+        }
+    }
+
+    "RecentHardLeavers" {
+        # Hard-stage leavers (license + group removal) are recorded only in the
+        # JML audit chain with details.stage = "Hard". Entra's directory audit log
+        # has no notion of leaver "stage", so read the local chain rather than
+        # guessing hard-vs-soft from raw Graph events.
+        $auditPath = Join-Path $agentsRoot "audit.jsonl"
+        if (-not (Test-Path $auditPath)) {
+            $result = @{ error = "JML audit log not found"; path = $auditPath }
+        } else {
+            $since   = (Get-Date).AddDays(-$Days)
+            $entries = @()
+            foreach ($line in (Get-Content $auditPath -ErrorAction Stop)) {
+                try { $entries += ($line | ConvertFrom-Json) } catch {}
+            }
+            $hard = @($entries | Where-Object {
+                $_.action -eq "LeaverProcess" -and $_.details -and
+                $_.details.stage -eq "Hard" -and (-not $_.whatif) -and
+                $_.timestamp -and ([datetime]$_.timestamp) -ge $since
+            } | Sort-Object { [datetime]$_.timestamp } -Descending | Select-Object -First $TopN)
+            $result = @{
+                days   = $Days
+                count  = $hard.Count
+                events = @($hard | ForEach-Object {
+                    @{
+                        target          = $_.subject
+                        time            = $_.timestamp
+                        outcome         = $_.outcome
+                        operator        = $_.operator
+                        licensesRemoved = @($_.details.licensesRemoved)
+                        groupsRemoved   = @($_.details.groupsRemoved)
+                    }
+                })
+            }
         }
     }
 
