@@ -16,6 +16,11 @@ const {
   demoReceipt,
   isDemoMode,
 } = require('./lib/demo-safety');
+const {
+  collectGroundingFacts,
+  groundedFallback,
+  validateGroundedAssistantText,
+} = require('./lib/agent-grounding');
 
 const PRESENTATION_MODE = isDemoMode(process.argv);
 
@@ -285,8 +290,9 @@ You NEVER suggest or make changes to the directory. Strictly observational.
 You have two roles:
 
 1. TENANT INTELLIGENCE: Answer questions about the live tenant state using your query tools.
-   Available: user counts, license utilization, recent joins, soft leavers (accounts disabled) vs hard leavers (license + group removal), admin roles, group summary, JML activity, stale accounts, guest users, single-user deep dive (query_user_detail).
+   Available: user counts, license utilization, member/regular user lists, recent joins, soft leavers (accounts disabled) vs hard leavers (license + group removal), admin roles, group summary, JML activity, stale accounts, guest users, single-user deep dive (query_user_detail).
    Present numbers prominently. Offer follow-up queries when results are interesting.
+   Never provide tenant counts, UPNs, names, or lists unless they appear in the latest tool result. For standard/regular users, call query_member_users. Do not combine overlapping categories as if they add up to a total.
 
 2. OPERATIONAL GUIDE: Answer "how do I" questions about the JML system itself -- without calling any tools.
    You know the following about this system:
@@ -468,6 +474,8 @@ const AUDITOR_TOOLS = [
     input_schema: { type: 'object', properties: { days: { type: 'integer' }, topN: { type: 'integer' } }, required: [] } },
   { name: 'query_guest_users',    description: 'External/guest accounts.',
     input_schema: { type: 'object', properties: { topN: { type: 'integer' } }, required: [] } },
+  { name: 'query_member_users',   description: 'Member/regular user accounts, optionally only enabled accounts. Use this to list standard user UPNs.',
+    input_schema: { type: 'object', properties: { topN: { type: 'integer' }, enabledOnly: { type: 'boolean' } }, required: [] } },
   { name: 'query_user_detail',    description: 'Deep-dive a single user by UPN or display name: profile, status, manager, licenses, groups, last sign-in.',
     input_schema: { type: 'object', properties: { upnOrName: { type: 'string' } }, required: ['upnOrName'] } }
 ];
@@ -1083,8 +1091,20 @@ const AUDITOR_QUERY_MAP = {
   query_group_summary:  'GroupSummary',
   query_jml_activity:   'JMLActivity',
   query_stale_accounts: 'StaleAccounts',
-  query_guest_users:    'GuestUsers'
+  query_guest_users:    'GuestUsers',
+  query_member_users:   'MemberUsers'
 };
+
+function collectConversationToolContents(messages) {
+  const contents = [];
+  for (const msg of messages || []) {
+    if (!Array.isArray(msg.content)) continue;
+    for (const block of msg.content) {
+      if (block && block.type === 'tool_result') contents.push(block.content);
+    }
+  }
+  return contents;
+}
 
 // Directory queries (auditor + approver share them) run as the Auditor app, which
 // needs its own config.json + credential. Entra *operator* sign-in does not supply
@@ -1117,6 +1137,7 @@ async function executeTool(agent, toolName, input, whatif) {
     const params = { QueryType: queryType };
     if (input.days) params.Days = input.days;
     if (input.topN) params.TopN = input.topN;
+    if (input.enabledOnly !== undefined) params.EnabledOnly = !!input.enabledOnly;
     const raw = await runPsAsync(script, params);
     return _parseMultilineJson(raw, 'No output from auditor query script');
   }
@@ -1128,6 +1149,7 @@ async function executeTool(agent, toolName, input, whatif) {
     const params = { QueryType: AUDITOR_QUERY_MAP[toolName] };
     if (input.days) params.Days = input.days;
     if (input.topN) params.TopN = input.topN;
+    if (input.enabledOnly !== undefined) params.EnabledOnly = !!input.enabledOnly;
     const raw = await runPsAsync(path.join(AGENTS_DIR, 'auditor', 'Invoke-AuditorQuery.ps1'), params);
     return _parseMultilineJson(raw, 'No output from auditor query script');
   }
@@ -1322,18 +1344,33 @@ async function runAgentLoop(sender, agent, userText) {
   try {
     while (true) {
       let response;
+      let pendingText = '';
       try {
         response = await provider.streamTurn({
           system:      systemPrompt,
           tools,
           messages:    agentState.messages,
           signal:      ac.signal,
-          onText:      (text) => { sender.send('msg-chunk', { agent, type: 'text', text }); _fullText += text; },
+          onText:      (text) => { pendingText += text; },
           onToolStart: (toolName) => { sender.send('msg-chunk', { agent, type: 'tool_start', toolName }); }
         });
       } catch (err) {
         if (ac.signal.aborted) break; // operator pressed Stop — end the turn quietly
         throw err;
+      }
+
+      const textBlocks = response.content.filter(b => b.type === 'text');
+      if (textBlocks.length) {
+        const text = textBlocks.map(b => b.text || '').join('');
+        const facts = collectGroundingFacts(collectConversationToolContents(agentState.messages));
+        const validation = validateGroundedAssistantText(text || pendingText, facts);
+        const safeText = validation.ok ? text : groundedFallback(validation.reason);
+        response.content = [
+          ...response.content.filter(b => b.type !== 'text'),
+          { type: 'text', text: safeText }
+        ];
+        sender.send('msg-chunk', { agent, type: 'text', text: safeText });
+        _fullText += safeText;
       }
 
       agentState.messages.push({ role: 'assistant', content: response.content });
@@ -2647,10 +2684,8 @@ ipcMain.handle('get-operators-for-login', () => {
 });
 
 ipcMain.handle('get-current-operator', () => {
-  const ops = (() => { try { return readJson(OPERATORS_FILE).operators || {}; } catch { return {}; } })();
-  const role = ops[currentOperator] || 'viewer';
-  currentRole = role;
-  return { name: currentOperator, role };
+  if (!currentRole) currentRole = 'viewer';
+  return { name: currentOperator, role: currentRole };
 });
 
 // Entra directory roles → app role. A user who already holds an admin-tier
@@ -3606,6 +3641,12 @@ function executeDemoTool(agent, toolName, input = {}, whatif = true) {
       return { accounts: MOCK_USERS.filter((user) => !user.accountEnabled), demo: true };
     case 'query_guest_users':
       return { users: [], demo: true };
+    case 'query_member_users': {
+      const users = MOCK_USERS
+        .filter((user) => !input.enabledOnly || user.accountEnabled)
+        .slice(0, input.topN || 20);
+      return { enabledOnly: !!input.enabledOnly, count: users.length, users, demo: true };
+    }
     case 'query_jml_activity':
       return { entries: MOCK_AUDIT.slice(0, input.topN || 5), demo: true };
     case 'query_admin_roles':

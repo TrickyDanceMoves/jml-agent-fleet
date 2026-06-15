@@ -7,6 +7,11 @@ const path             = require('path');
 const fs               = require('fs');
 const chalk            = require('chalk');
 const boxen            = require('boxen');
+const {
+  collectGroundingFacts,
+  groundedFallback,
+  validateGroundedAssistantText,
+} = require('../electron-app/lib/agent-grounding');
 
 const AUDITOR_DIR = process.pkg
   ? path.resolve(path.dirname(process.execPath), '..')
@@ -36,6 +41,7 @@ Available queries:
 - query_jml_activity: recent JML agent operations from local audit log
 - query_stale_accounts: enabled accounts with no recent sign-in
 - query_guest_users: external/guest accounts
+- query_member_users: member/regular accounts, optionally enabled only
 
 Guidelines:
 - Pick the most relevant tool(s) for the question
@@ -43,6 +49,8 @@ Guidelines:
 - If a query fails due to missing permissions, explain and suggest resolution
 - Offer follow-up queries when results suggest something worth investigating
 - Cross-reference queries when useful (e.g. stale accounts + recent leavers)
+- Never provide tenant counts, UPNs, names, or lists unless they appear in the latest tool result
+- For standard/regular users, call query_member_users
 `;
 
 const TOOLS = [
@@ -123,6 +131,18 @@ const TOOLS = [
       },
       required: []
     }
+  },
+  {
+    name: 'query_member_users',
+    description: 'List member/regular accounts in the tenant, optionally only enabled accounts.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        topN: { type: 'integer', description: 'Maximum results (default 20)' },
+        enabledOnly: { type: 'boolean', description: 'Only return enabled member accounts' }
+      },
+      required: []
+    }
   }
 ];
 
@@ -135,8 +155,28 @@ const QUERY_TYPE_MAP = {
   query_group_summary:  'GroupSummary',
   query_jml_activity:   'JMLActivity',
   query_stale_accounts: 'StaleAccounts',
-  query_guest_users:    'GuestUsers'
+  query_guest_users:    'GuestUsers',
+  query_member_users:   'MemberUsers'
 };
+
+function collectConversationToolContents(messages) {
+  const contents = [];
+  for (const msg of messages || []) {
+    if (!Array.isArray(msg.content)) continue;
+    for (const block of msg.content) {
+      if (block && block.type === 'tool_result') contents.push(block.content);
+    }
+  }
+  return contents;
+}
+
+function printAssistantText(text) {
+  process.stdout.write('\n');
+  for (const line of text.split('\n')) {
+    const fmt = line.replace(/\*\*([^*]+)\*\*/g, (_, t) => chalk.bold(t));
+    console.log('  ' + fmt);
+  }
+}
 
 function runQuery(toolName, input) {
   const script = path.join(AUDITOR_DIR, 'Invoke-AuditorQuery.ps1');
@@ -146,6 +186,7 @@ function runQuery(toolName, input) {
   const args = ['-NonInteractive', '-File', script, '-QueryType', queryType];
   if (input.days) args.push('-Days', String(input.days));
   if (input.topN) args.push('-TopN',  String(input.topN));
+  if (input.enabledOnly !== undefined) args.push('-EnabledOnly', String(!!input.enabledOnly));
 
   const raw = execFileSync('powershell', args, { encoding: 'utf8', timeout: 60000 });
   const jsonLine = raw.trim().split('\n').filter(l => l.trim().startsWith('{')).pop();
@@ -171,13 +212,19 @@ async function runAuditLoop(messages) {
     const assistantContent = [];
     for (const block of resp.content) {
       assistantContent.push(block);
-      if (block.type === 'text') {
-        process.stdout.write('\n');
-        for (const line of block.text.split('\n')) {
-          const fmt = line.replace(/\*\*([^*]+)\*\*/g, (_, t) => chalk.bold(t));
-          console.log('  ' + fmt);
-        }
+    }
+
+    const textBlocks = assistantContent.filter(block => block.type === 'text');
+    if (textBlocks.length) {
+      const text = textBlocks.map(block => block.text || '').join('');
+      const facts = collectGroundingFacts(collectConversationToolContents(messages));
+      const validation = validateGroundedAssistantText(text, facts);
+      const safeText = validation.ok ? text : groundedFallback(validation.reason);
+      for (let i = assistantContent.length - 1; i >= 0; i--) {
+        if (assistantContent[i].type === 'text') assistantContent.splice(i, 1);
       }
+      assistantContent.push({ type: 'text', text: safeText });
+      printAssistantText(safeText);
     }
 
     messages.push({ role: 'assistant', content: assistantContent });
