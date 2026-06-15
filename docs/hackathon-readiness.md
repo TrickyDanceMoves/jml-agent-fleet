@@ -141,7 +141,7 @@ On June 12, 2026:
   Graph: `AgentGeneralCAPol` enabled, target `AllAgentIdResources`, grant `block`,
   principal scope empty/pre-staged. No SP policy — Workload Identities Premium not
   held. README wording updated to match.)**
-- [x] Decide repository license and add community health files. **(MIT + CONTRIBUTING + SECURITY.)**
+- [x] Decide repository license and add community health files. **(Proprietary / all-rights-reserved license, source-available for evaluation, + CONTRIBUTING + SECURITY.)**
 - [x] Record the demo using synthetic identities. **(2026-06-12: 90-second narrated cut rendered from sanitized captures — `.superpowers/jml-demo-video`, output `out/jml-demo-90s.mp4`.)**
 - [x] Run CI, dependency audits, and link checks. **(2026-06-12: quality gate green; npm audit 0 vulnerabilities incl. dev after esbuild 0.28.1 override; doc links verified.)**
 - [ ] Verify the five-minute public video and final submission links.
