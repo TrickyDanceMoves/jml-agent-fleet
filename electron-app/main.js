@@ -3888,9 +3888,12 @@ async function runCapture() {
     ['graph',          null, 1000],
   ];
 
-  // Capture approver in default (input) state first
+  // Capture the Approver agent with a populated conversation (an empty chat reads
+  // as bugged). Inject the demo transcript so the chat window has real content.
   await win.webContents.executeJavaScript(`document.querySelector('[data-tab="approver"]')?.click()`);
-  await sleep(800);
+  await sleep(600);
+  try { await win.webContents.executeJavaScript(TAB_INJECT.approver); } catch (_) {}
+  await sleep(900);
   {
     win.webContents.invalidate();
     await sleep(600);
