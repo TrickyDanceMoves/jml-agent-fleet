@@ -3616,9 +3616,42 @@ function installDemoHandlers() {
 // JS injected into renderer for tabs that show empty state by default
 const TAB_INJECT = {
   'glass-screen': `(function(){ window.JmlGlassScreen?.captureState('running'); })();`,
+  // Pre-submission "Input" state: keep the welcome panel + assist-bar, drop a
+  // request into the composer, and highlight the matching operation chip.
+  'jml-fleet-input': `
+    (function(){
+      const c = document.getElementById('messages-approver');
+      // Reset to the welcome state so no transcript leaks into this capture.
+      if (c) {
+        c.innerHTML = \`
+          <div class="welcome-msg">
+            <div class="welcome-title">Approver Agent</div>
+            <div class="welcome-body">Describe the identity change you need. I'll gather the required information, run risk scoring, and submit it for you under your operator token.</div>
+            <div class="welcome-examples">
+              <span class="example-chip">Onboard a new hire</span>
+              <span class="example-chip">Move someone to a new department</span>
+              <span class="example-chip">Offboard a leaver</span>
+            </div>
+          </div>
+        \`;
+      }
+      const ia = document.getElementById('input-approver');
+      if (ia) {
+        ia.value = 'Offboard Robert Martinez — INC-1020, terminated yesterday. Soft stage first.';
+        ia.focus();
+      }
+      // Mark the Soft Leave assist chip as the active intent.
+      document.querySelectorAll('#approver-assist-bar .assist-chip').forEach(b => b.classList.remove('active'));
+      const soft = Array.from(document.querySelectorAll('#approver-assist-bar .assist-chip'))
+        .find(b => /Soft Leave/i.test(b.textContent));
+      if (soft) soft.classList.add('active');
+    })();
+  `,
   approver: `
     (function(){
       const c = document.getElementById('messages-approver');
+      const ia = document.getElementById('input-approver');
+      if (ia) ia.value = '';
       if (!c || c.querySelectorAll('.message').length > 1) return;
       c.innerHTML = \`
         <div class="message user"><div class="message-bubble">I need to offboard Robert Martinez — INC-1020. He was terminated yesterday.</div></div>
@@ -3888,11 +3921,13 @@ async function runCapture() {
     ['graph',          null, 1000],
   ];
 
-  // Capture the Approver agent with a populated conversation (an empty chat reads
-  // as bugged). Inject the demo transcript so the chat window has real content.
+  // Capture the Approver agent in its INPUT state: the welcome panel, the
+  // operation assist-bar, and a request typed into the composer but not yet
+  // submitted. This is intentionally distinct from the `approver.png` capture
+  // below, which shows the resulting conversation transcript.
   await win.webContents.executeJavaScript(`document.querySelector('[data-tab="approver"]')?.click()`);
   await sleep(600);
-  try { await win.webContents.executeJavaScript(TAB_INJECT.approver); } catch (_) {}
+  try { await win.webContents.executeJavaScript(TAB_INJECT['jml-fleet-input']); } catch (_) {}
   await sleep(900);
   {
     win.webContents.invalidate();
