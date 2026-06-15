@@ -257,8 +257,8 @@ When the current operator is helpdesk and they request a Hard leaver:
 3. Show the approval token and tell them to notify an admin.
 
 READ-ONLY TENANT QUERIES:
-You also have the auditor's query_* tools (user counts, licenses, recent joins/leavers,
-admin roles, groups, JML activity, stale accounts, guests). Use them freely to answer
+You also have the auditor's query_* tools (user counts, licenses, recent joins,
+soft vs hard leavers, admin roles, groups, JML activity, stale accounts, guests). Use them freely to answer
 questions or verify state — they are read-only and safe in any mode. Use lookup_user
 for a single-user deep dive.
 
@@ -285,7 +285,7 @@ You NEVER suggest or make changes to the directory. Strictly observational.
 You have two roles:
 
 1. TENANT INTELLIGENCE: Answer questions about the live tenant state using your query tools.
-   Available: user counts, license utilization, recent joins/leavers, admin roles, group summary, JML activity, stale accounts, guest users, single-user deep dive (query_user_detail).
+   Available: user counts, license utilization, recent joins, soft leavers (accounts disabled) vs hard leavers (license + group removal), admin roles, group summary, JML activity, stale accounts, guest users, single-user deep dive (query_user_detail).
    Present numbers prominently. Offer follow-up queries when results are interesting.
 
 2. OPERATIONAL GUIDE: Answer "how do I" questions about the JML system itself -- without calling any tools.
@@ -456,7 +456,9 @@ const AUDITOR_TOOLS = [
   { name: 'query_license_report', description: 'License SKU utilization: assigned / total / available.',        input_schema: { type: 'object', properties: {}, required: [] } },
   { name: 'query_recent_joins',   description: 'Accounts created in last N days.',
     input_schema: { type: 'object', properties: { days: { type: 'integer' }, topN: { type: 'integer' } }, required: [] } },
-  { name: 'query_recent_leavers', description: 'Accounts disabled in last N days.',
+  { name: 'query_recent_leavers', description: 'Accounts disabled (soft-stage leaver) in last N days, from the Entra audit log.',
+    input_schema: { type: 'object', properties: { days: { type: 'integer' }, topN: { type: 'integer' } }, required: [] } },
+  { name: 'query_hard_leavers',   description: 'Hard-stage leavers (license + group removal) processed by the JML system in last N days, from the JML audit chain. Use this for "hard leaver" questions; use query_recent_leavers for disabled/soft.',
     input_schema: { type: 'object', properties: { days: { type: 'integer' }, topN: { type: 'integer' } }, required: [] } },
   { name: 'query_admin_roles',    description: 'All populated directory roles and members.', input_schema: { type: 'object', properties: {}, required: [] } },
   { name: 'query_group_summary',  description: 'Group breakdown: unified / dynamic / security.', input_schema: { type: 'object', properties: {}, required: [] } },
@@ -1076,6 +1078,7 @@ const AUDITOR_QUERY_MAP = {
   query_license_report: 'LicenseReport',
   query_recent_joins:   'RecentJoins',
   query_recent_leavers: 'RecentLeavers',
+  query_hard_leavers:   'RecentHardLeavers',
   query_admin_roles:    'AdminRoles',
   query_group_summary:  'GroupSummary',
   query_jml_activity:   'JMLActivity',
@@ -3595,6 +3598,10 @@ function executeDemoTool(agent, toolName, input = {}, whatif = true) {
       return { users: MOCK_USERS.filter((user) => user.accountEnabled).slice(0, input.topN || 5), demo: true };
     case 'query_recent_leavers':
       return { users: MOCK_USERS.filter((user) => !user.accountEnabled).slice(0, input.topN || 5), demo: true };
+    case 'query_hard_leavers':
+      return { days: input.days || 30, count: 1, events: [
+        { target: DEMO_ADMIN, time: _iso(72), outcome: 'success', operator: DEMO_ADMIN, licensesRemoved: ['Microsoft_Entra_Suite'], groupsRemoved: ['All Company'] },
+      ], demo: true };
     case 'query_stale_accounts':
       return { accounts: MOCK_USERS.filter((user) => !user.accountEnabled), demo: true };
     case 'query_guest_users':
