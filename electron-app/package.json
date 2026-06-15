@@ -2,6 +2,7 @@
   "name": "jml-console",
   "version": "1.1.4",
   "description": "JML Identity Management Console",
+  "author": "Nicholas Bohanan",
   "main": "main.js",
   "scripts": {
     "start": "electron .",
@@ -15,6 +16,7 @@
     "win": {
       "target": [
         "nsis",
+        "msi",
         "zip"
       ],
       "icon": "assets/icon.ico"
@@ -25,6 +27,13 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true
+    },
+    "msi": {
+      "perMachine": false,
+      "upgradeCode": "1EE847D0-E748-4A43-B2B3-2CDC7F89447E",
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "runAfterFinish": true
     },
     "files": [
       "main.js",
