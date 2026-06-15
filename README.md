@@ -14,8 +14,8 @@ Five minutes to the core of it:
 
 1. **The thesis** — autonomous AI agents should *propose* identity changes, never own directory-write authority. Microsoft Entra itself enforces this: write scopes are blocked on agent identities. This project's hybrid architecture (reasoning agents on **Entra Agent IDs**, execution behind a policy-gated control plane on least-privilege service principals) isn't a workaround — it's the platform-aligned answer, running live in a real tenant.
 2. **See it** — the [screenshots below](#screenshots) are real captures from the running console: risk-scored approvals, a tamper-evident hash-chained audit trail replicated to Sentinel/Blob, UEBA findings, and the Glass Screen showing a live operation advance through Request → Risk → Execute → Verify → Complete.
-3. **Run it** — download the published release artifact from [JML Console v1.1.4](https://github.com/TrickyDanceMoves/jml-agent-fleet/releases/tag/v1.1.4); the Setup Wizard binds your tenant and provisions the required identities with admin-consent links ([Installation](#installation)). Or run `npm start` from `electron-app/` for the development path.
-4. **Audit it** — [threat model](docs/threat-model.md) · [agent identity roadmap (now executed)](docs/agent-identity-roadmap.md) · [Electron hardening](docs/electron-security.md) · 82 automated tests enforced by the CI quality gate.
+3. **Run it** — download the published release artifact from [JML Console v1.1.5](https://github.com/TrickyDanceMoves/jml-agent-fleet/releases/tag/v1.1.5); the Setup Wizard binds your tenant and provisions the required identities with admin-consent links ([Installation](#installation)). Or run `npm start` from `electron-app/` for the development path.
+4. **Audit it** — [threat model](docs/threat-model.md) · [agent identity roadmap (now executed)](docs/agent-identity-roadmap.md) · [Electron hardening](docs/electron-security.md) · 93 automated tests enforced by the CI quality gate.
 
 > **The model proposes; policy and approval decide what executes.**
 
@@ -126,6 +126,11 @@ Every risk and approval decision is **grounded in the organization's own identit
 - A grounded policy match (SoD violation, freeze window) escalates the operation's risk level and reasons.
 - **Fail-closed**: when grounding is configured but the Foundry IQ service is unreachable, the decision is marked blocked — the control plane refuses to act on ungrounded policy rather than guessing. (`electron-app/lib/foundry-iq.js`, contract locked by `test/foundry-iq.test.js`.)
 - Publish the corpus to an Azure AI Search index with `provisioner/Publish-PolicyCorpus.ps1`; enable in `approver/foundry-iq.json` (copy from the committed `.config.example.json`).
+
+### Chat Agent Grounding Safeguards
+Approver and Auditor chat replies are guarded before display: tenant UPNs and numeric inventory claims must be present in fresh tool output, or the response is blocked with a re-query prompt instead of streaming an unverified answer.
+- `query_member_users` provides a real Graph-backed path for member/regular user UPN lists, including enabled-only lists.
+- The grounding guard rejects invented UPNs, tenant counts without tool results, and counts that do not appear in the returned tool data. (`electron-app/lib/agent-grounding.js`, covered by `test/agent-grounding.test.js`.)
 
 ### Security Controls
 - **SoD policy engine**: `shared/sod-policy.json` defines incompatible group pairs; violations block or warn before any submit
@@ -310,7 +315,7 @@ Planning guidance for the follow-on Azure Network Deployment and Governance Cons
 
 ## Installation
 
-Download `JML.Console.Setup.1.1.4.exe` from the [v1.1.4 GitHub Release](https://github.com/TrickyDanceMoves/jml-agent-fleet/releases/tag/v1.1.4). No admin rights are required; it installs per-user to `%LOCALAPPDATA%\Programs\JML Console\`.
+Download `JML.Console.Setup.1.1.5.exe` from the [v1.1.5 GitHub Release](https://github.com/TrickyDanceMoves/jml-agent-fleet/releases/tag/v1.1.5). No admin rights are required; it installs per-user to `%LOCALAPPDATA%\Programs\JML Console\`.
 
 **Prerequisite:** Microsoft Graph PowerShell SDK
 ```powershell
