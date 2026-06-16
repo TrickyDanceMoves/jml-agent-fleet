@@ -5049,18 +5049,21 @@ ipcMain.on('get-cert-expiry', (event) => {
       if (!fs.existsSync(cfgPath)) continue;
       let cfg = {};
       try { cfg = readJson(cfgPath); } catch { continue; }
-      if (!cfg.CertThumbprint && !cfg.CertExpiry) continue;
-      const expiry = cfg.CertExpiry || null;
+      // Use the SAME credential source + day math as get-agent-health so the
+      // dashboard fleet tiles and this Agent Certs table never disagree.
+      const credType = cfg.CertThumbprint ? 'certificate' : cfg.SecretExpiry ? 'secret' : 'unknown';
+      const expiry   = credType === 'certificate' ? (cfg.CertExpiry || null) : (cfg.SecretExpiry || null);
+      if (!cfg.CertThumbprint && !expiry) continue;
       let daysRemaining = null;
       if (expiry) {
-        const diff = new Date(expiry) - Date.now();
-        daysRemaining = Math.floor(diff / 86400000);
+        daysRemaining = Math.floor((new Date(expiry) - Date.now()) / 86400000);
       }
       results.push({
-        agent:         agentName,
-        thumbprint:    cfg.CertThumbprint || '',
-        expiry:        expiry,
-        daysRemaining: daysRemaining
+        agent:          agentName,
+        credentialType: credType,
+        thumbprint:     cfg.CertThumbprint || '',
+        expiry:         expiry,
+        daysRemaining:  daysRemaining
       });
     }
     event.sender.send('cert-expiry', { certs: results });
