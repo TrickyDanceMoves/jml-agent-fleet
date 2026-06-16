@@ -21,14 +21,20 @@ const DEFAULT_CONFIG = {
     fastDeployment:  'gpt-4o-mini',
     apiVersion:      '2025-01-01-preview'
   },
-  // Azure AI Foundry — uses the OpenAI-compatible inference endpoint exposed by
-  // Azure AI Foundry projects (https://<project>.<region>.models.ai.azure.com)
-  // or the GitHub Models catalogue endpoint (https://models.inference.ai.azure.com).
+  // Azure AI Foundry — keyless (Entra / az login) against a deployed model on an
+  // Azure AI Foundry / AIServices resource. endpoint is the resource's Azure
+  // OpenAI endpoint (https://<resource>.openai.azure.com); agentModel is the
+  // deployment name. Leave apiKey empty for keyless; set keyless:false + apiKey
+  // to use a resource key instead.
   'azure-foundry': {
+    keyless:    true,
     apiKey:     '',
-    endpoint:   'https://models.inference.ai.azure.com',
+    endpoint:   'https://<resource>.openai.azure.com',
     agentModel: 'gpt-4o',
-    fastModel:  'gpt-4o-mini'
+    fastModel:  'gpt-4o',
+    apiVersion: '2025-01-01-preview',
+    scope:      'https://cognitiveservices.azure.com/.default',
+    tokenParam: 'max_completion_tokens'
   },
   ollama: {
     baseUrl:    'http://localhost:11434',
@@ -120,13 +126,29 @@ function buildProvider(config) {
     }
     case 'azure-foundry': {
       const c = config['azure-foundry'] || {};
-      if (!c.apiKey) return null;
+      if (!c.endpoint) return null;
+      // Keyless (Entra / az login) by default — matches Foundry's Entra agent
+      // identity. Falls back to an api-key only if one is provided and keyless
+      // is not explicitly requested.
+      const wantsKeyless = c.keyless === true || (c.keyless !== false && !c.apiKey);
+      let azureADTokenProvider;
+      if (wantsKeyless) {
+        const { DefaultAzureCredential, getBearerTokenProvider } = require('@azure/identity');
+        const scope = c.scope || 'https://cognitiveservices.azure.com/.default';
+        azureADTokenProvider = getBearerTokenProvider(new DefaultAzureCredential(), scope);
+      } else if (!c.apiKey) {
+        return null;
+      }
       return new OpenAICompatProvider({
-        apiKey:       c.apiKey,
-        baseURL:      (c.endpoint || 'https://models.inference.ai.azure.com').replace(/\/$/, ''),
-        agentModel:   c.agentModel || 'gpt-4o',
-        fastModel:    c.fastModel  || 'gpt-4o-mini',
-        providerName: 'azure-foundry'
+        isAzure:          true,
+        apiKey:           c.apiKey || undefined,
+        azureADTokenProvider,
+        azureEndpoint:    c.endpoint.replace(/\/$/, ''),
+        azureApiVersion:  c.apiVersion || '2025-01-01-preview',
+        agentModel:       c.agentModel || 'gpt-4o',
+        fastModel:        c.fastModel  || c.agentModel || 'gpt-4o',
+        tokenParam:       c.tokenParam || 'max_completion_tokens',
+        providerName:     'azure-foundry'
       });
     }
     case 'ollama': {
