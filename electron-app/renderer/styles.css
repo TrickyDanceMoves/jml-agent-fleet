@@ -633,6 +633,19 @@ body.maximized, body.maximized .app { border-radius: 0; }
   .window-controls { margin-left: auto; }
 }
 
+/* Keep the window controls + action icons always visible. Let the brand,
+   crumbs, and tenant chip yield horizontal space (shrink/ellipsis) instead of
+   shoving the controls off the right edge — e.g. when the right nav hub is
+   expanded or the tenant domain is long. */
+.topbar > .brand-tb,
+.topbar > .crumbs             { min-width: 0; overflow: hidden; }
+.topbar .tenant-chip          { min-width: 0; max-width: 200px; }
+.topbar #topbar-tenant-domain { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.topbar .iconbtn,
+.topbar > .win-btn,
+.topbar .notif-bell-wrap,
+.topbar .window-controls      { flex-shrink: 0; }
+
 /* Icon button (topbar actions — search, bell, help) */
 .iconbtn {
   width: 28px; height: 28px;
