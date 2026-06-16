@@ -2693,6 +2693,17 @@ ipcMain.handle('get-current-operator', () => {
   return { name: currentOperator, role: currentRole };
 });
 
+// Decode a JWT payload (no signature check — used only to read non-sensitive
+// claims like `tid` from a token we just received over TLS for our own use).
+function decodeJwtClaims(jwt) {
+  try {
+    const part = String(jwt || '').split('.')[1];
+    if (!part) return null;
+    const b64 = part.replace(/-/g, '+').replace(/_/g, '/');
+    return JSON.parse(Buffer.from(b64, 'base64').toString('utf8'));
+  } catch { return null; }
+}
+
 // Entra directory roles → app role. A user who already holds an admin-tier
 // directory role in the tenant should not need a hand-maintained operators.json
 // entry to operate the console — their tenant privilege is the source of truth.
@@ -2754,19 +2765,22 @@ ipcMain.on('entra-signin-start', async (event) => {
   }
   try {
     // Resolve the tenant from the durable tenant.json first; fall back to an
-    // agent config if one exists. A fresh install has neither, so surface a
-    // clear message instead of an ENOENT from reading a missing file.
-    const tenantId = readTenantConfig().tenantId || (() => {
+    // agent config if one exists. When NOTHING is configured yet (fresh install)
+    // we don't block — we sign in against the `organizations` authority (any
+    // work/school account) and discover + persist the tenant from the resulting
+    // token. This breaks the chicken-and-egg: sign-in no longer requires a
+    // pre-connected tenant, and setup no longer requires a prior sign-in.
+    const configuredTenant = readTenantConfig().tenantId || (() => {
       try { return readJson(path.join(AGENTS_DIR, 'auditor', 'config.json')).TenantId; } catch { return ''; }
     })();
-    if (!tenantId) throw new Error('No tenant connected yet — set your Tenant ID in Settings → Tenant, then try Entra sign-in.');
+    const authority = configuredTenant || 'organizations';
     const clientId = '14d82eec-204b-4c2f-b7e8-296a70dab67e'; // Microsoft Graph public client
     const form = body => ({
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams(body).toString(),
     });
-    const dc = await (await fetch(`https://login.microsoftonline.com/${tenantId}/oauth2/v2.0/devicecode`,
+    const dc = await (await fetch(`https://login.microsoftonline.com/${authority}/oauth2/v2.0/devicecode`,
       form({ client_id: clientId, scope: 'User.Read openid profile' }))).json();
     if (!dc.device_code) throw new Error(dc.error_description || 'Could not start device-code sign-in');
     send('entra-device-code', { userCode: dc.user_code, verificationUri: dc.verification_uri || 'https://microsoft.com/devicelogin' });
@@ -2783,17 +2797,18 @@ ipcMain.on('entra-signin-start', async (event) => {
       webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true },
     });
     authWin.on('closed', () => { authWin = null; });
-    authWin.loadURL(`https://login.microsoftonline.com/${tenantId}/oauth2/deviceauth?otc=${encodeURIComponent(dc.user_code)}`);
+    authWin.loadURL(`https://login.microsoftonline.com/${authority}/oauth2/deviceauth?otc=${encodeURIComponent(dc.user_code)}`);
     const closeAuthWin = () => { try { if (authWin && !authWin.isDestroyed()) authWin.close(); } catch {} };
 
     const deadline = Date.now() + (dc.expires_in || 900) * 1000;
     let interval = Math.max(5, dc.interval || 5) * 1000;
     let token = null;
+    let idToken = null;
     while (Date.now() < deadline) {
       await sleep(interval);
-      const tok = await (await fetch(`https://login.microsoftonline.com/${tenantId}/oauth2/v2.0/token`,
+      const tok = await (await fetch(`https://login.microsoftonline.com/${authority}/oauth2/v2.0/token`,
         form({ grant_type: 'urn:ietf:params:oauth:grant-type:device_code', client_id: clientId, device_code: dc.device_code }))).json();
-      if (tok.access_token) { token = tok.access_token; break; }
+      if (tok.access_token) { token = tok.access_token; idToken = tok.id_token || null; break; }
       if (tok.error === 'authorization_pending') continue;
       if (tok.error === 'slow_down') { interval += 5000; continue; }
       closeAuthWin();
@@ -2818,8 +2833,23 @@ ipcMain.on('entra-signin-start', async (event) => {
     const tenantRole = await entraDirectoryAppRole(token);
     const role = (tenantRole && (APP_ROLE_RANK[tenantRole] || 0) > (APP_ROLE_RANK[localRole] || 0))
       ? tenantRole : localRole;
-    logOperatorActivity('entra.signin', { target: upn, role, tenantRole: tenantRole || null });
-    send('entra-signin-result', { ok: true, name: upn, displayName: me.displayName || upn, role });
+
+    // Auto-connect the tenant when none was configured: read the tenant id from
+    // the sign-in token (id_token `tid`) and persist it so the console is now
+    // bound to the tenant the operator actually signed into.
+    let tenantConnected = null;
+    if (!configuredTenant) {
+      const claims = decodeJwtClaims(idToken || token);
+      const tid = claims && claims.tid;
+      if (tid && /^[0-9a-f-]{32,36}$/i.test(tid)) {
+        try {
+          writeTenantConfig({ tenantId: tid, primaryDomain: upn.split('@')[1] || '' });
+          tenantConnected = tid;
+        } catch {}
+      }
+    }
+    logOperatorActivity('entra.signin', { target: upn, role, tenantRole: tenantRole || null, tenantConnected });
+    send('entra-signin-result', { ok: true, name: upn, displayName: me.displayName || upn, role, tenantConnected });
   } catch (e) {
     send('entra-signin-result', { ok: false, error: e.message });
   }
