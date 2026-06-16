@@ -2344,6 +2344,19 @@ window.api.onExportsStatus((data) => {
   if (blobMeta) blobMeta.textContent = b ? (b.entriesExported != null ? b.entriesExported + ' entries' : (b.error ? 'error' : 'ready')) : 'unconfigured';
   const sentMeta = document.getElementById('dash-exp-sentinel');
   if (sentMeta) sentMeta.textContent = s ? (s.eventsIngested != null ? s.eventsIngested + ' events' : (s.error ? 'error' : 'ready')) : 'unconfigured';
+
+  // Audit-log page replication chain: light each storage/SIEM sink by REAL
+  // status instead of the hardcoded all-green dots.
+  const setRep = (key, active, error) => {
+    const dot = document.getElementById('rep-dot-' + key);
+    const lat = document.getElementById('rep-lat-' + key);
+    if (dot) dot.className = 'dot' + (error ? ' crit' : active ? ' ok' : '');
+    if (lat) lat.textContent = error ? 'error' : active ? 'active' : 'inactive';
+  };
+  setRep('blob',     !!(b && !b.error && (b.lastRun || b.entriesExported != null)), !!(b && b.error));
+  setRep('sentinel', !!(s && !s.error && (s.lastRun || s.eventsIngested != null)), !!(s && s.error));
+  const _ic = (typeof _intConfig === 'object' && _intConfig) ? _intConfig : null;
+  setRep('splunk', !!(_ic && _ic.splunk && _ic.splunk.enabled), false);
 });
 
 function updateExportReceiptHop(id, status, countText) {

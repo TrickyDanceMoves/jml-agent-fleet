@@ -3900,6 +3900,9 @@ label { font-size: 12.5px; color: var(--text-2); }
 .dot.warn { background: var(--warn); box-shadow: 0 0 8px var(--warn); }
 .dot.crit { background: var(--crit); box-shadow: 0 0 8px var(--crit); }
 .dot.info { background: var(--info); box-shadow: 0 0 8px var(--info); }
+/* Replication chain (audit log): inactive sinks render as a muted dot so the
+   active storage/SIEMs are visually distinct. .ok/.crit override the colour. */
+.v2-replication-hop .dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--muted); }
 
 .tag.ok,
 .status.ok {
