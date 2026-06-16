@@ -513,6 +513,12 @@ function runPsAsync(scriptPath, params = {}) {
   });
 }
 
+// Strip ANSI/VT escape sequences (PowerShell Write-Host colours) so script
+// output shown in the UI is clean text, not raw escape codes.
+function stripAnsi(s) {
+  return String(s == null ? '' : s).replace(/\x1B\[[0-9;]*[A-Za-z]/g, '').replace(/\x1B\][^\x07]*\x07/g, '');
+}
+
 // Async inline-PowerShell runner. Query/search IPC handlers must use this
 // instead of execFileSync — a sync child process blocks the entire main
 // process event loop, freezing every window until Graph responds.
@@ -1699,10 +1705,20 @@ async function _runExport(event, type, scriptName) {
       event.sender.send('export-run-result', { ok: false, type, error: `${scriptName} not found` });
       return;
     }
+    // The scripts need a destination config; without it they error noisily.
+    // Surface a clear, actionable message instead.
+    const cfgName = type === 'sentinel' ? 'sentinel.config.json' : 'blob-export.config.json';
+    if (!fs.existsSync(path.join(AGENTS_DIR, 'auditor', cfgName))) {
+      event.sender.send('export-run-result', { ok: false, type, configured: false,
+        error: `Not configured — create auditor/${cfgName} (copy the .example) with your ${type === 'sentinel' ? 'Log Analytics workspace' : 'storage account'} details, then run again.` });
+      return;
+    }
     const raw = await runPsAsync(script, {});
-    event.sender.send('export-run-result', { ok: true, type, output: String(raw).slice(-300) });
+    event.sender.send('export-run-result', { ok: true, type, output: stripAnsi(raw).slice(-300) });
   } catch (err) {
-    event.sender.send('export-run-result', { ok: false, type, error: err.message });
+    const detail = stripAnsi((err && (err.stdout || err.message)) || String(err))
+      .trim().split('\n').filter(Boolean).slice(-3).join(' ');
+    event.sender.send('export-run-result', { ok: false, type, error: detail || 'export failed' });
   }
 }
 ipcMain.on('run-blob-export', (event) => {
@@ -5109,11 +5125,13 @@ ipcMain.handle('rotate-agent-certificate', async (event, { agent, whatif } = {})
   const script = path.join(AGENTS_DIR, 'provisioner', 'New-AgentCertificates.ps1');
   if (!fs.existsSync(script)) return { ok: false, error: 'Provisioner certificate script not found.' };
   try {
-    const raw = await runPsAsync(script, whatif ? { WhatIf: true } : {}, { timeout: 240000 });
+    const raw = await runPsAsync(script, whatif ? { WhatIf: true } : {});
     logOperatorActivity('cert.rotation.queued', { target: agent || 'all', whatif: !!whatif });
-    return { ok: true, agent: agent || 'all', lines: raw.trim().split('\n').slice(-12) };
+    return { ok: true, agent: agent || 'all', whatif: !!whatif, lines: stripAnsi(raw).trim().split('\n').filter(Boolean).slice(-12) };
   } catch (err) {
-    return { ok: false, error: err.message || String(err) };
+    const detail = stripAnsi((err && (err.stdout || err.message)) || String(err))
+      .trim().split('\n').filter(Boolean).slice(-3).join(' ');
+    return { ok: false, error: detail || 'rotation failed' };
   }
 });
 
