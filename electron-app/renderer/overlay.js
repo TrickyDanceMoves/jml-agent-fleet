@@ -168,11 +168,44 @@ function updateDivider() {
   ovDivider.classList.toggle('show', hasAp && hasThread);
 }
 
+// Self-contained markdown → HTML for the overlay (separate window, no app.js).
+// Covers the cases that show up in agent replies: headings, bold/italic, inline
+// + fenced code, bullet lists, links, paragraphs. Escapes HTML first.
+function ovMarkdown(src) {
+  const esc = s => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const inline = s => esc(s)
+    .replace(/`([^`]+)`/g, '<code>$1</code>')
+    .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+    .replace(/(^|[^*])\*([^*\n]+)\*/g, '$1<em>$2</em>')
+    .replace(/\[([^\]]+)\]\((https?:[^)\s]+)\)/g, '<a href="$2">$1</a>');
+  const out = []; let inList = false, inCode = false; const code = [];
+  const closeList = () => { if (inList) { out.push('</ul>'); inList = false; } };
+  for (const raw of String(src || '').split('\n')) {
+    const line = raw.replace(/\s+$/, '');
+    if (/^```/.test(line)) {
+      if (inCode) { out.push('<pre><code>' + esc(code.join('\n')) + '</code></pre>'); code.length = 0; inCode = false; }
+      else { closeList(); inCode = true; }
+      continue;
+    }
+    if (inCode) { code.push(raw); continue; }
+    if (!line.trim()) { closeList(); continue; }
+    const h = line.match(/^(#{1,3})\s+(.+)/);
+    if (h) { closeList(); out.push('<div class="md-h' + h[1].length + '">' + inline(h[2]) + '</div>'); continue; }
+    if (/^\s*[-*]\s+/.test(line)) { if (!inList) { out.push('<ul>'); inList = true; } out.push('<li>' + inline(line.replace(/^\s*[-*]\s+/, '')) + '</li>'); continue; }
+    closeList();
+    out.push('<div>' + inline(line) + '</div>');
+  }
+  if (inCode) out.push('<pre><code>' + esc(code.join('\n')) + '</code></pre>');
+  closeList();
+  return out.join('');
+}
+
 function appendMsg(role, text) {
   openThread();
   const el = document.createElement('div');
   el.className = 'ov-msg ' + role;
-  el.textContent = text;
+  if (role === 'assistant') el.innerHTML = ovMarkdown(text);
+  else el.textContent = text;
   ovThread.appendChild(el);
   ovThread.scrollTop = ovThread.scrollHeight;
   return el;
@@ -224,9 +257,11 @@ window.overlayApi.onAgentChunk((d) => {
     if (!_msgEl) {
       _msgEl = document.createElement('div');
       _msgEl.className = 'ov-msg assistant streaming';
+      _msgEl._raw = '';
       ovThread.appendChild(_msgEl);
     }
-    _msgEl.textContent += d.text;
+    _msgEl._raw = (_msgEl._raw || '') + d.text;
+    _msgEl.innerHTML = ovMarkdown(_msgEl._raw);
     ovThread.scrollTop = ovThread.scrollHeight;
   } else if (d.type === 'tool_start') {
     removeThinking();
