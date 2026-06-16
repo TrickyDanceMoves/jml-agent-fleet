@@ -4126,6 +4126,7 @@ function loadSettings() {
   window.api.getOperators();
   loadOperatorAuth();
   loadOperatorActivity();
+  loadTenantConfig();
 }
 
 // ── AI Provider settings ──────────────────────────────────────────────────────
@@ -4406,9 +4407,13 @@ document.getElementById('btn-notif-add')?.addEventListener('click', () => {
   function showStep(n) {
     _wizState.step = n;
     document.querySelectorAll('.wiz-step').forEach(s => s.style.display = (+s.dataset.step === n) ? '' : 'none');
-    if (stepLabel) stepLabel.textContent = `Step ${n} of 3 · ` + (n === 1 ? 'Sign in' : n === 2 ? 'Create app registrations' : 'Consent & save');
-    document.getElementById('wizard-next').style.display = (n === 1 && _wizState.tenantId) || n === 2 && _wizState.createdApps.length ? '' : 'none';
-    document.getElementById('wizard-finish').style.display = n === 3 ? '' : 'none';
+    const labels = ['', 'Sign in', 'Create app registrations', 'Consent & save', 'Deploy certificates'];
+    if (stepLabel) stepLabel.textContent = `Step ${n} of 4 · ${labels[n] || ''}`;
+    document.getElementById('wizard-next').style.display =
+      ((n === 1 && _wizState.tenantId) || (n === 2 && _wizState.createdApps.length)) ? '' : 'none';
+    document.getElementById('wizard-finish').style.display   = n === 3 ? '' : 'none';
+    document.getElementById('wizard-deploy-certs').style.display = n === 4 ? '' : 'none';
+    document.getElementById('wizard-skip-certs').style.display   = n === 4 ? '' : 'none';
   }
   function openWizard() {
     _wizState = { step: 1, tenantId: '', account: '', createdApps: [] };
@@ -4522,16 +4527,143 @@ document.getElementById('btn-notif-add')?.addEventListener('click', () => {
   });
 
   // Finish — push tenant id + client ids into the existing tenant config form, save
+  // Step 3 finish — save tenant config then proceed to cert deployment
   document.getElementById('wizard-finish').addEventListener('click', async () => {
     document.getElementById('set-tenant-id-input').value = _wizState.tenantId;
     _wizState.createdApps.forEach(c => {
       const input = document.querySelector(`.set-clientid[data-agent="${c.agent}"]`);
       if (input) input.value = c.appId;
     });
+    // Save silently (no diff modal) so we can proceed to cert step
+    if (typeof window.api?.saveTenantConfig === 'function') {
+      const clientIds = {};
+      _wizState.createdApps.forEach(c => { clientIds[c.agent] = c.appId; });
+      await window.api.saveTenantConfig({ tenantId: _wizState.tenantId, clientIds });
+    }
+    // Populate cert list for step 4
+    const certList = document.getElementById('wizard-cert-list');
+    certList.innerHTML = _wizState.createdApps.map(c =>
+      `<div data-agent="${escHtml(c.agent)}" style="display:grid;grid-template-columns:120px 1fr;gap:10px;padding:6px 0;border-bottom:1px solid var(--border)">
+        <span style="color:var(--text)">${escHtml(c.agent)}</span>
+        <span class="wiz-cert-status" style="color:var(--muted)">ready to deploy</span>
+      </div>`
+    ).join('');
+    showStep(4);
+  });
+
+  // Step 4 — deploy certs
+  document.getElementById('wizard-deploy-certs').addEventListener('click', async () => {
+    const btn = document.getElementById('wizard-deploy-certs');
+    btn.disabled = true; btn.textContent = 'Deploying…';
+    const statusEl = document.getElementById('wizard-cert-status');
+    statusEl.style.display = 'none';
+
+    // Mark all as pending
+    document.querySelectorAll('#wizard-cert-list [data-agent]').forEach(row => {
+      row.querySelector('.wiz-cert-status').style.color = 'var(--muted)';
+      row.querySelector('.wiz-cert-status').textContent = 'deploying…';
+    });
+
+    const agents = _wizState.createdApps.map(c => ({ agent: c.agent, clientId: c.appId }));
+    const resp = await window.api.deployAgentCertificates(agents);
+
+    if (!resp || !resp.ok) {
+      statusEl.style.cssText = 'display:block;color:var(--coral);background:oklch(0.30 0.10 24 / .15);border:1px solid oklch(0.45 0.16 24 / .35);border-radius:8px;padding:10px';
+      statusEl.textContent = resp?.error || 'Certificate deployment failed';
+      btn.disabled = false; btn.textContent = 'Retry';
+      return;
+    }
+
+    (resp.results || []).forEach(r => {
+      const row = document.querySelector(`#wizard-cert-list [data-agent="${r.agent}"]`);
+      if (!row) return;
+      const st = row.querySelector('.wiz-cert-status');
+      if (r.ok) {
+        st.style.color = 'var(--emerald)';
+        st.textContent = `✓ ${r.thumbprint ? r.thumbprint.slice(0, 10) + '…' : 'deployed'}`;
+      } else {
+        st.style.color = 'var(--coral)';
+        st.textContent = '✗ ' + (r.error || 'failed').slice(0, 60);
+      }
+    });
+
+    const ok = (resp.results || []).filter(r => r.ok).length;
+    const total = (resp.results || []).length;
+    statusEl.style.cssText = `display:block;padding:10px;border-radius:8px;${ok === total
+      ? 'color:var(--emerald);background:oklch(0.30 0.06 155 / .15);border:1px solid oklch(0.50 0.13 155 / .35)'
+      : 'color:var(--amber);background:oklch(0.30 0.10 60 / .15);border:1px solid oklch(0.55 0.14 60 / .35)'}`;
+    statusEl.textContent = ok === total
+      ? `✓ All ${total} certificates deployed. Agents are ready to authenticate.`
+      : `${ok} of ${total} succeeded. Fix errors above, then retry.`;
+    btn.disabled = false;
+    btn.textContent = ok === total ? '✓ Done' : 'Retry failed';
+    if (ok === total) {
+      document.getElementById('wizard-skip-certs').textContent = 'Close';
+      showToast('Agent certificates deployed — fleet ready on this PC', 'success');
+    }
+  });
+
+  // Step 4 — skip / close
+  document.getElementById('wizard-skip-certs').addEventListener('click', () => {
     closeWizard();
-    showToast('Wizard complete — review changes and Save & Sync', 'success');
-    // Auto-trigger the existing save flow (with diff preview)
-    document.getElementById('btn-tenant-save')?.click();
+    loadTenantConfig();
+    showToast('You can deploy certificates later from Settings → Agent Certificates', 'info');
+  });
+})();
+
+// ── "Deploy on this PC" button in Settings > Agent Certificates ──────────────
+(function () {
+  const btn = document.getElementById('btn-deploy-certs-here');
+  if (!btn) return;
+  btn.addEventListener('click', async () => {
+    const statusEl = document.getElementById('deploy-certs-status');
+    // If wizard sign-in is already complete, skip straight to deploy.
+    // Otherwise we need a fresh device-code sign-in.
+    const state = await window.api.checkDeviceCodeStatus();
+    if (state.status !== 'success') {
+      statusEl.style.cssText = 'display:block;color:var(--text-2)';
+      statusEl.textContent = 'Starting device-code sign-in — a browser window will open…';
+      const r = await window.api.startDeviceCodeSignin();
+      if (!r?.ok) {
+        statusEl.style.color = 'var(--coral)';
+        statusEl.textContent = '✗ ' + (r?.error || 'Could not start sign-in. Use the Setup Wizard for a guided flow.');
+        return;
+      }
+      // Poll until signed in
+      btn.disabled = true; btn.textContent = 'Waiting for sign-in…';
+      await new Promise(resolve => {
+        const poll = setInterval(async () => {
+          const s = await window.api.checkDeviceCodeStatus();
+          if (s.deviceCode) statusEl.textContent = `Sign in at https://microsoft.com/devicelogin with code: ${s.deviceCode}`;
+          if (s.verificationUrl && typeof window.api?.openExternal === 'function') {
+            window.api.openExternal(s.verificationUrl);
+          }
+          if (s.status === 'success' || s.status === 'error') { clearInterval(poll); resolve(s); }
+        }, 2000);
+      });
+      const s2 = await window.api.checkDeviceCodeStatus();
+      if (s2.status !== 'success') {
+        statusEl.style.color = 'var(--coral)';
+        statusEl.textContent = '✗ Sign-in failed: ' + (s2.error || 'unknown error');
+        btn.disabled = false; btn.textContent = '⬇ Deploy on this PC';
+        return;
+      }
+    }
+    btn.disabled = true; btn.textContent = 'Deploying certificates…';
+    statusEl.style.cssText = 'display:block;color:var(--text-2)';
+    statusEl.textContent = 'Creating and uploading certificates for all agents…';
+    const resp = await window.api.deployAgentCertificates(null);
+    const ok = (resp?.results || []).filter(r => r.ok).length;
+    const total = (resp?.results || []).length;
+    const lines = (resp?.results || []).map(r => `${r.agent}: ${r.ok ? '✓ ' + (r.thumbprint || '').slice(0,10) : '✗ ' + (r.error || 'failed').slice(0,60)}`).join('\n');
+    statusEl.style.cssText = `display:block;white-space:pre;padding:10px;border-radius:8px;${ok === total
+      ? 'color:var(--emerald);background:oklch(0.30 0.06 155 / .15);border:1px solid oklch(0.50 0.13 155 / .35)'
+      : 'color:var(--amber);background:oklch(0.30 0.10 60 / .15);border:1px solid oklch(0.55 0.14 60 / .35)'}`;
+    statusEl.textContent = `${ok}/${total} succeeded:\n${lines}`;
+    btn.disabled = false;
+    btn.textContent = ok === total ? '✓ Done — deployed' : '⬇ Retry';
+    if (ok === total) showToast('All agent certificates deployed on this PC', 'success');
+    loadTenantConfig();
   });
 })();
 

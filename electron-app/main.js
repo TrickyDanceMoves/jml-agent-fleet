@@ -3216,7 +3216,11 @@ ipcMain.handle('start-device-code-signin', () => {
     };
     return demoReceipt('start-device-code-signin');
   }
-  if ((currentRole || 'viewer') !== 'admin') return { ok: false, error: 'admin required' };
+  // Allow sign-in when there's no operator session yet (fresh PC setup) as
+  // well as when the current operator is admin. Block viewer/helpdesk only.
+  if (currentRole !== null && currentRole !== undefined && currentRole !== 'admin') {
+    return { ok: false, error: 'admin required' };
+  }
   if (_signinProc) { try { _signinProc.kill(); } catch (_) {} _signinProc = null; }
   spawnSigninProcess();
   logOperatorActivity('tenant.wizard.signin.start', {});
@@ -3242,7 +3246,9 @@ ipcMain.handle('create-agent-app-registrations', (event, { agentNames }) => {
       tenantId: '00000000-0000-0000-0000-000000000000',
     };
   }
-  if ((currentRole || 'viewer') !== 'admin') return { ok: false, error: 'admin required' };
+  if (currentRole !== null && currentRole !== undefined && currentRole !== 'admin') {
+    return { ok: false, error: 'admin required' };
+  }
   if (_signinState.status !== 'success') return { ok: false, error: 'sign in to the target tenant first' };
   const names = Array.isArray(agentNames) && agentNames.length ? agentNames : AGENT_DIRS;
   const created = []; const errors = [];
@@ -3265,6 +3271,104 @@ ipcMain.handle('create-agent-app-registrations', (event, { agentNames }) => {
   }
   logOperatorActivity('tenant.wizard.appregs.created', { created: created.length, errors: errors.length });
   return { ok: true, created, errors, tenantId: _signinState.tenantId };
+});
+
+// ── Agent certificate deployment (new-PC setup) ─────────────────────────────
+// Creates a self-signed cert in Cert:\CurrentUser\My for each agent, uploads
+// the public key to its Entra app registration, and writes CertThumbprint +
+// CertExpiry back to the agent's config.json. Requires an active Graph session
+// (start-device-code-signin must have succeeded first).
+ipcMain.handle('deploy-agent-certificates', async (event, { agents }) => {
+  if (PRESENTATION_MODE) {
+    const names = (agents || AGENT_DIRS).map(a => typeof a === 'string' ? a : a.agent);
+    return {
+      ok: true, demo: true,
+      results: names.map(agent => ({
+        agent, ok: true,
+        thumbprint: 'DEMO' + Math.random().toString(16).slice(2, 10).toUpperCase(),
+        expiry: new Date(Date.now() + 2 * 365 * 86400 * 1000).toISOString(),
+      })),
+    };
+  }
+  if (currentRole !== null && currentRole !== undefined && currentRole !== 'admin') {
+    return { ok: false, error: 'admin required' };
+  }
+  if (_signinState.status !== 'success') {
+    return { ok: false, error: 'complete device-code sign-in (Step 1) before deploying certificates' };
+  }
+
+  const agentList = (agents || AGENT_DIRS).map(a => typeof a === 'string'
+    ? { agent: a, clientId: null }
+    : { agent: a.agent, clientId: a.clientId || null });
+
+  const results = [];
+  for (const { agent, clientId } of agentList) {
+    const configPath = path.join(AGENTS_DIR, agent, 'config.json');
+    const resolvedClientId = clientId
+      || (fs.existsSync(configPath) ? (readJson(configPath) || {}).ClientId : null);
+
+    if (!resolvedClientId) {
+      results.push({ agent, ok: false, error: 'no ClientId in config.json — run Step 2 first' });
+      continue;
+    }
+
+    // One synchronous PowerShell call per agent. Runs under the already-
+    // authenticated MgGraph session established by spawnSigninProcess().
+    const escaped = agent.replace(/[^a-z0-9-]/gi, '');
+    const agentsRoot = AGENTS_DIR.replace(/\\/g, '\\\\');
+    const script = `
+$ErrorActionPreference = 'Stop'
+try {
+  Import-Module Microsoft.Graph.Applications -ErrorAction Stop
+  $certSubject = 'CN=JML-${escaped}'
+  # Remove any previous cert with this subject so we don't accumulate stale ones
+  Get-ChildItem Cert:\\CurrentUser\\My | Where-Object { $_.Subject -eq $certSubject } | Remove-Item -Force -ErrorAction SilentlyContinue
+  # Create new 2-year self-signed cert (non-exportable private key)
+  $cert = New-SelfSignedCertificate -Subject $certSubject -CertStoreLocation 'Cert:\\CurrentUser\\My' -KeyAlgorithm RSA -KeyLength 2048 -HashAlgorithm SHA256 -NotAfter (Get-Date).AddYears(2)
+  # Look up the app registration by ClientId
+  $app = Get-MgApplication -Filter "AppId eq '${resolvedClientId}'" -ErrorAction Stop
+  if (-not $app) { throw "App registration not found for ClientId ${resolvedClientId}" }
+  # Build updated keyCredentials list: keep non-JML-${escaped} existing creds, add new one
+  $keyBytes = [System.Convert]::ToBase64String($cert.GetRawCertData())
+  $newKey = @{
+    type        = 'AsymmetricX509Cert'
+    usage       = 'Verify'
+    key         = $cert.GetRawCertData()
+    displayName = $certSubject
+  }
+  $existing = @($app.KeyCredentials | Where-Object { $_.DisplayName -ne $certSubject })
+  $allKeys  = @($existing) + @([PSCustomObject]$newKey)
+  Update-MgApplication -ApplicationId $app.Id -KeyCredentials $allKeys -ErrorAction Stop
+  # Write thumbprint + expiry back to config.json
+  $configPath = "${agentsRoot}\\${escaped}\\config.json"
+  if (Test-Path $configPath) {
+    $cfg = Get-Content $configPath | ConvertFrom-Json
+    $cfg | Add-Member -Force -NotePropertyName CertThumbprint -NotePropertyValue $cert.Thumbprint
+    $cfg | Add-Member -Force -NotePropertyName CertExpiry    -NotePropertyValue $cert.NotAfter.ToString('o')
+    $cfg | ConvertTo-Json -Depth 10 | Set-Content $configPath -Encoding UTF8
+  }
+  @{ ok=$true; agent='${escaped}'; thumbprint=$cert.Thumbprint; expiry=$cert.NotAfter.ToString('o') } | ConvertTo-Json -Compress
+} catch {
+  @{ ok=$false; agent='${escaped}'; error=$_.Exception.Message } | ConvertTo-Json -Compress
+}
+`.trim();
+
+    const { spawnSync } = require('child_process');
+    const r = spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', script], {
+      encoding: 'utf8', timeout: 60000,
+    });
+    const lastLine = (r.stdout || '').trim().split(/\r?\n/).reverse().find(l => l.trim().startsWith('{'));
+    if (!lastLine) {
+      results.push({ agent, ok: false, error: (r.stderr || r.stdout || 'no output').slice(0, 200) });
+    } else {
+      try { results.push(JSON.parse(lastLine)); }
+      catch { results.push({ agent, ok: false, error: 'could not parse PowerShell result' }); }
+    }
+  }
+
+  const succeeded = results.filter(r => r.ok).length;
+  logOperatorActivity('tenant.certs.deployed', { total: agentList.length, succeeded });
+  return { ok: true, results };
 });
 
 // ── Notification routing rules ──────────────────────────────────────────────

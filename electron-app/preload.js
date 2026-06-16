@@ -159,6 +159,7 @@ contextBridge.exposeInMainWorld('api', {
   startDeviceCodeSignin:        ()              => ipcRenderer.invoke('start-device-code-signin'),
   checkDeviceCodeStatus:        ()              => ipcRenderer.invoke('check-device-code-status'),
   createAgentAppRegistrations:  (names)         => ipcRenderer.invoke('create-agent-app-registrations', { agentNames: names }),
+  deployAgentCertificates:      (agents)        => ipcRenderer.invoke('deploy-agent-certificates', { agents }),
 
   // First-run setup
   completeFirstRun: (data)  => ipcRenderer.invoke('complete-first-run', data),

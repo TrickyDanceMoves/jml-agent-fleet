@@ -2131,6 +2131,13 @@
                   <div><div class="ttl">Agent Certificates</div><div class="sub">Per-agent signing certificates. Auto-rotated 14 days before expiry.</div></div>
                   <span class="cert-pip" id="set-cert-summary"><span class="d"></span>7 / 8 HEALTHY</span>
                 </div>
+                <div style="padding:12px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:12px">
+                  <div style="font-size:12.5px;color:var(--text-2);line-height:1.5">
+                    <b style="color:var(--text)">New PC?</b> Certificates live in <code>Cert:\CurrentUser\My</code> — they're machine-specific. Sign in below to create and upload certs for this machine without re-running the full wizard.
+                  </div>
+                  <button class="btn" id="btn-deploy-certs-here" style="white-space:nowrap;flex-shrink:0">⬇ Deploy on this PC</button>
+                </div>
+                <div id="deploy-certs-status" style="display:none;padding:12px 18px;border-bottom:1px solid var(--border);font-family:var(--mono);font-size:12px"></div>
                 <div id="set-cert-rows">
                   <div class="set-row"><div><div class="lbl">Joiner · Mover · Leaver</div><div class="desc">Shared JML signing cert for write-stage operations.</div></div><div class="val right-ctrl"><span class="strong">expires in 727 d</span><span class="cert-pip"><span class="d"></span>OK</span></div></div>
                   <div class="set-row"><div><div class="lbl">Approver</div><div class="desc">Dual-control token issuer for sensitive operations.</div></div><div class="val right-ctrl"><span class="strong">expires in 727 d</span><span class="cert-pip"><span class="d"></span>OK</span></div></div>
@@ -2620,7 +2627,7 @@
     <div class="pin-modal" style="width:600px;max-width:94vw">
       <div class="pin-header">
         <div class="pin-title">Tenant Setup Wizard</div>
-        <div class="pin-sub" id="wizard-step-label">Step 1 of 3 · Sign in</div>
+        <div class="pin-sub" id="wizard-step-label">Step 1 of 4 · Sign in</div>
       </div>
       <div class="pin-body" style="max-height:60vh;overflow-y:auto">
 
@@ -2667,19 +2674,30 @@
         <!-- Step 3: consent + save -->
         <div class="wiz-step" data-step="3" style="display:none">
           <div style="font-size:13px;color:var(--text-2);line-height:1.55;margin-bottom:12px">
-            For each agent, an admin must grant the required Graph API permissions in the Entra portal. Click each link below to open the admin-consent flow, then return here and click <b>Save & Sync</b>.
+            For each agent, an admin must grant the required Graph API permissions in the Entra portal. Click each link below to open the admin-consent flow, then return here and click <b>Save & Sync →</b>.
           </div>
           <div id="wizard-consent-list" style="display:flex;flex-direction:column;gap:6px;font-family:var(--mono);font-size:12px"></div>
           <div style="margin-top:14px;padding:12px;background:var(--bg-2);border:1px solid var(--border);border-radius:8px;font-size:12px;color:var(--text-2);line-height:1.55">
-            <b style="color:var(--text)">Almost done.</b> Clicking <b>Save & Sync</b> writes the new TenantId + per-agent ClientId into every agent's <code>config.json</code>. You'll still need to upload certificates or set secrets in each config before agents can run live.
+            <b style="color:var(--text)">Almost done.</b> Save & Sync writes the TenantId + per-agent ClientId into every agent's <code>config.json</code>, then continues to Step 4 to deploy certificates on this PC.
           </div>
+        </div>
+
+        <!-- Step 4: deploy agent certificates on this PC -->
+        <div class="wiz-step" data-step="4" style="display:none">
+          <div style="font-size:13px;color:var(--text-2);line-height:1.55;margin-bottom:12px">
+            <b style="color:var(--text)">Deploy certificates on this PC.</b> Each agent gets a self-signed cert in <code>Cert:\CurrentUser\My</code>. The public key is uploaded to the Entra app registration automatically. This must be done on <b>every PC</b> that runs the console — certs are machine-specific.
+          </div>
+          <div id="wizard-cert-list" style="display:flex;flex-direction:column;gap:6px;font-family:var(--mono);font-size:12px;margin-bottom:12px"></div>
+          <div id="wizard-cert-status" style="display:none;padding:12px;border-radius:8px;font-size:12px;font-family:var(--mono)"></div>
         </div>
 
       </div>
       <div class="pin-footer">
         <button class="btn ghost" id="wizard-cancel">Close</button>
         <button class="btn primary" id="wizard-next" style="display:none">Continue →</button>
-        <button class="btn primary" id="wizard-finish" style="display:none">Save & Sync</button>
+        <button class="btn primary" id="wizard-finish" style="display:none">Save & Sync →</button>
+        <button class="btn primary" id="wizard-deploy-certs" style="display:none">Deploy Certificates</button>
+        <button class="btn ghost" id="wizard-skip-certs" style="display:none">Skip (do later)</button>
       </div>
     </div>
   </div>
