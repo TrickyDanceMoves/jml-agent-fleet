@@ -6115,7 +6115,7 @@ html[data-theme="glass"] .tool-result-drawer {
   40%  { transform: scale(1.1); box-shadow: 0 0 18px color-mix(in oklch, var(--coral) 50%, transparent); }
   100% { transform: scale(1); }
 }
-.gs-stage-label { font-size: 12.5px; font-weight: 600; color: var(--text-2); }
+.gs-stage-label { font-size: 12.5px; font-weight: 600; color: var(--text-2); transition: color 250ms ease, font-weight 250ms ease; }
 .gs-stage[data-state="active"] .gs-stage-label,
 .gs-stage[data-state="awaiting-approval"] .gs-stage-label,
 .gs-stage[data-state="failed"] .gs-stage-label { color: var(--text); font-weight: 700; }

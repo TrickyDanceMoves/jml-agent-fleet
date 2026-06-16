@@ -213,6 +213,38 @@
   function renderPipeline(stages, enteredStageId, operation) {
     const wrap = el('gs-pipeline');
     if (!wrap) return;
+
+    // In-place patch when the same stage set is already on screen: only update
+    // each stage's data-state (and connector fill) on the EXISTING nodes so the
+    // CSS transitions on .gs-stage-orb actually animate between frames. A full
+    // innerHTML rebuild (below) makes brand-new nodes that can't transition —
+    // which is why the replay looked instant instead of easing stage to stage.
+    const existing = wrap.querySelectorAll('.gs-stage');
+    const sameSet = existing.length === stages.length &&
+      stages.every((s, i) => existing[i].dataset.stageId === String(s.id));
+    if (sameSet) {
+      const fills = wrap.querySelectorAll('.gs-connector-fill');
+      stages.forEach((s, i) => {
+        const btn = existing[i];
+        if (btn.dataset.state !== String(s.state)) {
+          btn.dataset.state = s.state;
+          const orb = btn.querySelector('.gs-stage-orb');
+          if (orb) {
+            const icon = (STAGE_OWNER_ICONS[s.id] || (() => STAGE_GLYPHS[s.state] || '○'))(operation);
+            const badge = BADGE_GLYPHS[s.state]
+              ? `<span class="gs-stage-badge" data-state="${esc(s.state)}">${BADGE_GLYPHS[s.state]}</span>` : '';
+            orb.innerHTML = icon + badge;
+          }
+          const st = btn.querySelector('.gs-stage-state');
+          if (st) st.textContent = STAGE_STATE_LABELS[s.state] || '';
+        }
+        btn.dataset.entered = String(s.id === enteredStageId);
+        btn.dataset.selected = String(s.id === glassScreenState.selectedStageId);
+        if (i > 0 && fills[i - 1]) fills[i - 1].dataset.filled = String(reachedState(s.state));
+      });
+      return; // existing click/hover listeners stay valid on the same nodes
+    }
+
     const parts = [];
     stages.forEach((s, i) => {
       if (i > 0) {
