@@ -2282,8 +2282,10 @@ function applyExportStatus(id, status) {
   const errEl   = document.getElementById(id + '-error');
 
   if (!status) {
-    chip.textContent = 'Unknown';
-    chip.className   = 'export-status-chip chip-unknown';
+    // No status file yet = the export/ingest has never run (fresh tenant).
+    chip.textContent = 'Not run yet';
+    chip.className   = 'export-status-chip chip-unconfigured';
+    if (lastRun) lastRun.textContent = 'Use the Run / Ingest button';
     return;
   }
 
@@ -6494,7 +6496,14 @@ function loadRecentUsers() {
       const statLabel = u.accountEnabled ? 'enabled' : 'disabled';
       const lastSign = u.signInActivity?.lastSignInDateTime ? new Date(u.signInActivity.lastSignInDateTime) : null;
       const lastSignText = lastSign ? _relativeTime(lastSign) : '—';
-      const risk = typeof u.riskScore === 'number' ? u.riskScore : (u.riskLevel === 'high' ? 80 : u.riskLevel === 'medium' ? 50 : u.riskLevel === 'low' ? 20 : 12);
+      // Real risk only comes from Identity Protection (riskScore/riskLevel).
+      // When absent, show "—" rather than a fabricated default that made every
+      // user read the same number.
+      const risk = typeof u.riskScore === 'number' ? u.riskScore
+        : (u.riskLevel === 'high' ? 80 : u.riskLevel === 'medium' ? 50 : u.riskLevel === 'low' ? 20 : null);
+      const riskCell = risk == null
+        ? '<span class="rmeter rmeter-na"><span class="bar"></span><span class="rmeter-na-val">—</span></span>'
+        : `<span class="rmeter"><span class="bar"><i style="width:${risk}%"></i></span>${risk}</span>`;
       return `<div class="utable-r user-result-item" data-id="${escHtml(u.id)}" data-upn="${escHtml(u.userPrincipalName || '')}">
         <span class="chk"></span>
         <span class="person">
@@ -6508,7 +6517,7 @@ function loadRecentUsers() {
         <span class="stat user-result-badge ${statClass}">${statLabel}</span>
         <span class="lic">${lic || '—'}</span>
         <span class="ago">${escHtml(lastSignText)}</span>
-        <span class="rmeter"><span class="bar"><i style="width:${risk}%"></i></span>${risk}</span>
+        ${riskCell}
         <span class="more">⋯</span>
       </div>`;
     }).join('');
@@ -6557,14 +6566,14 @@ function loadRecentUsers() {
 
     const riskScore = typeof u.riskScore === 'number'
       ? u.riskScore
-      : (u.riskLevel === 'high' ? 82 : u.riskLevel === 'medium' ? 54 : u.riskLevel === 'low' ? 22 : (u.accountEnabled ? 12 : 36));
+      : (u.riskLevel === 'high' ? 82 : u.riskLevel === 'medium' ? 54 : u.riskLevel === 'low' ? 22 : null);
     const riskScoreEl = document.getElementById('udp-risk-score');
     const riskBarEl = document.getElementById('udp-risk-bar');
     const writeRouteEl = document.getElementById('udp-write-route');
     const auditPostureEl = document.getElementById('udp-audit-posture');
-    if (riskScoreEl) riskScoreEl.textContent = riskScore + ' / 100';
-    if (riskBarEl) riskBarEl.style.width = Math.max(2, Math.min(100, riskScore)) + '%';
-    if (writeRouteEl) writeRouteEl.textContent = riskScore >= 70 || !u.accountEnabled ? 'Dual approval required' : 'Safe preview first';
+    if (riskScoreEl) riskScoreEl.textContent = riskScore == null ? '— · no Identity Protection data' : riskScore + ' / 100';
+    if (riskBarEl) riskBarEl.style.width = riskScore == null ? '0%' : Math.max(2, Math.min(100, riskScore)) + '%';
+    if (writeRouteEl) writeRouteEl.textContent = (riskScore != null && riskScore >= 70) || !u.accountEnabled ? 'Dual approval required' : 'Safe preview first';
     if (auditPostureEl) auditPostureEl.textContent = u.accountEnabled ? 'Chain ready' : 'Disabled account';
     const avatarEl = document.getElementById('udp-avatar');
     const roleExposureEl = document.getElementById('udp-role-exposure');
