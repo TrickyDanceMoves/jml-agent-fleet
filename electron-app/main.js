@@ -1689,6 +1689,31 @@ ipcMain.on('get-exports-status', (event) => {
   });
 });
 
+// Run an export/ingest on demand so the tab works after sign-in instead of
+// sitting blank until a scheduled job happens to run. Invokes the real auditor
+// script; a missing destination config surfaces a clear error the operator can act on.
+async function _runExport(event, type, scriptName) {
+  try {
+    const script = path.join(AGENTS_DIR, 'auditor', scriptName);
+    if (!fs.existsSync(script)) {
+      event.sender.send('export-run-result', { ok: false, type, error: `${scriptName} not found` });
+      return;
+    }
+    const raw = await runPsAsync(script, {});
+    event.sender.send('export-run-result', { ok: true, type, output: String(raw).slice(-300) });
+  } catch (err) {
+    event.sender.send('export-run-result', { ok: false, type, error: err.message });
+  }
+}
+ipcMain.on('run-blob-export', (event) => {
+  if (PRESENTATION_MODE) { event.sender.send('export-run-result', { ok: true, type: 'blob', demo: true }); return; }
+  _runExport(event, 'blob', 'Invoke-BlobExport.ps1');
+});
+ipcMain.on('run-sentinel-ingest', (event) => {
+  if (PRESENTATION_MODE) { event.sender.send('export-run-result', { ok: true, type: 'sentinel', demo: true }); return; }
+  _runExport(event, 'sentinel', 'Invoke-SentinelIngest.ps1');
+});
+
 ipcMain.on('run-blob-export', async (event) => {
   if (PRESENTATION_MODE) {
     event.sender.send('export-run-result', {
