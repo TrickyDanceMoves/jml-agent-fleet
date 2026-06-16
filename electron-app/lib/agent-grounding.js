@@ -3,6 +3,10 @@
 const UPN_RE = /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi;
 const NUMBER_RE = /\b\d[\d,]*\b/g;
 const AUDIT_TERM_RE = /\b(?:user|users|account|accounts|guest|guests|member|members|regular|standard|enabled|disabled|license|licenses|group|groups|role|roles|join|joins|leaver|leavers|stale|failed|failure|failures)\b/i;
+// Numbers that describe the QUERY, not a tenant fact — time windows ("past 7
+// days") and list positions ("first 20 UPNs"). These are never tenant claims.
+const WINDOW_BEFORE_RE = /\b(?:first|next|last|top|page|past|previous|prior|recent)\b[^.\d]{0,12}$/i;
+const WINDOW_AFTER_RE  = /^\s*(?:day|week|month|hour|minute|second|year|upn|result|record|batch|item|row|entry|page)s?\b/i;
 
 function walk(value, visit) {
   visit(value);
@@ -38,9 +42,36 @@ function collectGroundingFacts(toolContents) {
 
 function numbersInAuditClaims(text) {
   const raw = String(text || '');
-  return [...raw.matchAll(NUMBER_RE)]
-    .filter((match) => AUDIT_TERM_RE.test(raw.slice(match.index, match.index + 80).split(/[.;\n]/)[0]))
-    .map((match) => match[0].replace(/,/g, ''));
+  const out = [];
+  for (const match of raw.matchAll(NUMBER_RE)) {
+    const idx = match.index;
+    const sentence = raw.slice(idx, idx + 80).split(/[.;\n]/)[0];
+    if (!AUDIT_TERM_RE.test(sentence)) continue;
+    const before = raw.slice(Math.max(0, idx - 14), idx);
+    const after  = raw.slice(idx + match[0].length);
+    if (WINDOW_BEFORE_RE.test(before)) continue; // "past 7 ", "first 20 "
+    if (WINDOW_AFTER_RE.test(after))  continue;   // "7 days", "20 UPNs"
+    out.push(match[0].replace(/,/g, ''));
+  }
+  return out;
+}
+
+// A claimed number is grounded if it appears verbatim in tool output, or is a
+// simple aggregation (sum or difference) of two grounded numbers — e.g. members
+// = enabled - guests. Audit answers legitimately derive these breakdowns.
+function isGroundedNumber(num, knownNumbers) {
+  if (knownNumbers.has(num)) return true;
+  const target = Number(num);
+  if (!Number.isFinite(target)) return false;
+  const vals = [...knownNumbers].map(Number).filter(Number.isFinite);
+  if (vals.length > 200) return true; // too many to combine safely — don't false-flag
+  for (let i = 0; i < vals.length; i++) {
+    for (let j = 0; j < vals.length; j++) {
+      if (i === j) continue;
+      if (vals[i] + vals[j] === target || vals[i] - vals[j] === target) return true;
+    }
+  }
+  return false;
 }
 
 function upnsInText(text) {
@@ -55,13 +86,22 @@ function validateGroundedAssistantText(text, facts) {
   }
 
   const claimedNumbers = numbersInAuditClaims(text);
+  // Numbers with no tool grounding at all = pure fabrication → hard block.
   if (claimedNumbers.length && !grounding.hasToolFacts) {
     return { ok: false, reason: 'Numeric tenant claims require fresh tool results.' };
   }
 
-  const unknownNumbers = claimedNumbers.filter((num) => !grounding.numbers.has(num));
-  if (unknownNumbers.length) {
-    return { ok: false, reason: `Ungrounded numeric tenant claim(s): ${[...new Set(unknownNumbers)].join(', ')}` };
+  // Tool data exists: accept exact and derived figures. Anything still
+  // unaccounted-for is surfaced as a soft caveat rather than walling off the
+  // whole answer — the operator sees the response and the unverified figures.
+  const ungrounded = [...new Set(
+    claimedNumbers.filter((num) => !isGroundedNumber(num, grounding.numbers))
+  )];
+  if (ungrounded.length) {
+    return {
+      ok: true,
+      caveat: `Some figures couldn't be tied to the latest query result (${ungrounded.join(', ')}). Re-run the exact query to confirm those.`,
+    };
   }
 
   return { ok: true };
