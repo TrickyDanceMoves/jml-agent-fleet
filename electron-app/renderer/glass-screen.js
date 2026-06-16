@@ -129,6 +129,7 @@
     detailOpId: null,        // which operation the stage selection belongs to
     replaying: false,
     replayDone: false,
+    recentExpanded: false,   // "show all runs" toggle for the recent-runs list
     lastRenderedStageKey: null,
     replayTimers: [],
     elapsedTimer: null,
@@ -327,18 +328,40 @@
         <span class="gs-run-mode">${esc(r.mode)}</span>
         <span class="visually-hidden">outcome ${esc(r.outcome)}</span>
       </button>`).join('');
+    list.classList.toggle('expanded', glassScreenState.recentExpanded);
     list.querySelectorAll('.gs-recent-run').forEach(btn => {
       btn.addEventListener('click', () => {
         const id = btn.dataset.opId;
         if (!id) return;
+        // Clicking a run shows its END RESULT (final pipeline state). It does
+        // not auto-replay — the operator drives the animation via the Replay
+        // button, so the outcome stays put until they ask to watch it again.
         clearReplayTimers();
         glassScreenState.selectedId = id;
+        glassScreenState.replaying = false;
         glassScreenState.replayDone = false;
         render();
-        // Selecting a run starts its replay immediately — no second click.
-        runReplay();
       });
     });
+
+    // Center expand/collapse arrow — reveals all runs when there are more than
+    // the default few. Hidden when everything already fits.
+    const toggle = el('gs-recent-expand');
+    if (toggle) {
+      const hasMore = (vm.recentTotal || 0) > 3;
+      toggle.hidden = !hasMore;
+      if (hasMore) {
+        const expanded = glassScreenState.recentExpanded;
+        toggle.setAttribute('aria-expanded', String(expanded));
+        toggle.innerHTML = expanded
+          ? '<span class="gs-chevron up" aria-hidden="true">⌃</span><span>Show fewer</span>'
+          : `<span class="gs-chevron" aria-hidden="true">⌄</span><span>Show all ${vm.recentTotal} runs</span>`;
+        toggle.onclick = () => {
+          glassScreenState.recentExpanded = !glassScreenState.recentExpanded;
+          render();
+        };
+      }
+    }
   }
 
   function renderDetails(vm) {
@@ -389,6 +412,7 @@
     const vm = model.buildGlassScreenViewModel({
       operations: glassScreenState.operations,
       selectedId: glassScreenState.selectedId,
+      recentLimit: glassScreenState.recentExpanded ? Infinity : 3,
     });
 
     hero.dataset.mode = vm.mode;
@@ -439,10 +463,9 @@
   // Sequences only the known final stage states (650ms cadence). Stops at a
   // failure / approval stage and never pretends to be live execution.
 
-  // Demo-tuned (Codex design review 2026-06-12): each stage holds long enough
-  // to read its label and owner icon without losing the room. 650ms was too
-  // fast to comprehend the five stages; 850ms dragged for glancing judges.
-  const REPLAY_INTERVAL = 750;
+  // Demo-tuned: each stage holds long enough to read its label and owner icon.
+  // Slowed from 750ms so the pipeline is comfortable to follow on replay.
+  const REPLAY_INTERVAL = 1200;
 
   function prefersReducedMotion() {
     return typeof matchMedia === 'function'

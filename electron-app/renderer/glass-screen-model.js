@@ -426,9 +426,10 @@
   // the page relaxes to FLEET READY.
   const RECENT_HOLD_MS = 10 * 60 * 1000;
 
-  function buildGlassScreenViewModel({ operations = [], selectedId = null, now = Date.now() } = {}) {
+  function buildGlassScreenViewModel({ operations = [], selectedId = null, now = Date.now(), recentLimit = 3 } = {}) {
     const active = selectActiveOperation(operations);
-    const recentOps = recentTerminalOperations(operations, 3);
+    const allTerminal = recentTerminalOperations(operations, Infinity);
+    const recentOps = allTerminal.slice(0, recentLimit);
 
     let mode;
     let operation;
@@ -464,6 +465,7 @@
       // no history at all) — either way mapPipeline tells the truth.
       stages: mapPipeline(operation),
       recent: recentOps.map(o => recentRowFor(o, now)),
+      recentTotal: allTerminal.length,
     };
   }
 

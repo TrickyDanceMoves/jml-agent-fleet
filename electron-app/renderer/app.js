@@ -3607,12 +3607,55 @@ function applyOperationStatus(operation) {
   window.JmlGlassScreen?.onOperationStatus(operation);
 }
 
+// Dashboard 7-day telemetry: bucket real operations by day so the bars reflect
+// actual throughput, and expose each day's count on hover (data-label → CSS
+// tooltip). Replaces the static placeholder bars.
+function renderTelemetryChart(operations) {
+  const chart = document.getElementById('v2-bar-chart');
+  if (!chart) return;
+  const bars = chart.querySelectorAll('.bar');
+  if (!bars.length) return;
+  const DAY = 86400000;
+  const now = new Date();
+  const today0 = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  const WK = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  const buckets = [];
+  for (let i = 6; i >= 0; i--) {
+    const start = today0 - i * DAY;
+    buckets.push({ start, end: start + DAY, count: 0, date: new Date(start) });
+  }
+  let total = 0;
+  (operations || []).forEach(op => {
+    const t = Date.parse(op.completedAt || op.startedAt || op.updatedAt || '');
+    if (!t) return;
+    const b = buckets.find(x => t >= x.start && t < x.end);
+    if (b) { b.count++; total++; }
+  });
+  const max = Math.max(1, ...buckets.map(b => b.count));
+  buckets.forEach((b, i) => {
+    const bar = bars[i];
+    if (!bar) return;
+    bar.style.height = (b.count ? Math.max(8, Math.round((b.count / max) * 100)) : 3) + '%';
+    const dayLabel = WK[b.date.getDay()] + ' ' + b.date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+    bar.dataset.label = `${dayLabel} · ${b.count} op${b.count === 1 ? '' : 's'}`;
+    bar.classList.toggle('empty', !b.count);
+  });
+  const daySpans = document.querySelectorAll('.v2-bar-days span');
+  buckets.forEach((b, i) => { if (daySpans[i]) daySpans[i].textContent = WK[b.date.getDay()][0]; });
+  const totalEl = document.getElementById('v2-telemetry-ops-total');
+  if (totalEl) totalEl.textContent = `${total} ops · 7d`;
+  const rangeEl = document.getElementById('v2-telemetry-range');
+  if (rangeEl) rangeEl.textContent = buckets[0].date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+    + ' – ' + buckets[6].date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+}
+
 window.api.onOperationStatus(applyOperationStatus);
 window.api.onOperationStatuses(operations => {
   _operationRecords.clear();
   _inflightOps.clear();
   (operations || []).slice().reverse().forEach(applyOperationStatus);
   window.JmlGlassScreen?.onOperationStatuses(operations || []);
+  renderTelemetryChart(operations || []);
 });
 
 const _csvInput = document.getElementById('bulk-csv-input');
