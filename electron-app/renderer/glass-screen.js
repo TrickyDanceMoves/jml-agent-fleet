@@ -571,6 +571,25 @@
     if (isViewActive()) render();
   }
 
+  // Replay a specific audit entry on the Glass Screen (invoked from the Audit
+  // Log). Synthesizes the same id the backfill uses, injects it if absent,
+  // selects it, and runs the deliberate stage replay.
+  function replayAudit(entry) {
+    if (!entry) return false;
+    const id = entry.id || `audit-${entry.hash || entry.timestamp}`;
+    if (!glassScreenState.operations.some(o => o && o.id === id)) {
+      glassScreenState.operations = mergeOperationUpdate(
+        glassScreenState.operations, { ...entry, id, status: entry.status || null, _audit: true });
+    }
+    clearReplayTimers();
+    glassScreenState.selectedId = id;
+    glassScreenState.replaying = false;
+    glassScreenState.replayDone = false;
+    render();
+    runReplay();
+    return true;
+  }
+
   function onAuditEntries(entries) {
     glassScreenState.auditEntries = Array.isArray(entries) ? entries.slice(0, 100) : [];
     // Audit-only history backfills recent runs when operation history is
@@ -676,6 +695,7 @@
     onOperationStatus,
     onOperationStatuses,
     onAuditEntries,
+    replayAudit,
     render,
     captureState,
     _state: glassScreenState,
