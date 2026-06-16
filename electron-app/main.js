@@ -1368,14 +1368,21 @@ async function runAgentLoop(sender, agent, userText) {
       const textBlocks = response.content.filter(b => b.type === 'text');
       if (textBlocks.length) {
         const text = textBlocks.map(b => b.text || '').join('');
-        const facts = collectGroundingFacts(collectConversationToolContents(agentState.messages));
-        const validation = validateGroundedAssistantText(text || pendingText, facts);
-        // Hard block (fabricated UPNs / numbers with no tool data) → replace.
-        // Soft caveat (figures that don't tie out exactly) → keep the answer,
-        // append the note so the operator still gets a usable response.
-        const safeText = !validation.ok
-          ? groundedFallback(validation.reason)
-          : (validation.caveat ? `${text}\n\n> ⚠ ${validation.caveat}` : text);
+        // Grounding guard is for the AUDITOR (read-only tenant reporting), where
+        // fabricated UPNs/counts are the risk. The APPROVER legitimately proposes
+        // NEW identities (a joiner's UPN does not exist yet) and explains the
+        // firstname.lastname@domain format, so gating it on UPN/number grounding
+        // wrongly blocks its normal replies. Only validate the auditor.
+        let safeText = text;
+        if (agent === 'auditor') {
+          const facts = collectGroundingFacts(collectConversationToolContents(agentState.messages));
+          const validation = validateGroundedAssistantText(text || pendingText, facts);
+          // Hard block (fabricated UPNs / numbers with no tool data) → replace.
+          // Soft caveat (figures that don't tie out exactly) → keep + append note.
+          safeText = !validation.ok
+            ? groundedFallback(validation.reason)
+            : (validation.caveat ? `${text}\n\n> ⚠ ${validation.caveat}` : text);
+        }
         response.content = [
           ...response.content.filter(b => b.type !== 'text'),
           { type: 'text', text: safeText }
