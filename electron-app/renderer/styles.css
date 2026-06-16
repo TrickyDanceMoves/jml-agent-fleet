@@ -1291,14 +1291,27 @@ body.maximized, body.maximized .app { border-radius: 0; }
 }
 .v2-bar-chart {
   display: flex; align-items: flex-end; gap: 4px; height: 48px; margin-bottom: 4px;
+  overflow: visible;
 }
 .v2-bar-chart .bar {
-  flex: 1;
+  flex: 1; position: relative;
   border-radius: 2px 2px 0 0;
   background: linear-gradient(180deg, var(--violet), color-mix(in oklab, var(--violet), transparent 70%));
   transition: opacity .15s;
 }
 .v2-bar-chart .bar:hover { opacity: 0.85; }
+.v2-bar-chart .bar.empty { opacity: 0.4; }
+/* Per-day stats on hover. */
+.v2-bar-chart .bar[data-label]:hover::after {
+  content: attr(data-label);
+  position: absolute; bottom: calc(100% + 6px); left: 50%; transform: translateX(-50%);
+  white-space: nowrap; padding: 4px 7px; border-radius: 5px;
+  background: var(--elev); color: var(--text);
+  border: 1px solid var(--border);
+  font-family: var(--mono); font-size: 10px; letter-spacing: .02em;
+  box-shadow: 0 6px 18px oklch(0 0 0 / .4);
+  pointer-events: none; z-index: 20;
+}
 .v2-bar-days {
   display: flex; justify-content: space-between;
   font-family: var(--mono); font-size: 10px; color: var(--dim); margin-bottom: 16px;
@@ -5726,6 +5739,12 @@ html[data-theme="glass"] .compose .field,
 html[data-theme="glass"] .chat-input-wrap {
   background: oklch(0.18 0.012 260 / 0.68);
 }
+/* Send-button arrow: the base rule colors the glyph with var(--bg), but Glass
+   sets --bg: transparent, which makes the arrow invisible. Pin it to a dark ink
+   (the same value the other themes get from --bg) so it stays a crisp glyph on
+   the cyan button in every theme. */
+html[data-theme="glass"] .compose .send,
+html[data-theme="glass"] .chat-send { color: oklch(0.145 0.008 260); }
 
 /* Page headers float on the bare shell — give them the panel frost so
    titles and descriptions read on any wallpaper. */
@@ -6112,6 +6131,20 @@ html[data-theme="glass"] .tool-result-drawer {
   font-size: 12px; font-weight: 600; color: var(--text-2);
 }
 .gs-recent-runs { display: flex; flex-direction: column; }
+/* Expanded "show all runs" view: cap height and scroll so a long history
+   doesn't push the rest of the screen off. */
+.gs-recent-runs.expanded { max-height: 300px; overflow-y: auto; }
+/* Center expand/collapse arrow at the bottom of the recent-runs list. */
+.gs-recent-expand {
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+  width: 100%; margin-top: 4px; padding: 7px 12px;
+  background: none; border: none; cursor: pointer;
+  font-family: inherit; font-size: 11.5px; color: var(--muted);
+  transition: color 150ms ease;
+}
+.gs-recent-expand:hover { color: var(--text-2); }
+.gs-chevron { font-size: 14px; line-height: 1; transform: translateY(1px); }
+.gs-chevron.up { transform: translateY(-1px); }
 .gs-recent-run {
   display: flex; align-items: center; gap: 12px;
   width: 100%; padding: 9px 12px;

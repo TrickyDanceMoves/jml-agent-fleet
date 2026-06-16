@@ -58,6 +58,17 @@
       -webkit-app-region: no-drag;
       box-shadow: 0 30px 80px oklch(0 0 0 / .55);
     }
+    /* Always-visible exit on the launch screen — this window is frameless, so
+       without it there's no way to quit before signing in. */
+    .op-exit {
+      position: fixed; top: 12px; right: 14px; z-index: 50;
+      width: 28px; height: 26px; display: grid; place-items: center;
+      -webkit-app-region: no-drag;
+      background: transparent; border: 0; border-radius: 5px; cursor: pointer;
+      color: var(--muted); font-size: 13px; line-height: 1;
+      transition: background 150ms ease, color 150ms ease;
+    }
+    .op-exit:hover { background: var(--coral, #e5484d); color: #fff; }
     .brand-row { display: flex; align-items: center; gap: 12px; }
     .seal {
       width: 38px; height: 38px; border-radius: 10px;
@@ -198,6 +209,7 @@
   </style>
 </head>
 <body>
+  <button class="op-exit" id="op-exit" type="button" title="Exit console" aria-label="Exit console">&#x2715;</button>
   <div class="card">
     <div class="brand-row">
       <div class="seal"></div>
@@ -260,6 +272,9 @@
       const at = (name || '').indexOf('@');
       return at === -1 ? { local: name, domain: '' } : { local: name.slice(0, at), domain: name.slice(at) };
     };
+
+    // Exit button — lets the operator quit from the (frameless) launch screen.
+    document.getElementById('op-exit').addEventListener('click', () => window.api.appQuit());
 
     window.api.getOperatorsForLogin().then(data => {
       const list = document.getElementById('operator-list');
