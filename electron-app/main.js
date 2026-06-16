@@ -1364,7 +1364,12 @@ async function runAgentLoop(sender, agent, userText) {
         const text = textBlocks.map(b => b.text || '').join('');
         const facts = collectGroundingFacts(collectConversationToolContents(agentState.messages));
         const validation = validateGroundedAssistantText(text || pendingText, facts);
-        const safeText = validation.ok ? text : groundedFallback(validation.reason);
+        // Hard block (fabricated UPNs / numbers with no tool data) → replace.
+        // Soft caveat (figures that don't tie out exactly) → keep the answer,
+        // append the note so the operator still gets a usable response.
+        const safeText = !validation.ok
+          ? groundedFallback(validation.reason)
+          : (validation.caveat ? `${text}\n\n> ⚠ ${validation.caveat}` : text);
         response.content = [
           ...response.content.filter(b => b.type !== 'text'),
           { type: 'text', text: safeText }

@@ -45,7 +45,7 @@ test('allows numeric answers backed by tool output numbers', () => {
   assert.equal(result.ok, true);
 });
 
-test('blocks numeric audit answers that invent counts absent from tools', () => {
+test('allows derived counts (members = enabled - guests)', () => {
   const facts = collectGroundingFacts([
     JSON.stringify({ enabled: 102, guests: 5 }),
   ]);
@@ -55,6 +55,37 @@ test('blocks numeric audit answers that invent counts absent from tools', () => 
     facts,
   );
 
-  assert.equal(result.ok, false);
-  assert.match(result.reason, /\b97\b/);
+  // 97 = 102 - 5 is a legitimate derivation, not an invented count.
+  assert.equal(result.ok, true);
+  assert.equal(result.caveat, undefined);
+});
+
+test('ignores query-window and list-position numbers', () => {
+  const facts = collectGroundingFacts([
+    JSON.stringify({ recentJoins: { count: 4 } }),
+  ]);
+
+  // "past 7 days" and "first 20 users" are query params, not tenant claims.
+  const result = validateGroundedAssistantText(
+    '4 users joined in the past 7 days. Here are the first 20 users.',
+    facts,
+  );
+
+  assert.equal(result.ok, true);
+  assert.equal(result.caveat, undefined);
+});
+
+test('surfaces a soft caveat (not a hard block) for figures that do not tie out', () => {
+  const facts = collectGroundingFacts([
+    JSON.stringify({ enabled: 102, guests: 5 }),
+  ]);
+
+  const result = validateGroundedAssistantText(
+    '102 users are enabled. 500 are regular users.',
+    facts,
+  );
+
+  // Answer is kept (ok:true) but the unverifiable figure is flagged.
+  assert.equal(result.ok, true);
+  assert.match(result.caveat, /\b500\b/);
 });
