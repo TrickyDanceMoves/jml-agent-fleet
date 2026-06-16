@@ -2475,14 +2475,23 @@ function renderAuditPage() {
         ['Hash',       e.hash ? String(e.hash).slice(0, 24) + '…' : '—'],
         ['Prev hash',  e.prevHash ? String(e.prevHash).slice(0, 24) + '…' : '—'],
       ];
+      const _actions = [
+        { id: 'copyhash', label: 'Copy full hash', onClick: () => {
+          try { navigator.clipboard.writeText(e.hash || ''); showToast('Hash copied', 'success'); } catch (_) {}
+        }}
+      ];
+      // Lifecycle operations (JoinerProcess/MoverProcess/LeaverProcess/…) can be
+      // replayed on the Glass Screen; other audit events (sign-in, config) can't.
+      if (e.agent && e.subject && /Process$/i.test(e.action || '') && window.JmlGlassScreen?.replayAudit) {
+        _actions.unshift({ id: 'replay', label: '▶ Replay in Glass Screen', onClick: () => {
+          if (typeof switchTab === 'function') { try { switchTab('glass-screen'); } catch (_) {} }
+          setTimeout(() => { try { window.JmlGlassScreen.replayAudit(e); } catch (_) {} }, 150);
+        }});
+      }
       showDetailPopover({
         title: `${e.agent || 'event'} · ${e.subject || ''}`,
         kv, raw: e.details && Object.keys(e.details).length ? e.details : null,
-        actions: [
-          { id: 'copyhash', label: 'Copy full hash', onClick: () => {
-            try { navigator.clipboard.writeText(e.hash || ''); showToast('Hash copied', 'success'); } catch (_) {}
-          }}
-        ]
+        actions: _actions
       });
     });
   });
@@ -4319,10 +4328,12 @@ async function loadOperatorActivity() {
       const evt = e.event || '';
       const evtColor = evt.includes('fail') ? 'var(--coral)' : evt.includes('verify.ok') ? 'var(--emerald)' : evt.startsWith('tenant') ? 'var(--amber)' : 'var(--cyan)';
       const target = e.details && (e.details.target || e.details.tenantId);
-      return `<div style="display:grid;grid-template-columns:80px 1fr 130px;gap:10px;padding:6px 0;border-top:1px solid var(--border)">
+      const opName = e.operator || '—';
+      const opRole = e.role || '';
+      return `<div style="display:grid;grid-template-columns:80px minmax(0,1fr) minmax(120px,210px);gap:10px;padding:6px 0;border-top:1px solid var(--border);align-items:baseline">
         <span style="color:var(--muted)">${escHtml(tsLabel)}</span>
-        <span><span style="color:${evtColor}">${escHtml(evt)}</span>${target ? ` · ${escHtml(target)}` : ''}</span>
-        <span style="text-align:right;color:var(--text-2)">${escHtml(e.operator || '—')} · <span style="color:var(--muted)">${escHtml(e.role || '')}</span></span>
+        <span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><span style="color:${evtColor}">${escHtml(evt)}</span>${target ? ` · ${escHtml(target)}` : ''}</span>
+        <span title="${escHtml(opName + (opRole ? ' · ' + opRole : ''))}" style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:right;color:var(--text-2)">${escHtml(opName)} · <span style="color:var(--muted)">${escHtml(opRole)}</span></span>
       </div>`;
     }).join('');
   } catch (e) {
