@@ -756,6 +756,7 @@ let _lcToolRan  = false;   // did any tool fire this turn? (request "captured" s
 let _lcCapturing = false;  // request started but intent not yet fully captured
 let _lcTerminalState = null;
 let _lcTerminalError = null;
+let _lcIdleTimer = null;   // relaxes a completed lifecycle back to Idle
 
 function renderLifecycleMap() {
   const map = document.getElementById('lifecycle-map');
@@ -789,6 +790,7 @@ function renderLifecycleMap() {
 }
 
 function lcResetToRequest() {
+  clearTimeout(_lcIdleTimer);
   _lcPipeline = ['request', 'risk', 'plan'];
   _lcDoneSet  = new Set();
   _lcCurrent  = 'request';
@@ -866,6 +868,10 @@ function lcApplyOperation(operation) {
     _lcDoneSet.add(operation.stage);
     _lcCurrent = null;
     if (tag) { tag.textContent = 'Succeeded'; tag.className = 'tag ok'; }
+    // Don't let the rail sit at "Succeeded" forever — relax back to Idle so the
+    // next visit shows a clean lifecycle, not a stale completed one.
+    clearTimeout(_lcIdleTimer);
+    _lcIdleTimer = setTimeout(lcSetIdle, 9000);
   } else if (operation.status === 'awaiting_approval') {
     if (tag) { tag.textContent = 'Awaiting approval'; tag.className = 'tag warn'; }
   } else if (operation.status === 'partial') {
@@ -877,6 +883,7 @@ function lcApplyOperation(operation) {
 }
 
 function lcSetIdle() {
+  clearTimeout(_lcIdleTimer);
   _lcPipeline = ['request', 'risk', 'plan'];
   _lcDoneSet  = new Set();
   _lcCurrent  = null;
