@@ -115,13 +115,19 @@ function buildProvider(config) {
     case 'azure-openai': {
       const c = config['azure-openai'] || {};
       if (!c.apiKey || !c.endpoint) return null;
+      // Azure client builds the /openai/deployments/... path itself, so the
+      // endpoint must be the resource base — strip any /openai/v1 suffix a user
+      // may have pasted. tokenParam lets gpt-5/o-series deployments use
+      // max_completion_tokens instead of the rejected max_tokens.
+      const endpoint = c.endpoint.replace(/\/openai(\/v1)?\/?$/i, '').replace(/\/$/, '');
       return new OpenAICompatProvider({
         isAzure:        true,
         apiKey:         c.apiKey,
-        azureEndpoint:  c.endpoint,
+        azureEndpoint:  endpoint,
         azureApiVersion:c.apiVersion || '2025-01-01-preview',
         agentModel:     c.agentDeployment || 'gpt-4o',
-        fastModel:      c.fastDeployment  || 'gpt-4o-mini'
+        fastModel:      c.fastDeployment  || 'gpt-4o-mini',
+        tokenParam:     c.tokenParam || 'max_tokens'
       });
     }
     case 'azure-foundry': {
