@@ -5913,7 +5913,9 @@ function audSetActiveQuery(text) {
   const bodyEl   = document.getElementById('aud-query-body');
   if (statusEl) { statusEl.textContent = 'running'; statusEl.style.color = 'var(--cyan)'; }
   if (bodyEl) {
-    bodyEl.innerHTML = `<div class="aud-query-text">${escHtml(text)}</div><div id="aud-tool-rows"></div>`;
+    // Don't echo the query text here — it's already the operator's chat message
+    // and a suggestion chip on the tab. Show just the tool activity rows.
+    bodyEl.innerHTML = `<div id="aud-tool-rows"></div>`;
   }
 }
 
@@ -7029,6 +7031,28 @@ function loadRecentUsers() {
       if (_t('triage-certs-meta'))  _t('triage-certs-meta').textContent  = '';
       if (_t('triage-certs-sub'))   _t('triage-certs-sub').textContent   = '';
       return;
+    }
+
+    // Settings → Agent Certificates: replace the hardcoded rows/summary with
+    // live per-agent data so they're accurate.
+    const setRows = document.getElementById('set-cert-rows');
+    if (setRows) {
+      setRows.innerHTML = certs.map(c => {
+        const d = c.daysRemaining;
+        const crit = d != null && d < 0, warn = d != null && d >= 0 && d < 30;
+        const days = d == null ? 'no expiry data' : (d < 0 ? Math.abs(d) + 'd expired' : 'expires in ' + d + 'd');
+        const pip = crit ? 'cert-pip crit' : warn ? 'cert-pip warn' : 'cert-pip';
+        const label = (c.agent || '').charAt(0).toUpperCase() + (c.agent || '').slice(1);
+        const kind = c.credentialType === 'secret' ? 'Client secret' : 'Signing certificate';
+        return '<div class="set-row"><div><div class="lbl">' + escHtml(label) + '</div><div class="desc">' + escHtml(kind) + '</div></div>'
+          + '<div class="val right-ctrl"><span class="strong">' + escHtml(days) + '</span><span class="' + pip + '"><span class="d"></span>'
+          + (crit ? 'EXPIRED' : warn ? 'ROTATE SOON' : 'OK') + '</span></div></div>';
+      }).join('') || '<div class="set-row"><div class="desc">No certificate data.</div></div>';
+    }
+    const setSummary = document.getElementById('set-cert-summary');
+    if (setSummary) {
+      const healthy = certs.filter(c => c.daysRemaining == null || c.daysRemaining >= 30).length;
+      setSummary.innerHTML = '<span class="d"></span>' + healthy + ' / ' + certs.length + ' HEALTHY';
     }
 
     // Fire notifications for certs expiring < 30 days
