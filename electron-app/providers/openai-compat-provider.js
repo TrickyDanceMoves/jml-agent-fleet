@@ -69,16 +69,23 @@ class OpenAICompatProvider {
    * @param {string}  opts.agentModel        Model/deployment for the main agent loop
    * @param {string}  opts.fastModel         Model/deployment for quick utility calls
    */
-  constructor({ apiKey, baseURL, isAzure, azureEndpoint, azureApiVersion, agentModel, fastModel, providerName }) {
+  constructor({ apiKey, baseURL, isAzure, azureEndpoint, azureApiVersion, azureADTokenProvider, tokenParam, agentModel, fastModel, providerName }) {
     this.agentModel    = agentModel;
     this.fastModel     = fastModel;
     this.isAzure       = !!isAzure;
     this._providerName = providerName || (isAzure ? 'azure-openai' : 'openai');
+    // gpt-5 / o-series deployments reject `max_tokens` and require
+    // `max_completion_tokens`. Callers set this per deployment.
+    this._tokenParam   = tokenParam || 'max_tokens';
 
     if (isAzure) {
       const { AzureOpenAI } = require('openai');
       const version = azureApiVersion || '2025-01-01-preview';
-      this._agentClient = new AzureOpenAI({ endpoint: azureEndpoint, apiKey, apiVersion: version });
+      // Keyless (Entra/az login) when a token provider is supplied; otherwise api-key.
+      const azureOpts = azureADTokenProvider
+        ? { endpoint: azureEndpoint, azureADTokenProvider, apiVersion: version }
+        : { endpoint: azureEndpoint, apiKey, apiVersion: version };
+      this._agentClient = new AzureOpenAI(azureOpts);
       this._fastClient  = this._agentClient;
     } else {
       const { OpenAI } = require('openai');
@@ -101,7 +108,7 @@ class OpenAICompatProvider {
     const started = Date.now();
     const stream = await this._agentClient.chat.completions.create({
       model:       this.agentModel,
-      max_tokens:  4096,
+      [this._tokenParam]: 4096,
       messages:    openAiMessages,
       tools:       openAiTools,
       tool_choice: openAiTools ? 'auto' : undefined,
@@ -164,7 +171,7 @@ class OpenAICompatProvider {
     const openAiMessages = toOpenAIMessages(messages);
     const resp = await this._fastClient.chat.completions.create({
       model:      this.fastModel,
-      max_tokens: maxTokens || 300,
+      [this._tokenParam]: maxTokens || 300,
       messages:   openAiMessages
     });
     return resp.choices[0]?.message?.content || '';
