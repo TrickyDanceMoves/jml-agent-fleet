@@ -2367,7 +2367,9 @@ body.maximized, body.maximized .app { border-radius: 0; }
 }
 #log-tbody tr:first-child { border-top: 0; }
 #log-tbody tr:hover { background: var(--bg-2); }
-#log-tbody td { padding: 0; }
+/* Clip long cell text (operator UPNs, subjects) to their grid column instead
+   of overflowing into the next column. */
+#log-tbody td { padding: 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 #log-tbody tr.empty-row { grid-template-columns: 1fr; padding: 30px; color: var(--muted); text-align: center; }
 .mono { font-family: var(--mono); }
 .dim  { color: var(--muted); }

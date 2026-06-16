@@ -2450,8 +2450,8 @@ function renderAuditPage() {
     return `<tr data-audit-idx="${idx}" style="cursor:pointer">
       <td class="mono">${ts}</td>
       <td>${escHtml(e.agent || '--')}</td>
-      <td class="mono">${escHtml(e.subject || '--')}</td>
-      <td>${operator}</td>
+      <td class="mono" title="${escHtml(e.subject || '')}">${escHtml(e.subject || '--')}</td>
+      <td title="${escHtml(e.operator || '')}">${operator}</td>
       <td>${ticket}</td>
       <td><span class="outcome ${cls}">${escHtml(outcome)}</span></td>
       <td>${mode}</td>
@@ -7093,16 +7093,23 @@ function loadRecentUsers() {
         const agent = btn.dataset.agent;
         btn.disabled = true;
         const original = btn.textContent;
-        btn.textContent = 'Rotatingâ€¦';
-        const r = await window.api.rotateAgentCertificate(agent, false);
+        btn.textContent = 'Previewing...';
+        // WhatIf preview: real rotation runs the Provisioner fleet-wide and
+        // needs interactive Graph auth, which can't happen from this button.
+        const r = await window.api.rotateAgentCertificate(agent, true);
         btn.disabled = false;
         btn.textContent = original;
         if (r && r.ok) {
-          showToast('Certificate rotation queued for ' + agent, 'success');
-          addNotification('↻', 'Certificate rotation queued: ' + agent, { tab: 'certs' });
-          window.api.getCertExpiry();
+          showToast('Rotation preview (WhatIf) — full rotation runs via the Provisioner', 'success');
+          if (typeof showDetailPopover === 'function') {
+            showDetailPopover({
+              title: 'Cert rotation preview',
+              kv: [['Mode', 'WhatIf — no changes made'], ['Scope', 'Fleet (Provisioner script)']],
+              raw: (r.lines || []).join('\n') || 'No output.'
+            });
+          }
         } else {
-          showToast('Rotation failed: ' + (r?.error || 'unknown'), 'error');
+          showToast('Rotation preview failed: ' + (r?.error || 'unknown'), 'error');
         }
       });
     });
