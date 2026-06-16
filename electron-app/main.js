@@ -4605,7 +4605,10 @@ ipcMain.handle('skip-first-run', () => {
 const INT_CONFIG_DEFAULTS = {
   bamboohr: { enabled: false, label: '' },
   teams:    { enabled: false, channel: '', oncallHandle: '' },
-  sentinel: { enabled: false, workspaceName: '', tableName: '' }
+  sentinel: { enabled: false, workspaceName: '', tableName: '' },
+  splunk:   { enabled: false, hecEndpoint: '', index: '' },
+  servicenow: { enabled: false, instanceUrl: '', table: 'incident' },
+  jira:     { enabled: false, siteUrl: '', projectKey: '' }
 };
 
 ipcMain.handle('get-integrations-config', () => {
@@ -4617,6 +4620,9 @@ ipcMain.handle('get-integrations-config', () => {
         bamboohr: { enabled: true, label: 'BambooHR demo webhook' },
         teams: { enabled: true, channel: 'Identity Operations', oncallHandle: 'IAM On Call' },
         sentinel: { enabled: true, workspaceName: 'jml-demo-workspace', tableName: 'JMLAudit_CL' },
+        splunk: { enabled: true, hecEndpoint: 'https://splunk.example/services/collector', index: 'identity' },
+        servicenow: { enabled: true, instanceUrl: 'https://example.service-now.com', table: 'incident' },
+        jira: { enabled: true, siteUrl: 'https://example.atlassian.net', projectKey: 'IAM' },
       },
     };
   }
@@ -4634,7 +4640,10 @@ ipcMain.handle('save-integrations-config', (event, { config } = {}) => {
   const sanitized = {
     bamboohr: { enabled: !!(c.bamboohr && c.bamboohr.enabled), label: str(c.bamboohr && c.bamboohr.label) },
     teams:    { enabled: !!(c.teams && c.teams.enabled), channel: str(c.teams && c.teams.channel), oncallHandle: str(c.teams && c.teams.oncallHandle) },
-    sentinel: { enabled: !!(c.sentinel && c.sentinel.enabled), workspaceName: str(c.sentinel && c.sentinel.workspaceName), tableName: str(c.sentinel && c.sentinel.tableName) }
+    sentinel: { enabled: !!(c.sentinel && c.sentinel.enabled), workspaceName: str(c.sentinel && c.sentinel.workspaceName), tableName: str(c.sentinel && c.sentinel.tableName) },
+    splunk:   { enabled: !!(c.splunk && c.splunk.enabled), hecEndpoint: str(c.splunk && c.splunk.hecEndpoint, 500), index: str(c.splunk && c.splunk.index, 80) },
+    servicenow: { enabled: !!(c.servicenow && c.servicenow.enabled), instanceUrl: str(c.servicenow && c.servicenow.instanceUrl, 500), table: str(c.servicenow && c.servicenow.table, 80) || 'incident' },
+    jira:     { enabled: !!(c.jira && c.jira.enabled), siteUrl: str(c.jira && c.jira.siteUrl, 500), projectKey: str(c.jira && c.jira.projectKey, 40) }
   };
   try {
     fs.writeFileSync(INT_CONFIG_FILE, JSON.stringify(sanitized, null, 2), 'utf8');
@@ -5057,6 +5066,26 @@ ipcMain.on('get-cert-expiry', (event) => {
     event.sender.send('cert-expiry', { certs: results });
   } catch (err) {
     event.sender.send('cert-expiry', { certs: [], error: err.message });
+  }
+});
+
+ipcMain.handle('rotate-agent-certificate', async (event, { agent, whatif } = {}) => {
+  if (PRESENTATION_MODE) {
+    return demoReceipt('rotate-agent-certificate', {
+      agent: agent || 'all',
+      whatif: !!whatif,
+      note: 'Provisioner rotation simulated.',
+    });
+  }
+  if ((currentRole || 'viewer') !== 'admin') return { ok: false, error: 'admin role required' };
+  const script = path.join(AGENTS_DIR, 'provisioner', 'New-AgentCertificates.ps1');
+  if (!fs.existsSync(script)) return { ok: false, error: 'Provisioner certificate script not found.' };
+  try {
+    const raw = await runPsAsync(script, whatif ? { WhatIf: true } : {}, { timeout: 240000 });
+    logOperatorActivity('cert.rotation.queued', { target: agent || 'all', whatif: !!whatif });
+    return { ok: true, agent: agent || 'all', lines: raw.trim().split('\n').slice(-12) };
+  } catch (err) {
+    return { ok: false, error: err.message || String(err) };
   }
 });
 

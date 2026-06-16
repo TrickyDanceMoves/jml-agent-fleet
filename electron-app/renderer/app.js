@@ -188,6 +188,9 @@ function applyIntegrationsConfig(cfg) {
   const bb = cfg.bamboohr || {};
   const tm = cfg.teams    || {};
   const st = cfg.sentinel || {};
+  const sp = cfg.splunk || {};
+  const sn = cfg.servicenow || {};
+  const ji = cfg.jira || {};
 
   const setEl = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val || '—'; };
   const setHealth = (id, enabled) => {
@@ -200,6 +203,9 @@ function applyIntegrationsConfig(cfg) {
   setHealth('int-bamboo-health',   bb.enabled);
   setHealth('int-teams-health',    tm.enabled);
   setHealth('int-sentinel-health', st.enabled);
+  setHealth('int-splunk-health',   sp.enabled);
+  setHealth('int-servicenow-health', sn.enabled);
+  setHealth('int-jira-health',     ji.enabled);
 
   const secretEl = document.getElementById('int-bamboo-secret');
   if (secretEl) secretEl.textContent = bb.enabled ? '••••• configured' : 'not configured';
@@ -208,6 +214,12 @@ function applyIntegrationsConfig(cfg) {
   setEl('int-teams-oncall',     tm.oncallHandle);
   setEl('int-sentinel-ws',      st.workspaceName);
   setEl('int-sentinel-table',   st.tableName);
+  setEl('int-splunk-hec',       sp.hecEndpoint);
+  setEl('int-splunk-index',     sp.index);
+  setEl('int-servicenow-url',   sn.instanceUrl);
+  setEl('int-servicenow-table', sn.table || 'incident');
+  setEl('int-jira-url',         ji.siteUrl);
+  setEl('int-jira-project',     ji.projectKey);
   setEl('int-sentinel-rules',   '—');
 
   // Show edit buttons only for admins
@@ -216,7 +228,7 @@ function applyIntegrationsConfig(cfg) {
 
   // Sync the dashboard Integrations widget with the real config — dots and
   // count reflect what is actually enabled, never a hardcoded "connected".
-  const dashSync = [['bamboo', bb], ['teams', tm], ['sentinel', st]];
+  const dashSync = [['bamboo', bb], ['teams', tm], ['sentinel', st], ['splunk', sp], ['servicenow', sn], ['jira', ji]];
   let connected = 0;
   for (const [key, c] of dashSync) {
     const row = document.querySelector(`.dash-mini-row[data-conn="${key}"]`);
@@ -266,6 +278,30 @@ function loadIntegrations() {
       fields: [
         { id: 'sentinel-ws',     label: 'Workspace name', key: 'workspaceName', placeholder: 'my-la-workspace' },
         { id: 'sentinel-table',  label: 'Table name',     key: 'tableName',     placeholder: 'JmlFleet_CL' }
+      ]
+    },
+    splunk: {
+      title: 'Edit Splunk SIEM',
+      hint:  'Splunk HEC token stays outside the renderer. Store the endpoint and index label here for routing and dashboard status.',
+      fields: [
+        { id: 'splunk-hec',   label: 'HEC endpoint', key: 'hecEndpoint', placeholder: 'https://splunk.example/services/collector' },
+        { id: 'splunk-index', label: 'Index',        key: 'index',       placeholder: 'identity' }
+      ]
+    },
+    servicenow: {
+      title: 'Edit ServiceNow',
+      hint:  'ServiceNow can receive HRIS/ITSM tickets for lifecycle events. Store the instance label and target table here.',
+      fields: [
+        { id: 'sn-url',   label: 'Instance URL', key: 'instanceUrl', placeholder: 'https://example.service-now.com' },
+        { id: 'sn-table', label: 'Table',        key: 'table',       placeholder: 'incident' }
+      ]
+    },
+    jira: {
+      title: 'Edit Jira',
+      hint:  'Jira can receive identity work items and approval follow-ups. Store the site and project key here.',
+      fields: [
+        { id: 'jira-url',     label: 'Site URL',    key: 'siteUrl',    placeholder: 'https://example.atlassian.net' },
+        { id: 'jira-project', label: 'Project key', key: 'projectKey', placeholder: 'IAM' }
       ]
     }
   };
@@ -6001,8 +6037,8 @@ loadDashboard();
 // ── Notification Centre ───────────────────────────────────────────────────────
 let _notifications = [];
 
-function addNotification(icon, title) {
-  const n = { id: Date.now() + Math.random(), icon: icon, title: title, time: new Date() };
+function addNotification(icon, title, action) {
+  const n = { id: Date.now() + Math.random(), icon: icon, title: title, action: action || null, time: new Date() };
   _notifications.unshift(n);
   renderNotifications();
   showToast(title, 'info');
@@ -6026,7 +6062,7 @@ function renderNotifications() {
     return;
   }
   list.innerHTML = _notifications.map(n =>
-    '<div class="notif-item" data-id="' + n.id + '">' +
+    '<div class="notif-item" data-id="' + n.id + '" data-action="' + (n.action ? '1' : '') + '">' +
       '<span class="notif-icon">' + escHtml(n.icon) + '</span>' +
       '<div class="notif-body">' +
         '<div class="notif-title">' + escHtml(n.title) + '</div>' +
@@ -6040,6 +6076,14 @@ function renderNotifications() {
       e.stopPropagation();
       _notifications = _notifications.filter(n => String(n.id) !== String(btn.dataset.id));
       renderNotifications();
+    });
+  });
+  list.querySelectorAll('.notif-item[data-action="1"]').forEach(item => {
+    item.addEventListener('click', () => {
+      const n = _notifications.find(x => String(x.id) === String(item.dataset.id));
+      if (!n || !n.action) return;
+      if (n.action.tab) switchTab(n.action.tab);
+      if (typeof n.action.run === 'function') n.action.run();
     });
   });
 }
@@ -6146,15 +6190,16 @@ function applyAuditFilters() {
 }
 
 // ── Evidence packet export ────────────────────────────────────────────────────
-document.getElementById('btn-export-evidence')?.addEventListener('click', async () => {
+async function runEvidenceExport() {
   if (typeof window.api?.exportEvidencePacket !== 'function') return;
   const btn = document.getElementById('btn-export-evidence');
   const filtered = window._filteredAuditEntries || window._allAuditEntries || [];
   const hashes = filtered.map(e => e.hash).filter(Boolean);
   if (!hashes.length) { showToast('No audit entries to export', 'warning'); return; }
-  btn.disabled = true; const orig = btn.textContent; btn.textContent = 'Exporting…';
+  const orig = btn ? btn.textContent : '';
+  if (btn) { btn.disabled = true; btn.textContent = 'Exporting…'; }
   const r = await window.api.exportEvidencePacket({ hashes });
-  btn.disabled = false; btn.textContent = orig;
+  if (btn) { btn.disabled = false; btn.textContent = orig; }
   if (r && r.ok) {
     showToast(`Evidence packet exported (${r.count} entries) — integrity: ${/PASS/i.test(r.integrity) ? 'verified' : 'see packet'}`, 'success');
   } else if (r && r.canceled) {
@@ -6162,7 +6207,9 @@ document.getElementById('btn-export-evidence')?.addEventListener('click', async 
   } else {
     showToast('Export failed: ' + (r?.error || 'unknown'), 'error');
   }
-});
+}
+
+document.getElementById('btn-export-evidence')?.addEventListener('click', runEvidenceExport);
 
 function renderAuditTable(entries) {
   const tbody    = document.getElementById('log-tbody');
@@ -6334,20 +6381,14 @@ function renderTimeline(entries) {
       document.getElementById('attest-dialog-cancel').addEventListener('click', close);
       document.getElementById('attest-dialog-build').addEventListener('click', () => {
         close();
-        addNotification('✓', 'Attestation pack queued for export — download will begin shortly');
+        addNotification('✓', 'Attestation pack queued for export — download will begin shortly', { tab: 'audit-log' });
+        runEvidenceExport();
       });
     });
   }
 })();
 
 // ── User Lookup ───────────────────────────────────────────────────────────────
-
-// Attestation dialog safety net: the dialog is created dynamically, so this
-// delegated handler ensures Export Pack invokes the real evidence export path.
-document.addEventListener('click', e => {
-  if (!e.target.closest('#attest-dialog-build')) return;
-  setTimeout(() => document.getElementById('btn-export-evidence')?.click(), 0);
-}, true);
 
 // Show recently-searched users or a friendly prompt when the tab loads cold.
 function loadRecentUsers() {
@@ -6996,7 +7037,7 @@ function loadRecentUsers() {
 
     bodyEl.innerHTML =
       '<table class="cert-expiry-table">' +
-        '<thead><tr><th>Agent</th><th>Thumbprint</th><th>Expiry</th><th>Days Remaining</th></tr></thead>' +
+        '<thead><tr><th>Agent</th><th>Thumbprint</th><th>Expiry</th><th>Days Remaining</th><th>Action</th></tr></thead>' +
         '<tbody>' +
           certs.map(c => {
             const d     = c.daysRemaining;
@@ -7009,10 +7050,29 @@ function loadRecentUsers() {
               '<td class="mono">' + escHtml(thumb) + '</td>' +
               '<td>' + escHtml(exp) + '</td>' +
               '<td><span class="' + dCls + '">' + escHtml(dText) + '</span></td>' +
+              '<td><button class="btn ghost sm btn-rotate-cert" id="btn-rotate-cert-' + escHtml(c.agent) + '" data-agent="' + escHtml(c.agent) + '">Rotate</button></td>' +
             '</tr>';
           }).join('') +
         '</tbody>' +
       '</table>';
+    bodyEl.querySelectorAll('.btn-rotate-cert').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const agent = btn.dataset.agent;
+        btn.disabled = true;
+        const original = btn.textContent;
+        btn.textContent = 'Rotatingâ€¦';
+        const r = await window.api.rotateAgentCertificate(agent, false);
+        btn.disabled = false;
+        btn.textContent = original;
+        if (r && r.ok) {
+          showToast('Certificate rotation queued for ' + agent, 'success');
+          addNotification('↻', 'Certificate rotation queued: ' + agent, { tab: 'certs' });
+          window.api.getCertExpiry();
+        } else {
+          showToast('Rotation failed: ' + (r?.error || 'unknown'), 'error');
+        }
+      });
+    });
   });
 })();
 

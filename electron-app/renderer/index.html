@@ -235,13 +235,15 @@
           <button class="win-btn docked-btn" id="btn-toggle-overlay" title="Agent Overlay (Ctrl+Shift+Space)">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="13" height="13"><rect x="2" y="8" width="20" height="13" rx="2"/><path d="M8 8V6a4 4 0 0 1 8 0v2"/><line x1="12" y1="13" x2="12" y2="17"/><line x1="10" y1="15" x2="14" y2="15"/></svg>
           </button>
-          <button class="win-btn power-btn" id="btn-power" title="Quit console (⏻)">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12" stroke-linecap="round"><path d="M18.36 6.64a9 9 0 1 1-12.73 0"/><line x1="12" y1="2" x2="12" y2="12"/></svg>
-          </button>
-          <span class="divider"></span>
-          <button class="win-btn" id="btn-minimize" title="Minimize">&#x2212;</button>
-          <button class="win-btn" id="btn-maximize" title="Maximize">&#x25A1;</button>
-          <button class="win-btn close" id="btn-close" title="Close">&#x2715;</button>
+          <div class="window-controls" aria-label="Window controls">
+            <button class="win-btn power-btn" id="btn-power" title="Quit console (⏻)">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12" stroke-linecap="round"><path d="M18.36 6.64a9 9 0 1 1-12.73 0"/><line x1="12" y1="2" x2="12" y2="12"/></svg>
+            </button>
+            <span class="divider"></span>
+            <button class="win-btn" id="btn-minimize" title="Minimize">&#x2212;</button>
+            <button class="win-btn" id="btn-maximize" title="Maximize">&#x25A1;</button>
+            <button class="win-btn close" id="btn-close" title="Close">&#x2715;</button>
+          </div>
         </div>
 
         <!-- =====================================================
@@ -600,6 +602,9 @@
                 <div class="dash-mini-row" data-conn="bamboo"><span class="dash-mini-dot" style="background:var(--border-strong)"></span><span class="dash-mini-name">BambooHR</span><span class="dash-mini-meta" id="dash-int-bamboo">not configured</span></div>
                 <div class="dash-mini-row" data-conn="teams"><span class="dash-mini-dot" style="background:var(--border-strong)"></span><span class="dash-mini-name">Microsoft Teams</span><span class="dash-mini-meta" id="dash-int-teams">not configured</span></div>
                 <div class="dash-mini-row" data-conn="sentinel"><span class="dash-mini-dot" style="background:var(--border-strong)"></span><span class="dash-mini-name">Sentinel</span><span class="dash-mini-meta" id="dash-int-sentinel">not configured</span></div>
+                <div class="dash-mini-row" data-conn="splunk"><span class="dash-mini-dot" style="background:var(--border-strong)"></span><span class="dash-mini-name">Splunk</span><span class="dash-mini-meta" id="dash-int-splunk">not configured</span></div>
+                <div class="dash-mini-row" data-conn="servicenow"><span class="dash-mini-dot" style="background:var(--border-strong)"></span><span class="dash-mini-name">ServiceNow</span><span class="dash-mini-meta" id="dash-int-servicenow">not configured</span></div>
+                <div class="dash-mini-row" data-conn="jira"><span class="dash-mini-dot" style="background:var(--border-strong)"></span><span class="dash-mini-name">Jira</span><span class="dash-mini-meta" id="dash-int-jira">not configured</span></div>
               </div>
             </div>
           </div>
@@ -1280,6 +1285,45 @@
                 <span class="k">Incidents</span><span class="v" id="int-sentinel-incidents">—</span>
               </div>
             </div>
+            <div class="int splunk">
+              <div class="top">
+                <div class="logo">SP</div>
+                <div class="nm"><span class="n">Splunk SIEM</span><span class="s">HEC · log analytics</span></div>
+                <span class="health int-health-offline" id="int-splunk-health">offline</span>
+                <button class="btn ghost int-admin-only" data-int="splunk" style="display:none;padding:3px 10px;font-size:11px;margin-left:4px">Edit</button>
+              </div>
+              <div class="grid">
+                <span class="k">Endpoint</span><span class="v" id="int-splunk-hec">—</span>
+                <span class="k">Index</span><span class="v" id="int-splunk-index">—</span>
+                <span class="k">Payload</span><span class="v">audit · security · certs</span>
+              </div>
+            </div>
+            <div class="int servicenow">
+              <div class="top">
+                <div class="logo">SN</div>
+                <div class="nm"><span class="n">ServiceNow</span><span class="s">ITSM · HRIS events</span></div>
+                <span class="health int-health-offline" id="int-servicenow-health">offline</span>
+                <button class="btn ghost int-admin-only" data-int="servicenow" style="display:none;padding:3px 10px;font-size:11px;margin-left:4px">Edit</button>
+              </div>
+              <div class="grid">
+                <span class="k">Instance</span><span class="v" id="int-servicenow-url">—</span>
+                <span class="k">Table</span><span class="v" id="int-servicenow-table">incident</span>
+                <span class="k">Events</span><span class="v">joiner · mover · leaver</span>
+              </div>
+            </div>
+            <div class="int jira">
+              <div class="top">
+                <div class="logo">JR</div>
+                <div class="nm"><span class="n">Jira</span><span class="s">tickets · approvals</span></div>
+                <span class="health int-health-offline" id="int-jira-health">offline</span>
+                <button class="btn ghost int-admin-only" data-int="jira" style="display:none;padding:3px 10px;font-size:11px;margin-left:4px">Edit</button>
+              </div>
+              <div class="grid">
+                <span class="k">Site</span><span class="v" id="int-jira-url">—</span>
+                <span class="k">Project</span><span class="v" id="int-jira-project">—</span>
+                <span class="k">Issues</span><span class="v">incidents · reviews</span>
+              </div>
+            </div>
           </div>
 
           <div class="queue">
@@ -1873,56 +1917,56 @@
           </div>
 
           <div class="cert-grid">
-            <div class="cert-tile">
+            <div class="cert-tile" data-agent="joiner">
               <div class="ag-top"><span class="av">◢</span><span class="name">Joiner<span class="sub">jml-fleet-joiner</span></span></div>
               <span class="status ok">HEALTHY</span>
               <div class="bar"><i style="width:88%"></i></div>
               <div class="exp"><span>expires</span><b>727 d</b></div>
               <div class="thumb">SHA-1 <b>—</b></div>
             </div>
-            <div class="cert-tile">
+            <div class="cert-tile" data-agent="mover">
               <div class="ag-top"><span class="av">⇆</span><span class="name">Mover<span class="sub">jml-fleet-mover</span></span></div>
               <span class="status ok">HEALTHY</span>
               <div class="bar"><i style="width:88%"></i></div>
               <div class="exp"><span>expires</span><b>727 d</b></div>
               <div class="thumb">SHA-1 <b>—</b></div>
             </div>
-            <div class="cert-tile">
+            <div class="cert-tile" data-agent="leaver">
               <div class="ag-top"><span class="av">◣</span><span class="name">Leaver<span class="sub">jml-fleet-leaver</span></span></div>
               <span class="status ok">HEALTHY</span>
               <div class="bar"><i style="width:88%"></i></div>
               <div class="exp"><span>expires</span><b>727 d</b></div>
               <div class="thumb">SHA-1 <b>—</b></div>
             </div>
-            <div class="cert-tile warn">
+            <div class="cert-tile warn" data-agent="enroller">
               <div class="ag-top"><span class="av" style="color:var(--amber)">⊞</span><span class="name">Enroller<span class="sub">jml-fleet-enroller</span></span></div>
               <span class="status warn">ROTATE SOON</span>
               <div class="bar"><i style="width:14%"></i></div>
               <div class="exp"><span>expires</span><b style="color:var(--amber)">38 d</b></div>
               <div class="thumb">SHA-1 <b>—</b></div>
             </div>
-            <div class="cert-tile">
+            <div class="cert-tile" data-agent="certifier">
               <div class="ag-top"><span class="av">◈</span><span class="name">Certifier<span class="sub">jml-fleet-certifier</span></span></div>
               <span class="status ok">HEALTHY</span>
               <div class="bar"><i style="width:88%"></i></div>
               <div class="exp"><span>expires</span><b>727 d</b></div>
               <div class="thumb">SHA-1 <b>—</b></div>
             </div>
-            <div class="cert-tile">
+            <div class="cert-tile" data-agent="approver">
               <div class="ag-top"><span class="av">◇</span><span class="name">Approver<span class="sub">jml-fleet-approver</span></span></div>
               <span class="status ok">HEALTHY</span>
               <div class="bar"><i style="width:88%"></i></div>
               <div class="exp"><span>expires</span><b>727 d</b></div>
               <div class="thumb">SHA-1 <b>—</b></div>
             </div>
-            <div class="cert-tile">
+            <div class="cert-tile" data-agent="provisioner">
               <div class="ag-top"><span class="av" style="color:var(--muted)">⚙</span><span class="name">Provisioner<span class="sub">jml-fleet-provisioner</span></span></div>
               <span class="status ok">HEALTHY</span>
               <div class="bar"><i style="width:60%"></i></div>
               <div class="exp"><span>expires</span><b>412 d</b></div>
               <div class="thumb">SHA-1 <b>—</b></div>
             </div>
-            <div class="cert-tile">
+            <div class="cert-tile" data-agent="auditor">
               <div class="ag-top"><span class="av">◌</span><span class="name">Auditor<span class="sub">jml-fleet-auditor</span></span></div>
               <span class="status ok">HEALTHY</span>
               <div class="bar"><i style="width:60%"></i></div>

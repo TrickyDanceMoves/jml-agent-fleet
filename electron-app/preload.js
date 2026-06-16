@@ -103,6 +103,7 @@ contextBridge.exposeInMainWorld('api', {
 
   // Feature: Certificate Expiry
   getCertExpiry:  ()   => ipcRenderer.send('get-cert-expiry'),
+  rotateAgentCertificate: (agent, whatif) => ipcRenderer.invoke('rotate-agent-certificate', { agent, whatif }),
   onCertExpiry:   (cb) => ipcRenderer.on('cert-expiry', (_, d) => cb(d)),
 
   // Feature: SoD Tester
