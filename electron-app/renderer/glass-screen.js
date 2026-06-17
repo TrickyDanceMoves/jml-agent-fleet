@@ -130,6 +130,7 @@
     replaying: false,
     replayDone: false,
     recentExpanded: false,   // "show all runs" toggle for the recent-runs list
+    recentFilter: { mode: 'all', outcome: 'all' },  // recent-runs filters
     lastRenderedStageKey: null,
     replayTimers: [],
     elapsedTimer: null,
@@ -352,7 +353,11 @@
     const hintEl = (typeof document !== 'undefined') ? document.querySelector('.gs-recent-hint') : null;
     if (hintEl) hintEl.style.display = vm.recent.length ? '' : 'none';
     if (!vm.recent.length) {
-      list.innerHTML = '<div class="gs-recent-empty">No completed runs yet — live actions will appear here automatically.</div>';
+      const f = glassScreenState.recentFilter;
+      const filtered = f && (f.mode !== 'all' || f.outcome !== 'all');
+      list.innerHTML = filtered
+        ? '<div class="gs-recent-empty">No runs match this filter.</div>'
+        : '<div class="gs-recent-empty">No completed runs yet — live actions will appear here automatically.</div>';
       return;
     }
     list.innerHTML = vm.recent.map(r => `
@@ -451,6 +456,7 @@
       operations: glassScreenState.operations,
       selectedId: glassScreenState.selectedId,
       recentLimit: glassScreenState.recentExpanded ? Infinity : 3,
+      recentFilter: glassScreenState.recentFilter,
     });
 
     hero.dataset.mode = vm.mode;
@@ -690,6 +696,17 @@
   if (typeof document !== 'undefined') {
     document.getElementById('gs-replay')?.addEventListener('click', runReplay);
     document.getElementById('gs-view-audit')?.addEventListener('click', () => goTab('audit-log'));
+    document.getElementById('gs-recent-filters')?.addEventListener('click', (e) => {
+      const chip = e.target.closest('.gs-filter-chip');
+      const group = chip && chip.closest('.gs-filter-group');
+      if (!chip || !group) return;
+      const dim = group.dataset.filter; // 'mode' | 'outcome'
+      if (glassScreenState.recentFilter[dim] === chip.dataset.val) return;
+      glassScreenState.recentFilter[dim] = chip.dataset.val;
+      group.querySelectorAll('.gs-filter-chip').forEach(c => c.classList.toggle('active', c === chip));
+      glassScreenState.recentExpanded = false; // collapse "show all" when the filter changes
+      render();
+    });
   }
 
   const api = {

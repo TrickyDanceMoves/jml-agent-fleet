@@ -456,9 +456,20 @@
   // the page relaxes to FLEET READY.
   const RECENT_HOLD_MS = 10 * 60 * 1000;
 
-  function buildGlassScreenViewModel({ operations = [], selectedId = null, now = Date.now(), recentLimit = 3 } = {}) {
+  // Recent-runs filter: by write mode (live/safe) and/or outcome. Applies only
+  // to the recent list — the live hero always reflects the active operation.
+  function matchesRecentFilter(op, f) {
+    if (!f) return true;
+    if (f.mode === 'live' && op.whatif) return false;
+    if (f.mode === 'safe' && !op.whatif) return false;
+    if (f.outcome && f.outcome !== 'all' && outcomeKey(op) !== f.outcome) return false;
+    return true;
+  }
+
+  function buildGlassScreenViewModel({ operations = [], selectedId = null, now = Date.now(), recentLimit = 3, recentFilter = null } = {}) {
     const active = selectActiveOperation(operations);
-    const allTerminal = recentTerminalOperations(operations, Infinity);
+    let allTerminal = recentTerminalOperations(operations, Infinity);
+    if (recentFilter) allTerminal = allTerminal.filter(o => matchesRecentFilter(o, recentFilter));
     const recentOps = allTerminal.slice(0, recentLimit);
 
     let mode;

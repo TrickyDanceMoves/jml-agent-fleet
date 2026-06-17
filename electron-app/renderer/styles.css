@@ -6184,6 +6184,19 @@ html[data-theme="glass"] .tool-result-drawer {
 .gs-legend-glyph[data-outcome="failed"]  { color: var(--coral); }
 .gs-recent-hint { padding: 0 4px 6px; font-size: 11px; color: var(--muted); }
 .gs-recent-hint b { color: var(--text-2); font-weight: 600; }
+.gs-recent-filters { display: flex; gap: 12px; padding: 0 4px 8px; flex-wrap: wrap; }
+.gs-filter-group {
+  display: inline-flex; gap: 2px; padding: 2px;
+  background: color-mix(in oklch, var(--bg-2) 50%, transparent);
+  border: 1px solid var(--border); border-radius: 8px;
+}
+.gs-filter-chip {
+  padding: 3px 11px; border: none; background: none; cursor: pointer;
+  font-family: var(--mono); font-size: 10.5px; line-height: 1.4; color: var(--muted);
+  border-radius: 6px; transition: background 120ms ease, color 120ms ease;
+}
+.gs-filter-chip:hover { color: var(--text-2); }
+.gs-filter-chip.active { background: color-mix(in oklch, var(--cyan-dim) 22%, transparent); color: var(--cyan); }
 .gs-recent-runs { display: flex; flex-direction: column; }
 /* Expanded "show all runs" view: cap height and scroll so a long history
    doesn't push the rest of the screen off. */
