@@ -1093,6 +1093,16 @@ function emitApprovalQueued(input, stage, token) {
   if (win && !win.isDestroyed()) win.webContents.send('operation-status', op);
 }
 
+// Once an admin approves, the queued run continues like a normal execution —
+// flip it to 'running' so the Glass Screen pipeline advances to Execute.
+function markApprovalRunning(token) {
+  const base = activeOperations.get(token);
+  if (!base) return;
+  const op = { ...base, status: 'running', updatedAt: new Date().toISOString() };
+  activeOperations.set(token, op);
+  if (win && !win.isDestroyed()) win.webContents.send('operation-status', op);
+}
+
 // Resolve a queued approval's Glass Screen run once an admin approves/rejects.
 function resolveApprovalOperation(token, outcome, error) {
   const base = activeOperations.get(token) || { id: token, agent: 'leaver' };
@@ -1976,6 +1986,7 @@ ipcMain.handle('panel-approve-pending', async (event, { id, writeToken }) => {
     // Separation of duties: admin-only final say + cannot approve own request.
     const gate = approvalGate(op);
     if (!gate.ok) return { ok: false, error: gate.error };
+    markApprovalRunning(id);
     const inp  = op.input || op;
     const tool = (op.tool || '').toLowerCase();
     let raw;
@@ -2123,6 +2134,7 @@ ipcMain.on('approve-pending', async (event, payload) => {
       event.sender.send('approve-result', { ok: false, error: gate.error });
       return;
     }
+    markApprovalRunning(id);
 
     const inp  = op.input || op;
     const tool = (op.tool || '').toLowerCase();
@@ -2299,7 +2311,18 @@ ipcMain.on('run-certification', async (event, { campaignType, whatif }) => {
       .filter(l => /\[Certifier\]/.test(l))
       .map(l => l.replace(/^\[\d{2}:\d{2}:\d{2}\] /, '').trim());
     const parsed = _parseMultilineJson(raw, 'No certification campaign output');
-    const campaigns = Array.isArray(parsed) ? parsed : [];
+    const rawCamps = Array.isArray(parsed) ? parsed
+      : (parsed && Array.isArray(parsed.campaigns)) ? parsed.campaigns : [];
+    // The certifier emits { campaign, groupId, reviewId, name }; map it to the
+    // schema the renderer expects so campaigns don't render as "unknown".
+    const campaigns = rawCamps.map(c => ({
+      ...c,
+      id:              c.reviewId || c.id || c.groupId || null,
+      displayName:     c.name || c.displayName || c.reviewId || 'Access review',
+      type:            c.campaign || c.type || campaignType || 'user-groups',
+      status:          c.status || (whatif ? 'preview' : 'active'),
+      createdDateTime: c.createdDateTime || c.createdAt || new Date().toISOString(),
+    }));
     event.sender.send('certification-result', { ok: true, campaigns, lines });
   } catch (err) {
     event.sender.send('certification-result', { ok: false, error: err.message, campaigns: [], lines: [] });

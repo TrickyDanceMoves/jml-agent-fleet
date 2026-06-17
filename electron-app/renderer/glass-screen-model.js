@@ -264,6 +264,12 @@
     if (!operation) return 'No active operation';
     const agent = String(operation.agent || '').toLowerCase();
     const stage = String(operation.stage || '').toLowerCase();
+    // Certifier subjects are often raw group GUIDs — keep the title readable.
+    if (agent === 'certifier') {
+      const subj = subjectName(operation);
+      const isGuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(subj);
+      return isGuid ? 'Access review' : `Access review · ${subj}`;
+    }
     let verb = AGENT_ACTIONS[agent] || 'Processing';
     if (agent === 'leaver' && stage === 'hard') verb = 'Removing access for';
     if (agent === 'mover') verb = 'Moving';
@@ -417,6 +423,7 @@
     provisioner: 'Provisioned licenses and group access',
     enroller: 'Enrolled the credential',
     mover: 'Applied manager and group changes',
+    certifier: 'Recertified group access',
   };
 
   function leaverDoneSummary(stage) {
@@ -475,14 +482,17 @@
     let mode;
     let operation;
     let recentHold = false;
-    if (active) {
-      // Live always wins — a fresh live operation interrupts any historical
-      // replay the user had selected.
+    const selectedOp = selectedId ? (operations.find(o => o && o.id === selectedId) || null) : null;
+    const activeIsRunning = active && normalizeStatus(active) === 'running';
+    if (active && (activeIsRunning || !selectedOp)) {
+      // A running operation always owns the page. An awaiting-approval op owns
+      // it only while the operator hasn't picked a historical run to replay —
+      // so a pending approval no longer blocks Replay.
       mode = 'live';
       operation = active;
-    } else if (selectedId) {
-      operation = operations.find(o => o && o.id === selectedId) || null;
-      mode = operation ? 'replay' : 'idle';
+    } else if (selectedOp) {
+      operation = selectedOp;
+      mode = 'replay';
     } else {
       mode = 'idle';
       operation = recentOps[0] || null;
