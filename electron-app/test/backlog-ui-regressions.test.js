@@ -41,3 +41,22 @@ test('integration config supports SIEM and ITSM/HRIS connectors beyond the origi
     assert.match(app, new RegExp(`${key}:\\s*\\{`), `${key} missing in renderer fields`);
   }
 });
+
+test('destructive leaver approvals enforce admin-only final say + separation of duties', () => {
+  // Shared gate: fail-closed to admin, and the requester cannot self-approve.
+  assert.match(main, /function approvalGate/);
+  assert.match(main, /requiredApproverRole \|\| 'admin'/);
+  assert.match(main, /Separation of duties/);
+  // Both approval surfaces (console + overlay/docked) run through the gate.
+  assert.match(main, /const gate = approvalGate\(op\)/);
+  assert.equal((main.match(/approvalGate\(op\)/g) || []).length >= 2, true,
+    'approvalGate must guard both approve-pending and panel-approve-pending');
+  // Non-admin Hard/Both quick leavers are queued for admin, never executed.
+  assert.match(main, /_stg === 'Hard' \|\| _stg === 'Both'/);
+});
+
+test('queued approvals surface on the Glass Screen as awaiting-approval runs', () => {
+  assert.match(main, /function emitApprovalQueued/);
+  assert.match(main, /status: 'awaiting-approval'/);
+  assert.match(main, /function resolveApprovalOperation/);
+});

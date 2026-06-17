@@ -1077,7 +1077,50 @@ function routeBlockedLeaverToApproval(input, stage, reason, requiredApproverRole
   };
   fs.writeFileSync(path.join(PENDING_DIR, token + '.json'), JSON.stringify(record, null, 2), 'utf8');
   sendToast('Admin Approval Required', (input.userPrincipalName || 'User') + ' queued for admin sign-off.');
+  emitApprovalQueued(input, stage, token);
   return token;
+}
+
+// Surface a queued approval on the Glass Screen as an awaiting-approval run.
+function emitApprovalQueued(input, stage, token) {
+  const op = {
+    id: token, agent: 'leaver', toolName: 'submit_leaver_' + String(stage).toLowerCase(),
+    stage, subject: input.userPrincipalName, operator: currentOperator, whatif: false,
+    status: 'awaiting-approval', requestedByRole: currentRole,
+    startedAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
+  };
+  activeOperations.set(token, op);
+  if (win && !win.isDestroyed()) win.webContents.send('operation-status', op);
+}
+
+// Resolve a queued approval's Glass Screen run once an admin approves/rejects.
+function resolveApprovalOperation(token, outcome, error) {
+  const base = activeOperations.get(token) || { id: token, agent: 'leaver' };
+  activeOperations.delete(token);
+  const op = {
+    ...base,
+    status: outcome === 'success' ? 'succeeded' : 'failed',
+    outcome, error: error || null,
+    updatedAt: new Date().toISOString(), completedAt: new Date().toISOString(),
+  };
+  persistOperation(op);
+  if (win && !win.isDestroyed()) win.webContents.send('operation-status', op);
+}
+
+// Separation-of-duties gate for approving a queued request. The approver must
+// hold the required role (admin for destructive leavers) AND must not be the
+// operator who requested it. Enforced on EVERY approval surface (console,
+// docked panel, overlay). Returns { ok } or { ok:false, error }.
+function approvalGate(op) {
+  const reqRole   = String(op.requiredApproverRole || 'admin').toLowerCase();
+  const actorRole = (currentRole || 'viewer').toLowerCase();
+  if (reqRole === 'admin' && actorRole !== 'admin') {
+    return { ok: false, error: 'Admin approval required — a helpdesk operator cannot give final sign-off on this offboarding.' };
+  }
+  if (op.requestedBy && currentOperator && String(op.requestedBy) === String(currentOperator)) {
+    return { ok: false, error: 'Separation of duties — you submitted this request, so a different admin must approve it.' };
+  }
+  return { ok: true };
 }
 
 // Extract and parse JSON from PowerShell stdout that may contain non-JSON
@@ -1323,13 +1366,14 @@ async function executeTool(agent, toolName, input, whatif) {
       // Helpdesk operators cannot execute Hard leavers directly — always route to admin approval.
       // Soft leavers pass through with OperatorRole check; the PS1 blocks further if user
       // holds privileged roles and returns the BLOCKED sentinel.
-      if (currentRole === 'helpdesk' && _stage === 'Hard' && !w) {
+      const _isAdmin = (currentRole || 'viewer').toLowerCase() === 'admin';
+      if (!_isAdmin && _stage === 'Hard' && !w) {
         const _tok = routeBlockedLeaverToApproval(input, _stage,
-          'Hard-stage leaver (license + group removal) submitted by helpdesk — admin sign-off required before execution.',
+          `Hard-stage leaver (license + group removal) submitted by ${currentRole || 'operator'} — admin sign-off required before execution.`,
           'admin');
         return { approvalQueued: true, token: _tok, message: 'Hard-stage leavers require admin approval. Request queued — an admin operator must approve from the Approvals tab.' };
       }
-      if (currentRole === 'helpdesk' && _stage === 'Hard' && w) {
+      if (!_isAdmin && _stage === 'Hard' && w) {
         return { approvalRequired: true, message: 'Hard-stage leavers require admin approval in Live mode. This request would be queued for admin sign-off.' };
       }
       try {
@@ -1929,6 +1973,9 @@ ipcMain.handle('panel-approve-pending', async (event, { id, writeToken }) => {
     const file = path.join(PENDING_DIR, id + '.json');
     if (!fs.existsSync(file)) return { ok: false, error: 'Request not found' };
     const op   = readJson(file);
+    // Separation of duties: admin-only final say + cannot approve own request.
+    const gate = approvalGate(op);
+    if (!gate.ok) return { ok: false, error: gate.error };
     const inp  = op.input || op;
     const tool = (op.tool || '').toLowerCase();
     let raw;
@@ -1944,10 +1991,12 @@ ipcMain.handle('panel-approve-pending', async (event, { id, writeToken }) => {
     }
     parsePs1Output(raw);
     fs.unlinkSync(file);
+    resolveApprovalOperation(id, 'success');
     sendToast('Approval Executed', (inp.userPrincipalName || id) + ' completed successfully.');
     setTimeout(pollTrayApprovals, 400);
     return { ok: true, upn: inp.userPrincipalName };
   } catch (err) {
+    resolveApprovalOperation(id, 'failed', err.message);
     sendToast('Approval Failed', err.message);
     return { ok: false, error: err.message };
   }
@@ -1965,6 +2014,7 @@ ipcMain.handle('panel-reject-pending', (_, { id }) => {
     let upn = '';
     try { upn = readJson(file).input?.userPrincipalName || ''; } catch {}
     if (fs.existsSync(file)) fs.unlinkSync(file);
+    resolveApprovalOperation(id, 'failed', 'Rejected by ' + (currentOperator || 'an admin') + ' — no tenant change.');
     sendToast('Approval Rejected', (upn || id) + ' rejected and removed from the queue.');
     setTimeout(pollTrayApprovals, 400);
     return { ok: true, upn };
@@ -2066,11 +2116,11 @@ ipcMain.on('approve-pending', async (event, payload) => {
     if (!fs.existsSync(file)) { event.sender.send('approve-result', { ok: false, error: 'Not found' }); return; }
     const op   = readJson(file);
 
-    // Role gate: if the pending record requires admin, only admin can approve
-    const reqRole = op.requiredApproverRole || 'helpdesk';
-    const actorRole = (currentRole || 'viewer').toLowerCase();
-    if (reqRole === 'admin' && actorRole !== 'admin') {
-      event.sender.send('approve-result', { ok: false, error: 'Insufficient role — this action requires an admin operator to approve.' });
+    // Separation of duties: admin-only final say (fail closed) + cannot
+    // approve your own request. Enforced identically on every approval surface.
+    const gate = approvalGate(op);
+    if (!gate.ok) {
+      event.sender.send('approve-result', { ok: false, error: gate.error });
       return;
     }
 
@@ -2089,9 +2139,11 @@ ipcMain.on('approve-pending', async (event, payload) => {
     }
     const result = parsePs1Output(raw);
     fs.unlinkSync(file);
+    resolveApprovalOperation(id, 'success');
     sendToast('Approval Executed', (inp.userPrincipalName || 'Operation') + ' leaver completed successfully.');
     event.sender.send('approve-result', { ok: true, result });
   } catch (err) {
+    resolveApprovalOperation(id, 'failed', err.message);
     sendToast('Approval Failed', err.message);
     event.sender.send('approve-result', { ok: false, error: err.message });
   }
@@ -2108,6 +2160,7 @@ ipcMain.on('reject-pending', (event, { id }) => {
     let upn = '';
     try { upn = readJson(file).input?.userPrincipalName || ''; } catch {}
     if (fs.existsSync(file)) fs.unlinkSync(file);
+    resolveApprovalOperation(id, 'failed', 'Rejected by ' + (currentOperator || 'an admin') + ' — no tenant change.');
     sendToast('Approval Rejected', (upn || 'Request') + ' was rejected and removed from the queue.');
     event.sender.send('reject-result', { ok: true });
   } catch (err) {
@@ -5174,6 +5227,18 @@ ipcMain.on('run-quick-leaver', async (event, payload) => {
   }
   if (!requireWriteToken(event, payload, 'quick-op-result')) return;
   const { upn, stage, reason, whatif } = payload || {};
+  const _stg = stage || 'Soft';
+  // Destructive offboards (Hard / Both) require an admin's final say. A non-admin
+  // running one in Live mode queues it for admin approval instead of executing.
+  if (!whatif && (_stg === 'Hard' || _stg === 'Both') && (currentRole || 'viewer').toLowerCase() !== 'admin') {
+    const tok = routeBlockedLeaverToApproval(
+      { userPrincipalName: upn, ticketRef: reason }, _stg,
+      `${_stg}-stage leaver submitted by ${currentRole || 'operator'} — admin approval required before execution.`,
+      'admin');
+    event.sender.send('quick-op-result', { type: 'leaver', approvalQueued: true, token: tok,
+      lines: [`[APPROVAL] ${_stg} offboard requires an admin's final approval — request queued for an admin operator.`] });
+    return;
+  }
   try {
     const raw    = await runPsAsync(path.join(AGENTS_DIR, 'leaver', 'Invoke-LeaverProcess.ps1'), {
       UserPrincipalName: upn, Stage: stage || 'Soft',
