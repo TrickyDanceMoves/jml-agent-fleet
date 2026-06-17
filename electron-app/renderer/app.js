@@ -4634,7 +4634,7 @@ document.getElementById('btn-notif-add')?.addEventListener('click', () => {
       await new Promise(resolve => {
         const poll = setInterval(async () => {
           const s = await window.api.checkDeviceCodeStatus();
-          if (s.deviceCode) statusEl.textContent = `Sign in at https://microsoft.com/devicelogin with code: ${s.deviceCode}`;
+          if (s.deviceCode) statusEl.textContent = `Sign in at ${s.verificationUrl || 'https://microsoft.com/devicelogin'} with code: ${s.deviceCode}`;
           if (s.verificationUrl && typeof window.api?.openExternal === 'function') {
             window.api.openExternal(s.verificationUrl);
           }
