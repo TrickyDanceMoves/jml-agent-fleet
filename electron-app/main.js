@@ -2640,7 +2640,23 @@ let win;
 let operatorWin;
 let setupWin;
 let currentOperator = os.userInfo().username;
-let currentRole     = 'admin';
+// Fail closed: no authenticated session means no privileges. A real role is
+// granted only by a server-verified sign-in (Entra device-code or PIN). The
+// OOBE bootstrap guards explicitly allow the null (pre-session) case, and all
+// RBAC checks coerce null → viewer via `(currentRole || 'viewer')`.
+let currentRole     = null;
+// Server-verified operator→role bindings, populated only by authenticated
+// sign-ins. select-operator/switch-operator derive the session role from here
+// (plus operators.json) instead of trusting a renderer-supplied role.
+const _verifiedRoles = new Map();
+function deriveSessionRole(name) {
+  if (!name) return 'viewer';
+  if (_verifiedRoles.has(name)) return _verifiedRoles.get(name);
+  try {
+    const ops = readJson(OPERATORS_FILE).operators || {};
+    return ops[name] || ops[String(name).split('@')[0]] || 'viewer';
+  } catch { return 'viewer'; }
+}
 
 function isFirstRun() {
   try {
@@ -2737,8 +2753,9 @@ ipcMain.handle('get-operators-for-login', () => {
 });
 
 ipcMain.handle('get-current-operator', () => {
-  if (!currentRole) currentRole = 'viewer';
-  return { name: currentOperator, role: currentRole };
+  // Report viewer for display when no session is active, but DON'T persist it —
+  // mutating currentRole here would defeat the null (pre-session) OOBE guards.
+  return { name: currentOperator, role: currentRole || 'viewer' };
 });
 
 // Decode a JWT payload (no signature check — used only to read non-sensitive
@@ -2881,6 +2898,11 @@ ipcMain.on('entra-signin-start', async (event) => {
     const tenantRole = await entraDirectoryAppRole(token);
     const role = (tenantRole && (APP_ROLE_RANK[tenantRole] || 0) > (APP_ROLE_RANK[localRole] || 0))
       ? tenantRole : localRole;
+    // Bind this verified identity → role so select-operator grants it server-side
+    // (covers tenant admins auto-elevated via directory role, not in operators.json).
+    _verifiedRoles.set(upn, role);
+    if (me.displayName) _verifiedRoles.set(me.displayName, role);
+    _verifiedRoles.set(upn.split('@')[0], role);
 
     // Auto-connect the tenant when none was configured: read the tenant id from
     // the sign-in token (id_token `tid`) and persist it so the console is now
@@ -2903,19 +2925,20 @@ ipcMain.on('entra-signin-start', async (event) => {
   }
 });
 
-ipcMain.on('select-operator', (event, { name, role }) => {
+ipcMain.on('select-operator', (event, { name }) => {
   currentOperator = name;
-  currentRole     = role || 'viewer';
+  // Role comes from server-verified state + operators.json, never the payload.
+  currentRole     = deriveSessionRole(name);
   process.env.JML_CONSOLE_OPERATOR = name;
   if (operatorWin && !operatorWin.isDestroyed()) { operatorWin.close(); operatorWin = null; }
   if (!win) createMainWindow();
 });
 
-ipcMain.on('switch-operator', (event, { name, role }) => {
+ipcMain.on('switch-operator', (event, { name }) => {
   currentOperator = name;
-  currentRole     = role || 'viewer';
+  currentRole     = deriveSessionRole(name);
   process.env.JML_CONSOLE_OPERATOR = name;
-  if (win && !win.isDestroyed()) win.webContents.send('operator-switched', { name, role });
+  if (win && !win.isDestroyed()) win.webContents.send('operator-switched', { name, role: currentRole });
 });
 
 // ── Operator authentication (PIN / Windows) — gates write-mode operations ────
@@ -3311,6 +3334,11 @@ ipcMain.handle('deploy-agent-certificates', async (event, { agents }) => {
       results.push({ agent, ok: false, error: 'no ClientId in config.json — run Step 2 first' });
       continue;
     }
+    // Defense-in-depth: only a well-formed GUID may reach the Graph $filter below.
+    if (!/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(String(resolvedClientId))) {
+      results.push({ agent, ok: false, error: 'ClientId is not a valid GUID — refusing to query Graph' });
+      continue;
+    }
 
     // One synchronous PowerShell call per agent. Runs under the already-
     // authenticated MgGraph session established by spawnSigninProcess().
@@ -3500,6 +3528,11 @@ ipcMain.handle('verify-operator-pin', (event, { user, pin }) => {
     return { ok: false };
   }
   logOperatorActivity('pin.verify.ok', { target: user, mode: entry.mode });
+  // Bind this PIN-verified operator → role so select-operator grants it server-side.
+  try {
+    const ops = readJson(OPERATORS_FILE).operators || {};
+    _verifiedRoles.set(user, ops[user] || ops[String(user).split('@')[0]] || 'viewer');
+  } catch {}
   // Mint a write token the renderer can attach to subsequent write IPC calls
   const token = mintWriteToken(user);
   return { ok: true, writeToken: token, ttlMs: WRITE_TOKEN_TTL_MS };
@@ -3864,6 +3897,13 @@ function seedDemoData(w) {
 // (Users search, Security re-scan, Audit refresh, HR queue, live ops) never hit
 // Graph/Azure in a demo.
 function installDemoHandlers() {
+  // Fail closed: these handlers seed mock data and (in capture) elevate the
+  // session to admin. They must NEVER register on a normal production launch.
+  if (!(PRESENTATION_MODE || DEMO_STATE_MODE || DEMO_DRIVE_MODE || HACKATHON_CAPTURE_MODE ||
+        CAPTURE_MODE || CAPTURE_CHROME_MODE || GLASS_CAPTURE_MODE)) {
+    console.warn('installDemoHandlers() called without a demo/capture flag — ignoring for safety.');
+    return;
+  }
   // Override every fetch the renderer makes on a timer or on tab-activation, so
   // the seed is never overwritten by an empty live response.
   for (const ch of ['search-users', 'get-security-reports', 'get-audit-log', 'get-hr-queue',
