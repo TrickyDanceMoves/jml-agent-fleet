@@ -444,8 +444,10 @@
       subject: subjectName(operation),
       summary: recentSummaryFor(operation),
       agent: operation.agent ? String(operation.agent).toUpperCase() : '—',
+      operator: operation.operator ? String(operation.operator).split('@')[0] : '—',
       mode: operation.whatif ? 'Safe' : 'Live',
       relative: relativeTime(operation, now),
+      when: timeOf(operation) ? new Date(timeOf(operation)).toLocaleString() : '',
     };
   }
 

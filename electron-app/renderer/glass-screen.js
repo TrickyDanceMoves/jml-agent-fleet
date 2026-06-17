@@ -352,10 +352,11 @@
       return;
     }
     list.innerHTML = vm.recent.map(r => `
-      <button class="gs-recent-run${r.id && r.id === glassScreenState.selectedId ? ' sel' : ''}" data-op-id="${esc(r.id || '')}">
+      <button class="gs-recent-run${r.id && r.id === glassScreenState.selectedId ? ' sel' : ''}" data-op-id="${esc(r.id || '')}" title="${esc(r.title)}${r.operator && r.operator !== '—' ? ' · by ' + r.operator : ''}${r.when ? ' · ' + r.when : ''}">
         <span class="gs-run-outcome" data-outcome="${esc(r.outcome)}" aria-hidden="true">${STAGE_GLYPHS[r.outcome === 'success' ? 'succeeded' : r.outcome === 'awaiting' ? 'awaiting-approval' : r.outcome] || '✓'}</span>
         <span class="gs-run-title">${esc(r.title)}</span>
         <span class="gs-run-summary">${esc(r.summary || '')}</span>
+        ${r.operator && r.operator !== '—' ? `<span class="gs-run-operator" title="Operator responsible">by ${esc(r.operator)}</span>` : ''}
         <span class="gs-run-rel">${esc(r.relative)}</span>
         <span class="gs-run-agent">${esc(r.agent)}</span>
         <span class="gs-run-mode">${esc(r.mode)}</span>
