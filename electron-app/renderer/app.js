@@ -5067,8 +5067,12 @@ window.api.onAgentHealth((data) => {
             dotEl.className = 'ft-dot muted';
             stateEl.textContent = 'unconfigured';
           } else if (ag.status === 'critical') {
-            dotEl.className = 'ft-dot crit';
-            stateEl.textContent = 'credential expired';
+            // 'critical' covers BOTH an expired credential and a failed last run.
+            // Only call it "credential expired" when the cert is actually past
+            // due; a failed run with a healthy cert is amber "last run failed".
+            const certExpired = ag.daysUntilExpiry !== null && ag.daysUntilExpiry < 0;
+            dotEl.className = certExpired ? 'ft-dot crit' : 'ft-dot warn';
+            stateEl.textContent = certExpired ? 'credential expired' : 'last run failed';
           } else if (ag.status === 'expiring') {
             dotEl.className = 'ft-dot warn';
             stateEl.textContent = 'expiring soon';
