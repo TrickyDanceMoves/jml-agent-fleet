@@ -3165,66 +3165,83 @@ ipcMain.handle('get-operator-activity', (event, { limit }) => {
 // ── Tenant onboarding wizard (device-code sign-in + app reg creation) ──────
 // Track an in-flight Connect-MgGraph process. Sign-in is long-running so it
 // runs in the background and the renderer polls for status.
-let _signinProc = null;
+// Tenant onboarding signs into the TARGET tenant via the OAuth device-code flow
+// over direct HTTPS — the same proven path as operator sign-in. The earlier
+// approach spawned Connect-MgGraph and screen-scraped its console output, which
+// silently hangs on Windows PowerShell 5.1: the device-code line is block-
+// buffered in the redirected stdout pipe while Connect-MgGraph blocks on auth,
+// so the code never reaches the renderer. The token obtained here is handed to
+// the Step-2/Step-3 PowerShell via Connect-MgGraph -AccessToken.
+let _signinProc = null; // identity object for the in-flight flow (abort/supersede)
 let _signinState = { status: 'idle', deviceCode: '', verificationUrl: '', tenantId: '', account: '', error: '' };
+let _wizardToken = null;     // Graph access token for downstream PowerShell steps
+let _wizardTokenExp = 0;
+const WIZARD_GRAPH_CLIENT = '14d82eec-204b-4c2f-b7e8-296a70dab67e'; // Microsoft Graph Command Line Tools (public client)
+const WIZARD_GRAPH_SCOPES = 'Application.ReadWrite.All Directory.ReadWrite.All User.Read.All offline_access openid profile';
 
-function spawnSigninProcess() {
+async function startWizardDeviceCode() {
   assertExternalExecutionAllowed(PRESENTATION_MODE, 'tenant device-code sign-in');
-  const { spawn } = require('child_process');
   _signinState = { status: 'pending', deviceCode: '', verificationUrl: '', tenantId: '', account: '', error: '' };
-  // 6>&1 redirects the Information stream (Write-Host / stream 6) to stdout so
-  // the device-code message from Connect-MgGraph is captured by Node.js.
-  const script = `
-    $ErrorActionPreference = 'Stop'
-    $InformationPreference = 'Continue'
-    try {
-      Import-Module Microsoft.Graph.Authentication -ErrorAction Stop
-      Connect-MgGraph -Scopes "Application.ReadWrite.All","User.Read.All","Directory.ReadWrite.All" -UseDeviceAuthentication -NoWelcome 6>&1
-      $ctx = Get-MgContext
-      @{ status='success'; tenantId=$ctx.TenantId; account=$ctx.Account } | ConvertTo-Json -Compress
-    } catch {
-      @{ status='error'; error=$_.Exception.Message } | ConvertTo-Json -Compress
-    }
-  `;
-  const p = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', script]);
-  let buf = '';
-
-  // Parse the running buffer for device-code info and/or final result.
-  // Called on every chunk from both stdout and stderr.
-  function parseBuf() {
-    if (!_signinState.deviceCode) {
-      // Support both common orderings of the device-code message:
-      //   "…open the page https://…/devicelogin … code XXXXXXXX …"
-      //   "…enter the code XXXXXXXX … https://…/devicelogin …"
-      const m1 = buf.match(/https:\/\/microsoft\.com\/devicelogin[^]*?code\s+([A-Z0-9]{8,})/i);
-      const m2 = buf.match(/code\s+([A-Z0-9]{8,})[^]*?(https:\/\/microsoft\.com\/devicelogin)/i);
-      const code = (m1 && m1[1]) || (m2 && m2[1]);
-      if (code) {
-        _signinState.deviceCode = code;
-        _signinState.verificationUrl = 'https://microsoft.com/devicelogin';
-      }
-    }
-    // Final JSON line marks auth completion
-    const finalLine = buf.split(/\r?\n/).reverse().find(l => l.trim().startsWith('{'));
-    if (finalLine) {
-      try {
-        const j = JSON.parse(finalLine);
-        if (j.status === 'success') {
-          _signinState.status = 'success'; _signinState.tenantId = j.tenantId; _signinState.account = j.account;
-        } else if (j.status === 'error') {
-          _signinState.status = 'error'; _signinState.error = j.error;
+  _wizardToken = null; _wizardTokenExp = 0;
+  const myProc = {};
+  _signinProc = myProc;
+  const aborted = () => _signinProc !== myProc;
+  const form = body => ({ method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams(body).toString() });
+  // Sign into the configured tenant if known, else 'organizations' so any
+  // work/school admin can sign in; the real tenant id is read from the token.
+  const authority = readTenantConfig().tenantId || 'organizations';
+  try {
+    const dc = await (await fetch(`https://login.microsoftonline.com/${authority}/oauth2/v2.0/devicecode`,
+      form({ client_id: WIZARD_GRAPH_CLIENT, scope: WIZARD_GRAPH_SCOPES }))).json();
+    if (!dc.device_code) throw new Error(dc.error_description || 'Could not start device-code sign-in');
+    if (aborted()) return;
+    _signinState.deviceCode = dc.user_code;
+    _signinState.verificationUrl = dc.verification_uri || 'https://microsoft.com/devicelogin';
+    const deadline = Date.now() + (dc.expires_in || 900) * 1000;
+    let interval = Math.max(5, dc.interval || 5) * 1000;
+    while (Date.now() < deadline) {
+      await sleep(interval);
+      if (aborted()) return;
+      const tok = await (await fetch(`https://login.microsoftonline.com/${authority}/oauth2/v2.0/token`,
+        form({ grant_type: 'urn:ietf:params:oauth:grant-type:device_code', client_id: WIZARD_GRAPH_CLIENT, device_code: dc.device_code }))).json();
+      if (tok.access_token) {
+        const claims = decodeJwtClaims(tok.id_token || tok.access_token) || {};
+        let account = claims.preferred_username || '';
+        try {
+          const me = await (await fetch('https://graph.microsoft.com/v1.0/me?$select=userPrincipalName,displayName',
+            { headers: { Authorization: `Bearer ${tok.access_token}` } })).json();
+          account = me.userPrincipalName || me.displayName || account;
+        } catch {}
+        _wizardToken = tok.access_token;
+        _wizardTokenExp = Date.now() + ((tok.expires_in || 3600) - 60) * 1000;
+        _signinState.status = 'success';
+        _signinState.tenantId = claims.tid || '';
+        _signinState.account = account;
+        if (claims.tid && /^[0-9a-f-]{32,36}$/i.test(claims.tid)) {
+          try { writeTenantConfig({ tenantId: claims.tid, primaryDomain: (account.split('@')[1] || '') }); } catch {}
         }
-      } catch (_) { /* partial line – wait for more data */ }
+        return;
+      }
+      if (tok.error === 'authorization_pending') continue;
+      if (tok.error === 'slow_down') { interval += 5000; continue; }
+      throw new Error(tok.error_description || tok.error || 'Sign-in failed');
     }
+    throw new Error('Sign-in timed out — try again');
+  } catch (e) {
+    if (aborted()) return;
+    _signinState.status = 'error';
+    _signinState.error = e.message;
+  } finally {
+    if (_signinProc === myProc) _signinProc = null;
   }
+}
 
-  p.stdout.on('data', d => { buf += d.toString(); parseBuf(); });
-  p.stderr.on('data', d => { buf += d.toString(); parseBuf(); });
-  p.on('close', () => {
-    if (_signinState.status === 'pending') _signinState.status = 'error', _signinState.error = 'signin terminated without result';
-    _signinProc = null;
-  });
-  _signinProc = p;
+// Token guard for the Step-2/Step-3 PowerShell steps that need a Graph session.
+function wizardGraphTokenOrThrow() {
+  if (!_wizardToken || Date.now() > _wizardTokenExp) {
+    throw new Error('Tenant sign-in expired — run Step 1 (sign in) again');
+  }
+  return _wizardToken;
 }
 
 ipcMain.handle('start-device-code-signin', () => {
@@ -3244,8 +3261,8 @@ ipcMain.handle('start-device-code-signin', () => {
   if (currentRole !== null && currentRole !== undefined && currentRole !== 'admin') {
     return { ok: false, error: 'admin required' };
   }
-  if (_signinProc) { try { _signinProc.kill(); } catch (_) {} _signinProc = null; }
-  spawnSigninProcess();
+  _signinProc = null;        // supersede any in-flight flow
+  startWizardDeviceCode();   // runs in the background, updating _signinState
   logOperatorActivity('tenant.wizard.signin.start', {});
   return { ok: true };
 });
@@ -3273,6 +3290,8 @@ ipcMain.handle('create-agent-app-registrations', (event, { agentNames }) => {
     return { ok: false, error: 'admin required' };
   }
   if (_signinState.status !== 'success') return { ok: false, error: 'sign in to the target tenant first' };
+  let wizToken;
+  try { wizToken = wizardGraphTokenOrThrow(); } catch (e) { return { ok: false, error: e.message }; }
   const names = Array.isArray(agentNames) && agentNames.length ? agentNames : AGENT_DIRS;
   const created = []; const errors = [];
   for (const agent of names) {
@@ -3280,11 +3299,12 @@ ipcMain.handle('create-agent-app-registrations', (event, { agentNames }) => {
       const script = `
         $ErrorActionPreference = 'Stop'
         Import-Module Microsoft.Graph.Applications -ErrorAction Stop
+        Connect-MgGraph -AccessToken (ConvertTo-SecureString $env:JML_WIZ_TOKEN -AsPlainText -Force) -NoWelcome
         $app = New-MgApplication -DisplayName "jml-fleet-${agent}"
         $sp = New-MgServicePrincipal -AppId $app.AppId
         @{ agent='${agent}'; appId=$app.AppId; objectId=$app.Id; spId=$sp.Id } | ConvertTo-Json -Compress
       `;
-      const r = spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', script], { encoding: 'utf8', timeout: 30000 });
+      const r = spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', script], { encoding: 'utf8', timeout: 30000, env: { ...process.env, JML_WIZ_TOKEN: wizToken } });
       const out = (r.stdout || '').trim().split(/\r?\n/).reverse().find(l => l.trim().startsWith('{'));
       if (!out) throw new Error(r.stderr || 'no output from New-MgApplication');
       created.push(JSON.parse(out));
@@ -3319,6 +3339,8 @@ ipcMain.handle('deploy-agent-certificates', async (event, { agents }) => {
   if (_signinState.status !== 'success') {
     return { ok: false, error: 'complete device-code sign-in (Step 1) before deploying certificates' };
   }
+  let wizToken;
+  try { wizToken = wizardGraphTokenOrThrow(); } catch (e) { return { ok: false, error: e.message }; }
 
   const agentList = (agents || AGENT_DIRS).map(a => typeof a === 'string'
     ? { agent: a, clientId: null }
@@ -3340,14 +3362,15 @@ ipcMain.handle('deploy-agent-certificates', async (event, { agents }) => {
       continue;
     }
 
-    // One synchronous PowerShell call per agent. Runs under the already-
-    // authenticated MgGraph session established by spawnSigninProcess().
+    // One synchronous PowerShell call per agent. Connects with the wizard's
+    // device-code access token (passed via the JML_WIZ_TOKEN env var).
     const escaped = agent.replace(/[^a-z0-9-]/gi, '');
     const agentsRoot = AGENTS_DIR.replace(/\\/g, '\\\\');
     const script = `
 $ErrorActionPreference = 'Stop'
 try {
   Import-Module Microsoft.Graph.Applications -ErrorAction Stop
+  Connect-MgGraph -AccessToken (ConvertTo-SecureString $env:JML_WIZ_TOKEN -AsPlainText -Force) -NoWelcome
   $certSubject = 'CN=JML-${escaped}'
   # Remove any previous cert with this subject so we don't accumulate stale ones
   Get-ChildItem Cert:\\CurrentUser\\My | Where-Object { $_.Subject -eq $certSubject } | Remove-Item -Force -ErrorAction SilentlyContinue
@@ -3383,7 +3406,7 @@ try {
 
     const { spawnSync } = require('child_process');
     const r = spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', script], {
-      encoding: 'utf8', timeout: 60000,
+      encoding: 'utf8', timeout: 60000, env: { ...process.env, JML_WIZ_TOKEN: wizToken },
     });
     const lastLine = (r.stdout || '').trim().split(/\r?\n/).reverse().find(l => l.trim().startsWith('{'));
     if (!lastLine) {
