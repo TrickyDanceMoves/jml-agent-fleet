@@ -2653,7 +2653,22 @@ ipcMain.on('window-close', () => {
   if (!dockedWin || dockedWin.isDestroyed()) { createDockedPanel(); }
   else if (!dockedWin.isVisible()) { dockedWin.show(); }
 });
+// Wipe the previous operator's chat transcript from memory and every chat
+// surface when the operator changes — no session should inherit another
+// operator's conversation. Clears both the agent message state and the
+// overlay/docked display history, then tells each window to reset its UI.
+function resetConversationsForOperatorChange() {
+  for (const agent of ['approver', 'auditor']) {
+    if (state[agent]) state[agent].messages = [];
+    _convHistory[agent] = [];
+  }
+  for (const w of [win, overlayWin, dockedWin]) {
+    if (w && !w.isDestroyed()) { try { w.webContents.send('conversation-reset'); } catch {} }
+  }
+}
+
 ipcMain.on('sign-out', () => {
+  resetConversationsForOperatorChange();
   currentOperator = null;
   currentRole     = 'viewer';
   if (win && !win.isDestroyed()) { win.close(); win = null; }
@@ -2956,18 +2971,22 @@ ipcMain.on('entra-signin-start', async (event) => {
 });
 
 ipcMain.on('select-operator', (event, { name }) => {
+  const changed = name !== currentOperator;
   currentOperator = name;
   // Role comes from server-verified state + operators.json, never the payload.
   currentRole     = deriveSessionRole(name);
   process.env.JML_CONSOLE_OPERATOR = name;
+  if (changed) resetConversationsForOperatorChange();
   if (operatorWin && !operatorWin.isDestroyed()) { operatorWin.close(); operatorWin = null; }
   if (!win) createMainWindow();
 });
 
 ipcMain.on('switch-operator', (event, { name }) => {
+  const changed = name !== currentOperator;
   currentOperator = name;
   currentRole     = deriveSessionRole(name);
   process.env.JML_CONSOLE_OPERATOR = name;
+  if (changed) resetConversationsForOperatorChange();
   if (win && !win.isDestroyed()) win.webContents.send('operator-switched', { name, role: currentRole });
 });
 

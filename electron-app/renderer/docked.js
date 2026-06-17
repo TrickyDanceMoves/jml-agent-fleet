@@ -1211,6 +1211,16 @@ document.querySelectorAll('.ac-tab').forEach(tab => {
   });
 });
 
+// Operator changed — drop the previous user's chat and reset to the default tab.
+if (window.panelApi.onConversationReset) {
+  window.panelApi.onConversationReset(() => {
+    _chatAgent = 'approver';
+    document.querySelectorAll('.ac-tab').forEach(t => t.classList.toggle('active', t.dataset.agent === 'approver'));
+    _chatMsgEl = null;
+    acThread.innerHTML = '<div class="ac-empty">Ask the agent anything…</div>';
+  });
+}
+
 function acScrollBottom() {
   acThread.scrollTop = acThread.scrollHeight;
 }

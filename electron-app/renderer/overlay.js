@@ -131,6 +131,16 @@ ovClr.addEventListener('click', () => {
   window.overlayApi.clearHistory(_agent);
 });
 
+// Operator changed — drop the previous user's transcript entirely and reset
+// to the default agent tab. The server already cleared the stored history.
+if (window.overlayApi.onConversationReset) {
+  window.overlayApi.onConversationReset(() => {
+    clearThread();
+    document.querySelectorAll('.ov-tab').forEach(t => t.classList.toggle('active', t.dataset.agent === 'approver'));
+    _agent = 'approver';
+  });
+}
+
 // ── Agent tabs ────────────────────────────────────────────────────────────────
 document.querySelectorAll('.ov-tab').forEach(tab => {
   tab.addEventListener('click', () => {
