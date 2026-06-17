@@ -507,8 +507,16 @@ function runPsAsync(scriptPath, params = {}) {
       else if (Array.isArray(v))  { args.push('-' + k, v.join(',')); }
       else                        { args.push('-' + k, String(v)); }
     }
-    execFile('powershell', args, { encoding: 'utf8', timeout: 120000 }, (err, stdout) => {
-      if (err) { err.stdout = stdout; reject(err); } else resolve(stdout);
+    execFile('powershell', args, { encoding: 'utf8', timeout: 120000 }, (err, stdout, stderr) => {
+      if (err) {
+        err.stdout = stdout;
+        err.stderr = stderr;
+        // Surface the script's real failure reason ("User not found: …") instead
+        // of the generic "Command failed: powershell -NonInteractive -File …".
+        const reason = extractPsError(stdout, stderr);
+        if (reason) err.message = reason;
+        reject(err);
+      } else resolve(stdout);
     });
   });
 }
@@ -517,6 +525,28 @@ function runPsAsync(scriptPath, params = {}) {
 // output shown in the UI is clean text, not raw escape codes.
 function stripAnsi(s) {
   return String(s == null ? '' : s).replace(/\x1B\[[0-9;]*[A-Za-z]/g, '').replace(/\x1B\][^\x07]*\x07/g, '');
+}
+
+// Pull a human-readable failure reason out of an agent script's output so the
+// UI can show "User not found: …" instead of the raw command line. The JML
+// agent scripts log "[HH:MM:SS] [ERROR] <message>"; prefer the last such line,
+// then fall back to a PowerShell exception line.
+function extractPsError(stdout, stderr) {
+  const clean = s => stripAnsi(String(s || '')).split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+  const out = clean(stdout);
+  // Prefer the last "[HH:MM:SS] [ERROR] <message>" line the agent scripts emit.
+  for (let i = out.length - 1; i >= 0; i--) {
+    const m = out[i].match(/\[ERROR\]\s*(.+)$/i);
+    if (m) return m[1].trim().slice(0, 240);
+  }
+  // PowerShell exceptions / native errors land on stderr — surface the first
+  // substantive line, dropping positional noise and the "Cmdlet : " prefix.
+  const errLines = clean(stderr).filter(l =>
+    !/^At line:|^\+|^\s*~+\s*$|CategoryInfo|FullyQualifiedErrorId/i.test(l));
+  if (errLines.length) {
+    return errLines[0].replace(/^[A-Za-z0-9_.-]+ : /, '').trim().slice(0, 240);
+  }
+  return '';
 }
 
 // Async inline-PowerShell runner. Query/search IPC handlers must use this
