@@ -40,7 +40,9 @@
   // A live (running / awaiting approval) update interrupts any historical
   // replay the user had selected; terminal updates never steal the page.
   function liveOperationInterruptsReplay(selectedId, operation) {
-    return Boolean(selectedId) && model.isActiveOperation(operation);
+    // Only a genuinely running operation interrupts a replay. A new pending
+    // approval is not "live" — it shouldn't yank the operator out of a replay.
+    return Boolean(selectedId) && model.normalizeStatus(operation) === 'running';
   }
 
   function sanitizeRaw(text, max = 600) {

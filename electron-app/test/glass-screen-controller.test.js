@@ -63,9 +63,10 @@ test('terminal update removes the active state and preserves history', () => {
   assert.equal(merged[0].status, 'failed');
 });
 
-test('new running operation interrupts replay selection', () => {
+test('a running operation interrupts replay; a pending approval does not', () => {
   assert.equal(liveOperationInterruptsReplay('op-old', op({ id: 'op-new', status: 'running' })), true);
-  assert.equal(liveOperationInterruptsReplay('op-old', op({ id: 'op-new', status: 'awaiting_approval' })), true);
+  // A pending approval is not "live" — it must not yank the operator out of a replay.
+  assert.equal(liveOperationInterruptsReplay('op-old', op({ id: 'op-new', status: 'awaiting_approval' })), false);
 });
 
 test('terminal update does not interrupt replay selection', () => {

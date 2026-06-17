@@ -474,28 +474,37 @@
   }
 
   function buildGlassScreenViewModel({ operations = [], selectedId = null, now = Date.now(), recentLimit = 3, recentFilter = null } = {}) {
-    const active = selectActiveOperation(operations);
-    let allTerminal = recentTerminalOperations(operations, Infinity);
-    if (recentFilter) allTerminal = allTerminal.filter(o => matchesRecentFilter(o, recentFilter));
-    const recentOps = allTerminal.slice(0, recentLimit);
+    // Only a RUNNING operation owns the live hero. A pending approval is not a
+    // "run that's going" — it never dominates the default state; it appears in
+    // the recent-runs list (⏸ held) instead, keeping tab entry clean.
+    const running = operations
+      .filter(o => o && normalizeStatus(o) === 'running')
+      .sort((a, b) => timeOf(b) - timeOf(a))[0] || null;
+    // Recent list = everything not currently running (awaiting, succeeded,
+    // failed, partial), newest first.
+    const nonRunning = operations
+      .filter(o => o && normalizeStatus(o) !== 'running')
+      .sort((a, b) => timeOf(b) - timeOf(a));
+    let recentPool = nonRunning;
+    if (recentFilter) recentPool = recentPool.filter(o => matchesRecentFilter(o, recentFilter));
+    const recentOps = recentPool.slice(0, recentLimit);
 
     let mode;
     let operation;
     let recentHold = false;
     const selectedOp = selectedId ? (operations.find(o => o && o.id === selectedId) || null) : null;
-    const activeIsRunning = active && normalizeStatus(active) === 'running';
-    if (active && (activeIsRunning || !selectedOp)) {
-      // A running operation always owns the page. An awaiting-approval op owns
-      // it only while the operator hasn't picked a historical run to replay —
-      // so a pending approval no longer blocks Replay.
+    if (running) {
+      // A live running op always owns the page (even over a historical selection).
       mode = 'live';
-      operation = active;
+      operation = running;
     } else if (selectedOp) {
       operation = selectedOp;
       mode = 'replay';
     } else {
+      // Idle: clean Fleet Ready, optionally holding the last COMPLETED run for a
+      // short window. Pending approvals are skipped here so they never own the hero.
       mode = 'idle';
-      operation = recentOps[0] || null;
+      operation = nonRunning.find(o => ['succeeded', 'failed', 'partial'].includes(normalizeStatus(o))) || null;
       recentHold = Boolean(operation) && (now - timeOf(operation)) < RECENT_HOLD_MS;
     }
 
@@ -516,7 +525,7 @@
       // no history at all) — either way mapPipeline tells the truth.
       stages: mapPipeline(operation),
       recent: recentOps.map(o => recentRowFor(o, now)),
-      recentTotal: allTerminal.length,
+      recentTotal: nonRunning.length,
     };
   }
 

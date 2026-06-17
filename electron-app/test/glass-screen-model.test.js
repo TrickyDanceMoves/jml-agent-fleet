@@ -71,7 +71,9 @@ test('awaiting approval pauses at Risk with an amber decision', () => {
   const stages = mapPipeline(operation);
   assert.equal(stageState(stages, 'risk'), 'awaiting-approval');
   assert.equal(stageState(stages, 'execute'), 'pending');
-  const vm = buildGlassScreenViewModel({ operations: [operation], now: T0 });
+  // A pending approval owns the hero only when explicitly selected (replay),
+  // not by default — so select it here to assert its presentation.
+  const vm = buildGlassScreenViewModel({ operations: [operation], selectedId: operation.id, now: T0 });
   assert.equal(vm.eyebrow, 'AWAITING APPROVAL');
   assert.match(vm.currentDecision.toLowerCase(), /approv/);
 });
@@ -108,12 +110,23 @@ test('awaiting-approval does not block replaying a selected historical run', () 
   assert.equal(vm.operation.id, 'old-1');
 });
 
-test('awaiting-approval still owns the hero when nothing is selected', () => {
+test('a pending approval never owns the idle hero but is listed in recent runs', () => {
   const awaiting = op({ id: 'app-1', status: 'awaiting-approval' });
-  const past = op({ id: 'old-1', status: 'succeeded', outcome: 'success', updatedAt: new Date(T0 - 9e5).toISOString() });
-  const vm = buildGlassScreenViewModel({ operations: [past, awaiting], now: T0 });
+  const vm = buildGlassScreenViewModel({ operations: [awaiting], now: T0 });
+  // Default tab state stays clean — the pending approval is not the hero.
+  assert.equal(vm.mode, 'idle');
+  assert.equal(vm.eyebrow, 'FLEET READY');
+  assert.equal(vm.operation, null);
+  // …but it is still visible in the recent-runs list (⏸ held).
+  assert.ok(vm.recent.some(r => r.id === 'app-1'), 'pending approval should appear in recent runs');
+});
+
+test('a running operation still owns the hero over a pending approval', () => {
+  const awaiting = op({ id: 'app-1', status: 'awaiting-approval', updatedAt: new Date(T0 - 1000).toISOString() });
+  const live = op({ id: 'run-1', status: 'running', updatedAt: new Date(T0 - 500).toISOString() });
+  const vm = buildGlassScreenViewModel({ operations: [awaiting, live], now: T0 });
   assert.equal(vm.mode, 'live');
-  assert.equal(vm.operation.id, 'app-1');
+  assert.equal(vm.operation.id, 'run-1');
 });
 
 test('selecting history with no active operation enters replay mode', () => {
