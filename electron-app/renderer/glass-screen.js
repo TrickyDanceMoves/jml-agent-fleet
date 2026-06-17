@@ -347,6 +347,10 @@
   function renderRecent(vm) {
     const list = el('gs-recent-runs');
     if (!list) return;
+    const countEl = el('gs-recent-count');
+    if (countEl) countEl.textContent = vm.recentTotal ? '· ' + vm.recentTotal : '';
+    const hintEl = (typeof document !== 'undefined') ? document.querySelector('.gs-recent-hint') : null;
+    if (hintEl) hintEl.style.display = vm.recent.length ? '' : 'none';
     if (!vm.recent.length) {
       list.innerHTML = '<div class="gs-recent-empty">No completed runs yet — live actions will appear here automatically.</div>';
       return;
