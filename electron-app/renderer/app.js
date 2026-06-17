@@ -2686,6 +2686,21 @@ window.api.onDashboardStats((data) => {
           + '</div>';
       }).join('');
     }
+    // 7-Day Telemetry card — License Headroom (previously static placeholder rows).
+    const headEl = document.getElementById('v2-lic-headroom');
+    if (headEl) headEl.textContent = total > 0 ? assigned + ' / ' + total + ' used' : 'no assignable SKUs';
+    const v2BarsEl = document.getElementById('v2-lic-bars');
+    if (v2BarsEl) {
+      const top = real.slice().sort((a, b) => b.assigned - a.assigned).slice(0, 4);
+      v2BarsEl.innerHTML = top.length ? top.map((l, i) => {
+        const pct = l.total > 0 ? Math.round((l.assigned / l.total) * 100) : 0;
+        const cls = pct >= 90 ? 'danger' : pct >= 75 ? 'warn' : 'ok';
+        return '<div class="v2-lic-row"' + (i ? ' style="margin-top:6px"' : '') + '>'
+          + '<div class="lrl"><span>' + escHtml(l.sku) + '</span><span style="color:var(--muted)">' + l.assigned + '/' + l.total + '</span></div>'
+          + '<div class="v2-lic-track"><div class="v2-lic-fill ' + cls + '" style="width:' + pct + '%"></div></div>'
+          + '</div>';
+      }).join('') : '<div class="v2-lic-row"><span style="color:var(--muted);font-size:11px">No assignable license SKUs</span></div>';
+    }
   }
 
   if (data.users)    { _dashState.users    = data.users; }
