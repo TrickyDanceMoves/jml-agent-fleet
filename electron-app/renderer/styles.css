@@ -6174,6 +6174,16 @@ html[data-theme="glass"] .tool-result-drawer {
   padding: 0 4px 4px;
   font-size: 12px; font-weight: 600; color: var(--text-2);
 }
+.gs-recent-count { font-weight: 400; color: var(--muted); font-family: var(--mono); font-size: 11px; }
+.gs-recent-head-right { display: flex; align-items: center; gap: 14px; }
+.gs-legend { display: flex; gap: 10px; align-items: center; }
+.gs-legend-item { display: inline-flex; align-items: center; gap: 4px; font-size: 10px; font-weight: 500; color: var(--muted); letter-spacing: .02em; }
+.gs-legend-glyph { font-size: 11px; line-height: 1; }
+.gs-legend-glyph[data-outcome="success"] { color: var(--ok); }
+.gs-legend-glyph[data-outcome="awaiting"] { color: var(--warn); }
+.gs-legend-glyph[data-outcome="failed"]  { color: var(--coral); }
+.gs-recent-hint { padding: 0 4px 6px; font-size: 11px; color: var(--muted); }
+.gs-recent-hint b { color: var(--text-2); font-weight: 600; }
 .gs-recent-runs { display: flex; flex-direction: column; }
 /* Expanded "show all runs" view: cap height and scroll so a long history
    doesn't push the rest of the screen off. */
@@ -6199,7 +6209,7 @@ html[data-theme="glass"] .tool-result-drawer {
   transition: background 150ms ease;
 }
 .gs-recent-run:hover { background: color-mix(in oklch, var(--bg-2) 70%, transparent); }
-.gs-recent-run.sel { background: color-mix(in oklch, var(--cyan-dim) 14%, transparent); }
+.gs-recent-run.sel { background: color-mix(in oklch, var(--cyan-dim) 14%, transparent); box-shadow: inset 3px 0 0 var(--cyan); }
 .gs-run-outcome { font-size: 12px; width: 16px; flex-shrink: 0; text-align: center; }
 .gs-run-outcome[data-outcome="success"]  { color: var(--ok); }
 .gs-run-outcome[data-outcome="partial"]  { color: var(--warn); }
@@ -6254,6 +6264,7 @@ html[data-theme="glass"] .tool-result-drawer {
   .gs-stage-orb { width: 32px; height: 32px; font-size: 12px; }
   .gs-connector { margin-top: 16px; min-width: 10px; }
   .gs-run-agent { display: none; }
+  .gs-legend { display: none; }
 }
 
 /* ── Reduced motion: state appears immediately ────────────── */

@@ -746,9 +746,17 @@
 
             <section class="card gs-recent-section">
               <div class="gs-section-head">
-                <span>Recent runs</span>
-                <button class="btn-text-link" id="gs-view-audit">View all in Audit Log</button>
+                <span>Recent runs <span class="gs-recent-count" id="gs-recent-count"></span></span>
+                <div class="gs-recent-head-right">
+                  <span class="gs-legend" aria-label="Outcome legend">
+                    <span class="gs-legend-item"><span class="gs-legend-glyph" data-outcome="success">✓</span>done</span>
+                    <span class="gs-legend-item"><span class="gs-legend-glyph" data-outcome="awaiting">⏸</span>held</span>
+                    <span class="gs-legend-item"><span class="gs-legend-glyph" data-outcome="failed">✕</span>failed</span>
+                  </span>
+                  <button class="btn-text-link" id="gs-view-audit">View all in Audit Log</button>
+                </div>
               </div>
+              <div class="gs-recent-hint">Click a run to view its outcome — then <b>Replay</b> to watch it animate.</div>
               <div class="gs-recent-runs" id="gs-recent-runs"></div>
               <button class="gs-recent-expand" id="gs-recent-expand" type="button" hidden aria-expanded="false"></button>
             </section>
