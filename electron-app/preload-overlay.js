@@ -19,5 +19,6 @@ contextBridge.exposeInMainWorld('overlayApi', {
   setMode:            (whatif)   => ipcRenderer.send('panel-set-mode', { whatif }),
   getConversationHistory: (agent) => ipcRenderer.invoke('get-conversation-display', { agent }),
   onMsgMirror: (cb) => ipcRenderer.on('msg-mirror', (_, d) => cb(d)),
+  onConversationReset: (cb) => ipcRenderer.on('conversation-reset', () => cb()),
   appQuit: () => ipcRenderer.send('app-quit'),
 });

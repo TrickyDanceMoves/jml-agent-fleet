@@ -620,6 +620,20 @@ window.api.onHistoryCleared(({ agent }) => {
   if (agent === 'auditor')  audClearState();
 });
 
+// Operator changed — clear both agent transcripts so no previous operator's
+// chat persists into the new session.
+if (window.api.onConversationReset) {
+  window.api.onConversationReset(() => {
+    ['approver', 'auditor'].forEach(agent => {
+      const c = document.getElementById('messages-' + agent);
+      if (c) { c.innerHTML = ''; appendWelcome(agent); }
+    });
+    lcSetIdle();
+    _lastRiskResult = null;
+    audClearState();
+  });
+}
+
 function appendWelcome(agent) {
   const msgs = document.getElementById('messages-' + agent);
   const titles   = { approver: 'Approver Agent', auditor: 'Audit Agent' };

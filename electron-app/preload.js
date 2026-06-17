@@ -136,6 +136,7 @@ contextBridge.exposeInMainWorld('api', {
   selectOperator:       (name, role)   => ipcRenderer.send('select-operator', { name, role }),
   switchOperator:       (name, role)   => ipcRenderer.send('switch-operator',  { name, role }),
   onOperatorSwitched:   (cb)           => ipcRenderer.on('operator-switched',  (_, d) => cb(d)),
+  onConversationReset:  (cb)           => ipcRenderer.on('conversation-reset', () => cb()),
 
   // Operator authentication (PIN / Windows) — for write-access gating
   getOperatorAuth:        ()                  => ipcRenderer.invoke('get-operator-auth'),
