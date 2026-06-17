@@ -757,6 +757,19 @@
                 </div>
               </div>
               <div class="gs-recent-hint">Click a run to view its outcome — then <b>Replay</b> to watch it animate.</div>
+              <div class="gs-recent-filters" id="gs-recent-filters">
+                <div class="gs-filter-group" data-filter="mode" role="group" aria-label="Filter by write mode">
+                  <button class="gs-filter-chip active" data-val="all">All</button>
+                  <button class="gs-filter-chip" data-val="live">Live</button>
+                  <button class="gs-filter-chip" data-val="safe">Safe</button>
+                </div>
+                <div class="gs-filter-group" data-filter="outcome" role="group" aria-label="Filter by outcome">
+                  <button class="gs-filter-chip active" data-val="all">All</button>
+                  <button class="gs-filter-chip" data-val="success" title="Succeeded">✓</button>
+                  <button class="gs-filter-chip" data-val="failed" title="Failed">✕</button>
+                  <button class="gs-filter-chip" data-val="awaiting" title="Awaiting approval">⏸</button>
+                </div>
+              </div>
               <div class="gs-recent-runs" id="gs-recent-runs"></div>
               <button class="gs-recent-expand" id="gs-recent-expand" type="button" hidden aria-expanded="false"></button>
             </section>
