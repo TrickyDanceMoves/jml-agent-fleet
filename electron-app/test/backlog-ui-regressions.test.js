@@ -30,11 +30,9 @@ test('attestation export invokes the evidence export API directly', () => {
   assert.match(app, /attest-dialog-build[\s\S]*?runEvidenceExport/);
 });
 
-test('agent certificates expose one-click Provisioner rotation', () => {
-  assert.match(preload, /rotateAgentCertificate/);
-  assert.match(main, /ipcMain\.handle\('rotate-agent-certificate'/);
-  assert.match(app, /btn-rotate-cert-/);
-  assert.match(app, /window\.api\.rotateAgentCertificate/);
+test('agent certificates table shows a rotate-by date, not a per-row rotate button', () => {
+  assert.match(app, /Rotate by/);
+  assert.doesNotMatch(app, /btn-rotate-cert-/);
 });
 
 test('integration config supports SIEM and ITSM/HRIS connectors beyond the original trio', () => {
