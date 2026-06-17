@@ -3908,6 +3908,8 @@ window.api.onCertificationResult((data) => {
     active:    { cls: 'cert-status-active',    label: 'Active'    },
     completed: { cls: 'cert-status-completed',  label: 'Completed' },
     error:     { cls: 'cert-status-error',      label: 'Error'     },
+    preview:   { cls: 'cert-status-pending',    label: 'Preview'   },
+    pending:   { cls: 'cert-status-pending',    label: 'Pending'   },
   };
   const TYPE_ICONS = {
     'user-groups': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>',
@@ -3948,7 +3950,7 @@ window.api.onCertificationResult((data) => {
       + '<div class="c-info">'
         + '<div class="cert-campaign-header ttl">'
           + '<div class="cert-campaign-type-icon">' + typeIcon + '</div>'
-          + '<div class="cert-campaign-name">' + escHtml(c.displayName || c.id || 'Unnamed Campaign') + '</div>'
+          + '<div class="cert-campaign-name">' + escHtml(c.displayName || c.name || c.id || c.reviewId || 'Access review') + '</div>'
           + '<span class="cert-status-badge ' + sm.cls + '">' + sm.label + '</span>'
         + '</div>'
         + '<div class="cert-campaign-meta">'

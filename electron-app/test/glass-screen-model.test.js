@@ -100,6 +100,22 @@ test('active operation wins over selected historical replay', () => {
   assert.equal(vm.operation.id, 'live-1');
 });
 
+test('awaiting-approval does not block replaying a selected historical run', () => {
+  const awaiting = op({ id: 'app-1', status: 'awaiting-approval' });
+  const past = op({ id: 'old-1', status: 'succeeded', outcome: 'success', updatedAt: new Date(T0 - 9e5).toISOString() });
+  const vm = buildGlassScreenViewModel({ operations: [past, awaiting], selectedId: 'old-1', now: T0 });
+  assert.equal(vm.mode, 'replay');
+  assert.equal(vm.operation.id, 'old-1');
+});
+
+test('awaiting-approval still owns the hero when nothing is selected', () => {
+  const awaiting = op({ id: 'app-1', status: 'awaiting-approval' });
+  const past = op({ id: 'old-1', status: 'succeeded', outcome: 'success', updatedAt: new Date(T0 - 9e5).toISOString() });
+  const vm = buildGlassScreenViewModel({ operations: [past, awaiting], now: T0 });
+  assert.equal(vm.mode, 'live');
+  assert.equal(vm.operation.id, 'app-1');
+});
+
 test('selecting history with no active operation enters replay mode', () => {
   const past = op({ id: 'old-1', status: 'succeeded', outcome: 'success' });
   const older = op({ id: 'old-2', status: 'failed', outcome: 'failed', updatedAt: new Date(T0 - 9e5).toISOString() });

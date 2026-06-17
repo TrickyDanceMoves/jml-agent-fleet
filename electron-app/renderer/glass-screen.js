@@ -607,8 +607,27 @@
     // Audit-only history backfills recent runs when operation history is
     // sparse — synthesize ids so rows are selectable for replay.
     const known = new Set(glassScreenState.operations.map(o => o.id));
+    // Build signatures of REAL operations (agent + subject + ~10-min bucket) so
+    // an agent's own audit entry doesn't surface as a second, duplicate run
+    // beside its operation — e.g. an approved leaver and its IRM audit line.
+    const bucketOf = (o) => {
+      const t = Date.parse(o.completedAt || o.updatedAt || o.timestamp || o.startedAt || '') || 0;
+      return Math.round(t / 600000);
+    };
+    const realSigs = new Set();
+    glassScreenState.operations.forEach(o => {
+      if (!o || o._audit || !o.agent || !o.subject) return;
+      const subj = String(o.subject).split('@')[0].toLowerCase();
+      const agent = String(o.agent).toLowerCase();
+      const b = bucketOf(o);
+      for (const d of [-1, 0, 1]) realSigs.add(`${agent}|${subj}|${b + d}`);
+    });
+    const dupOfOperation = (e) => {
+      const subj = String(e.subject).split('@')[0].toLowerCase();
+      return realSigs.has(`${String(e.agent).toLowerCase()}|${subj}|${bucketOf(e)}`);
+    };
     const backfill = glassScreenState.auditEntries
-      .filter(e => e && e.agent && e.subject && (!e.id || !known.has(e.id)))
+      .filter(e => e && e.agent && e.subject && (!e.id || !known.has(e.id)) && !dupOfOperation(e))
       .slice(0, 10)
       .map(e => ({
         ...e,
