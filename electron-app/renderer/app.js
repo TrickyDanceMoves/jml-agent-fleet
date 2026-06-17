@@ -7233,7 +7233,7 @@ function loadRecentUsers() {
 
     bodyEl.innerHTML =
       '<table class="cert-expiry-table">' +
-        '<thead><tr><th>Agent</th><th>Thumbprint</th><th>Expiry</th><th>Days Remaining</th><th>Action</th></tr></thead>' +
+        '<thead><tr><th>Agent</th><th>Thumbprint</th><th>Expiry</th><th>Days Remaining</th><th>Rotate by</th></tr></thead>' +
         '<tbody>' +
           certs.map(c => {
             const d     = c.daysRemaining;
@@ -7241,41 +7241,19 @@ function loadRecentUsers() {
             const dText = d === null ? '—' : String(d) + 'd';
             const thumb = c.thumbprint ? (c.thumbprint.slice(0, 12) + '…') : '—';
             const exp   = c.expiry ? new Date(c.expiry).toLocaleDateString() : '—';
+            // Rotate ~14 days before expiry (the Provisioner's auto-rotate window).
+            const rotateBy = c.expiry
+              ? new Date(new Date(c.expiry).getTime() - 14 * 86400000).toLocaleDateString() : '—';
             return '<tr>' +
               '<td style="text-transform:capitalize">' + escHtml(c.agent) + '</td>' +
               '<td class="mono">' + escHtml(thumb) + '</td>' +
               '<td>' + escHtml(exp) + '</td>' +
               '<td><span class="' + dCls + '">' + escHtml(dText) + '</span></td>' +
-              '<td><button class="btn ghost sm btn-rotate-cert" id="btn-rotate-cert-' + escHtml(c.agent) + '" data-agent="' + escHtml(c.agent) + '">Rotate</button></td>' +
+              '<td>' + escHtml(rotateBy) + '</td>' +
             '</tr>';
           }).join('') +
         '</tbody>' +
       '</table>';
-    bodyEl.querySelectorAll('.btn-rotate-cert').forEach(btn => {
-      btn.addEventListener('click', async () => {
-        const agent = btn.dataset.agent;
-        btn.disabled = true;
-        const original = btn.textContent;
-        btn.textContent = 'Previewing...';
-        // WhatIf preview: real rotation runs the Provisioner fleet-wide and
-        // needs interactive Graph auth, which can't happen from this button.
-        const r = await window.api.rotateAgentCertificate(agent, true);
-        btn.disabled = false;
-        btn.textContent = original;
-        if (r && r.ok) {
-          showToast('Rotation preview (WhatIf) — full rotation runs via the Provisioner', 'success');
-          if (typeof showDetailPopover === 'function') {
-            showDetailPopover({
-              title: 'Cert rotation preview',
-              kv: [['Mode', 'WhatIf — no changes made'], ['Scope', 'Fleet (Provisioner script)']],
-              raw: (r.lines || []).join('\n') || 'No output.'
-            });
-          }
-        } else {
-          showToast('Rotation preview failed: ' + (r?.error || 'unknown'), 'error');
-        }
-      });
-    });
   });
 })();
 

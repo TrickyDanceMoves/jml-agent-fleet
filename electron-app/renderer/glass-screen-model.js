@@ -409,12 +409,40 @@
     return 'success';
   }
 
+  // Past-tense "what it did" line for a finished run, mirroring the running
+  // decisions above. Agent-aware so the recent strip reads as an outcome, not
+  // a raw status. Failures reuse the cleaned error phrase.
+  const DONE_SUMMARIES = {
+    joiner: 'Created the Entra identity and applied starter access',
+    provisioner: 'Provisioned licenses and group access',
+    enroller: 'Enrolled the credential',
+    mover: 'Applied manager and group changes',
+  };
+
+  function leaverDoneSummary(stage) {
+    return stage === 'hard'
+      ? 'Removed licenses and group memberships'
+      : 'Disabled the account and revoked sessions';
+  }
+
+  function recentSummaryFor(operation) {
+    const status = normalizeStatus(operation);
+    const agent = String(operation.agent || '').toLowerCase();
+    const stage = String(operation.stage || '').toLowerCase();
+    if (status === 'failed') return failureDecision(operation);
+    if (status === 'partial') return 'Core change applied; follow-up remains';
+    if (status === 'awaiting-approval') return 'Held for a second approver';
+    if (agent === 'leaver') return leaverDoneSummary(stage);
+    return DONE_SUMMARIES[agent] || 'Completed the requested change';
+  }
+
   function recentRowFor(operation, now) {
     return {
       id: operation.id || null,
       outcome: outcomeKey(operation),
       title: titleFor(operation),
       subject: subjectName(operation),
+      summary: recentSummaryFor(operation),
       agent: operation.agent ? String(operation.agent).toUpperCase() : '—',
       mode: operation.whatif ? 'Safe' : 'Live',
       relative: relativeTime(operation, now),
