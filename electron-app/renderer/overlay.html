@@ -66,12 +66,12 @@
     border-left: 3px solid oklch(0.70 0.20 24 / 0.65); border-radius: 8px; padding: 8px 10px;
   }
   .ov-ap-header { display: flex; align-items: center; gap: 6px; margin-bottom: 3px; }
-  .ov-ap-action { font-size: 12px; font-weight: 600; color: var(--text); flex: 1; }
+  .ov-ap-action { font-size: clamp(12px, 2.6vw, 15px); font-weight: 600; color: var(--text); flex: 1; }
   .ov-ap-age    { font-family: var(--mono); font-size: 9px; color: var(--muted); }
   .ov-ap-upn    { font-family: var(--mono); font-size: 9.5px; color: var(--cyan); margin-bottom: 5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .ov-ap-btns   { display: flex; gap: 5px; }
   .ov-ap-approve {
-    flex: 1; padding: 3px 0; border-radius: 5px; font-size: 11px; font-weight: 600; cursor: pointer;
+    flex: 1; padding: 3px 0; border-radius: 5px; font-size: clamp(11px, 2.4vw, 13.5px); font-weight: 600; cursor: pointer;
     background: color-mix(in oklch, var(--emerald) 10%, transparent);
     border: 1px solid color-mix(in oklch, var(--emerald) 35%, transparent);
     color: var(--emerald); transition: background .1s;
@@ -79,7 +79,7 @@
   .ov-ap-approve:hover { background: color-mix(in oklch, var(--emerald) 18%, transparent); }
   .ov-ap-approve:disabled { opacity: 0.4; cursor: default; }
   .ov-ap-reject {
-    flex: 1; padding: 3px 0; border-radius: 5px; font-size: 11px; cursor: pointer;
+    flex: 1; padding: 3px 0; border-radius: 5px; font-size: clamp(11px, 2.4vw, 13.5px); cursor: pointer;
     background: transparent; border: 1px solid var(--border); color: var(--muted);
     transition: background .1s, color .1s, border-color .1s;
   }
@@ -97,13 +97,15 @@
     display: flex; flex-direction: column; gap: 4px;
     transition: height .18s ease;
   }
-  .ov-thread.open { height: 200px; overflow-y: auto; padding: 8px 12px 6px; }
+  /* height:200px is the auto-size basis; flex lets the thread fill any extra
+     height when the overlay is stretched taller (no dead space below the bar). */
+  .ov-thread.open { height: 200px; flex: 1 1 auto; overflow-y: auto; padding: 8px 12px 6px; }
   .ov-thread::-webkit-scrollbar { width: 3px; }
   .ov-thread::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
-  .ov-empty { text-align: center; font-size: 11px; color: var(--dim); margin: auto; }
+  .ov-empty { text-align: center; font-size: clamp(11px, 2.5vw, 14px); color: var(--dim); margin: auto; }
   .ov-msg {
     max-width: 90%; padding: 7px 11px; border-radius: 10px;
-    font-size: 12.5px; line-height: 1.55; word-break: break-word; white-space: pre-wrap;
+    font-size: clamp(12.5px, 2.7vw, 16px); line-height: 1.55; word-break: break-word; white-space: pre-wrap;
   }
   .ov-msg.user {
     align-self: flex-end;
@@ -143,7 +145,7 @@
   }
   .ov-tab {
     -webkit-app-region: no-drag;
-    padding: 3px 10px; border-radius: 20px; font-size: 10.5px; font-weight: 500;
+    padding: 3px 10px; border-radius: 20px; font-size: clamp(10.5px, 2.3vw, 13px); font-weight: 500;
     cursor: pointer; border: 1px solid var(--border); background: transparent; color: var(--muted);
     font-family: var(--mono); text-transform: uppercase; letter-spacing: .05em;
     transition: background .1s, color .1s, border-color .1s;
@@ -186,7 +188,7 @@
   .ov-input {
     flex: 1; padding: 10px 14px;
     background: oklch(0.14 0.010 252 / 0.88); border: 1px solid var(--border);
-    border-radius: 10px; color: var(--text); font-size: 13px;
+    border-radius: 10px; color: var(--text); font-size: clamp(13px, 2.85vw, 16.5px);
     font-family: var(--sans); outline: none; transition: border-color .15s, box-shadow .15s;
   }
   .ov-input:focus {
@@ -196,11 +198,11 @@
   .ov-input::placeholder { color: var(--dim); }
   .ov-input:disabled { opacity: 0.5; cursor: not-allowed; }
   .ov-send-btn {
-    width: 38px; height: 38px; border-radius: 10px; flex-shrink: 0;
+    width: clamp(38px, 8.3vw, 46px); height: clamp(38px, 8.3vw, 46px); border-radius: 10px; flex-shrink: 0;
     background: color-mix(in oklch, var(--cyan) 20%, transparent);
     border: 1px solid color-mix(in oklch, var(--cyan) 40%, transparent);
     color: var(--cyan); cursor: pointer; display: grid; place-items: center;
-    font-size: 17px; transition: filter .1s; box-shadow: none;
+    font-size: clamp(17px, 3.7vw, 21px); transition: filter .1s; box-shadow: none;
   }
   .ov-send-btn:hover { filter: brightness(1.08); }
   .ov-send-btn:disabled { opacity: 0.4; cursor: default; }
