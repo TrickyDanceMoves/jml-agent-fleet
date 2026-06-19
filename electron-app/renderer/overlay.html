@@ -135,6 +135,8 @@
   .ov-thinking span { width: 4px; height: 4px; border-radius: 50%; background: var(--muted); animation: ov-dot 1.2s ease-in-out infinite; }
   .ov-thinking span:nth-child(2) { animation-delay: .2s; }
   .ov-thinking span:nth-child(3) { animation-delay: .4s; }
+  /* Contextual label sits beside the dots — reset the dot-span styling. */
+  .ov-thinking span.ov-thinking-label { width: auto; height: auto; border-radius: 0; background: none; animation: none; margin-left: 5px; font-size: 11px; color: var(--muted); }
   @keyframes ov-dot { 0%,80%,100%{transform:scale(.7);opacity:.35}40%{transform:scale(1);opacity:1} }
 
   /* ── Input bar ── */

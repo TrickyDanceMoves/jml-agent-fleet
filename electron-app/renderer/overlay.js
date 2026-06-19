@@ -221,12 +221,35 @@ function appendMsg(role, text) {
   return el;
 }
 
+// Natural-language "what the agent is doing" label, adapted to the last query.
+let _lastQuery = '';
+function ovThinkingLabel(query) {
+  const q = String(query || '').toLowerCase();
+  const has = (...w) => w.some(x => q.includes(x));
+  if (has('recent join', 'new joiner', 'new hire', 'onboard')) return 'Looking up recent joiners';
+  if (has('leaver', 'offboard', 'terminate', 'disable', 'remove access')) return 'Reviewing the offboarding';
+  if (has('license', 'sku')) return 'Checking license utilization';
+  if (has('risk', 'risky', 'compromis')) return 'Assessing identity risk';
+  if (has('mfa', 'multifactor')) return 'Checking MFA coverage';
+  if (has('group', 'membership')) return 'Resolving group membership';
+  if (has('role', 'privileged', 'pim')) return 'Reviewing role assignments';
+  if (has('guest', 'external')) return 'Reviewing guest accounts';
+  if (has('stale', 'inactive', 'dormant')) return 'Finding stale accounts';
+  if (has('audit', 'sign-in', 'signin', 'activity')) return 'Searching the audit trail';
+  if (has('how do i', 'how to', 'what is', 'explain')) return 'Putting that together';
+  if (has('how many', 'count', 'total')) return 'Counting the directory';
+  return _agent === 'approver' ? 'Working through the request' : 'Searching the directory';
+}
+
 function showThinking() {
   if (document.getElementById('ov-thinking')) return;
   openThread();
   const el = document.createElement('div');
   el.className = 'ov-thinking'; el.id = 'ov-thinking';
-  el.innerHTML = '<span></span><span></span><span></span>';
+  // The label text comes from a fixed phrase set (never the raw query), so it's
+  // safe to inject directly.
+  el.innerHTML = '<span></span><span></span><span></span><span class="ov-thinking-label">'
+    + ovThinkingLabel(_lastQuery) + '</span>';
   ovThread.appendChild(el);
   ovThread.scrollTop = ovThread.scrollHeight;
 }
@@ -248,6 +271,7 @@ function sendMessage() {
   const text = ovInput.value.trim();
   if (!text || _streaming) return;
   ovInput.value = '';
+  _lastQuery = text;  // drives the contextual "thinking" label
   appendMsg('user', text);
   showThinking();
   setStreaming(true);
