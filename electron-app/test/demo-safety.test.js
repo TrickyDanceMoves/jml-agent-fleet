@@ -115,3 +115,15 @@ test('presentation mode prevents local operational persistence', () => {
   assert.match(main, /function writeOperatorAuth[\s\S]*?assertExternalExecutionAllowed\(PRESENTATION_MODE,/);
   assert.match(main, /function saveScheduled[\s\S]*?assertExternalExecutionAllowed\(PRESENTATION_MODE,/);
 });
+
+test('preload exposes a generic current user in demo and capture modes', () => {
+  const preload = fs.readFileSync(path.join(__dirname, '..', 'preload.js'), 'utf8');
+  const main = fs.readFileSync(path.join(__dirname, '..', 'main.js'), 'utf8');
+
+  assert.match(preload, /DEMO_CURRENT_USER\s*=\s*'Demo Operator'/);
+  assert.match(preload, /isDemoOrCaptureMode/);
+  assert.match(preload, /--jml-demo-operator/);
+  assert.match(preload, /currentUser:\s*isDemoOrCaptureMode\s*\?\s*DEMO_CURRENT_USER\s*:\s*os\.userInfo\(\)\.username/);
+  assert.match(main, /additionalArguments:\s*demoPreloadArgs\(\)/);
+  assert.doesNotMatch(main, /nick\.bohanan@contoso\.onmicrosoft\.com/);
+});

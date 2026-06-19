@@ -3,8 +3,21 @@
 const { contextBridge, ipcRenderer } = require('electron');
 const os = require('os');
 
+const DEMO_CURRENT_USER = 'Demo Operator';
+const isDemoOrCaptureMode = process.argv.some(arg => [
+  '--jml-demo-operator',
+  '--demo',
+  '--demo-state',
+  '--demo-drive',
+  '--hackathon-capture',
+  '--capture',
+  '--capture-jml-input',
+  '--capture-chrome',
+  '--capture-glass-screen',
+].includes(arg));
+
 contextBridge.exposeInMainWorld('api', {
-  currentUser: os.userInfo().username,
+  currentUser: isDemoOrCaptureMode ? DEMO_CURRENT_USER : os.userInfo().username,
   demoClipSave:     (name, buf)      => ipcRenderer.invoke('demo-clip-save', { name, buf }),
   sendMessage:      (agent, text)    => ipcRenderer.send('send-message', { agent, text }),
   abortAgent:       (agent)          => ipcRenderer.send('abort-agent', { agent }),
