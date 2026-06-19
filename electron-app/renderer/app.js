@@ -658,6 +658,7 @@ function sendMessage(agent) {
   appendUserMessage(agent, text);
   input.value = '';
   setWaiting(agent, true);
+  _lastUserQuery[agent] = text;  // drives the contextual "thinking" label
 
   const placeholder = appendAssistantPlaceholder(agent);
   currentMsgEl[agent] = placeholder;
@@ -938,6 +939,28 @@ function appendUserMessage(agent, text) {
   msgs.scrollTop = msgs.scrollHeight;
 }
 
+// Natural-language "what the agent is doing" label, adapted to the operator's
+// query, shown in place of a generic "Thinking" while the agent works.
+const _lastUserQuery = {};
+function thinkingLabelFor(agent, query) {
+  const q = String(query || '').toLowerCase();
+  const has = (...words) => words.some(w => q.includes(w));
+  if (has('recent join', 'new joiner', 'recently joined', 'new hire', 'onboard')) return 'Looking up recent joiners';
+  if (has('leaver', 'offboard', 'terminate', 'disable', 'remove access', 'deprovision')) return 'Reviewing the offboarding';
+  if (has('license', 'sku', 'entitlement')) return 'Checking license utilization';
+  if (has('risk', 'risky', 'compromis')) return 'Assessing identity risk';
+  if (has('mfa', 'multifactor', 'multi-factor')) return 'Checking MFA coverage';
+  if (has('group', 'membership')) return 'Resolving group membership';
+  if (has('role', 'privileged', 'pim')) return 'Reviewing role assignments';
+  if (has('guest', 'external user')) return 'Reviewing guest accounts';
+  if (has('stale', 'inactive', 'dormant')) return 'Finding stale accounts';
+  if (has('audit', 'sign-in', 'signin', 'sign in', 'activity log')) return 'Searching the audit trail';
+  if (has('mover', 'transfer', 'department', 'manager')) return 'Working through the change';
+  if (has('how do i', 'how to', 'what is', 'explain', 'walk me')) return 'Putting that together';
+  if (has('how many', 'count', 'total', 'number of')) return 'Counting the directory';
+  return agent === 'approver' ? 'Working through the request' : 'Searching the directory';
+}
+
 function appendAssistantPlaceholder(agent) {
   const msgs = document.getElementById('messages-' + agent);
   const el   = document.createElement('div');
@@ -945,6 +968,7 @@ function appendAssistantPlaceholder(agent) {
   el.dataset.agent = agent;
   const avatarSvg = AGENT_AVATARS[agent] || 'AI';
   const timeStr   = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  const thinkLabel = thinkingLabelFor(agent, _lastUserQuery[agent]);
   el.innerHTML = `
     <div class="message-avatar avatar-${agent}">${avatarSvg}</div>
     <div class="message-body">
@@ -955,7 +979,7 @@ function appendAssistantPlaceholder(agent) {
       </div>
       <div class="thinking-indicator">
         <span class="thinking-dots"><span></span><span></span><span></span></span>
-        <span class="thinking-label">Thinking</span>
+        <span class="thinking-label">${escHtml(thinkLabel)}</span>
       </div>
       <div class="message-text"></div>
       <div class="tool-indicators"></div>
