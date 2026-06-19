@@ -2772,6 +2772,12 @@ let currentRole     = null;
 // sign-ins. select-operator/switch-operator derive the session role from here
 // (plus operators.json) instead of trusting a renderer-supplied role.
 const _verifiedRoles = new Map();
+function demoPreloadArgs() {
+  return (PRESENTATION_MODE || DEMO_STATE_MODE || DEMO_DRIVE_MODE || HACKATHON_CAPTURE_MODE ||
+    CAPTURE_MODE || CAPTURE_CHROME_MODE || GLASS_CAPTURE_MODE)
+    ? ['--jml-demo-operator']
+    : [];
+}
 function deriveSessionRole(name) {
   if (!name) return 'viewer';
   if (_verifiedRoles.has(name)) return _verifiedRoles.get(name);
@@ -2800,7 +2806,8 @@ function createSetupWindow() {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: false
+      sandbox: false,
+      additionalArguments: demoPreloadArgs()
     }
   });
   setupWin.loadFile(path.join(__dirname, 'renderer', 'setup.html'));
@@ -2827,7 +2834,8 @@ function createMainWindow() {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: false
+      sandbox: false,
+      additionalArguments: demoPreloadArgs()
     }
   });
   win.loadFile(path.join(__dirname, 'renderer', 'index.html'));
@@ -2862,7 +2870,8 @@ function createOperatorWindow() {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: false
+      sandbox: false,
+      additionalArguments: demoPreloadArgs()
     }
   });
   operatorWin.loadFile(path.join(__dirname, 'renderer', 'operator-select.html'));
@@ -3927,7 +3936,7 @@ const MOCK_OPERATIONS = [
 const DEMO_ADMIN = 'admin@contoso.onmicrosoft.com';
 const MOCK_OPERATORS = { operators: {
   [DEMO_ADMIN]:                              'admin',
-  'nick.bohanan@contoso.onmicrosoft.com':    'admin',
+  'demo.admin@contoso.onmicrosoft.com':      'admin',
   'grace.okafor@contoso.onmicrosoft.com':    'helpdesk',
   'omar.haddad@contoso.onmicrosoft.com':     'helpdesk',
   'dana.whitfield@contoso.onmicrosoft.com':  'viewer',
@@ -4269,10 +4278,11 @@ async function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 async function runCapture() {
   fs.mkdirSync(CAPTURE_OUT, { recursive: true });
 
-  // Use the configured admin operator so demo captures show the intended
-  // approval path instead of falling back to viewer permissions.
-  currentOperator = 'Nick';
-  process.env.JML_CONSOLE_OPERATOR = 'Nick';
+  // Use a generic demo operator (never the real OS username) so captures never
+  // leak a person's name in the "Continue as …" action.
+  currentOperator = 'Demo Operator';
+  process.env.JML_CONSOLE_OPERATOR = 'Demo Operator';
+  installDemoHandlers();
 
   // ── Operator selector ──────────────────────────────────────────────────────
   createOperatorWindow();
@@ -4288,6 +4298,8 @@ async function runCapture() {
     } catch (_) {}
   `).catch(() => {});
   await sleep(1000);
+  // Redact any real operator UPN/domain shown in the local-operator list.
+  await operatorWin.webContents.executeJavaScript(SANITIZE_TENANT).catch(() => {});
   let selImg; for (let a=0;a<3;a++){try{selImg=await operatorWin.webContents.capturePage();break;}catch(e){await sleep(600);}}
   if (selImg) fs.writeFileSync(path.join(CAPTURE_OUT, 'operator-select.png'), selImg.toPNG());
   console.log('Captured: operator-select');

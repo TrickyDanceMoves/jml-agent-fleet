@@ -28,6 +28,18 @@ test('JML input capture sanitizes tenant identity before capture', () => {
   assert.match(captureBlock[0], /activeViewId[\s\S]*?view-approver/);
 });
 
+test('operator selector capture uses demo data before the window renders', () => {
+  const captureBlock = main.match(
+    /async function runCapture\(\) \{[\s\S]*?console\.log\('Captured: operator-select'\);/,
+  );
+  assert.ok(captureBlock, 'operator selector capture block must exist');
+  assert.match(captureBlock[0], /installDemoHandlers\(\)/);
+  assert.ok(
+    captureBlock[0].indexOf('installDemoHandlers()') < captureBlock[0].indexOf('createOperatorWindow()'),
+    'demo IPC handlers must be installed before the selector window loads real operators',
+  );
+});
+
 test('single-image input capture mode exits before the full tab capture loop', () => {
   assert.match(main, /const INPUT_CAPTURE_ONLY = process\.argv\.includes\('--capture-jml-input'\)/);
   assert.match(main, /const CAPTURE_MODE = process\.argv\.includes\('--capture'\) \|\| INPUT_CAPTURE_ONLY/);
