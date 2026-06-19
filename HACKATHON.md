@@ -138,7 +138,7 @@ of implementation.
 | **Concept** | Hybrid Agent ID architecture separates reasoning from privileged execution |
 | **Impact** | Reduces manual JML work while preserving approval, traceability, and failure truth |
 | **Use of Microsoft Platform** | Entra ID, Entra Agent ID, Microsoft Graph, Azure Functions, Storage, Sentinel, Purview, and the required IQ layer |
-| **Quality of Implementation** | Live console, replayable lifecycle state, fail-closed controls, 48 tests, CI, threat model, and downloadable release |
+| **Quality of Implementation** | Live console, replayable lifecycle state, fail-closed controls, 105 tests, CI, threat model, and downloadable release |
 
 ## Judge Setup
 
