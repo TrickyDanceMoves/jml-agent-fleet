@@ -14,8 +14,8 @@ Five minutes to the core of it:
 
 1. **The thesis** — autonomous AI agents should *propose* identity changes, never own directory-write authority. Microsoft Entra itself enforces this: write scopes are blocked on agent identities. This project's hybrid architecture (reasoning agents on **Entra Agent IDs**, execution behind a policy-gated control plane on least-privilege service principals) isn't a workaround — it's the platform-aligned answer, running live in a real tenant.
 2. **See it** — the [screenshots below](#screenshots) are real captures from the running console: risk-scored approvals, a tamper-evident hash-chained audit trail replicated to Sentinel/Blob, UEBA findings, and the Glass Screen showing a live operation advance through Request → Risk → Execute → Verify → Complete.
-3. **Run it** — download the published release artifact from [JML Console v1.1.5](https://github.com/TrickyDanceMoves/jml-agent-fleet/releases/tag/v1.1.5); the Setup Wizard binds your tenant and provisions the required identities with admin-consent links ([Installation](#installation)). Or run `npm start` from `electron-app/` for the development path.
-4. **Audit it** — [threat model](docs/threat-model.md) · [agent identity roadmap (now executed)](docs/agent-identity-roadmap.md) · [Electron hardening](docs/electron-security.md) · 93 automated tests enforced by the CI quality gate.
+3. **Run it** — download the published installer from the [latest JML Console release](https://github.com/TrickyDanceMoves/jml-agent-fleet/releases/latest); the Setup Wizard binds your tenant and provisions the required identities with admin-consent links ([Installation](#installation)). Or run `npm start` from `electron-app/` for the development path.
+4. **Audit it** — [threat model](docs/threat-model.md) · [agent identity roadmap (now executed)](docs/agent-identity-roadmap.md) · [Electron hardening](docs/electron-security.md) · 105 automated tests enforced by the CI quality gate.
 
 > **The model proposes; policy and approval decide what executes.**
 
@@ -315,7 +315,7 @@ Planning guidance for the follow-on Azure Network Deployment and Governance Cons
 
 ## Installation
 
-Download `JML.Console.Setup.1.1.5.exe` from the [v1.1.5 GitHub Release](https://github.com/TrickyDanceMoves/jml-agent-fleet/releases/tag/v1.1.5). No admin rights are required; it installs per-user to `%LOCALAPPDATA%\Programs\JML Console\`.
+Download the `JML Console Setup` installer from the [latest GitHub Release](https://github.com/TrickyDanceMoves/jml-agent-fleet/releases/latest). No admin rights are required; it installs per-user to `%LOCALAPPDATA%\Programs\JML Console\`.
 
 **Prerequisite:** Microsoft Graph PowerShell SDK
 ```powershell

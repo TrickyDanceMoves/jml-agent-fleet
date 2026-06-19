@@ -4405,6 +4405,7 @@ async function runCapture() {
     ['users',          null, 1000],
     ['certs',          `window.api.getCertExpiry();`, 1500],
     ['graph',          null, 1000],
+    ['integrations',   null, 1500],
   ];
 
   // Capture the Approver agent in its INPUT state: the welcome panel, the
@@ -4525,21 +4526,33 @@ async function runCapture() {
 // demo label everywhere they render. Shared by --capture and --demo-drive.
 const SANITIZE_TENANT = `
   (function(){
-    var REAL = /[a-z0-9.-]*\\.onmicrosoft\\.com/gi;
     var DEMO_DOMAIN = 'contoso.onmicrosoft.com';
-    function scrub(node){
-      if (!node) return;
-      node.querySelectorAll('*').forEach(function(el){
-        if (el.children.length === 0 && el.textContent && REAL.test(el.textContent)) {
-          el.textContent = el.textContent.replace(REAL, function(m){
-            var local = m.split('@')[0];
-            return m.indexOf('@') !== -1 ? local + '@' + DEMO_DOMAIN : DEMO_DOMAIN;
-          });
-        }
-        REAL.lastIndex = 0;
-      });
+    var FAKE_GUID   = '00000000-0000-0000-0000-000000000000';
+    var FAKE_THUMB  = 'A1B2C3D4E5F6A7B8C9D0E1F2A3B4C5D6E7F8A9B0';
+    function scrub(t){
+      if (!t) return t;
+      return String(t)
+        // tenant/client/object id GUIDs
+        .replace(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi, FAKE_GUID)
+        // certificate thumbprints (SHA-1, 40 hex)
+        .replace(/\\b[0-9A-Fa-f]{40}\\b/g, FAKE_THUMB)
+        // real .onmicrosoft.com domains (keep any local-part of a UPN)
+        .replace(/[a-z0-9.-]+\\.onmicrosoft\\.com/gi, function(m, off, s){
+          var at = s.lastIndexOf('@', off);
+          return DEMO_DOMAIN;
+        });
     }
-    scrub(document.body);
+    document.querySelectorAll('*').forEach(function(el){
+      if (el.children.length === 0 && el.textContent) {
+        var s = scrub(el.textContent);
+        if (s !== el.textContent) el.textContent = s;
+      }
+      // Tenant ID / Client ID / domain are rendered as input or textarea values.
+      if ((el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') && el.value) {
+        var v = scrub(el.value);
+        if (v !== el.value) el.value = v;
+      }
+    });
     ['sidebar-tenant-domain','topbar-tenant-domain'].forEach(function(id){
       var el = document.getElementById(id);
       if (el && /onmicrosoft/i.test(el.textContent)) el.textContent = DEMO_DOMAIN;
