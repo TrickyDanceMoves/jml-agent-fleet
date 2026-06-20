@@ -6799,6 +6799,22 @@ window.api.onBulkImportComplete((data) => {
   addNotification('✅', 'Bulk import complete: ' + data.total + ' processed');
 });
 
+// Auto-update notifications. "available" = downloading in the background;
+// "downloaded" = ready, clicking the notification restarts to install.
+if (typeof window.api.onUpdateStatus === 'function') {
+  window.api.onUpdateStatus((s) => {
+    if (!s || !s.state) return;
+    if (s.state === 'available') {
+      addNotification('⬆️', `Update v${s.version} available — downloading…`);
+    } else if (s.state === 'downloaded') {
+      addNotification('⬆️', `Update v${s.version} ready — click to restart & install`, {
+        run: () => { try { window.api.applyUpdate(); } catch (_) {} },
+      });
+      showToast(`Update v${s.version} ready — restart to install`, 'success');
+    }
+  });
+}
+
 // ── Audit Log filters & Timeline ──────────────────────────────────────────────
 let _allAuditEntries  = [];
 let _timelineActive   = false;

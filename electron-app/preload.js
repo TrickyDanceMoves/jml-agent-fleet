@@ -27,6 +27,10 @@ contextBridge.exposeInMainWorld('api', {
   onHistoryCleared: (cb) => ipcRenderer.on('history-cleared', (_, d) => cb(d)),
   onAuditLogData:    (cb) => ipcRenderer.on('audit-log-data',     (_, d) => cb(d)),
   onAuditChainStatus:(cb) => ipcRenderer.on('audit-chain-status', (_, d) => cb(d)),
+
+  // Auto-update (electron-updater)
+  onUpdateStatus:    (cb) => ipcRenderer.on('update-status', (_, d) => cb(d)),
+  applyUpdate:       ()   => ipcRenderer.send('apply-update'),
   onOperationStatus: (cb) => ipcRenderer.on('operation-status',   (_, d) => cb(d)),
   onOperationStatuses:(cb) => ipcRenderer.on('operation-statuses', (_, d) => cb(d)),
   onDashboardStats:  (cb) => ipcRenderer.on('dashboard-stats',    (_, d) => cb(d)),

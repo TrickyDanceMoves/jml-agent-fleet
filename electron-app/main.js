@@ -2935,6 +2935,28 @@ function createSetupWindow() {
   setupWin.loadFile(path.join(__dirname, 'renderer', 'setup.html'));
 }
 
+// Auto-update via electron-updater (GitHub provider). Only active in a packaged
+// build; no-ops in dev. Notifies the renderer when an update is available and
+// downloaded, and applies it on the operator's request.
+let _autoUpdaterStarted = false;
+function initAutoUpdater() {
+  if (_autoUpdaterStarted || !app.isPackaged) return;
+  _autoUpdaterStarted = true;
+  let autoUpdater;
+  try { ({ autoUpdater } = require('electron-updater')); } catch (e) { console.warn('electron-updater unavailable:', e.message); return; }
+  autoUpdater.autoDownload = true;
+  autoUpdater.autoInstallOnAppQuit = true;
+  const notify = (payload) => { if (win && !win.isDestroyed()) win.webContents.send('update-status', payload); };
+  autoUpdater.on('update-available',  (info) => notify({ state: 'available',  version: info.version }));
+  autoUpdater.on('update-downloaded', (info) => notify({ state: 'downloaded', version: info.version }));
+  autoUpdater.on('error', (err) => console.warn('autoUpdater error:', err && err.message));
+  ipcMain.removeAllListeners('apply-update');
+  ipcMain.on('apply-update', () => { try { autoUpdater.quitAndInstall(); } catch (e) { console.warn('quitAndInstall failed:', e.message); } });
+  // Check shortly after launch, then every 6 hours.
+  setTimeout(() => autoUpdater.checkForUpdates().catch(() => {}), 8000);
+  setInterval(() => autoUpdater.checkForUpdates().catch(() => {}), 6 * 60 * 60 * 1000);
+}
+
 function createMainWindow() {
   // Clamp to the work area so the title-bar controls are never offscreen
   // (e.g. on small laptops or high DPI scaling where 1200x780 overflows).
@@ -2962,6 +2984,7 @@ function createMainWindow() {
   });
   win.loadFile(path.join(__dirname, 'renderer', 'index.html'));
   win.setIcon(APP_ICON);
+  initAutoUpdater();
 
   // QC flag: `--theme=glass` forces a theme at load for visual checks.
   const themeArg = process.argv.find(a => a.startsWith('--theme='));
