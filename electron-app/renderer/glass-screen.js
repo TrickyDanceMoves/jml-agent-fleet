@@ -314,12 +314,20 @@
     }
     const d = model.stageDetail(stageId, operation);
     if (!d) { box.hidden = true; box.innerHTML = ''; return; }
-    const acts = (d.activities || []).map(a => `
-      <li class="gs-act" data-status="${esc(a.status || 'pending')}">
+    const acts = (d.activities || []).map(a => {
+      const items = Array.isArray(a.items) ? a.items.filter(Boolean) : [];
+      const expandable = items.length > 0;
+      const sublist = expandable
+        ? `<ul class="gs-act-items" hidden>${items.map(it => `<li>${esc(it)}</li>`).join('')}</ul>`
+        : '';
+      return `
+      <li class="gs-act${expandable ? ' gs-act-expandable' : ''}${a.muted ? ' gs-act-muted' : ''}" data-status="${esc(a.status || 'pending')}"${expandable ? ' tabindex="0" role="button" aria-expanded="false"' : ''}>
         <span class="gs-act-dot" aria-hidden="true"></span>
-        <span class="gs-act-name">${esc(a.name)}</span>
+        <span class="gs-act-name">${esc(a.name)}${expandable ? '<span class="gs-act-caret" aria-hidden="true">▸</span>' : ''}</span>
         <span class="gs-act-note">${esc(a.note || '')}</span>
-      </li>`).join('');
+        ${sublist}
+      </li>`;
+    }).join('');
     box.hidden = false;
     box.dataset.state = d.state;
     box.innerHTML = `
@@ -330,6 +338,19 @@
       </div>
       <div class="gs-sd-purpose">${esc(d.purpose)}</div>
       <ul class="gs-act-list">${acts}</ul>`;
+    // Click an item-bearing row to reveal the exact licenses/groups/attributes.
+    box.querySelectorAll('.gs-act-expandable').forEach(li => {
+      const toggle = () => {
+        const items = li.querySelector('.gs-act-items');
+        if (!items) return;
+        const open = items.hidden;
+        items.hidden = !open;
+        li.setAttribute('aria-expanded', String(open));
+        li.classList.toggle('open', open);
+      };
+      li.addEventListener('click', toggle);
+      li.addEventListener('keydown', ev => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); toggle(); } });
+    });
   }
 
   function metaChips(vm) {
@@ -468,9 +489,36 @@
     }, 1000);
   }
 
+  // Copy the recorded license/group/account details from a matching audit entry
+  // onto operations that lack them, so the Execute/Verify stages can show the
+  // exact items changed for older or operation-only records too.
+  function enrichOpsWithAuditDetails() {
+    const audits = glassScreenState.auditEntries || [];
+    if (!audits.length) return;
+    const DETAIL_KEYS = ['accountDisabled', 'accountDeleted', 'accountCreated', 'sessionsRevoked',
+      'managerSet', 'licensesAdded', 'licensesRemoved', 'groupsAdded', 'groupsRemoved', 'attributesUpdated'];
+    const hasDetail = (op) => op.details && DETAIL_KEYS.some(k => k in op.details);
+    for (const op of glassScreenState.operations) {
+      if (!op || !op.agent || !op.subject || hasDetail(op)) continue;
+      const subj = String(op.subject).split('@')[0].toLowerCase();
+      const agent = String(op.agent).toLowerCase();
+      const opTime = Date.parse(op.completedAt || op.updatedAt || op.timestamp || op.startedAt || '') || 0;
+      let best = null, bestDelta = Infinity;
+      for (const e of audits) {
+        if (!e || !e.details || String(e.agent || '').toLowerCase() !== agent) continue;
+        if (String(e.subject || '').split('@')[0].toLowerCase() !== subj) continue;
+        if (!DETAIL_KEYS.some(k => k in e.details)) continue;
+        const delta = Math.abs((Date.parse(e.timestamp || '') || 0) - opTime);
+        if (delta < bestDelta) { bestDelta = delta; best = e; }
+      }
+      if (best) op.details = { ...(op.details || {}), ...best.details };
+    }
+  }
+
   function render(overrideStages) {
     const hero = el('gs-live-hero');
     if (!hero) return;
+    enrichOpsWithAuditDetails();
     const vm = model.buildGlassScreenViewModel({
       operations: glassScreenState.operations,
       selectedId: glassScreenState.selectedId,

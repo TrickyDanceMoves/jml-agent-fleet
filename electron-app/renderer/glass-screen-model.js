@@ -156,36 +156,99 @@
     }
   }
 
+  const DETAIL_KEYS = ['accountDisabled', 'accountDeleted', 'accountCreated', 'sessionsRevoked',
+    'managerSet', 'licensesAdded', 'licensesRemoved', 'groupsAdded', 'groupsRemoved', 'attributesUpdated'];
+
+  // True when the operation carries a real per-run results record (vs. just a
+  // ticket ref, or nothing at all for a Safe/WhatIf preview).
+  function hasExecuteDetail(operation) {
+    const d = operation && operation.details;
+    return !!d && typeof d === 'object' && DETAIL_KEYS.some(k => k in d);
+  }
+
   // Concrete "what actually happened" in Execute for a specific run, read from
   // the operation's recorded details (the agent script's results / audit entry).
-  // Returns [] when there's no detail (e.g. a Safe/WhatIf preview or an
-  // audit-only backfill), so the caller falls back to the generic call list.
+  // Each item-bearing row carries an `items` array so the UI can expand to the
+  // exact licenses/groups. Empty results are shown honestly ("none") rather than
+  // implying a generic "remove all". Returns [] only when no detail was recorded
+  // (Safe/WhatIf preview) so the caller falls back to the generic call list.
   function executeOutcomes(operation) {
-    const d = operation && operation.details ? operation.details : null;
-    if (!d) return [];
-    const acts = [];
+    if (!hasExecuteDetail(operation)) return [];
+    const d = operation.details;
+    const agent = String(operation.agent || '').toLowerCase();
+    const stage = String(operation.stage || '').toLowerCase();
     const list = (k) => Array.isArray(d[k]) ? d[k].filter(Boolean) : [];
-    if (d.accountDeleted)  acts.push({ name: 'Account deleted', note: 'user object permanently removed' });
-    if (d.accountCreated)  acts.push({ name: 'Account created', note: 'Entra identity provisioned' });
-    if (d.accountDisabled) acts.push({ name: 'Account disabled', note: 'accountEnabled set to false' });
-    if (d.sessionsRevoked) acts.push({ name: 'Sessions revoked', note: 'active sign-in sessions invalidated' });
-    if (d.managerSet)      acts.push({ name: 'Manager set', note: 'reporting line updated' });
-    if (d.attributesUpdated && typeof d.attributesUpdated === 'object') {
-      const keys = Object.keys(d.attributesUpdated);
-      if (keys.length) acts.push({ name: 'Attributes updated', note: keys.map(k => `${k} → ${d.attributesUpdated[k]}`).join(' · ') });
+    const acts = [];
+    // State row: shows the outcome of a boolean step, honest when it didn't apply.
+    const state = (key, doneLabel, doneNote, naNote) => {
+      if (!(key in d)) return;
+      if (d[key]) acts.push({ name: doneLabel, note: doneNote });
+      else acts.push({ name: doneLabel, note: naNote || 'not applied (already in desired state)', muted: true });
+    };
+    // Item row: lists the exact items, expandable; honest "none" when empty.
+    const items = (key, label) => {
+      if (!(key in d)) return;
+      const arr = list(key);
+      if (arr.length) acts.push({ name: `${label} (${arr.length})`, note: arr.join(', '), items: arr });
+      else acts.push({ name: label, note: 'none', muted: true });
+    };
+
+    if (agent === 'leaver') {
+      if (stage === 'delete') {
+        state('accountDeleted', 'Account deleted', 'user object permanently removed');
+      } else {
+        state('accountDisabled', 'Account disabled', 'accountEnabled set to false');
+        state('sessionsRevoked', 'Sessions revoked', 'active sign-in sessions invalidated');
+        if (stage === 'hard') { items('licensesRemoved', 'Licenses removed'); items('groupsRemoved', 'Groups removed'); }
+      }
+    } else if (agent === 'joiner') {
+      state('accountCreated', 'Account created', 'Entra identity provisioned');
+      state('managerSet', 'Manager set', 'reporting line set');
+      items('licensesAdded', 'Licenses added');
+      items('groupsAdded', 'Groups added');
+    } else if (agent === 'enroller') {
+      items('licensesAdded', 'Licenses added');
+      items('groupsAdded', 'Groups added');
+    } else if (agent === 'mover') {
+      if (d.attributesUpdated && typeof d.attributesUpdated === 'object') {
+        const keys = Object.keys(d.attributesUpdated);
+        if (keys.length) acts.push({ name: 'Attributes updated', note: keys.map(k => `${k} → ${d.attributesUpdated[k]}`).join(' · '), items: keys.map(k => `${k} → ${d.attributesUpdated[k]}`) });
+      }
+      state('managerSet', 'Manager set', 'reporting line updated');
+      items('licensesAdded', 'Licenses added');
+      items('licensesRemoved', 'Licenses removed');
+      items('groupsAdded', 'Groups added');
+      items('groupsRemoved', 'Groups removed');
+    } else {
+      ['licensesAdded', 'licensesRemoved', 'groupsAdded', 'groupsRemoved'].forEach(k =>
+        items(k, k.replace(/([A-Z])/g, ' $1').replace(/^./, c => c.toUpperCase())));
     }
-    const la = list('licensesAdded'), lr = list('licensesRemoved');
-    const ga = list('groupsAdded'),   gr = list('groupsRemoved');
-    if (la.length) acts.push({ name: `Licenses added (${la.length})`,   note: la.join(', ') });
-    if (lr.length) acts.push({ name: `Licenses removed (${lr.length})`, note: lr.join(', ') });
-    if (ga.length) acts.push({ name: `Groups added (${ga.length})`,     note: ga.join(', ') });
-    if (gr.length) acts.push({ name: `Groups removed (${gr.length})`,   note: gr.join(', ') });
     const errs = list('errors');
-    if (errs.length) acts.push({ name: `Issues (${errs.length})`, note: errs.join('; '), failed: true });
+    if (errs.length) acts.push({ name: `Issues (${errs.length})`, note: errs.join('; '), items: errs, failed: true });
     return acts;
   }
 
   function verifyChecks(operation) {
+    // When the run's concrete results are known, confirm the exact changes
+    // (expandable) instead of listing generic read-back calls.
+    if (hasExecuteDetail(operation)) {
+      const d = operation.details;
+      const list = (k) => Array.isArray(d[k]) ? d[k].filter(Boolean) : [];
+      const acts = [];
+      if ('accountDeleted' in d && d.accountDeleted) acts.push({ name: 'Confirmed account deleted', note: 'no longer resolvable in the directory' });
+      else if ('accountDisabled' in d) acts.push({ name: 'Confirmed account state', note: d.accountDisabled ? 'disabled' : 'enabled' });
+      else if ('accountCreated' in d && d.accountCreated) acts.push({ name: 'Confirmed account created', note: 'resolves in the directory' });
+      const pairs = [
+        ['licensesRemoved', 'Confirmed licenses removed'], ['licensesAdded', 'Confirmed licenses present'],
+        ['groupsRemoved', 'Confirmed groups removed'],     ['groupsAdded', 'Confirmed group membership'],
+      ];
+      for (const [k, label] of pairs) {
+        if (!(k in d)) continue;
+        const arr = list(k);
+        if (arr.length) acts.push({ name: `${label} (${arr.length})`, note: arr.join(', '), items: arr });
+      }
+      if (acts.length) return acts;
+    }
     const agent = String(operation?.agent || '').toLowerCase();
     if (agent === 'leaver') return [
       { name: 'GET /users/{id}?$select=accountEnabled', note: 'confirm account disabled' },
@@ -248,12 +311,12 @@
         // fall back to the generic Graph-call list when no detail is recorded.
         const outcomes = executeOutcomes(operation);
         activities = outcomes.length
-          ? outcomes.map(o => ({ name: o.name, note: o.note, status: o.failed ? 'partial' : aSt }))
+          ? outcomes.map(o => ({ name: o.name, note: o.note, items: o.items || null, muted: !!o.muted, status: o.failed ? 'partial' : (o.muted ? 'done' : aSt) }))
           : executeCalls(operation).map(c => ({ ...c, status: aSt }));
         break;
       }
       case 'verify':
-        activities = verifyChecks(operation).map(c => ({ ...c, status: aSt }));
+        activities = verifyChecks(operation).map(c => ({ name: c.name, note: c.note, items: c.items || null, status: aSt }));
         break;
       case 'complete':
         activities = [
