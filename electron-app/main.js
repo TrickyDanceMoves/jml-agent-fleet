@@ -1057,7 +1057,11 @@ function pollTrayApprovals() {
   } catch {}
 }
 
-function routeBlockedLeaverToApproval(input, stage, reason, requiredApproverRole) {
+function routeBlockedLeaverToApproval(input, stage, reason, requiredApproverRole, requestedBy, requestedByRole) {
+  // requestedBy/requestedByRole let a deferred caller (e.g. a scheduled run)
+  // attribute the request to whoever created it, not whoever is logged in now.
+  const reqBy   = requestedBy   || currentOperator;
+  const reqRole2 = requestedByRole || currentRole;
   if (PRESENTATION_MODE) {
     const token = `demo-${Date.now().toString(36)}`;
     MOCK_APPROVALS.unshift({
@@ -1065,8 +1069,8 @@ function routeBlockedLeaverToApproval(input, stage, reason, requiredApproverRole
       token,
       tool: `submit_leaver_${stage.toLowerCase()}`,
       severity: 'crit',
-      requestedBy: currentOperator || DEMO_ADMIN,
-      requestedByRole: currentRole,
+      requestedBy: reqBy || DEMO_ADMIN,
+      requestedByRole: reqRole2,
       requiredApproverRole: requiredApproverRole || 'admin',
       requestedAt: new Date().toISOString(),
       input: {
@@ -1087,8 +1091,8 @@ function routeBlockedLeaverToApproval(input, stage, reason, requiredApproverRole
     id: token, token,
     tool: 'submit_leaver_' + stage.toLowerCase(),
     severity: 'crit',
-    requestedBy: currentOperator || 'helpdesk',
-    requestedByRole: currentRole,
+    requestedBy: reqBy || 'helpdesk',
+    requestedByRole: reqRole2,
     requiredApproverRole: reqRole,
     requestedAt: new Date().toISOString(),
     input: { userPrincipalName: input.userPrincipalName, stage, ticketRef: input.ticketRef || '' },
@@ -1097,16 +1101,16 @@ function routeBlockedLeaverToApproval(input, stage, reason, requiredApproverRole
   };
   fs.writeFileSync(path.join(PENDING_DIR, token + '.json'), JSON.stringify(record, null, 2), 'utf8');
   sendToast('Admin Approval Required', (input.userPrincipalName || 'User') + ' queued for admin sign-off.');
-  emitApprovalQueued(input, stage, token);
+  emitApprovalQueued(input, stage, token, reqBy, reqRole2);
   return token;
 }
 
 // Surface a queued approval on the Glass Screen as an awaiting-approval run.
-function emitApprovalQueued(input, stage, token) {
+function emitApprovalQueued(input, stage, token, requestedBy, requestedByRole) {
   const op = {
     id: token, agent: 'leaver', toolName: 'submit_leaver_' + String(stage).toLowerCase(),
-    stage, subject: input.userPrincipalName, operator: currentOperator, whatif: false,
-    status: 'awaiting-approval', requestedByRole: currentRole,
+    stage, subject: input.userPrincipalName, operator: requestedBy || currentOperator, whatif: false,
+    status: 'awaiting-approval', requestedByRole: requestedByRole || currentRole,
     startedAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
   };
   activeOperations.set(token, op);
@@ -2293,7 +2297,11 @@ ipcMain.on('save-scheduled-op', (event, { op }) => {
   const ops = loadScheduled();
   const newOp = Object.assign({}, op, {
     id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
-    status: 'pending'
+    status: 'pending',
+    // Capture who scheduled it so a destructive run fired later is gated on
+    // the scheduler's role, not whoever happens to be logged in at fire time.
+    requestedBy: currentOperator,
+    requestedByRole: currentRole
   });
   ops.push(newOp);
   saveScheduled(ops);
@@ -5160,9 +5168,26 @@ app.whenReady().then(() => {
           try { raw = await runPsAsync(path.join(AGENTS_DIR, 'joiner', 'Invoke-JoinerProcess.ps1'), { PayloadPath: _pf3, WhatIf: w }); }
           finally { try { fs.unlinkSync(_pf3); } catch {} }
         } else if (opName === 'leaver') {
+          const _stage = payload.stage || 'Soft';
+          const _destructive = _stage === 'Hard' || _stage === 'Delete';
+          const _schedRole = String(op.requestedByRole || 'viewer').toLowerCase();
+          // A scheduled Hard/Delete offboard created by a non-admin must not
+          // fire unattended — queue it for admin sign-off instead of executing.
+          if (_destructive && _schedRole !== 'admin' && !w) {
+            const _tok = routeBlockedLeaverToApproval(
+              { userPrincipalName: payload.userPrincipalName, ticketRef: payload.ticketRef },
+              _stage,
+              `Scheduled ${_stage}-stage leaver created by ${op.requestedByRole || 'a non-admin operator'} — admin sign-off required before execution.`,
+              'admin', op.requestedBy, op.requestedByRole);
+            op.status = 'awaiting-approval';
+            op.approvalToken = _tok;
+            changed = true;
+            if (win) win.webContents.send('scheduled-op-fired', op);
+            continue;
+          }
           raw = await runPsAsync(path.join(AGENTS_DIR, 'leaver', 'Invoke-LeaverProcess.ps1'), {
-            UserPrincipalName: payload.userPrincipalName, Stage: payload.stage || 'Soft',
-            TicketRef: payload.ticketRef, WhatIf: w
+            UserPrincipalName: payload.userPrincipalName, Stage: _stage,
+            TicketRef: payload.ticketRef, WhatIf: w, OperatorRole: op.requestedByRole
           });
         } else if (opName === 'mover') {
           const _pfMover = writePayloadFile({
