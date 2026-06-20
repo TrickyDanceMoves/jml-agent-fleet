@@ -2,6 +2,8 @@
 
 AI-powered identity lifecycle automation for Microsoft Entra ID. Eight agents — two AI-backed (Approver, Auditor) and six PowerShell — handle the full Joiner/Mover/Leaver (JML) workflow with zero-trust architecture, UEBA, drift detection, AI-assisted provisioning, and end-to-end HRIS integration. It borrows the patterns enterprise IGA platforms are built on — lifecycle workflow, approvals, least privilege, access review, risk scoring, and tamper-evident audit evidence — and applies them to a focused, governed Microsoft Entra JML console.
 
+> **Naming:** *JML Agent Fleet* is the project (this repo and the agent fleet). It ships as the **JML Console** desktop app (the installer, releases, and winget package), whose command center is branded *JML Fleet · Identity Console* in-app.
+
 The reasoning agents run as **first-class Microsoft Entra Agent IDs** (live, hybrid by design — see [Agent Identity](#agent-identity--hybrid-entra-agent-id-live)), every operation streams through a live **Glass Screen command center**, and the AI layer is **provider-agnostic**: Approver and Auditor agents run on any OpenAI-compatible backend — **Azure AI Foundry**, Azure OpenAI, OpenAI, Anthropic Claude, or a local Ollama instance — switchable from Settings with no code change.
 
 **[Interactive Case Study](https://trickydancemoves.github.io/jml-agent-fleet/docs/case-study.html)** — walkthrough of the architecture, agent design, and live operation flows.
