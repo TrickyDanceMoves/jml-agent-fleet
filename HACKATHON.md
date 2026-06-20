@@ -148,8 +148,8 @@ of implementation.
 
 ### Fastest path
 
-1. Download `JML.Console.Setup.1.1.8.exe` from the
-   [v1.1.8 GitHub Release](https://github.com/TrickyDanceMoves/jml-agent-fleet/releases/tag/v1.1.8).
+1. Download `JML.Console.Setup.1.1.9.exe` from the
+   [v1.1.9 GitHub Release](https://github.com/TrickyDanceMoves/jml-agent-fleet/releases/tag/v1.1.9).
 2. Install per-user.
 3. Open Settings and configure an AI provider.
 4. Run the Tenant Binding wizard with an authorized lab tenant.
