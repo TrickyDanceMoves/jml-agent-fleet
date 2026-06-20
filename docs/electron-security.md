@@ -10,7 +10,7 @@ therefore be treated as untrusted UI, with all authority mediated by IPC.
 |---|---|---|
 | `contextIsolation` | ✅ true | every `BrowserWindow` in `main.js` |
 | `nodeIntegration` | ✅ false | every `BrowserWindow` |
-| `sandbox` | ⚠️ false | see "Known gap" below |
+| `sandbox` | ✅ true | every `BrowserWindow` in `main.js`; preloads carry no Node deps |
 | Preload allowlist | ✅ | `preload.js` exposes a fixed `window.api` surface via `contextBridge` |
 | No remote content | ✅ | renderer loads only local `renderer/*.html`; no remote URLs |
 | External links | ✅ | routed through `shell.openExternal`, never in-app navigation |
@@ -26,15 +26,15 @@ Every mutating IPC handler in the main process enforces:
 - **Payload shape checks** — handlers read only known fields and pass typed parameters
   to PowerShell (no raw string interpolation of user input into shell).
 
-## Known gap: `sandbox: false`
+## Closed: `sandbox: true` on every window
 
-The preload scripts require Node built-ins (`os` for the operator username, `fs`/`path`
-for BOM-safe config reads), which are unavailable under a fully sandboxed renderer.
-The renderer itself remains isolated (`contextIsolation: true`, `nodeIntegration: false`),
-so this does not expose Node to page scripts — but the preload runs with Node access.
-
-**Remediation path:** move the `os`/`fs` reads out of preload into the main process
-behind dedicated IPC calls, then set `sandbox: true`. Tracked for post-submission.
+Previously the main preload used Node built-ins (`os` for the operator username),
+which forced `sandbox: false`. That logic moved into the main process behind a
+synchronous `resolve-current-user` IPC call, so all three preloads
+(`preload.js`, `preload-panel.js`, `preload-overlay.js`) now use only
+`electron` (`contextBridge`/`ipcRenderer`) and every `BrowserWindow` runs with
+`sandbox: true`. The renderer process is now OS-sandboxed in addition to being
+context-isolated with Node integration disabled.
 
 ## Recommended next steps
 
@@ -42,7 +42,7 @@ behind dedicated IPC calls, then set `sandbox: true`. Tracked for post-submissio
       `default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'`.
       (No inline `<script>` or inline event handlers, so `script-src 'self'` holds.)
 - [ ] Extend the same CSP to the secondary renderer HTML (operator-select, setup, overlay, docked, palette).
-- [ ] Set `sandbox: true` after moving Node-dependent preload logic into main-process IPC.
+- [x] Set `sandbox: true` after moving Node-dependent preload logic into main-process IPC.
 - [ ] Validate `event.senderFrame` origin in each IPC handler (defence in depth).
 - [ ] Add a JSON-schema validator for IPC payloads on the highest-privilege channels
       (`run-quick-leaver`, `activate-pim-role`, `create-agent-app-registrations`,

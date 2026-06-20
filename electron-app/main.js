@@ -845,7 +845,7 @@ function createDockedPanel() {
     transparent: true,
     icon: APP_ICON,
     backgroundColor: '#00000000',
-    webPreferences: { preload: PANEL_PRELOAD, contextIsolation: true, nodeIntegration: false, sandbox: false }
+    webPreferences: { preload: PANEL_PRELOAD, contextIsolation: true, nodeIntegration: false, sandbox: true }
   });
   dockedWin.setContentProtection(true);
   dockedWin.loadFile(path.join(__dirname, 'renderer', 'docked.html'));
@@ -939,7 +939,7 @@ function createOverlayWindow() {
     frame: false, resizable: true,
     alwaysOnTop: true, skipTaskbar: true,
     transparent: true, backgroundColor: '#00000000',
-    webPreferences: { preload: OVERLAY_PRELOAD, contextIsolation: true, nodeIntegration: false, sandbox: false }
+    webPreferences: { preload: OVERLAY_PRELOAD, contextIsolation: true, nodeIntegration: false, sandbox: true }
   });
   overlayWin.setContentProtection(true);
   overlayWin.setMinimumSize(300, 88);
@@ -1004,7 +1004,7 @@ function createPaletteWindow() {
     transparent: true,
     icon: APP_ICON,
     backgroundColor: '#00000000',
-    webPreferences: { preload: PANEL_PRELOAD, contextIsolation: true, nodeIntegration: false, sandbox: false }
+    webPreferences: { preload: PANEL_PRELOAD, contextIsolation: true, nodeIntegration: false, sandbox: true }
   });
   paletteWin.loadFile(path.join(__dirname, 'renderer', 'palette.html'));
   paletteWin.on('blur', () => { if (paletteWin && !paletteWin.isDestroyed()) paletteWin.close(); });
@@ -2842,7 +2842,7 @@ function createSetupWindow() {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: false,
+      sandbox: true,
       additionalArguments: demoPreloadArgs()
     }
   });
@@ -2870,7 +2870,7 @@ function createMainWindow() {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: false,
+      sandbox: true,
       additionalArguments: demoPreloadArgs()
     }
   });
@@ -2906,7 +2906,7 @@ function createOperatorWindow() {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: false,
+      sandbox: true,
       additionalArguments: demoPreloadArgs()
     }
   });
@@ -2924,6 +2924,23 @@ ipcMain.handle('get-current-operator', () => {
   // Report viewer for display when no session is active, but DON'T persist it —
   // mutating currentRole here would defeat the null (pre-session) OOBE guards.
   return { name: currentOperator, role: currentRole || 'viewer' };
+});
+
+// Resolve the local operator username for the preload. Sourced here (not in the
+// preload) so the preload needs no Node modules and every window can run with
+// sandbox: true. Synchronous because the renderer reads window.api.currentUser
+// at load. Mirrors the demo/capture overrides the preload used to apply.
+ipcMain.on('resolve-current-user', (event) => {
+  const demoOrCapture = process.argv.some(arg => [
+    '--jml-demo-operator', '--demo', '--demo-state', '--demo-drive',
+    '--hackathon-capture', '--capture', '--capture-jml-input',
+    '--capture-chrome', '--capture-glass-screen',
+  ].includes(arg));
+  try {
+    event.returnValue = demoOrCapture ? 'Demo Operator' : os.userInfo().username;
+  } catch {
+    event.returnValue = 'Operator';
+  }
 });
 
 // Decode a JWT payload (no signature check — used only to read non-sensitive
@@ -4356,7 +4373,7 @@ async function runCapture() {
     transparent: GLASS_CAPTURE_MODE,
     backgroundColor: GLASS_CAPTURE_MODE ? '#00000000' : '#11131a',
     ...(GLASS_CAPTURE_MODE ? { backgroundMaterial: 'mica' } : {}),
-    webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, nodeIntegration: false, sandbox: false }
+    webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, nodeIntegration: false, sandbox: true }
   });
   win.loadFile(path.join(__dirname, 'renderer', 'index.html'));
   await new Promise(r => win.webContents.once('did-finish-load', r));
@@ -4675,7 +4692,7 @@ async function runDemoDrive() {
   win = new BrowserWindow({
     width: SW, height: SH, x: 0, y: 0,
     frame: false, transparent: false, backgroundColor: '#070b13',
-    webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, nodeIntegration: false, sandbox: false }
+    webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, nodeIntegration: false, sandbox: true }
   });
   win.loadFile(path.join(__dirname, 'renderer', 'index.html'));
   await new Promise(r => win.webContents.once('did-finish-load', r));
@@ -4880,7 +4897,7 @@ async function runGlassScreenQc() {
     transparent: true,
     backgroundColor: '#00000000',
     backgroundMaterial: 'mica',
-    webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, nodeIntegration: false, sandbox: false }
+    webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, nodeIntegration: false, sandbox: true }
   });
   win.loadFile(path.join(__dirname, 'renderer', 'index.html'));
   await new Promise(r => win.webContents.once('did-finish-load', r));

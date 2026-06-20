@@ -1,23 +1,12 @@
 'use strict';
 
+// No Node modules here (no os / process.argv): this preload runs under
+// sandbox: true. The operator username is resolved synchronously by the main
+// process via IPC, which applies the demo/capture overrides.
 const { contextBridge, ipcRenderer } = require('electron');
-const os = require('os');
-
-const DEMO_CURRENT_USER = 'Demo Operator';
-const isDemoOrCaptureMode = process.argv.some(arg => [
-  '--jml-demo-operator',
-  '--demo',
-  '--demo-state',
-  '--demo-drive',
-  '--hackathon-capture',
-  '--capture',
-  '--capture-jml-input',
-  '--capture-chrome',
-  '--capture-glass-screen',
-].includes(arg));
 
 contextBridge.exposeInMainWorld('api', {
-  currentUser: isDemoOrCaptureMode ? DEMO_CURRENT_USER : os.userInfo().username,
+  currentUser: ipcRenderer.sendSync('resolve-current-user'),
   demoClipSave:     (name, buf)      => ipcRenderer.invoke('demo-clip-save', { name, buf }),
   sendMessage:      (agent, text)    => ipcRenderer.send('send-message', { agent, text }),
   abortAgent:       (agent)          => ipcRenderer.send('abort-agent', { agent }),
