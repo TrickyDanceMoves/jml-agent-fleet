@@ -6242,6 +6242,9 @@ html[data-theme="glass"] .tool-result-drawer {
   border: 1px solid var(--border);
   display: flex; flex-direction: column; gap: 6px; align-items: flex-start;
 }
+/* display:flex above overrides the [hidden] attribute, which left an empty,
+   coral-bordered box on screen when there was no recovery. Restore hiding. */
+.gs-recovery[hidden] { display: none; }
 .gs-recovery[data-tone="failed"]  { border-color: color-mix(in oklch, var(--coral) 40%, transparent); }
 .gs-recovery[data-tone="partial"] { border-color: color-mix(in oklch, var(--warn) 40%, transparent); }
 .gs-recovery-msg { font-size: 13px; color: var(--text); }
@@ -6297,6 +6300,7 @@ html[data-theme="glass"] .tool-result-drawer {
   transition: color 150ms ease;
 }
 .gs-recent-expand:hover { color: var(--text-2); }
+.gs-recent-expand[hidden] { display: none; }
 .gs-chevron { font-size: 14px; line-height: 1; transform: translateY(1px); }
 .gs-chevron.up { transform: translateY(-1px); }
 .gs-recent-run {
