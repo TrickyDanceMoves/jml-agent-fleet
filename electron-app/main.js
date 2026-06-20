@@ -1510,7 +1510,7 @@ async function runAgentLoop(sender, agent, userText) {
         if (isLifecycleSubmitTool(tool.name)) {
           operation = {
             id: crypto.randomUUID(),
-            agent: tool.name.replace(/^submit_/, '').replace(/_(soft|hard)$/, ''),
+            agent: tool.name.replace(/^submit_/, '').replace(/_(soft|hard|delete)$/, ''),
             toolName: tool.name,
             stage: lifecycleStageForTool(tool.name),
             subject: operationSubject(tool.input),
