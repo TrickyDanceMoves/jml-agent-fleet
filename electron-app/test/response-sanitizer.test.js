@@ -32,3 +32,28 @@ test('keeps direct answers that do not echo the query', () => {
 
   assert.equal(stripQueryEcho(text, query), text);
 });
+
+test('strips a topic-restatement header that echoes the query', () => {
+  const query = 'recent joins';
+  const text = '**Recent joins:**\n- alex.morgan\n- sam.lee';
+  assert.equal(stripQueryEcho(text, query), '- alex.morgan\n- sam.lee');
+});
+
+test('strips a colon header echo and a "here are" lead-in', () => {
+  assert.equal(
+    stripQueryEcho('Recent joins:\n3 users joined this week.', 'recent joins'),
+    '3 users joined this week.');
+  assert.equal(
+    stripQueryEcho('Here are the recent joiners: alex, sam.', 'recent joins'),
+    'alex, sam.');
+});
+
+test('strips conversational acknowledgements', () => {
+  assert.equal(stripQueryEcho('Sure! 12 guests found.', 'how many guests'), '12 guests found.');
+});
+
+test('does not strip a header that does not overlap the query', () => {
+  const query = 'show license utilization';
+  const text = '**Microsoft 365 E5:** 450 / 500 assigned.';
+  assert.equal(stripQueryEcho(text, query), text);
+});

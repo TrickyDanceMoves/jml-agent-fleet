@@ -1466,9 +1466,10 @@ async function runAgentLoop(sender, agent, userText) {
           const validation = validateGroundedAssistantText(safeText || pendingText, facts);
           // Hard block (fabricated UPNs / numbers with no tool data) → replace.
           // Soft caveat (figures that don't tie out exactly) → keep + append note.
+          // Keep the echo-stripped safeText as the base (don't revert to `text`).
           safeText = !validation.ok
             ? groundedFallback(validation.reason)
-            : (validation.caveat ? `${text}\n\n> ⚠ ${validation.caveat}` : text);
+            : (validation.caveat ? `${safeText}\n\n> ⚠ ${validation.caveat}` : safeText);
         }
         response.content = [
           ...response.content.filter(b => b.type !== 'text'),
