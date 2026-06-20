@@ -1,6 +1,6 @@
 'use strict';
 
-const DEMO_FLAGS = new Set(['--demo', '--demo-drive', '--hackathon-capture']);
+const DEMO_FLAGS = new Set(['--demo', '--demo-drive', '--hackathon-capture', '--capture-windows']);
 
 class DemoWriteBlockedError extends Error {
   constructor(action) {

@@ -4564,6 +4564,52 @@ const TAB_INJECT = {
 
 async function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
+// Capture the docked panel (full / sections-collapsed / slim) and the overlay
+// as PII-safe demo screenshots for docs/images. Runs in demo mode so all data
+// is mock (contoso). `electron . --capture-windows`.
+async function runCaptureWindows() {
+  const OUT = path.join(__dirname, '..', 'docs', 'images');
+  fs.mkdirSync(OUT, { recursive: true });
+  currentOperator = 'Demo Operator';
+  const snap = async (w, name) => {
+    if (!w || w.isDestroyed()) { console.error('window missing for', name); return; }
+    await w.webContents.executeJavaScript('new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)))').catch(() => {});
+    await sleep(400);
+    let img; for (let a = 0; a < 3; a++) { try { img = await w.webContents.capturePage(); break; } catch { await sleep(400); } }
+    if (img) { fs.writeFileSync(path.join(OUT, name + '.png'), img.toPNG()); console.log('Captured:', name); }
+    else console.error('capturePage failed for', name);
+  };
+
+  // ── Docked panel ─────────────────────────────────────────────
+  createDockedPanel();
+  await new Promise(r => dockedWin.webContents.once('did-finish-load', r));
+  pollTrayApprovals(); pushPanelUpdate({ approvals: 2, mode: 'safe' });
+  await sleep(1200);
+  await snap(dockedWin, 'docked-panel-full');
+
+  // Sections collapsed (.section.collapsed hides each .section-body)
+  await dockedWin.webContents.executeJavaScript(`
+    document.querySelectorAll('.section').forEach(s => s.classList.add('collapsed'));
+  `).catch(() => {});
+  await sleep(500);
+  await snap(dockedWin, 'docked-panel-collapsed');
+
+  // Slim edge-tab (collapsed sidebar)
+  await dockedWin.webContents.executeJavaScript(`document.body.classList.add('slim-mode');`).catch(() => {});
+  await sleep(500);
+  await snap(dockedWin, 'slim-hub');
+
+  // ── Overlay ──────────────────────────────────────────────────
+  createOverlayWindow();
+  await new Promise(r => overlayWin.webContents.once('did-finish-load', r));
+  pushOverlayUpdate({ approvals: 2, pendingList: MOCK_APPROVALS, mode: 'safe' });
+  await sleep(1200);
+  await snap(overlayWin, 'overlay-mode');
+
+  await sleep(300);
+  app.quit();
+}
+
 async function runCapture() {
   fs.mkdirSync(CAPTURE_OUT, { recursive: true });
 
@@ -5326,6 +5372,7 @@ function ensureDataDirs() {
 
 app.whenReady().then(() => {
   app.setAppUserModelId('com.jml.console');
+  if (process.argv.includes('--capture-windows')) { runCaptureWindows().catch(e => { console.error('Window capture error:', e); app.quit(); process.exitCode = 1; }); return; }
   if (GS_STATES_QC_MODE) { runGlassScreenQc().catch(e => { console.error('Glass QC error:', e); app.quit(); process.exitCode = 1; }); return; }
   if (CAPTURE_MODE) { runCapture().catch(e => { console.error('Capture error:', e); app.quit(); process.exitCode = 1; }); return; }
   if (DEMO_DRIVE_MODE) { runDemoDrive().catch(e => { console.error('Demo drive error:', e); app.quit(); process.exitCode = 1; }); return; }
