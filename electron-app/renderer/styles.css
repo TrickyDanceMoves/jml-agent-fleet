@@ -1308,6 +1308,21 @@ html:not([data-theme="glass"]) .main {
 .liveops-collapse:hover { color: var(--text); }
 .v2-liveops-card.collapsed .liveops-collapse { transform: rotate(-90deg); }
 .v2-liveops-card.collapsed #v2-liveops-body { display: none; }
+
+/* Dashboard top-block drag-reorder (triage / HRIS / fleet / live-ops) */
+#dash-top-blocks { display: block; }
+.dash-block { position: relative; }
+.dash-block-grip {
+  position: absolute; top: -3px; right: 2px; z-index: 4;
+  background: none; border: none; color: var(--muted); cursor: grab;
+  font-size: 13px; line-height: 1; padding: 2px 5px; border-radius: 4px;
+  opacity: .35; transition: opacity .15s ease, color .15s ease;
+}
+.dash-block:hover .dash-block-grip { opacity: .9; }
+.dash-block-grip:hover { color: var(--text); }
+.dash-block-grip:active { cursor: grabbing; }
+.dash-block.dragging { opacity: .55; }
+.dash-block.drag-over { outline: 2px dashed color-mix(in oklch, var(--cyan) 50%, transparent); outline-offset: 3px; border-radius: 8px; }
 .v2-liveops-row {
   display: grid;
   grid-template-columns: 72px 88px 1fr 76px 46px 64px;

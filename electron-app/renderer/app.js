@@ -6137,6 +6137,83 @@ const AGENT_PURPOSE = {
   });
 })();
 
+// ── Dashboard top-block drag-reorder ────────────────────────────────────────
+// Makes the hero blocks (triage, HRIS lane, fleet strip, live-ops/telemetry)
+// reorderable like the supporting widgets. Wraps each block programmatically
+// (so the HTML stays untouched and a missing block is skipped, not fatal) and
+// reorders via a grip handle so inner buttons/tiles still click normally.
+(function initTopBlockReorder() {
+  const view = document.getElementById('view-dashboard');
+  if (!view || document.getElementById('dash-top-blocks')) return;
+  const defs = [
+    { key: 'triage',  sel: '.v2-triage-strip' },
+    { key: 'hris',    sel: '.v2-hris-lane' },
+    { key: 'fleet',   sel: '.v2-fleet-hdr', extra: '.v2-fleet-strip' },
+    { key: 'liveops', sel: '.v2-bottom-row' },
+  ];
+  const first = view.querySelector(defs[0].sel);
+  if (!first) return;
+  const container = document.createElement('div');
+  container.id = 'dash-top-blocks';
+  first.parentNode.insertBefore(container, first);
+  for (const def of defs) {
+    const lead = view.querySelector(def.sel);
+    if (!lead) continue;
+    const block = document.createElement('div');
+    block.className = 'dash-block';
+    block.dataset.block = def.key;
+    const grip = document.createElement('button');
+    grip.className = 'dash-block-grip';
+    grip.title = 'Drag to reorder';
+    grip.setAttribute('aria-label', 'Drag to reorder this widget');
+    grip.textContent = '⠿';
+    block.appendChild(grip);
+    container.appendChild(block);
+    block.appendChild(lead);
+    if (def.extra) { const ex = view.querySelector(def.extra); if (ex) block.appendChild(ex); }
+  }
+
+  const KEY = 'jml-dash-topblock-order';
+  try {
+    const saved = JSON.parse(localStorage.getItem(KEY) || '[]');
+    if (Array.isArray(saved) && saved.length) {
+      const byKey = new Map();
+      container.querySelectorAll(':scope > .dash-block').forEach(el => byKey.set(el.dataset.block, el));
+      saved.forEach(k => { const el = byKey.get(k); if (el) container.appendChild(el); });
+      byKey.forEach((el, k) => { if (!saved.includes(k)) container.appendChild(el); });
+    }
+  } catch (_) { /* ignore corrupt state */ }
+
+  let dragged = null;
+  container.querySelectorAll(':scope > .dash-block').forEach(block => {
+    const grip = block.querySelector('.dash-block-grip');
+    if (grip) {
+      grip.addEventListener('mousedown', () => { block.draggable = true; });
+      grip.addEventListener('mouseup', () => { block.draggable = false; });
+    }
+    block.addEventListener('dragstart', e => {
+      dragged = block; block.classList.add('dragging');
+      try { e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', block.dataset.block); } catch (_) {}
+    });
+    block.addEventListener('dragend', () => {
+      block.classList.remove('dragging'); block.draggable = false;
+      container.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
+      dragged = null;
+      const order = [...container.querySelectorAll(':scope > .dash-block')].map(el => el.dataset.block);
+      try { localStorage.setItem(KEY, JSON.stringify(order)); } catch (_) {}
+    });
+    block.addEventListener('dragover', e => { if (!dragged || dragged === block) return; e.preventDefault(); block.classList.add('drag-over'); });
+    block.addEventListener('dragleave', () => block.classList.remove('drag-over'));
+    block.addEventListener('drop', e => {
+      e.preventDefault(); block.classList.remove('drag-over');
+      if (!dragged || dragged === block) return;
+      const rect = block.getBoundingClientRect();
+      const after = (e.clientY - rect.top) > rect.height / 2;
+      if (after) block.after(dragged); else block.before(dragged);
+    });
+  });
+})();
+
 // ── JML Fleet assist bar + slash commands ─────────────────────────────────────
 const SLASH_COMMANDS = [
   { cmd: '/joiner',      label: 'New Joiner',    desc: 'Onboard a new hire to the tenant',                          prompt: 'Onboard a new hire' },
