@@ -492,6 +492,23 @@ const APPROVER_TOOLS = [
       properties: { filter: { type: 'string', description: 'Display-name prefix filter' } },
       required: []
     }
+  },
+  {
+    name: 'schedule_operation',
+    description: 'Schedule a JML operation to run automatically at a FUTURE time instead of executing it now. Use this when the operator asks to schedule/defer/queue an onboarding, move, or offboarding for later (e.g. "onboard Sarah next Monday 9am", "offboard them at end of day Friday"). For an immediate action use the submit_* tools instead. A scheduled Hard/Delete leaver created by a non-admin is still gated on admin approval when it fires.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        operation:    { type: 'string', enum: ['joiner', 'mover', 'leaver'], description: 'Which JML operation to schedule.' },
+        scheduledFor: { type: 'string', description: 'ISO 8601 datetime (with timezone) when the operation should run. Resolve relative phrasing like "next Monday 9am" to an absolute datetime using the current date.' },
+        whatif:       { type: 'boolean', description: 'Safe mode — simulate, no tenant change. Defaults to the current session mode.' },
+        payload: {
+          type: 'object',
+          description: 'Operation fields. joiner: givenName, surname, department, jobTitle, usageLocation, manager, licenses[], groups[] (UPN auto-generated). mover: userPrincipalName, department, jobTitle, manager, licensesToAdd[], licensesToRemove[], groupsToAdd[], groupsToRemove[]. leaver: userPrincipalName, stage (Soft|Hard|Delete), ticketRef.'
+        }
+      },
+      required: ['operation', 'scheduledFor', 'payload']
+    }
   }
 ];
 
@@ -1327,6 +1344,68 @@ async function executeTool(agent, toolName, input, whatif) {
     if (role === 'viewer' || role === 'guest') {
       return { error: 'RBAC: the current operator role is read-only. Submit operations require a helpdesk or admin account.' };
     }
+  }
+
+  // Schedule a JML operation for later (approver agent). Writes to the same
+  // scheduled.json the Operations scheduler uses; the fire loop runs it at time
+  // and still gates non-admin Hard/Delete leavers on approval.
+  if (toolName === 'schedule_operation') {
+    const role = (currentRole || 'viewer').toLowerCase();
+    if (role === 'viewer' || role === 'guest') {
+      return { error: 'RBAC: scheduling JML operations requires a helpdesk or admin account.' };
+    }
+    const op = String(input.operation || '').toLowerCase();
+    if (!['joiner', 'mover', 'leaver'].includes(op)) {
+      return { error: "schedule_operation: 'operation' must be joiner, mover, or leaver." };
+    }
+    const when = Date.parse(input.scheduledFor);
+    if (!Number.isFinite(when)) {
+      return { error: 'schedule_operation: scheduledFor must be a valid ISO 8601 datetime (with timezone).' };
+    }
+    if (when <= Date.now()) {
+      return { error: 'schedule_operation: scheduledFor must be in the future. For an immediate action, use the submit_* tools.' };
+    }
+    const payload = (input.payload && typeof input.payload === 'object') ? { ...input.payload } : {};
+    if ((op === 'mover' || op === 'leaver') && !payload.userPrincipalName) {
+      return { error: `schedule_operation: ${op} requires payload.userPrincipalName.` };
+    }
+    if (op === 'joiner' && (!payload.givenName || !payload.surname)) {
+      return { error: 'schedule_operation: joiner requires payload.givenName and payload.surname.' };
+    }
+    if (op === 'leaver' && payload.stage) {
+      const norm = String(payload.stage).charAt(0).toUpperCase() + String(payload.stage).slice(1).toLowerCase();
+      if (!['Soft', 'Hard', 'Delete'].includes(norm)) {
+        return { error: 'schedule_operation: leaver stage must be Soft, Hard, or Delete.' };
+      }
+      payload.stage = norm;
+    }
+    const scheduled = {
+      id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+      operation: op,
+      payload,
+      scheduledFor: new Date(when).toISOString(),
+      whatif: input.whatif !== undefined ? !!input.whatif : !!whatif,
+      status: 'pending',
+      requestedBy: currentOperator,
+      requestedByRole: currentRole,
+      label: payload.userPrincipalName || [payload.givenName, payload.surname].filter(Boolean).join(' ') || op,
+      source: 'approver',
+    };
+    try {
+      const ops = loadScheduled();
+      ops.push(scheduled);
+      saveScheduled(ops);
+      if (win && !win.isDestroyed()) win.webContents.send('scheduled-ops', ops);
+    } catch (e) {
+      return { error: 'schedule_operation: could not save the schedule: ' + e.message };
+    }
+    return {
+      scheduled: true,
+      operation: op,
+      scheduledFor: scheduled.scheduledFor,
+      mode: scheduled.whatif ? 'Safe' : 'Live',
+      message: `Scheduled ${op} for ${new Date(when).toLocaleString()} (${scheduled.whatif ? 'Safe' : 'Live'} mode). It will run automatically — view or cancel it under Operations → Scheduled.`,
+    };
   }
 
   // LIVE-mode risk gate: every submit_* in Live mode requires a fresh score_risk
