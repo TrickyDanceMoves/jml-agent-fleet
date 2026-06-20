@@ -80,9 +80,15 @@ function upnsInText(text) {
 
 function validateGroundedAssistantText(text, facts) {
   const grounding = facts || collectGroundingFacts([]);
-  const unknownUpns = upnsInText(text).filter((upn) => !grounding.upns.has(upn));
+  // Ungrounded UPNs are surfaced as a soft suggestion rather than walling off
+  // the whole answer — questions like "is paris deleted?" should still get a
+  // reply, with a nudge to confirm the exact UPN.
+  const unknownUpns = [...new Set(upnsInText(text).filter((upn) => !grounding.upns.has(upn)))];
   if (unknownUpns.length) {
-    return { ok: false, reason: `Ungrounded UPN(s): ${[...new Set(unknownUpns)].join(', ')}` };
+    return {
+      ok: true,
+      caveat: `I couldn't tie ${unknownUpns.join(', ')} to the latest directory lookup — share the exact UPN or re-run the query so I can confirm.`,
+    };
   }
 
   const claimedNumbers = numbersInAuditClaims(text);
