@@ -6128,6 +6128,21 @@ html[data-theme="glass"] .tool-result-drawer {
 .gs-act-name { font-family: var(--mono); font-size: 11.5px; color: var(--text); white-space: nowrap; }
 .gs-act-note { font-size: 11.5px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; }
 .gs-act[data-status="pending"] .gs-act-name { color: var(--text-2); }
+/* Expandable activity rows — click to reveal the exact licenses/groups/etc. */
+.gs-act-expandable { cursor: pointer; border-radius: 5px; margin: -2px -4px; padding: 2px 4px; }
+.gs-act-expandable:hover { background: color-mix(in oklch, var(--bg-2) 60%, transparent); }
+.gs-act-expandable:focus-visible { outline: 1px solid color-mix(in oklch, var(--cyan) 55%, transparent); outline-offset: 1px; }
+.gs-act-caret { display: inline-block; margin-left: 6px; color: var(--muted); font-size: 9px; transition: transform .15s ease; }
+.gs-act-expandable.open .gs-act-caret { transform: rotate(90deg); }
+.gs-act-muted .gs-act-name { color: var(--text-2); }
+.gs-act-items { grid-column: 2 / -1; list-style: none; margin: 5px 0 1px; padding: 0; display: flex; flex-direction: column; gap: 3px; }
+.gs-act-items[hidden] { display: none; }
+.gs-act-items li {
+  font-family: var(--mono); font-size: 11px; color: var(--text-2);
+  padding: 2px 8px; border-left: 2px solid color-mix(in oklch, var(--cyan) 35%, transparent);
+  background: color-mix(in oklch, var(--bg-2) 45%, transparent); border-radius: 0 4px 4px 0;
+  white-space: normal; overflow-wrap: anywhere;
+}
 .gs-stage-orb {
   position: relative;
   width: 42px; height: 42px; border-radius: 50%;

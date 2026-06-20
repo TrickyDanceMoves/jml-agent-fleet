@@ -267,6 +267,29 @@ test('stageDetail execute falls back to generic calls without details (Safe prev
   assert.ok(preview.activities.some(a => /assignLicense/.test(a.name)), 'no details → generic call list');
 });
 
+test('stageDetail execute reports the honest truth when a recorded run changed nothing', () => {
+  // A hard leaver whose results recorded empty arrays must NOT imply "remove all
+  // licenses" — it shows the concrete (empty) outcome instead of generic calls.
+  const noop = op({
+    agent: 'leaver', stage: 'hard', status: 'succeeded', outcome: 'success',
+    details: { accountDisabled: false, sessionsRevoked: false, licensesRemoved: [], groupsRemoved: [] },
+  });
+  const exec = stageDetail('execute', noop);
+  assert.ok(!exec.activities.some(a => /assignLicense/.test(a.name)), 'generic call list replaced by concrete outcome');
+  const lic = exec.activities.find(a => /Licenses removed/.test(a.name));
+  assert.ok(lic && /none/.test(lic.note), 'shows licenses removed: none');
+  assert.ok(exec.activities.some(a => /Groups removed/.test(a.name) && /none/.test(a.note)), 'shows groups removed: none');
+});
+
+test('stageDetail execute attaches expandable items for concrete lists', () => {
+  const run = op({
+    agent: 'leaver', stage: 'hard', status: 'succeeded', outcome: 'success',
+    details: { accountDisabled: true, sessionsRevoked: true, licensesRemoved: ['A', 'B'], groupsRemoved: ['G1'] },
+  });
+  const lic = stageDetail('execute', run).activities.find(a => /Licenses removed/.test(a.name));
+  assert.deepEqual(lic.items, ['A', 'B'], 'license row carries the exact items for expansion');
+});
+
 test('stageDetail risk surfaces Foundry IQ grounding when present', () => {
   const grounded = op({
     status: 'running',
