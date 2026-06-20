@@ -2604,6 +2604,8 @@ strong.risk-low      { color: var(--emerald) !important; }
 .sched-status.complete { color: var(--emerald); }
 .sched-status.failed   { color: var(--coral); }
 .sched-status.cancelled{ color: var(--muted); }
+.sched-status.executed { color: var(--emerald); }
+.sched-status.awaiting-approval { color: var(--amber); font-weight: 600; }
 .btn-cancel-sched { color: var(--coral); border: 1px solid color-mix(in oklch, var(--coral) 45%, transparent); padding: 4px 10px; border-radius: 6px; font-size: 11px; }
 
 /* ============================================================
