@@ -3039,7 +3039,36 @@ function renderMarkdown(text) {
   // Agent-mention tooltip decoration removed from chat replies: the injected
   // scope-tooltip markup (role/can/permission rows) rendered as garbled inline
   // text inside agent prose. agentScopeTip stays in use for the activity feed.
-  return out.join('');
+  return colorizeAgentHtml(out.join(''));
+}
+
+// Color-codes risk levels and makes delete operations visually distinct in
+// rendered agent replies. Risk levels are coloured in "high risk" phrases,
+// "risk: high" forms, and bolded levels (**Critical**); delete verbs get a
+// coral chip. Only text segments are touched — never tag interiors.
+function _riskClass(level) {
+  const l = String(level).toLowerCase();
+  if (l === 'critical') return 'risk-critical';
+  if (l === 'high')     return 'risk-high';
+  if (l === 'medium' || l === 'moderate' || l === 'elevated') return 'risk-medium';
+  return 'risk-low'; // low, minimal
+}
+function colorizeAgentHtml(html) {
+  const LVL = 'critical|high|medium|moderate|elevated|low|minimal';
+  // Bolded risk levels: <strong>Critical</strong> → coloured.
+  html = html.replace(new RegExp(`<strong>(${LVL})(\\s+risk)?</strong>`, 'gi'),
+    (m, lvl, rest) => `<strong class="${_riskClass(lvl)}">${lvl}${rest || ''}</strong>`);
+  // Plain-text risk phrases + delete verbs, in text segments only.
+  return html.split(/(<[^>]+>)/).map(seg => {
+    if (seg.startsWith('<')) return seg;
+    return seg
+      .replace(new RegExp(`\\b(${LVL})(\\s+risk)\\b`, 'gi'),
+        (m, lvl, rest) => `<span class="${_riskClass(lvl)}">${lvl}${rest}</span>`)
+      .replace(new RegExp(`\\b(risk(?:\\s+(?:level|score|rating))?\\s*[:\\u2013\\u2014]\\s*)(${LVL})\\b`, 'gi'),
+        (m, pre, lvl) => `${pre}<span class="${_riskClass(lvl)}">${lvl}</span>`)
+      .replace(/\b(permanently delete|deletion|deleted|delete)\b/gi,
+        m => `<span class="op-delete">${m}</span>`);
+  }).join('');
 }
 
 function inlineMarkdown(text) {

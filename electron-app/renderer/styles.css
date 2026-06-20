@@ -1661,6 +1661,23 @@ html:not([data-theme="glass"]) .main {
 /* Emoji status markers */
 .md-check, .md-cross, .md-warn { font-style: normal; }
 
+/* Risk-level colour coding + distinct delete-operation chip in agent replies. */
+.risk-critical { color: var(--coral);   font-weight: 700; }
+.risk-high     { color: color-mix(in oklch, var(--coral) 70%, var(--amber)); font-weight: 650; }
+.risk-medium   { color: var(--amber);   font-weight: 650; }
+.risk-low      { color: var(--emerald); font-weight: 600; }
+/* Risk colours must win even inside <strong>, which sets color:var(--text). */
+strong.risk-critical { color: var(--coral) !important; }
+strong.risk-high     { color: color-mix(in oklch, var(--coral) 70%, var(--amber)) !important; }
+strong.risk-medium   { color: var(--amber) !important; }
+strong.risk-low      { color: var(--emerald) !important; }
+.op-delete {
+  color: var(--coral); font-weight: 600;
+  background: color-mix(in oklch, var(--coral) 14%, transparent);
+  padding: 0 5px; border-radius: 4px;
+  border: 1px solid color-mix(in oklch, var(--coral) 30%, transparent);
+}
+
 .error-text { color: var(--coral); }
 
 .tool-indicators { display: flex; flex-direction: column; gap: 4px; margin-top: 8px; }
