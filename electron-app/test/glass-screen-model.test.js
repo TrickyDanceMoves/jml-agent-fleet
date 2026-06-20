@@ -248,3 +248,15 @@ test('stageDetail failed execute marks its calls failed, not done', () => {
   // and a downstream stage never shows done on a failure
   assert.notEqual(stageDetail('complete', failed).state, 'succeeded');
 });
+
+test('recentSort "operation" groups recent runs by JML operation (agent)', () => {
+  const ops = [
+    op({ id: 'm1', agent: 'mover',  status: 'succeeded', outcome: 'success', updatedAt: new Date(T0 - 1000).toISOString() }),
+    op({ id: 'j1', agent: 'joiner', status: 'succeeded', outcome: 'success', updatedAt: new Date(T0 - 2000).toISOString() }),
+    op({ id: 'l1', agent: 'leaver', status: 'failed',    outcome: 'failed',  updatedAt: new Date(T0 - 3000).toISOString() }),
+  ];
+  const byOp = buildGlassScreenViewModel({ operations: ops, now: T0, recentLimit: 10, recentSort: 'operation' });
+  assert.deepEqual(byOp.recent.map(r => r.id), ['j1', 'l1', 'm1']); // joiner, leaver, mover A→Z
+  const byTime = buildGlassScreenViewModel({ operations: ops, now: T0, recentLimit: 10 });
+  assert.deepEqual(byTime.recent.map(r => r.id), ['m1', 'j1', 'l1']); // newest first (default)
+});
