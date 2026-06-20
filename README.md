@@ -297,13 +297,14 @@ Honest current state, so reviewers know what's proven vs. planned:
 |---|---|---|
 | Agent identity | ✅ **Hybrid live**: Auditor + Approver run as Entra Agent IDs (FMI auth); write agents on least-privilege SPs (Entra blocks write scopes on agent identities — by design) | Retire the two legacy read-agent app registrations after soak |
 | Credentials | NonExportable cert (SPs); blueprint secret (Agent IDs), DPAPI-protected | Federated identity credentials (no stored secret) |
-| JIT privilege | Control-plane (Provisioner at-rest disable + approval) | Agent-scoped governance as Entra supports it |
-| Operator RBAC | Local Windows username / PIN | Entra-backed operator identity + group-derived role |
+| JIT privilege | ✅ **PIM-eligible, zero standing write**: agents elevate just-in-time via PIM group eligibility (`New-PIMGroups.ps1`, `Grant-PIMPermissions.ps1`); drift detection + access certification flag any permanent/direct assignment. Plus Provisioner at-rest disable + approval gates | Agent-scoped governance as Entra expands native support |
+| Operator RBAC | Local Windows username / PIN, or **Entra device-code sign-in** for a real directory identity | Group-derived operator role from Entra |
 | Conditional Access | Agent ID-scoped CA policy enabled in tenant (pre-staged, empty principal scope); SP CA script present but unenforceable without Workload Identities Premium | Scope the Agent ID policy to the live agent identities after soak |
 | Hackathon IQ layer | ✅ **Foundry IQ live**: risk/approval decisions grounded on the JML policy corpus with citations and fail-closed behavior (`lib/foundry-iq.js`) | Expand the grounded policy corpus and surface citations in the operator UI |
 | AI observability | ✅ Per-turn run telemetry (provider, model, latency, tokens) in Settings → AI Provider | Foundry-native trace correlation IDs |
 | Copilot integration | ✅ OpenAPI action surface + Power Platform connector (`api/apiProperties.json`, `docs/copilot-studio-setup.md`) | Live Copilot Studio agent in tenant |
 | Electron sandbox | ✅ `sandbox: true` on every window; preloads carry no Node deps (operator username resolved via main-process IPC); CSP enforced on main renderer | — |
+| App updates | ✅ In-app auto-update (electron-updater via GitHub Releases): checks on launch, downloads in the background, notifies, and restarts to install | Phased/staged rollout channels |
 
 ## Quality Assurance
 
