@@ -3909,6 +3909,17 @@ function renderTelemetryChart(operations) {
   });
   const daySpans = document.querySelectorAll('.v2-bar-days span');
   buckets.forEach((b, i) => { if (daySpans[i]) daySpans[i].textContent = WK[b.date.getDay()][0]; });
+
+  // Dashboard KPI "JML Operations · 7d" sparkline — driven by the SAME real
+  // 7-day buckets (was a hardcoded decorative drawing). viewBox is 0 0 100 40.
+  const opsSpark = document.getElementById('stat-ops-spark');
+  if (opsSpark) {
+    const bw = 8, step = 14, base = 4;
+    opsSpark.innerHTML = buckets.map((b, i) => {
+      const h = b.count ? Math.max(3, Math.round((b.count / max) * 34)) : 2;
+      return `<rect x="${base + i * step}" y="${40 - h}" width="${bw}" height="${h}"></rect>`;
+    }).join('');
+  }
   const totalEl = document.getElementById('v2-telemetry-ops-total');
   if (totalEl) totalEl.textContent = `${total} ops · 7d`;
   const rangeEl = document.getElementById('v2-telemetry-range');
