@@ -260,3 +260,14 @@ test('recentSort "operation" groups recent runs by JML operation (agent)', () =>
   const byTime = buildGlassScreenViewModel({ operations: ops, now: T0, recentLimit: 10 });
   assert.deepEqual(byTime.recent.map(r => r.id), ['m1', 'j1', 'l1']); // newest first (default)
 });
+
+test('recentFilter.agent shows only the selected JML operation', () => {
+  const ops = [
+    op({ id: 'j1', agent: 'joiner', status: 'succeeded', outcome: 'success', updatedAt: new Date(T0 - 1000).toISOString() }),
+    op({ id: 'l1', agent: 'leaver', status: 'failed',    outcome: 'failed',  updatedAt: new Date(T0 - 2000).toISOString() }),
+  ];
+  const onlyLeaver = buildGlassScreenViewModel({ operations: ops, now: T0, recentLimit: 10, recentFilter: { agent: 'leaver' } });
+  assert.deepEqual(onlyLeaver.recent.map(r => r.id), ['l1']);
+  const all = buildGlassScreenViewModel({ operations: ops, now: T0, recentLimit: 10, recentFilter: { agent: 'all' } });
+  assert.equal(all.recent.length, 2);
+});
