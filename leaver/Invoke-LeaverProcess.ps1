@@ -150,7 +150,7 @@ try {
             $removableNames = @($licenses | Where-Object { $removableSkuIds -contains $_.SkuId } | Select-Object -ExpandProperty SkuPartNumber)
             if (-not $WhatIf) {
                 try {
-                    Set-MgUserLicense -UserId $user.Id -AddLicenses @() -RemoveLicenses $removableSkuIds -ErrorAction Stop | Out-Null
+                    Set-AgentUserLicense -UserId $user.Id -RemoveSkuIds $removableSkuIds
                     Write-Log ("Removed " + $removableSkuIds.Count + " directly-assigned license(s): " + ($removableNames -join ", ")) "ACTION"
                     $results.LicensesRemoved = $removableNames
                 } catch {

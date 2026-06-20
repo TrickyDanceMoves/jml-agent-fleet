@@ -295,6 +295,27 @@ function Invoke-GraphWithRetry {
     }
 }
 
+# ── License assignment (REST) ────────────────────────────────────────────────
+# Uses the Graph /users/{id}/assignLicense action via Invoke-GraphWithRetry so
+# the agents don't depend on the Microsoft.Graph.Users.Actions module (which
+# provides Set-MgUserLicense and isn't always installed).
+#   AddLicenses  : array of @{ skuId = <guid> } (disabledPlans optional)
+#   RemoveSkuIds : array of skuId GUID strings
+function Set-AgentUserLicense {
+    param(
+        [Parameter(Mandatory=$true)][string]$UserId,
+        [array]$AddLicenses  = @(),
+        [array]$RemoveSkuIds = @()
+    )
+    $add = @($AddLicenses | ForEach-Object {
+        @{ skuId = $_.skuId; disabledPlans = @(if ($_.disabledPlans) { $_.disabledPlans } else { @() }) }
+    })
+    $body = @{ addLicenses = $add; removeLicenses = @($RemoveSkuIds) }
+    Invoke-GraphWithRetry -Method POST `
+        -Uri ("https://graph.microsoft.com/v1.0/users/" + $UserId + "/assignLicense") `
+        -Body $body | Out-Null
+}
+
 # ── PIM for Groups -JIT role activation ──────────────────────────────────────
 
 function Request-PIMActivation {

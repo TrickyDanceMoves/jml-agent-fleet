@@ -183,7 +183,7 @@ if ($payload.licenses -and $payload.licenses.Count -gt 0) {
                 }
             }
             if ($toAdd.Count -gt 0) {
-                Set-MgUserLicense -UserId $results.ObjectId -AddLicenses $toAdd -RemoveLicenses @() -ErrorAction Stop | Out-Null
+                Set-AgentUserLicense -UserId $results.ObjectId -AddLicenses $toAdd
                 $assigned = @($payload.licenses | Where-Object { $skuLookup.ContainsKey($_) })
                 Write-Log ("Assigned " + $toAdd.Count + " license(s): " + ($assigned -join ", ")) "ACTION"
                 $results.LicensesAdded = $assigned

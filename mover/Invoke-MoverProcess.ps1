@@ -168,7 +168,7 @@ if ($payload.licensesToRemove -and $payload.licensesToRemove.Count -gt 0) {
         if ($toRemove.Count -gt 0) {
             $removeNames = @($payload.licensesToRemove | Where-Object { $skuLookup.ContainsKey($_) -and ($toRemove -contains $skuLookup[$_]) })
             if (-not $WhatIf) {
-                Set-MgUserLicense -UserId $user.Id -AddLicenses @() -RemoveLicenses $toRemove -ErrorAction Stop | Out-Null
+                Set-AgentUserLicense -UserId $user.Id -RemoveSkuIds $toRemove
                 Write-Log ("Removed license(s): " + ($removeNames -join ", ")) "ACTION"
                 $results.LicensesRemoved = $removeNames
             } else {
@@ -202,7 +202,7 @@ if ($payload.licensesToAdd -and $payload.licensesToAdd.Count -gt 0) {
         if ($toAdd.Count -gt 0) {
             $addNames = @($payload.licensesToAdd | Where-Object { $skuLookup.ContainsKey($_) })
             if (-not $WhatIf) {
-                Set-MgUserLicense -UserId $user.Id -AddLicenses $toAdd -RemoveLicenses @() -ErrorAction Stop | Out-Null
+                Set-AgentUserLicense -UserId $user.Id -AddLicenses $toAdd
                 Write-Log ("Added license(s): " + ($addNames -join ", ")) "ACTION"
                 $results.LicensesAdded = $addNames
             } else {
