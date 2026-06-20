@@ -181,9 +181,11 @@ try {
     foreach ($group in $groups) {
         if (-not $WhatIf) {
             try {
-                Invoke-GraphWithRetry -Method DELETE `
-                    -Uri ("https://graph.microsoft.com/v1.0/groups/" + $group.id + "/members/" + $user.Id + "/`$ref")
-                Write-Log ("Removed from group: " + $group.displayName) "ACTION"
+                # Idempotent remove — tolerates an already-removed membership so a
+                # resumed leaver converges instead of failing.
+                $st = Remove-AgentGroupMember -GroupId $group.id -UserId $user.Id
+                if ($st -eq 'absent') { Write-Log ("Already not a member, skipping: " + $group.displayName) "SKIP" }
+                else { Write-Log ("Removed from group: " + $group.displayName) "ACTION" }
                 $results.GroupsRemoved += $group.displayName
             } catch {
                 Write-Log ("Could not remove from group " + $group.displayName + ": " + $_.Exception.Message) "WARN"

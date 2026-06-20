@@ -215,7 +215,16 @@ if ($payload.licensesToAdd -and $payload.licensesToAdd.Count -gt 0) {
     }
 }
 
-# Step 5 - Remove from groups
+# Snapshot current memberships once so the group steps converge idempotently —
+# a resumed run skips groups already in the desired state instead of failing on
+# "already a member" / "not a member".
+$currentGroupIds = $null
+if (-not $WhatIf -and (($payload.groupsToRemove -and $payload.groupsToRemove.Count -gt 0) -or ($payload.groupsToAdd -and $payload.groupsToAdd.Count -gt 0))) {
+    try { $currentGroupIds = Get-AgentUserGroupIds -UserId $user.Id }
+    catch { Write-Log ("Could not snapshot current group memberships (will rely on tolerant writes): " + $_.Exception.Message) "WARN" }
+}
+
+# Step 5 - Remove from groups (idempotent)
 if ($payload.groupsToRemove -and $payload.groupsToRemove.Count -gt 0) {
     foreach ($groupName in $payload.groupsToRemove) {
         try {
@@ -228,9 +237,9 @@ if ($payload.groupsToRemove -and $payload.groupsToRemove.Count -gt 0) {
                 $group = $groupResp.value[0]
                 if (-not $WhatIf) {
                     try {
-                        Invoke-GraphWithRetry -Method DELETE `
-                            -Uri ("https://graph.microsoft.com/v1.0/groups/" + $group["id"] + "/members/" + $user.Id + "/`$ref")
-                        Write-Log ("Removed from group: " + $groupName) "ACTION"
+                        $st = Remove-AgentGroupMember -GroupId $group["id"] -UserId $user.Id -CurrentGroupIds $currentGroupIds
+                        if ($st -eq 'absent') { Write-Log ("Already not a member, skipping: " + $groupName) "SKIP" }
+                        else { Write-Log ("Removed from group: " + $groupName) "ACTION" }
                         $results.GroupsRemoved += $groupName
                     } catch {
                         Write-Log ("Could not remove from group " + $groupName + ": " + $_.Exception.Message) "WARN"
@@ -247,7 +256,7 @@ if ($payload.groupsToRemove -and $payload.groupsToRemove.Count -gt 0) {
     }
 }
 
-# Step 6 - Add to groups
+# Step 6 - Add to groups (idempotent)
 if ($payload.groupsToAdd -and $payload.groupsToAdd.Count -gt 0) {
     foreach ($groupName in $payload.groupsToAdd) {
         try {
@@ -258,14 +267,12 @@ if ($payload.groupsToAdd -and $payload.groupsToAdd.Count -gt 0) {
                 $results.GroupsFailed += ("add:" + $groupName)
                 $results.Errors += ("Group not found: " + $groupName)
             } else {
-                $group     = $groupResp.value[0]
-                $memberRef = @{ "@odata.id" = "https://graph.microsoft.com/v1.0/directoryObjects/" + $user.Id }
+                $group = $groupResp.value[0]
                 if (-not $WhatIf) {
                     try {
-                        Invoke-GraphWithRetry -Method POST `
-                            -Uri ("https://graph.microsoft.com/v1.0/groups/" + $group["id"] + "/members/`$ref") `
-                            -Body $memberRef | Out-Null
-                        Write-Log ("Added to group: " + $groupName) "ACTION"
+                        $st = Add-AgentGroupMember -GroupId $group["id"] -UserId $user.Id -CurrentGroupIds $currentGroupIds
+                        if ($st -eq 'already') { Write-Log ("Already a member, skipping: " + $groupName) "SKIP" }
+                        else { Write-Log ("Added to group: " + $groupName) "ACTION" }
                         $results.GroupsAdded += $groupName
                     } catch {
                         Write-Log ("Could not add to group " + $groupName + ": " + $_.Exception.Message) "WARN"
