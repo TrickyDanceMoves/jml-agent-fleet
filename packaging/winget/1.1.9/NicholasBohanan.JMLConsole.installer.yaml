@@ -1,6 +1,6 @@
 # yaml-language-server: $schema=https://aka.ms/winget-manifest.installer.1.6.0.schema.json
 PackageIdentifier: NicholasBohanan.JMLConsole
-PackageVersion: 1.1.4
+PackageVersion: 1.1.9
 InstallerType: nullsoft
 Scope: user
 InstallModes:
@@ -8,14 +8,14 @@ InstallModes:
   - silent
   - silentWithProgress
 UpgradeBehavior: install
-ReleaseDate: 2026-06-15
+ReleaseDate: 2026-06-20
 Installers:
   - Architecture: x64
-    InstallerUrl: https://github.com/TrickyDanceMoves/jml-agent-fleet/releases/download/v1.1.4/JML.Console.Setup.1.1.4.exe
-    InstallerSha256: B32C0AE1E158C4065C73516089B173AB15FB5717B62D1C0976657AFDE896A1B6
+    InstallerUrl: https://github.com/TrickyDanceMoves/jml-agent-fleet/releases/download/v1.1.9/JML.Console.Setup.1.1.9.exe
+    InstallerSha256: 624094E9192DC1E6145A0C4B6098BC3E09949C3DC7A9F007AA0A644DF9CF25BC
     AppsAndFeaturesEntries:
       - DisplayName: JML Console
         Publisher: Nicholas Bohanan
-        DisplayVersion: 1.1.4
+        DisplayVersion: 1.1.9
 ManifestType: installer
 ManifestVersion: 1.6.0
