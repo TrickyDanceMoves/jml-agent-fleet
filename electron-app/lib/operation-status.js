@@ -6,6 +6,7 @@ const LIFECYCLE_TOOLS = {
   submit_mover: 'transfer',
   submit_leaver_soft: 'soft',
   submit_leaver_hard: 'hard',
+  submit_leaver_delete: 'delete',
 };
 
 function isLifecycleSubmitTool(toolName) {

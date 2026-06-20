@@ -60,3 +60,16 @@ test('queued approvals surface on the Glass Screen as awaiting-approval runs', (
   assert.match(main, /status: 'awaiting-approval'/);
   assert.match(main, /function resolveApprovalOperation/);
 });
+
+test('approver can permanently delete users via a gated, separate-from-hard tool', () => {
+  // Tool exists and is admin-approval-gated (destructive: Hard or Delete).
+  assert.match(main, /name: 'submit_leaver_delete'/);
+  assert.match(main, /_stage === 'Hard' \|\| _stage === 'Delete'/);
+  // The leaver script has a pure Delete stage (no soft/hard cleanup).
+  const leaver = fs.readFileSync(path.join(root, '..', 'leaver', 'Invoke-LeaverProcess.ps1'), 'utf8');
+  assert.match(leaver, /ValidateSet\("Both", "Soft", "Hard", "Delete"\)/);
+  assert.match(leaver, /Stage -eq "Delete"[\s\S]*Method DELETE/);
+  // Lifecycle/Glass Screen recognise the delete tool.
+  const opStatus = fs.readFileSync(path.join(root, 'lib', 'operation-status.js'), 'utf8');
+  assert.match(opStatus, /submit_leaver_delete: 'delete'/);
+});

@@ -272,6 +272,7 @@
     }
     let verb = AGENT_ACTIONS[agent] || 'Processing';
     if (agent === 'leaver' && stage === 'hard') verb = 'Removing access for';
+    if (agent === 'leaver' && stage === 'delete') verb = 'Deleting';
     if (agent === 'mover') verb = 'Moving';
     return `${verb} ${subjectName(operation)}`;
   }
@@ -319,6 +320,7 @@
   };
 
   function leaverRunningDecision(stage) {
+    if (stage === 'delete') return 'Permanently deleting the account';
     return stage === 'hard'
       ? 'Removing licenses and group memberships'
       : 'Disabling the account and revoking sessions';
@@ -427,6 +429,7 @@
   };
 
   function leaverDoneSummary(stage) {
+    if (stage === 'delete') return 'Permanently deleted the account';
     return stage === 'hard'
       ? 'Removed licenses and group memberships'
       : 'Disabled the account and revoked sessions';

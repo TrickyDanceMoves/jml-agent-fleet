@@ -249,13 +249,19 @@ OPERATOR ROLE CONTEXT:
 Current operator role: ${currentRole || 'unknown'}
 
 Role-based action boundaries:
-- admin: full authority — can submit all operation types including Hard leavers in Live mode.
+- admin: full authority — can submit all operation types including Hard leavers and
+  permanent user deletes (submit_leaver_delete) in Live mode.
 - helpdesk: can submit Joiners, Enrollers, Movers, and Soft leavers in Live mode.
-  Hard leavers are always escalated to the admin approval queue — inform the operator
-  that after submitting, an admin must approve from the Approvals tab before execution.
-  If a Soft leaver is blocked (user holds privileged roles), it is also escalated.
+  Hard leavers and permanent deletes are always escalated to the admin approval queue —
+  inform the operator that after submitting, an admin must approve from the Approvals tab
+  before execution. If a Soft leaver is blocked (user holds privileged roles), it is escalated too.
 - viewer: read-only — all submit tools are blocked. Remind the operator to switch to
   an admin or helpdesk account.
+
+DELETE vs HARD LEAVE: submit_leaver_delete PERMANENTLY removes the user object (recoverable
+from the Entra recycle bin for 30 days) and is separate from a Hard leave (which only strips
+licenses/groups and leaves a disabled account). Only delete when the operator explicitly asks
+to delete/remove the account entirely — never as part of a routine offboarding.
 
 When the current operator is helpdesk and they request a Hard leaver:
 1. Acknowledge that it will be submitted for admin approval.
@@ -429,6 +435,15 @@ const APPROVER_TOOLS = [
   {
     name: 'submit_leaver_hard',
     description: 'Stage 2 leaver: remove all licenses and group memberships.',
+    input_schema: {
+      type: 'object',
+      properties: { userPrincipalName: { type: 'string' } },
+      required: ['userPrincipalName']
+    }
+  },
+  {
+    name: 'submit_leaver_delete',
+    description: 'Permanently DELETE the user object from Entra ID — a separate, irreversible action distinct from a hard leave (which only strips licenses/groups and leaves a disabled account). The deleted user is recoverable from the Entra recycle bin for 30 days. Requires admin approval.',
     input_schema: {
       type: 'object',
       properties: { userPrincipalName: { type: 'string' } },
@@ -1374,20 +1389,23 @@ async function executeTool(agent, toolName, input, whatif) {
         finally { try { fs.unlinkSync(_pf); } catch {} }
       }
     case 'submit_leaver_soft':
-    case 'submit_leaver_hard': {
-      const _stage = toolName === 'submit_leaver_hard' ? 'Hard' : 'Soft';
-      // Helpdesk operators cannot execute Hard leavers directly — always route to admin approval.
-      // Soft leavers pass through with OperatorRole check; the PS1 blocks further if user
-      // holds privileged roles and returns the BLOCKED sentinel.
+    case 'submit_leaver_hard':
+    case 'submit_leaver_delete': {
+      const _stage = toolName === 'submit_leaver_hard' ? 'Hard'
+        : toolName === 'submit_leaver_delete' ? 'Delete' : 'Soft';
+      // Destructive offboards (Hard removal, permanent Delete) need an admin's
+      // final say — a non-admin operator queues them for approval. Soft leavers
+      // pass through (the PS1 still blocks privileged-role holders).
+      const _destructive = _stage === 'Hard' || _stage === 'Delete';
       const _isAdmin = (currentRole || 'viewer').toLowerCase() === 'admin';
-      if (!_isAdmin && _stage === 'Hard' && !w) {
+      if (!_isAdmin && _destructive && !w) {
         const _tok = routeBlockedLeaverToApproval(input, _stage,
-          `Hard-stage leaver (license + group removal) submitted by ${currentRole || 'operator'} — admin sign-off required before execution.`,
+          `${_stage}-stage leaver submitted by ${currentRole || 'operator'} — admin sign-off required before execution.`,
           'admin');
-        return { approvalQueued: true, token: _tok, message: 'Hard-stage leavers require admin approval. Request queued — an admin operator must approve from the Approvals tab.' };
+        return { approvalQueued: true, token: _tok, message: `${_stage} leavers require admin approval. Request queued — an admin operator must approve from the Approvals tab.` };
       }
-      if (!_isAdmin && _stage === 'Hard' && w) {
-        return { approvalRequired: true, message: 'Hard-stage leavers require admin approval in Live mode. This request would be queued for admin sign-off.' };
+      if (!_isAdmin && _destructive && w) {
+        return { approvalRequired: true, message: `${_stage}-stage leavers require admin approval in Live mode. This request would be queued for admin sign-off.` };
       }
       try {
         return parsePs1Output(await runPsAsync(path.join(AGENTS_DIR, 'leaver', 'Invoke-LeaverProcess.ps1'), {
@@ -1999,7 +2017,7 @@ ipcMain.handle('panel-approve-pending', async (event, { id, writeToken }) => {
       try { raw = await runPsAsync(path.join(AGENTS_DIR, 'joiner', 'Invoke-JoinerProcess.ps1'), { PayloadPath: pf }); }
       finally { try { fs.unlinkSync(pf); } catch {} }
     } else {
-      const stage = inp.stage || (tool.includes('hard') ? 'Hard' : 'Soft');
+      const stage = inp.stage || (tool.includes('delete') ? 'Delete' : tool.includes('hard') ? 'Hard' : 'Soft');
       const params = { UserPrincipalName: inp.userPrincipalName, Stage: stage, OperatorRole: 'admin' };
       if (inp.ticketRef) params.TicketRef = inp.ticketRef;
       raw = await runPsAsync(path.join(AGENTS_DIR, 'leaver', 'Invoke-LeaverProcess.ps1'), params);
@@ -2148,7 +2166,7 @@ ipcMain.on('approve-pending', async (event, payload) => {
       try { raw = await runPsAsync(path.join(AGENTS_DIR, 'joiner', 'Invoke-JoinerProcess.ps1'), { PayloadPath: pf }); }
       finally { try { fs.unlinkSync(pf); } catch {} }
     } else {
-      const stage = inp.stage || (tool.includes('hard') ? 'Hard' : 'Soft');
+      const stage = inp.stage || (tool.includes('delete') ? 'Delete' : tool.includes('hard') ? 'Hard' : 'Soft');
       const params = { UserPrincipalName: inp.userPrincipalName, Stage: stage, OperatorRole: 'admin' };
       if (inp.ticketRef) params.TicketRef = inp.ticketRef;
       raw = await runPsAsync(path.join(AGENTS_DIR, 'leaver', 'Invoke-LeaverProcess.ps1'), params);
@@ -5282,7 +5300,7 @@ ipcMain.on('run-quick-leaver', async (event, payload) => {
   const _stg = stage || 'Soft';
   // Destructive offboards (Hard / Both) require an admin's final say. A non-admin
   // running one in Live mode queues it for admin approval instead of executing.
-  if (!whatif && (_stg === 'Hard' || _stg === 'Both') && (currentRole || 'viewer').toLowerCase() !== 'admin') {
+  if (!whatif && (_stg === 'Hard' || _stg === 'Both' || _stg === 'Delete') && (currentRole || 'viewer').toLowerCase() !== 'admin') {
     const tok = routeBlockedLeaverToApproval(
       { userPrincipalName: upn, ticketRef: reason }, _stg,
       `${_stg}-stage leaver submitted by ${currentRole || 'operator'} — admin approval required before execution.`,
