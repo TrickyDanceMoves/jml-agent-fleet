@@ -3218,39 +3218,6 @@ strong.risk-low      { color: var(--emerald) !important; }
   font-size: 12px;
   line-height: 1.45;
 }
-.cert-grid { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 12px; margin-bottom: 18px; }
-.cert-tile {
-  padding: 14px; border: 1px solid var(--border); border-radius: var(--r-2);
-  background: var(--surface); display: flex; flex-direction: column; gap: 8px;
-}
-.cert-tile .ag-top { display: flex; align-items: center; gap: 10px; }
-.cert-tile .ag-top .av {
-  width: 30px; height: 30px; border-radius: 7px;
-  display: grid; place-items: center;
-  border: 1px solid var(--border); background: var(--bg-2);
-  color: var(--cyan); font-family: var(--mono);
-}
-.cert-tile .ag-top .name { font-size: 13px; font-weight: 600; }
-.cert-tile .ag-top .name .sub {
-  display: block; font-family: var(--mono); font-size: 10px;
-  color: var(--muted); font-weight: 400; text-transform: uppercase;
-  letter-spacing: .08em; margin-top: 1px;
-}
-.cert-tile .exp { font-family: var(--mono); font-size: 11px; color: var(--text-2); display: flex; justify-content: space-between; }
-.cert-tile .exp b { color: var(--text); }
-.cert-tile .bar { height: 4px; background: var(--elev); border-radius: 99px; overflow: hidden; }
-.cert-tile .bar > i { display: block; height: 100%; background: var(--emerald); border-radius: 99px; }
-.cert-tile.warn .bar > i { background: linear-gradient(90deg, var(--amber), var(--coral)); }
-.cert-tile .thumb { font-family: var(--mono); font-size: 10.5px; color: var(--muted); }
-.cert-tile .thumb b { color: var(--text-2); }
-.cert-tile .status {
-  font-family: var(--mono); font-size: 10px;
-  text-transform: uppercase; letter-spacing: .08em;
-  padding: 2px 7px; border-radius: 4px;
-  width: fit-content; border: 1px solid;
-}
-.cert-tile .status.ok   { color: var(--emerald); background: color-mix(in oklch, var(--emerald) 8%, transparent); border-color: color-mix(in oklch, var(--emerald) 45%, transparent); }
-.cert-tile .status.warn { color: var(--amber);   background: color-mix(in oklch, var(--amber) 8%, transparent); border-color: color-mix(in oklch, var(--amber) 45%, transparent); }
 
 .perm-matrix { border: 1px solid var(--border); border-radius: var(--r-2); background: var(--surface); overflow: hidden; }
 .perm-matrix .pm-h { padding: 14px 18px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; }
@@ -3682,7 +3649,6 @@ label { font-size: 12.5px; color: var(--text-2); }
   .v2-export-chain .export-hop { border-right: 0; border-bottom: 1px solid var(--border); }
   .v2-export-chain .export-hop:last-child { border-bottom: 0; }
   .v2-export-chain .export-hop::after { display: none; }
-  .cert-grid { grid-template-columns: repeat(2, 1fr); }
   .users-shell { grid-template-columns: 1fr; }
   .v2-cert-control,
   .v2-users-overview,
@@ -3884,30 +3850,22 @@ label { font-size: 12.5px; color: var(--text-2); }
 }
 
 /* ── P2: Exports — coming-soon cards ──────────────────────────────────────── */
-.exp.exp-coming-soon {
-  min-height: 0;
-  padding: 14px 16px;
-  opacity: 0.66;
-  pointer-events: none;
-  border-style: dashed;
-  background: color-mix(in oklch, var(--surface) 55%, transparent);
+/* Roadmap connectors — a compact footer strip instead of empty "planned" cards. */
+.exp-roadmap {
+  margin-top: 14px; padding: 10px 14px;
+  display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px;
+  border: 1px dashed var(--border); border-radius: var(--r-md, 10px);
+  background: color-mix(in oklch, var(--surface) 45%, transparent);
+  font-size: 12px; color: var(--text-2);
 }
-.exp.exp-coming-soon .stats { display: none; }
-.exp.exp-coming-soon .top { margin-bottom: 8px; }
-.exp.exp-coming-soon .top .logo {
-  width: 28px;
-  height: 28px;
-  font-size: 10px;
+.exp-roadmap-lbl {
+  font-family: var(--mono); font-size: 9.5px; letter-spacing: .12em; text-transform: uppercase;
+  color: var(--text-4, var(--muted)); padding: 2px 7px; border: 1px solid var(--border); border-radius: 4px;
 }
-.chip-soon {
-  font-family: var(--mono); font-size: 10px; letter-spacing: .08em;
-  text-transform: uppercase; padding: 2px 7px; border-radius: 4px; border: 1px solid;
-  color: var(--muted); background: var(--elev); border-color: var(--border);
-}
-.exp-coming-soon-note {
-  font-size: 12px; color: var(--muted); line-height: 1.5;
-  padding: 0; margin-top: 2px;
-}
+.exp-roadmap-item { font-weight: 600; color: var(--text); }
+.exp-roadmap-item em { font-family: var(--mono); font-size: 10.5px; font-style: normal; font-weight: 400; color: var(--muted); margin-left: 4px; }
+.exp-roadmap-sep { color: var(--text-4, var(--muted)); }
+.exp-roadmap-note { margin-left: auto; font-size: 11px; color: var(--muted); }
 
 /* ── P3: Settings collapsible help block ──────────────────────────────────── */
 .settings-help-details {

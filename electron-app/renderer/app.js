@@ -5144,8 +5144,9 @@ window.api.onOperatorsSaved((data) => {
 
 // ── Agent Health ──────────────────────────────────────────────────────────────
 window.api.onAgentHealth((data) => {
+  const fleetAgents = Array.isArray(data) ? data : (data.agents || []);
   // Dashboard agent fleet panel: update each .agent tile in place
-  const dashAgents = data.agents || [];
+  const dashAgents = fleetAgents;
   dashAgents.forEach(a => {
     const key = (a.name || '').toLowerCase().replace(/^claudeagent/, '').replace(/agent$/, '').trim();
     const tile = document.querySelector(`.agent[data-agent="${key}"]`);
@@ -5282,8 +5283,8 @@ window.api.onAgentHealth((data) => {
   }).join('');
 
   // Update V2 fleet strip tiles
-  if (data.agents) {
-    data.agents.forEach(ag => {
+  if (fleetAgents.length) {
+    fleetAgents.forEach(ag => {
       const name = ag.name; // e.g. 'joiner', 'leaver', etc.
       const lrEl = document.getElementById('v2fl-lr-' + name);
       const certEl = document.getElementById('v2fl-cert-' + name);
@@ -5303,10 +5304,12 @@ window.api.onAgentHealth((data) => {
         // Update the status dot and state text
         const dotEl = tileEl.querySelector('.ft-dot');
         const stateEl = tileEl.querySelector('.ft-state');
+        const detailEl = tileEl.querySelector('.ft-detail');
         if (dotEl && stateEl) {
           if (ag.status === 'unconfigured') {
             dotEl.className = 'ft-dot muted';
             stateEl.textContent = 'unconfigured';
+            if (detailEl) { detailEl.className = 'ft-detail info'; detailEl.textContent = 'setup needed'; }
           } else if (ag.status === 'critical') {
             // 'critical' covers BOTH an expired credential and a failed last run.
             // Only call it "credential expired" when the cert is actually past
@@ -5314,15 +5317,19 @@ window.api.onAgentHealth((data) => {
             const certExpired = ag.daysUntilExpiry !== null && ag.daysUntilExpiry < 0;
             dotEl.className = certExpired ? 'ft-dot crit' : 'ft-dot warn';
             stateEl.textContent = certExpired ? 'credential expired' : 'last run failed';
+            if (detailEl) { detailEl.className = 'ft-detail warn'; detailEl.textContent = certExpired ? 'rotate credential' : 'check last run'; }
           } else if (ag.status === 'expiring') {
             dotEl.className = 'ft-dot warn';
             stateEl.textContent = 'expiring soon';
+            if (detailEl) { detailEl.className = 'ft-detail warn'; detailEl.textContent = 'rotate soon'; }
           } else if (ag.lastOutcome === 'error') {
             dotEl.className = 'ft-dot warn';
             stateEl.textContent = 'last run errored';
+            if (detailEl) { detailEl.className = 'ft-detail warn'; detailEl.textContent = 'check logs'; }
           } else {
             dotEl.className = 'ft-dot ok';
             stateEl.textContent = ag.lastActivity ? 'idle' : 'ready';
+            if (detailEl) { detailEl.className = 'ft-detail ok'; detailEl.textContent = ag.lastOutcome ? 'last ' + ag.lastOutcome : 'healthy'; }
           }
         }
       }
@@ -5702,34 +5709,6 @@ Object.entries(KPI_NAV).forEach(([id, tab]) => {
       show('Quarantine failed: ' + (r?.error || 'unknown'), 'error');
       showToast('Quarantine failed', 'error');
     }
-  });
-})();
-
-// ── Certs tiles → detail popover with thumbprint, agent name, status ──────
-(function wireCertTileClicks() {
-  document.querySelectorAll('#view-certs .cert-tile').forEach(tile => {
-    tile.style.cursor = 'pointer';
-    tile.addEventListener('click', () => {
-      const name = tile.querySelector('.name')?.firstChild?.textContent?.trim() || tile.querySelector('.name')?.textContent?.trim() || 'Agent';
-      const sub = tile.querySelector('.sub')?.textContent?.trim() || '';
-      const status = tile.querySelector('.status')?.textContent?.trim() || '—';
-      const expiry = tile.querySelector('.exp b')?.textContent?.trim() || '—';
-      const thumb = tile.querySelector('.thumb b')?.textContent?.trim() || '—';
-      showDetailPopover({
-        title: `${name} certificate`,
-        kv: [
-          ['App registration', sub],
-          ['Status',           status],
-          ['Expires in',       expiry],
-          ['SHA-1 thumbprint', thumb],
-        ],
-        actions: [{
-          id: 'docs', label: 'Provisioning script reference', onClick: () => {
-            showToast('See ~/.claude/agents/provisioner/New-AgentCertificates.ps1', 'success');
-          }
-        }]
-      });
-    });
   });
 })();
 

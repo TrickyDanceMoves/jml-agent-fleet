@@ -76,3 +76,24 @@ test('approver can permanently delete users via a gated, separate-from-hard tool
   const opStatus = fs.readFileSync(path.join(root, 'lib', 'operation-status.js'), 'utf8');
   assert.match(opStatus, /submit_leaver_delete: 'delete'/);
 });
+
+test('cert view has no retired static cert tiles', () => {
+  assert.doesNotMatch(html, /cert-grid|cert-tile/);
+  assert.doesNotMatch(css, /cert-grid|cert-tile/);
+  assert.doesNotMatch(app, /wireCertTileClicks|cert-tile/);
+});
+
+test('exports uses compact roadmap strip instead of empty planned cards', () => {
+  assert.match(html, /class="exp-roadmap"/);
+  assert.match(css, /\.exp-roadmap\s*\{/);
+  assert.doesNotMatch(html, /exp-coming-soon|chip-soon/);
+  assert.doesNotMatch(css, /exp-coming-soon|chip-soon/);
+});
+
+test('fleet strip initial state stays neutral until health data arrives', () => {
+  const strip = html.match(/<div class="v2-fleet-strip"[\s\S]*?<\/div>\s*<\/div>/);
+  assert.ok(strip, 'fleet strip markup must exist');
+  assert.doesNotMatch(strip[0], /0 in queue|streaming|standby/i);
+  assert.match(app, /const fleetAgents = Array\.isArray\(data\) \? data : \(data\.agents \|\| \[\]\)/);
+  assert.match(app, /ft-detail/);
+});
