@@ -529,6 +529,11 @@ function runPsAsync(scriptPath, params = {}) {
     }
     execFile('powershell', args, { encoding: 'utf8', timeout: 120000 }, (err, stdout, stderr) => {
       if (err) {
+        // Exit code 2 is the agent scripts' "completed with non-fatal errors"
+        // (partial) convention — they print the full results JSON before exiting
+        // 2. Resolve it so the caller classifies it as partial, not a hard
+        // failure. Genuine failures exit 1 (or are killed/spawn errors).
+        if (err.code === 2 && !err.killed) { resolve(stdout); return; }
         err.stdout = stdout;
         err.stderr = stderr;
         // Surface the script's real failure reason ("User not found: …") instead
