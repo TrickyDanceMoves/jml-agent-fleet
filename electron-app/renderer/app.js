@@ -6284,14 +6284,36 @@ function renderNotifications() {
       renderNotifications();
     });
   });
-  list.querySelectorAll('.notif-item[data-action="1"]').forEach(item => {
+  // Every notification is clickable — navigate to its related tab (explicit
+  // action.tab, else inferred from the title) and run any attached action.
+  list.querySelectorAll('.notif-item').forEach(item => {
     item.addEventListener('click', () => {
       const n = _notifications.find(x => String(x.id) === String(item.dataset.id));
-      if (!n || !n.action) return;
-      if (n.action.tab) switchTab(n.action.tab);
-      if (typeof n.action.run === 'function') n.action.run();
+      if (!n) return;
+      const tab = tabForNotification(n);
+      if (tab) switchTab(tab);
+      if (n.action && typeof n.action.run === 'function') n.action.run();
+      const dd = document.getElementById('notif-dropdown');
+      if (dd) dd.style.display = 'none';
     });
   });
+}
+
+// Resolve the console tab a notification relates to — explicit action.tab wins,
+// otherwise infer from keywords in the title.
+function tabForNotification(n) {
+  if (n.action && n.action.tab) return n.action.tab;
+  const t = String(n.title || '').toLowerCase();
+  if (/cert|certificate|thumbprint|expir/.test(t))              return 'certs';
+  if (/approval|approve|sign-?off|dual/.test(t))                return 'approvals';
+  if (/audit|attestation|evidence|hash|chain/.test(t))          return 'audit-log';
+  if (/export|packet|sentinel|blob/.test(t))                    return 'exports';
+  if (/pim|role|security|risk|quarantine|baseline|drift/.test(t)) return 'security';
+  if (/review|recertif|campaign/.test(t))                       return 'certifications';
+  if (/integration|connector|hris|teams|servicenow|jira/.test(t)) return 'integrations';
+  if (/user|guest|stale|import/.test(t))                        return 'users';
+  if (/schedul|operation|joiner|mover|leaver|enroll|provision/.test(t)) return 'operations';
+  return 'operations';
 }
 
 (function () {
@@ -6903,6 +6925,7 @@ function loadRecentUsers() {
 
 // ── Quick Mover / Leaver ──────────────────────────────────────────────────────
 (function () {
+  const btnJoiner = document.getElementById('btn-run-quick-joiner');
   const btnMover  = document.getElementById('btn-run-quick-mover');
   const btnLeaver = document.getElementById('btn-run-quick-leaver');
 
@@ -7020,6 +7043,33 @@ function loadRecentUsers() {
     });
   }
 
+  if (btnJoiner) {
+    btnJoiner.addEventListener('click', async () => {
+      const first   = (document.getElementById('qj-first')   || {}).value || '';
+      const last    = (document.getElementById('qj-last')    || {}).value || '';
+      const dept    = (document.getElementById('qj-dept')    || {}).value || '';
+      const title   = (document.getElementById('qj-title')   || {}).value || '';
+      const usage   = ((document.getElementById('qj-usage')  || {}).value || 'US').toUpperCase();
+      const manager = (document.getElementById('qj-manager') || {}).value || '';
+      const whatif  = (document.getElementById('qj-whatif')  || {}).checked !== false;
+      if (!first.trim() || !last.trim()) { showToast('First and last name are required', 'warning'); return; }
+      let writeToken = null;
+      if (!whatif) {
+        const t = await requirePinIfNeeded('Confirm Live joiner');
+        if (!t) return;
+        writeToken = typeof t === 'string' ? t : null;
+      }
+      const resultEl = document.getElementById('qj-result');
+      if (resultEl) { resultEl.style.display = 'block'; resultEl.innerHTML = '<span style="color:var(--text-dim)">Running…</span>'; }
+      btnJoiner.disabled = true; btnJoiner.textContent = 'Running…';
+      window.api.runQuickJoiner({
+        givenName: first.trim(), surname: last.trim(),
+        department: dept.trim(), jobTitle: title.trim(),
+        usageLocation: usage.trim(), manager: manager.trim(), whatif, writeToken,
+      });
+    });
+  }
+
   if (btnMover) {
     btnMover.addEventListener('click', async () => {
       const upn     = (document.getElementById('qm-upn')     || {}).value || '';
@@ -7070,12 +7120,17 @@ function loadRecentUsers() {
     });
   }
 
+  const QUICK_OP_UI = {
+    joiner: { btn: 'btn-run-quick-joiner', result: 'qj-result', label: 'Run Joiner' },
+    mover:  { btn: 'btn-run-quick-mover',  result: 'qm-result', label: 'Run Mover'  },
+    leaver: { btn: 'btn-run-quick-leaver', result: 'ql-result', label: 'Run Leaver' },
+  };
   window.api.onQuickOpResult((data) => {
-    const isLeaver = data.type === 'leaver';
-    const btnEl    = document.getElementById(isLeaver ? 'btn-run-quick-leaver' : 'btn-run-quick-mover');
-    const resultEl = document.getElementById(isLeaver ? 'ql-result' : 'qm-result');
+    const ui       = QUICK_OP_UI[data.type] || QUICK_OP_UI.mover;
+    const btnEl    = document.getElementById(ui.btn);
+    const resultEl = document.getElementById(ui.result);
 
-    if (btnEl) { btnEl.disabled = false; btnEl.textContent = isLeaver ? 'Run Leaver' : 'Run Mover'; }
+    if (btnEl) { btnEl.disabled = false; btnEl.textContent = ui.label; }
 
     if (!resultEl) return;
     resultEl.style.display = 'block';
