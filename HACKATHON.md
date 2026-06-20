@@ -19,11 +19,14 @@ Official references:
 
 **Demo readiness: GO with the checklist below.**
 
-**Enterprise Agents submission eligibility: NO-GO until a Microsoft IQ layer is integrated and demonstrated.**
+**Enterprise Agents submission eligibility: GO — the Microsoft IQ requirement is met.**
 
 The Enterprise Agents challenge asks teams to use at least one Microsoft IQ layer:
-Foundry IQ, Work IQ, Fabric IQ, or Web IQ. Azure AI Foundry model inference is
-already supported, but model hosting alone is not a Microsoft IQ integration.
+Foundry IQ, Work IQ, Fabric IQ, or Web IQ. **JML integrates Foundry IQ** (Azure AI
+Foundry knowledge retrieval): every risk and approval decision is grounded on the
+organization's JML policy corpus with citations and fail-closed behavior
+(`electron-app/lib/foundry-iq.js`). Model hosting alone would not qualify — this is a
+policy-grounding IQ integration, not just inference.
 
 Track this and the remaining repository risks in
 [`docs/hackathon-readiness.md`](docs/hackathon-readiness.md).
@@ -31,7 +34,7 @@ Track this and the remaining repository risks in
 ## Submission Checklist
 
 - [ ] Register before June 30, 2026.
-- [ ] Integrate and demonstrate at least one Microsoft IQ layer.
+- [x] Integrate and demonstrate at least one Microsoft IQ layer. **(Foundry IQ — done)**
 - [ ] Record a public YouTube or Vimeo demo no longer than five minutes.
 - [ ] Confirm the repository and demo disclose every third-party component used.
 - [ ] Use synthetic identities and sanitized tenant evidence in public screenshots.
@@ -49,8 +52,9 @@ Track this and the remaining repository risks in
 ## Project Description
 
 **JML Agent Fleet** is an identity lifecycle automation system for Microsoft
-Entra ID. Seven operational agents coordinate Joiner, Mover, Leaver, enrollment,
-approval, provisioning, and audit workflows from an Electron operations console.
+Entra ID. Eight operational agents coordinate Joiner, Mover, Leaver, enrollment,
+approval, provisioning, audit, and access-certification workflows from an Electron
+operations console.
 
 The system separates reasoning from privileged execution. Approver and Auditor
 authenticate as first-class Microsoft Entra Agent IDs through FMI token exchange.
@@ -70,7 +74,7 @@ flow through Azure Storage Queue and Table Storage to the lifecycle agents.
 
 The current build includes a tamper-evident SHA-256 audit chain, UEBA and drift
 detection, Microsoft Sentinel and Blob export paths, operator RBAC, Safe and Live
-session modes, and 48 automated console tests.
+session modes, and 119 automated console tests.
 
 ## Microsoft Technologies
 
@@ -86,7 +90,7 @@ session modes, and 48 automated console tests.
 | **Azure Blob Storage** | Optional audit evidence export |
 | **Microsoft Sentinel** | Optional audit and security finding ingestion |
 | **Microsoft Purview** | HR connector integration path |
-| **Microsoft IQ layer** | **Required before submission; not yet implemented** |
+| **Foundry IQ** | Microsoft IQ layer — grounds risk/approval decisions on the JML policy corpus (`lib/foundry-iq.js`) |
 
 ## Five-Minute Demo
 
@@ -100,7 +104,7 @@ session modes, and 48 automated console tests.
 - Approver and Auditor run as Entra Agent IDs.
 - Policy-gated write agents use least-privilege service principals.
 - Every action emits lifecycle state and tamper-evident audit evidence.
-- Call out the Microsoft IQ integration once it is implemented.
+- Call out the Foundry IQ integration grounding risk/approval decisions on the policy corpus.
 
 ### 1:10-2:35 - Joiner
 
@@ -126,7 +130,7 @@ session modes, and 48 automated console tests.
 
 - Show UEBA, drift, audit-chain verification, and Sentinel or Blob export controls.
 - Show the Microsoft IQ result or grounding evidence.
-- Close on the public repository, case study, release, and 48-test quality gate.
+- Close on the public repository, case study, release, and 119-test quality gate.
 
 ## Judging Alignment
 
@@ -137,15 +141,15 @@ of implementation.
 |---|---|
 | **Concept** | Hybrid Agent ID architecture separates reasoning from privileged execution |
 | **Impact** | Reduces manual JML work while preserving approval, traceability, and failure truth |
-| **Use of Microsoft Platform** | Entra ID, Entra Agent ID, Microsoft Graph, Azure Functions, Storage, Sentinel, Purview, and the required IQ layer |
-| **Quality of Implementation** | Live console, replayable lifecycle state, fail-closed controls, 105 tests, CI, threat model, and downloadable release |
+| **Use of Microsoft Platform** | Entra ID, Entra Agent ID, Microsoft Graph, Azure Functions, Storage, Sentinel, Purview, and the Foundry IQ layer |
+| **Quality of Implementation** | Live console, replayable lifecycle state, fail-closed controls, 119 tests, CI, threat model, and downloadable release |
 
 ## Judge Setup
 
 ### Fastest path
 
-1. Download `JML.Console.Setup.1.0.0.exe` from the
-   [v1.0.0 GitHub Release](https://github.com/TrickyDanceMoves/jml-agent-fleet/releases/tag/v1.0.0).
+1. Download `JML.Console.Setup.1.1.8.exe` from the
+   [v1.1.8 GitHub Release](https://github.com/TrickyDanceMoves/jml-agent-fleet/releases/tag/v1.1.8).
 2. Install per-user.
 3. Open Settings and configure an AI provider.
 4. Run the Tenant Binding wizard with an authorized lab tenant.
