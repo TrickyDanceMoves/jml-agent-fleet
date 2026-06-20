@@ -1,7 +1,7 @@
 param(
     [Parameter(Mandatory = $true)]
     [string]$UserPrincipalName,
-    [ValidateSet("Both", "Soft", "Hard")]
+    [ValidateSet("Both", "Soft", "Hard", "Delete")]
     [string]$Stage = "Both",
     [string]$TicketRef = "",
     [string]$OperatorRole = "admin",
@@ -72,6 +72,7 @@ $results = [ordered]@{
     ObjectId          = $user.Id
     HasDirectoryRoles = ($directoryRoles.Count -gt 0)
     AccountDisabled   = $false
+    AccountDeleted    = $false
     SessionsRevoked   = $false
     LicensesRemoved   = @()
     LicensesSkipped   = @()
@@ -80,8 +81,8 @@ $results = [ordered]@{
     Errors            = @()
 }
 
-# Steps 2-3: Soft stage (disable + revoke) — skipped when Stage = "Hard"
-if ($Stage -ne "Hard") {
+# Steps 2-3: Soft stage (disable + revoke) — only for Soft/Both (Delete is pure)
+if ($Stage -eq "Soft" -or $Stage -eq "Both") {
 
 # Step 2 - Disable account
 if ($user.AccountEnabled) {
@@ -124,8 +125,8 @@ if (-not $WhatIf) {
 
 } # end Stage -ne "Hard"
 
-# Steps 4-5: Hard stage (licenses + groups) — skipped when Stage = "Soft"
-if ($Stage -ne "Soft") {
+# Steps 4-5: Hard stage (licenses + groups) — only for Hard/Both (Delete is pure)
+if ($Stage -eq "Hard" -or $Stage -eq "Both") {
 
 # Step 4 - Remove licenses
 try {
@@ -197,7 +198,26 @@ try {
     $results.Errors += "Group lookup failed"
 }
 
-} # end Stage -ne "Soft"
+} # end Hard stage
+
+# Delete stage — permanently remove the user object. Separate from Hard leave
+# (which only strips licenses/groups and leaves a disabled account). Deleting
+# the user inherently removes its license and group associations.
+if ($Stage -eq "Delete") {
+    if (-not $WhatIf) {
+        try {
+            Invoke-GraphWithRetry -Method DELETE `
+                -Uri ("https://graph.microsoft.com/v1.0/users/" + $user.Id) | Out-Null
+            Write-Log ("User permanently deleted: " + $user.UserPrincipalName) "ACTION"
+            $results.AccountDeleted = $true
+        } catch {
+            Write-Log ("User deletion failed: " + $_.Exception.Message) "ERROR"
+            $results.Errors += "User deletion failed - manual intervention required"
+        }
+    } else {
+        Write-Log ("Would permanently delete user: " + $user.UserPrincipalName) "WHATIF"
+    }
+}
 
 Write-Log "Leaver process complete"
 $outcome = if ($results.Errors.Count -eq 0) { "success" } else { "partial" }
@@ -206,6 +226,7 @@ Write-AuditEntry -Agent "leaver" -Action "LeaverProcess" -Subject $UserPrincipal
     objectId        = $user.Id
     stage           = $Stage
     accountDisabled = $results.AccountDisabled
+    accountDeleted  = $results.AccountDeleted
     sessionsRevoked = $results.SessionsRevoked
     licensesRemoved = $results.LicensesRemoved
     groupsRemoved   = $results.GroupsRemoved

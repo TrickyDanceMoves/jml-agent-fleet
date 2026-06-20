@@ -6970,6 +6970,14 @@ function loadRecentUsers() {
       const reason = (document.getElementById('ql-reason') || {}).value || '';
       const whatif = (document.getElementById('ql-whatif') || {}).checked !== false;
       if (!upn.trim()) { showToast('UPN is required', 'warning'); return; }
+      if (!whatif && stage === 'Delete') {
+        const ok = await confirmModal({
+          title: 'Permanently delete this user?',
+          body: `This permanently deletes ${upn} from Entra ID — separate from a hard leave. It is recoverable from the recycle bin for 30 days, then gone for good.`,
+          danger: true, okLabel: 'Delete user',
+        });
+        if (!ok) return;
+      }
       let writeToken = null;
       if (!whatif) {
         const t = await requirePinIfNeeded(`Confirm Live ${stage.toLowerCase()} leaver`);
