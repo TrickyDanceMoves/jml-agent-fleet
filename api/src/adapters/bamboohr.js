@@ -30,6 +30,11 @@
  */
 
 const { v4: uuidv4 } = require('uuid');
+const { sanitizeFields } = require('../lib/input-sanitizer');
+
+// Untrusted HRIS free-text fields that flow downstream into the reasoning
+// agents' prompts and must be cleaned of indirect prompt injection.
+const UNTRUSTED_TEXT_FIELDS = ['firstName', 'lastName', 'department', 'jobTitle', 'officeLocation'];
 
 const COUNTRY_TO_ISO2 = {
   'United States': 'US',
@@ -110,6 +115,17 @@ function adaptWebhook(payload) {
         newTitle:      field(f, 'jobTitle'),
         newManager:    field(f, 'supervisorEmail'),
       };
+    }
+
+    // Neutralize indirect prompt injection in untrusted HR free-text before the
+    // event reaches the reasoning agents. Record any field we had to clean so
+    // the tampering is visible in the audit trail.
+    const flagged = sanitizeFields(event.employee, UNTRUSTED_TEXT_FIELDS);
+    if (event.changes) {
+      flagged.push(...sanitizeFields(event.changes, ['newDepartment', 'newTitle']));
+    }
+    if (flagged.length) {
+      event.sanitized = flagged;
     }
 
     // Strip null values from employee to avoid schema noise
