@@ -21,6 +21,7 @@ const {
   groundedFallback,
   validateGroundedAssistantText,
 } = require('./lib/agent-grounding');
+const { stripQueryEcho } = require('./lib/response-sanitizer');
 
 const PRESENTATION_MODE = isDemoMode(process.argv);
 
@@ -1459,10 +1460,10 @@ async function runAgentLoop(sender, agent, userText) {
         // NEW identities (a joiner's UPN does not exist yet) and explains the
         // firstname.lastname@domain format, so gating it on UPN/number grounding
         // wrongly blocks its normal replies. Only validate the auditor.
-        let safeText = text;
+        let safeText = stripQueryEcho(text, userText);
         if (agent === 'auditor') {
           const facts = collectGroundingFacts(collectConversationToolContents(agentState.messages));
-          const validation = validateGroundedAssistantText(text || pendingText, facts);
+          const validation = validateGroundedAssistantText(safeText || pendingText, facts);
           // Hard block (fabricated UPNs / numbers with no tool data) → replace.
           // Soft caveat (figures that don't tie out exactly) → keep + append note.
           safeText = !validation.ok
