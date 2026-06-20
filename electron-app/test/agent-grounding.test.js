@@ -10,7 +10,7 @@ const {
 const fs = require('node:fs');
 const path = require('node:path');
 
-test('blocks UPNs that were not returned by a tool', () => {
+test('surfaces ungrounded UPNs as a soft suggestion, not a hard block', () => {
   const facts = collectGroundingFacts([
     JSON.stringify({ users: [{ userPrincipalName: 'alex@example.com' }] }),
   ]);
@@ -20,8 +20,10 @@ test('blocks UPNs that were not returned by a tool', () => {
     facts,
   );
 
-  assert.equal(result.ok, false);
-  assert.match(result.reason, /made\.up@example\.com/);
+  // Answer is kept (ok:true) with a nudge to confirm the unverified UPN —
+  // questions like "is paris deleted?" should still get a reply.
+  assert.equal(result.ok, true);
+  assert.match(result.caveat, /made\.up@example\.com/);
 });
 
 test('blocks audit numeric answers when no tool facts are present', () => {
