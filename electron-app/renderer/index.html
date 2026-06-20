@@ -334,23 +334,23 @@
             </div>
             <div class="v2-fleet-tile" data-agent="approver">
               <div class="ft-top"><span class="ft-name">Approver</span><span class="ft-dot info"></span></div>
-              <div class="ft-state">waiting</div>
-              <div class="ft-detail info" id="v2fl-detail-approver">0 in queue</div>
+              <div class="ft-state">ready</div>
+              <div class="ft-detail info" id="v2fl-detail-approver">awaiting health</div>
               <div class="ft-divider"></div>
               <div class="ft-row"><span>last</span><span id="v2fl-lr-approver">now</span></div>
               <div class="ft-row"><span>cert</span><span id="v2fl-cert-approver">—</span></div>
             </div>
             <div class="v2-fleet-tile" data-agent="provisioner">
               <div class="ft-top"><span class="ft-name">Provisioner</span><span class="ft-dot idle"></span></div>
-              <div class="ft-state">standby</div>
+              <div class="ft-state">ready</div>
               <div class="ft-divider"></div>
               <div class="ft-row"><span>last</span><span id="v2fl-lr-provisioner">—</span></div>
-              <div class="ft-row"><span>cert</span><span>∞</span></div>
+              <div class="ft-row"><span>cert</span><span id="v2fl-cert-provisioner">—</span></div>
             </div>
             <div class="v2-fleet-tile" data-agent="auditor">
               <div class="ft-top"><span class="ft-name">Auditor</span><span class="ft-dot ok"></span></div>
-              <div class="ft-state">active</div>
-              <div class="ft-detail ok">streaming</div>
+              <div class="ft-state">ready</div>
+              <div class="ft-detail info" id="v2fl-detail-auditor">awaiting health</div>
               <div class="ft-divider"></div>
               <div class="ft-row"><span>last</span><span id="v2fl-lr-auditor">—</span></div>
               <div class="ft-row"><span>cert</span><span id="v2fl-cert-auditor">—</span></div>
@@ -1728,35 +1728,15 @@
               </div>
             </div>
 
-            <!-- Splunk (coming soon) -->
-            <div class="exp splunk exp-coming-soon">
-              <div class="top">
-                <div class="logo">SP</div>
-                <div class="name">Splunk Cloud<span class="sub">HEC · log analytics</span></div>
-                <span class="export-status-chip chip-soon">planned</span>
-              </div>
-              <div class="stats">
-                <div class="s"><div class="lbl">Endpoint</div><div class="v">—</div></div>
-                <div class="s"><div class="lbl">Token</div><div class="v">—</div></div>
-                <div class="s"><div class="lbl">Events sent</div><div class="v">—</div></div>
-              </div>
-              <div class="conn exp-coming-soon-note">Roadmap connector. Active exports above already carry the full evidence chain.</div>
-            </div>
+          </div>
 
-            <!-- S3 (coming soon) -->
-            <div class="exp s3 exp-coming-soon">
-              <div class="top">
-                <div class="logo">S3</div>
-                <div class="name">AWS S3 — Compliance Mirror<span class="sub">object-lock · WORM</span></div>
-                <span class="export-status-chip chip-soon">planned</span>
-              </div>
-              <div class="stats">
-                <div class="s"><div class="lbl">Bucket</div><div class="v">—</div></div>
-                <div class="s"><div class="lbl">Object lock</div><div class="v">—</div></div>
-                <div class="s"><div class="lbl">Entries</div><div class="v">—</div></div>
-              </div>
-              <div class="conn exp-coming-soon-note">Roadmap connector. Azure Blob cold archive is the current WORM-style evidence path.</div>
-            </div>
+          <!-- Roadmap connectors: compact footer instead of full empty cards. -->
+          <div class="exp-roadmap" aria-label="Roadmap connectors">
+            <span class="exp-roadmap-lbl">Roadmap</span>
+            <span class="exp-roadmap-item">Splunk Cloud <em>HEC</em></span>
+            <span class="exp-roadmap-sep">·</span>
+            <span class="exp-roadmap-item">AWS S3 Compliance Mirror <em>object-lock / WORM</em></span>
+            <span class="exp-roadmap-note">Sentinel + Blob already carry the full evidence chain.</span>
           </div>
 
           <details class="collapse" id="export-license-util" style="margin-top:14px">
@@ -1990,67 +1970,6 @@
               <button class="btn danger sm" id="quarantine-execute-btn">Quarantine</button>
             </div>
             <div id="quarantine-feedback" style="display:none;padding:10px 16px;border-top:1px solid var(--border);font-family:var(--mono);font-size:11.5px"></div>
-          </div>
-
-          <!-- Hidden: hardcoded tiles were redundant with the live "Certificate
-               expiry & rotation" table above (which shows real days + Rotate). -->
-          <div class="cert-grid" style="display:none">
-            <div class="cert-tile" data-agent="joiner">
-              <div class="ag-top"><span class="av">◢</span><span class="name">Joiner<span class="sub">jml-fleet-joiner</span></span></div>
-              <span class="status ok">HEALTHY</span>
-              <div class="bar"><i style="width:88%"></i></div>
-              <div class="exp"><span>expires</span><b>727 d</b></div>
-              <div class="thumb">SHA-1 <b>—</b></div>
-            </div>
-            <div class="cert-tile" data-agent="mover">
-              <div class="ag-top"><span class="av">⇆</span><span class="name">Mover<span class="sub">jml-fleet-mover</span></span></div>
-              <span class="status ok">HEALTHY</span>
-              <div class="bar"><i style="width:88%"></i></div>
-              <div class="exp"><span>expires</span><b>727 d</b></div>
-              <div class="thumb">SHA-1 <b>—</b></div>
-            </div>
-            <div class="cert-tile" data-agent="leaver">
-              <div class="ag-top"><span class="av">◣</span><span class="name">Leaver<span class="sub">jml-fleet-leaver</span></span></div>
-              <span class="status ok">HEALTHY</span>
-              <div class="bar"><i style="width:88%"></i></div>
-              <div class="exp"><span>expires</span><b>727 d</b></div>
-              <div class="thumb">SHA-1 <b>—</b></div>
-            </div>
-            <div class="cert-tile warn" data-agent="enroller">
-              <div class="ag-top"><span class="av" style="color:var(--amber)">⊞</span><span class="name">Enroller<span class="sub">jml-fleet-enroller</span></span></div>
-              <span class="status warn">ROTATE SOON</span>
-              <div class="bar"><i style="width:14%"></i></div>
-              <div class="exp"><span>expires</span><b style="color:var(--amber)">38 d</b></div>
-              <div class="thumb">SHA-1 <b>—</b></div>
-            </div>
-            <div class="cert-tile" data-agent="certifier">
-              <div class="ag-top"><span class="av">◈</span><span class="name">Certifier<span class="sub">jml-fleet-certifier</span></span></div>
-              <span class="status ok">HEALTHY</span>
-              <div class="bar"><i style="width:88%"></i></div>
-              <div class="exp"><span>expires</span><b>727 d</b></div>
-              <div class="thumb">SHA-1 <b>—</b></div>
-            </div>
-            <div class="cert-tile" data-agent="approver">
-              <div class="ag-top"><span class="av">◇</span><span class="name">Approver<span class="sub">jml-fleet-approver</span></span></div>
-              <span class="status ok">HEALTHY</span>
-              <div class="bar"><i style="width:88%"></i></div>
-              <div class="exp"><span>expires</span><b>727 d</b></div>
-              <div class="thumb">SHA-1 <b>—</b></div>
-            </div>
-            <div class="cert-tile" data-agent="provisioner">
-              <div class="ag-top"><span class="av" style="color:var(--muted)">⚙</span><span class="name">Provisioner<span class="sub">jml-fleet-provisioner</span></span></div>
-              <span class="status ok">HEALTHY</span>
-              <div class="bar"><i style="width:60%"></i></div>
-              <div class="exp"><span>expires</span><b>412 d</b></div>
-              <div class="thumb">SHA-1 <b>—</b></div>
-            </div>
-            <div class="cert-tile" data-agent="auditor">
-              <div class="ag-top"><span class="av">◌</span><span class="name">Auditor<span class="sub">jml-fleet-auditor</span></span></div>
-              <span class="status ok">HEALTHY</span>
-              <div class="bar"><i style="width:60%"></i></div>
-              <div class="exp"><span>expires</span><b>412 d</b></div>
-              <div class="thumb">SHA-1 <b>—</b></div>
-            </div>
           </div>
 
           <div class="perm-matrix">
