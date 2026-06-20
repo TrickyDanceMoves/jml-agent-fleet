@@ -568,8 +568,18 @@
 
   // ── Event entry points (wired from app.js) ─────────────────────────────────
 
+  // The lifecycle agent is the base agent (leaver), not the tool variant
+  // (leaver_delete) — normalise so stage owners / icons / titles attribute the
+  // step to the real agent, including historical records.
+  function normalizeOpAgent(op) {
+    if (!op || !op.agent) return op;
+    const base = String(op.agent).toLowerCase().replace(/_(soft|hard|delete|both)$/, '');
+    return base === op.agent ? op : { ...op, agent: base };
+  }
+
   function onOperationStatus(operation) {
     if (!operation || !operation.id) return;
+    operation = normalizeOpAgent(operation);
     if (liveOperationInterruptsReplay(glassScreenState.selectedId, operation)) {
       // A fresh live operation owns the page — drop replay selection.
       clearReplayTimers();
@@ -581,7 +591,7 @@
   }
 
   function onOperationStatuses(operations) {
-    glassScreenState.operations = Array.isArray(operations) ? operations.slice() : [];
+    glassScreenState.operations = Array.isArray(operations) ? operations.map(normalizeOpAgent) : [];
     if (isViewActive()) render();
   }
 
@@ -593,7 +603,7 @@
     const id = entry.id || `audit-${entry.hash || entry.timestamp}`;
     if (!glassScreenState.operations.some(o => o && o.id === id)) {
       glassScreenState.operations = mergeOperationUpdate(
-        glassScreenState.operations, { ...entry, id, status: entry.status || null, _audit: true });
+        glassScreenState.operations, normalizeOpAgent({ ...entry, id, status: entry.status || null, _audit: true }));
     }
     clearReplayTimers();
     glassScreenState.selectedId = id;
@@ -631,7 +641,7 @@
     const backfill = glassScreenState.auditEntries
       .filter(e => e && e.agent && e.subject && (!e.id || !known.has(e.id)) && !dupOfOperation(e))
       .slice(0, 10)
-      .map(e => ({
+      .map(e => normalizeOpAgent({
         ...e,
         id: e.id || `audit-${e.hash || e.timestamp}`,
         status: null,
