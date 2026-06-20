@@ -6305,6 +6305,20 @@ html[data-theme="glass"] .tool-result-drawer {
 .gs-run-agent { font-family: var(--mono); font-size: 10.5px; color: var(--text-2); width: 76px; text-align: right; flex-shrink: 0; }
 .gs-run-mode  { font-family: var(--mono); font-size: 9.5px; color: var(--muted); width: 32px; text-align: right; flex-shrink: 0; }
 .gs-recent-empty { padding: 14px 12px; font-size: 12.5px; color: var(--muted); }
+/* Column header for the recent-runs rows — mirrors the .gs-recent-run flex widths. */
+.gs-recent-head-row {
+  display: flex; align-items: center; gap: 12px;
+  padding: 2px 12px 5px; border-bottom: 1px solid var(--border);
+  font-family: var(--mono); font-size: 9.5px; letter-spacing: .05em; text-transform: uppercase;
+  color: var(--muted);
+}
+.gs-recent-head-row[hidden] { display: none; }
+.gs-recent-head-row .gs-rh-outcome  { width: 16px; flex-shrink: 0; }
+.gs-recent-head-row .gs-rh-action   { flex: 1; }
+.gs-recent-head-row .gs-rh-operator { width: 130px; flex-shrink: 0; }
+.gs-recent-head-row .gs-rh-rel      { flex-shrink: 0; }
+.gs-recent-head-row .gs-rh-agent    { width: 76px; text-align: right; flex-shrink: 0; }
+.gs-recent-head-row .gs-rh-mode     { width: 32px; text-align: right; flex-shrink: 0; }
 
 /* ── Details drawer ───────────────────────────────────────── */
 .gs-details { padding: 0; }

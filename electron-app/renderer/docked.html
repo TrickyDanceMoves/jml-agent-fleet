@@ -497,6 +497,28 @@
   .ac-msg.user      { align-self: flex-end; background: color-mix(in oklch, var(--cyan) 12%, transparent); border: 1px solid color-mix(in oklch, var(--cyan) 30%, transparent); color: var(--text); }
   .ac-msg.assistant { align-self: flex-start; background: var(--bg-2); border: 1px solid var(--border); color: var(--text); }
   .ac-msg.assistant.streaming { border-color: color-mix(in oklch, var(--cyan) 30%, transparent); }
+  /* Rendered-markdown agent replies: drop pre-wrap so block elements space cleanly. */
+  .ac-msg.md { white-space: normal; }
+  .ac-msg.md > :first-child { margin-top: 0; }
+  .ac-msg.md > :last-child { margin-bottom: 0; }
+  .ac-msg.md .md-p { margin: 4px 0; }
+  .ac-msg.md .md-h1, .ac-msg.md .md-h2, .ac-msg.md .md-h3 { font-weight: 700; margin: 6px 0 3px; }
+  .ac-msg.md .md-h1 { font-size: 13px; } .ac-msg.md .md-h2 { font-size: 12.5px; } .ac-msg.md .md-h3 { font-size: 12px; }
+  .ac-msg.md .md-list { margin: 4px 0; padding-left: 16px; }
+  .ac-msg.md .md-list li { margin: 2px 0; }
+  .ac-msg.md code { font-family: var(--mono, monospace); background: color-mix(in oklch, var(--cyan) 12%, transparent); padding: 0 3px; border-radius: 3px; font-size: 11px; }
+  .ac-msg.md pre { background: var(--bg-1, #0c0f16); border: 1px solid var(--border); border-radius: 5px; padding: 7px 9px; overflow-x: auto; margin: 5px 0; }
+  .ac-msg.md pre code { background: none; padding: 0; }
+  .ac-msg.md .md-blockquote { border-left: 2px solid var(--border); padding-left: 8px; color: var(--text-2, var(--muted)); margin: 4px 0; }
+  .ac-msg.md .md-hr { border-top: 1px solid var(--border); margin: 6px 0; }
+  .ac-msg.md .md-link { color: var(--cyan); }
+  .ac-msg.md .md-table-wrap { overflow-x: auto; margin: 5px 0; }
+  .ac-msg.md .md-table { border-collapse: collapse; font-size: 11px; }
+  .ac-msg.md .md-table th, .ac-msg.md .md-table td { border: 1px solid var(--border); padding: 3px 6px; text-align: left; }
+  .ac-msg.md .risk-critical, .ac-msg.md .risk-high { color: var(--coral); font-weight: 600; }
+  .ac-msg.md .risk-medium { color: var(--warn, #e0a83b); font-weight: 600; }
+  .ac-msg.md .risk-low { color: var(--ok, #4ec38a); }
+  .ac-msg.md .op-delete { color: var(--coral); font-weight: 600; }
   .ac-tool-chip {
     align-self: flex-start;
     display: inline-flex; align-items: center; gap: 4px;
@@ -1214,6 +1236,7 @@
 </div>
 </div><!-- /.panel-shell -->
 
+<script src="markdown.js"></script>
 <script src="docked.js"></script>
 </body>
 </html>
