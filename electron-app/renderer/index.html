@@ -1592,35 +1592,30 @@
             </div>
           </div>
 
-          <div class="v2-chain-integrity">
-            <div class="chain-head">
-              <h3>Chain Integrity</h3>
-              <div class="chain-meta">
-                <span>head: <b>9f1a3c...b820</b></span>
-                <span>tail: <b>0000...0001</b></span>
-                <span>verified: <b style="color:var(--ok)">yes</b></span>
+          <div class="chain-integrity-card" id="chain-integrity" data-verified="true">
+            <div class="ci-head">
+              <span class="ci-shield" id="ci-shield" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" width="20" height="20"><path d="M12 3l7 3v5c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6l7-3z"/><path d="M9 12l2 2 4-4"/></svg>
+              </span>
+              <div class="ci-titles">
+                <h3>Chain Integrity</h3>
+                <span class="ci-sub">Tamper-evident SHA-256 hash chain</span>
               </div>
+              <span class="ci-badge ok" id="ci-badge"><span class="ci-badge-dot"></span><span id="ci-badge-text">Verified</span></span>
             </div>
-            <div class="v2-chain-blocks" aria-label="Hash-chain block sample">
-              <span class="v2-chain-block"></span><span class="v2-chain-block"></span><span class="v2-chain-block"></span><span class="v2-chain-block"></span><span class="v2-chain-block"></span><span class="v2-chain-block"></span>
-              <span class="v2-chain-block"></span><span class="v2-chain-block"></span><span class="v2-chain-block warn"></span><span class="v2-chain-block"></span><span class="v2-chain-block"></span><span class="v2-chain-block"></span>
-              <span class="v2-chain-block"></span><span class="v2-chain-block"></span><span class="v2-chain-block"></span><span class="v2-chain-block crit"></span><span class="v2-chain-block"></span><span class="v2-chain-block"></span>
-              <span class="v2-chain-block"></span><span class="v2-chain-block"></span><span class="v2-chain-block"></span><span class="v2-chain-block"></span><span class="v2-chain-block"></span><span class="v2-chain-block"></span>
-              <span class="v2-chain-block"></span><span class="v2-chain-block"></span><span class="v2-chain-block"></span><span class="v2-chain-block"></span><span class="v2-chain-block"></span><span class="v2-chain-block"></span>
-              <span class="v2-chain-block"></span><span class="v2-chain-block"></span><span class="v2-chain-block"></span><span class="v2-chain-block"></span><span class="v2-chain-block"></span><span class="v2-chain-block"></span>
+            <div class="ci-stats">
+              <div class="ci-stat"><span class="ci-stat-lbl">Entries</span><span class="ci-stat-val" id="ci-entries">—</span></div>
+              <div class="ci-stat"><span class="ci-stat-lbl">Chain head</span><span class="ci-stat-val mono" id="ci-head">—</span></div>
+              <div class="ci-stat"><span class="ci-stat-lbl">Last seal</span><span class="ci-stat-val" id="ci-seal">—</span></div>
             </div>
-            <div class="v2-replication-chain">
-              <div class="rep-title">Replication / tamper-evident end-to-end</div>
-              <div class="v2-replication-hops">
-                <div class="v2-replication-hop"><span class="label"><span class="dot ok" id="rep-dot-local"></span>Local Chain</span><span class="sub">SHA-256 / in-memory</span><span class="latency">active</span></div>
-                <span class="v2-replication-arrow">-&gt;</span>
-                <div class="v2-replication-hop"><span class="label"><span class="dot" id="rep-dot-blob"></span>Azure Blob</span><span class="sub">Object-Lock / WORM / 7y</span><span class="latency" id="rep-lat-blob">inactive</span></div>
-                <span class="v2-replication-arrow">-&gt;</span>
-                <div class="v2-replication-hop"><span class="label"><span class="dot" id="rep-dot-sentinel"></span>Sentinel</span><span class="sub">JML_AuditLog_CL</span><span class="latency" id="rep-lat-sentinel">inactive</span></div>
-                <span class="v2-replication-arrow">-&gt;</span>
-                <div class="v2-replication-hop"><span class="label"><span class="dot" id="rep-dot-splunk"></span>Splunk SIEM</span><span class="sub">HEC / enriched</span><span class="latency" id="rep-lat-splunk">inactive</span></div>
-                <span class="v2-replication-arrow">-&gt;</span>
-                <div class="v2-replication-hop"><span class="label"><span class="dot" id="rep-dot-s3"></span>S3 Object-Lock</span><span class="sub">cross-region / 7y</span><span class="latency" id="rep-lat-s3">inactive</span></div>
+            <div class="ci-links" id="ci-links" aria-label="Recent hash-chain links"></div>
+            <div class="ci-replication">
+              <span class="ci-rep-title">Replicated to</span>
+              <div class="ci-rep-hops">
+                <span class="ci-hop"><span class="dot ok" id="rep-dot-local"></span>Local<span class="ci-hop-sub">SHA-256</span><span class="ci-hop-stat" id="rep-lat-local">active</span></span>
+                <span class="ci-hop"><span class="dot" id="rep-dot-blob"></span>Azure Blob<span class="ci-hop-sub">WORM · 7y</span><span class="ci-hop-stat" id="rep-lat-blob">inactive</span></span>
+                <span class="ci-hop"><span class="dot" id="rep-dot-sentinel"></span>Sentinel<span class="ci-hop-sub">JML_AuditLog_CL</span><span class="ci-hop-stat" id="rep-lat-sentinel">inactive</span></span>
+                <span class="ci-hop"><span class="dot" id="rep-dot-splunk"></span>Splunk<span class="ci-hop-sub">HEC</span><span class="ci-hop-stat" id="rep-lat-splunk">inactive</span></span>
               </div>
             </div>
           </div>

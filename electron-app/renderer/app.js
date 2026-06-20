@@ -2487,6 +2487,56 @@ function renderAuditPage() {
   }
 }
 
+// Chain Integrity panel (Audit Log) — real verification from the hash chain.
+// Each entry's prevHash should equal the next (older) entry's hash; any break
+// flips the badge. Renders the actual recent links instead of a decorative grid.
+function renderChainIntegrity(entries) {
+  const card = document.getElementById('chain-integrity');
+  if (!card) return;
+  const list = Array.isArray(entries) ? entries : [];
+  const set = (id, txt) => { const el = document.getElementById(id); if (el) el.textContent = txt; };
+  const badge = document.getElementById('ci-badge');
+  const linksEl = document.getElementById('ci-links');
+
+  if (!list.length) {
+    card.dataset.verified = 'true';
+    set('ci-entries', '0'); set('ci-head', '—'); set('ci-seal', '—'); set('ci-badge-text', 'No entries');
+    if (badge) badge.className = 'ci-badge muted';
+    if (linksEl) linksEl.innerHTML = '<span class="ci-empty">No sealed entries yet.</span>';
+    return;
+  }
+
+  // Verify linkage across the chain (entries are newest-first).
+  let verified = true;
+  for (let i = 0; i < list.length - 1; i++) {
+    const a = list[i], b = list[i + 1];
+    if (a && b && a.prevHash && b.hash && a.prevHash !== b.hash) { verified = false; break; }
+  }
+  const head = list[0];
+  card.dataset.verified = String(verified);
+  set('ci-entries', list.length.toLocaleString());
+  set('ci-head', head.hash ? String(head.hash).slice(0, 12) + '…' : '—');
+  set('ci-seal', head.timestamp ? new Date(head.timestamp).toLocaleString() : '—');
+  set('ci-badge-text', verified ? 'Verified' : 'Broken link');
+  if (badge) badge.className = 'ci-badge ' + (verified ? 'ok' : 'crit');
+
+  if (linksEl) {
+    const recent = list.slice(0, 7).reverse(); // oldest → newest (head on the right)
+    linksEl.innerHTML = recent.map((e, idx) => {
+      const isHead = idx === recent.length - 1;
+      const oc = String(e.outcome || '').toLowerCase();
+      const h = e.hash ? String(e.hash).slice(0, 6) : '······';
+      const ag = String(e.agent || '—').slice(0, 9);
+      const tip = `${ag} · ${(e.subject || '').split('@')[0] || ''} · ${e.hash || 'no hash'}`;
+      return `${idx > 0 ? '<span class="ci-link-line"></span>' : ''}` +
+        `<span class="ci-node${isHead ? ' head' : ''}" data-outcome="${escHtml(oc)}" title="${escHtml(tip)}">` +
+          `<span class="ci-node-hash">${escHtml(h)}</span>` +
+          `<span class="ci-node-agent">${escHtml(ag)}</span>` +
+        `</span>`;
+    }).join('');
+  }
+}
+
 window.api.onAuditLogData((entries) => {
   // Feed Operations kanban Completed-today column from audit log
   _opsAuditEntries = entries || [];
@@ -2506,6 +2556,8 @@ window.api.onAuditLogData((entries) => {
     const headEl = document.getElementById('dash-audit-head');
     if (headEl && last && last.hash) headEl.textContent = String(last.hash).slice(0, 12) + '…';
   }
+
+  renderChainIntegrity(Array.isArray(entries) ? entries : []);
 
   const countEl = document.getElementById('log-count');
   if (!entries.length) {
