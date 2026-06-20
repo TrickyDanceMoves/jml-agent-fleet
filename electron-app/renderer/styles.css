@@ -202,6 +202,10 @@ a { color: var(--cyan); text-decoration: none; }
 /* Maximized: square corners flush with screen edge */
 body.maximized, body.maximized .app { border-radius: 0; }
 
+/* Warm (default) + Preview themes: drop the outer edge ring on the shell. Glass
+   keeps it to define the transparent shell against the desktop. */
+html:not([data-theme="glass"]) .app { box-shadow: none; }
+
 
 /* ---------- Window controls (live inside the topbar in the new shell) ---------- */
 .win-btn {
