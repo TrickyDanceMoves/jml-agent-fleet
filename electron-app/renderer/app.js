@@ -3809,24 +3809,75 @@ window.api.onBulkImportComplete((data) => {
   if (el) el.textContent = 'Complete: ' + data.total + ' processed';
 });
 
-document.getElementById('btn-schedule').addEventListener('click', () => {
-  const op     = document.getElementById('sched-op').value;
-  const upn    = document.getElementById('sched-upn').value.trim();
-  const when   = document.getElementById('sched-when').value;
-  const whatif = document.getElementById('sched-whatif').checked;
-  if (!op || !upn || !when) {
-    showToast(!upn ? 'Enter a UPN before scheduling' : 'Choose a date and time', 'warn');
-    return;
+// ── Scheduler: dynamic per-operation fields ───────────────────────────────────
+function _schedCategory(op) {
+  if (op === 'joiner') return 'joiner';
+  if (op === 'mover')  return 'mover';
+  return 'leaver'; // leaver-soft / leaver-hard / leaver-delete
+}
+function _schedStage(op) {
+  if (op === 'leaver-hard')   return 'Hard';
+  if (op === 'leaver-delete') return 'Delete';
+  return 'Soft';
+}
+function _updateSchedFields() {
+  const cat = _schedCategory((document.getElementById('sched-op') || {}).value || 'joiner');
+  document.querySelectorAll('.sched-form .sf').forEach(el => {
+    const fors = (el.dataset.for || '').split(/\s+/);
+    el.style.display = fors.includes(cat) ? '' : 'none';
+  });
+}
+const _schedOpSel = document.getElementById('sched-op');
+if (_schedOpSel) { _schedOpSel.addEventListener('change', _updateSchedFields); _updateSchedFields(); }
+
+document.getElementById('btn-schedule').addEventListener('click', async () => {
+  const sval   = id => ((document.getElementById(id) || {}).value || '').trim();
+  const opVal  = (document.getElementById('sched-op') || {}).value || 'joiner';
+  const cat    = _schedCategory(opVal);
+  const when   = (document.getElementById('sched-when') || {}).value;
+  const whatif = (document.getElementById('sched-whatif') || {}).checked;
+  if (!when) { showToast('Choose a date and time', 'warn'); return; }
+
+  let payload = { whatif };
+  let label   = '';
+  if (cat === 'joiner') {
+    const first = sval('sched-first'), last = sval('sched-last');
+    if (!first || !last) { showToast('Enter first and last name', 'warn'); return; }
+    payload = { ...payload, givenName: first, surname: last,
+      department: sval('sched-dept'), jobTitle: sval('sched-title'),
+      usageLocation: (sval('sched-usage') || 'US').toUpperCase(), manager: sval('sched-manager') };
+    label = `${first} ${last}`;
+  } else {
+    const upn = sval('sched-upn');
+    if (!upn) { showToast('Enter a target UPN', 'warn'); return; }
+    label = upn;
+    if (cat === 'mover') {
+      payload = { ...payload, userPrincipalName: upn,
+        department: sval('sched-dept'), jobTitle: sval('sched-title'), manager: sval('sched-manager') };
+    } else {
+      const stage = _schedStage(opVal);
+      if (!whatif && (stage === 'Hard' || stage === 'Delete')) {
+        const ok = await confirmModal({
+          title: `Schedule a ${stage.toLowerCase()} leaver?`,
+          body: `This will ${stage === 'Delete' ? 'permanently delete' : 'remove all access for'} ${upn} when it fires — destructive leavers run automatically at the scheduled time.`,
+          danger: true, okLabel: 'Schedule it',
+        });
+        if (!ok) return;
+      }
+      payload = { ...payload, userPrincipalName: upn, stage, ticketRef: sval('sched-reason') };
+    }
   }
+
   window.api.saveScheduledOp({
-    operation: op,
-    payload:   { userPrincipalName: upn, whatif },
+    operation: cat,            // 'joiner' | 'mover' | 'leaver' — matches the firing logic
+    payload, label,
     scheduledFor: new Date(when).toISOString(),
     createdBy: window.api.currentUser,
-    whatif
+    whatif,
   });
-  document.getElementById('sched-upn').value  = '';
-  document.getElementById('sched-when').value = '';
+  ['sched-first', 'sched-last', 'sched-upn', 'sched-dept', 'sched-title', 'sched-manager', 'sched-usage', 'sched-reason', 'sched-when']
+    .forEach(id => { const e = document.getElementById(id); if (e) e.value = ''; });
+  showToast(`Scheduled ${opVal.replace('-', ' ')} for ${new Date(when).toLocaleString()}`, 'success');
 });
 
 window.api.onScheduledOps((ops) => {
@@ -3850,9 +3901,12 @@ window.api.onScheduledOps((ops) => {
     const errHtml = (op.status === 'failed' && op.error)
       ? `<div class="sched-error-detail">${escHtml(op.error)}</div>`
       : '';
+    const _p = op.payload || {};
+    const _stage = (op.operation === 'leaver' && _p.stage) ? ' · ' + escHtml(_p.stage) : '';
+    const _subj = op.label || _p.userPrincipalName || [_p.givenName, _p.surname].filter(Boolean).join(' ') || '';
     return `<div class="sched-item" data-id="${escHtml(op.id)}">
-      <span class="sched-op">${escHtml(op.operation || '')}</span>
-      <span class="sched-upn">${escHtml((op.payload && op.payload.userPrincipalName) || '')}</span>
+      <span class="sched-op">${escHtml(op.operation || '')}${_stage}</span>
+      <span class="sched-upn">${escHtml(_subj)}</span>
       <span class="sched-when">${escHtml(when)}</span>
       <span class="sched-status ${escHtml(op.status || 'pending')}">${escHtml(op.status || 'pending')}</span>
       ${op.status === 'pending' ? '<button class="btn-danger btn-cancel-sched" data-id="' + escHtml(op.id) + '">Cancel</button>' : ''}

@@ -2503,6 +2503,19 @@ strong.risk-low      { color: var(--emerald) !important; }
   display: flex; align-items: center; justify-content: space-between;
 }
 .sched-h .ttl { font-size: 13px; font-weight: 600; }
+/* Schedule form — dynamic per-operation fields, wraps responsively. */
+.sched-form {
+  display: flex; flex-wrap: wrap; gap: 10px; align-items: center;
+  padding: 14px 16px; border-top: 1px solid var(--border);
+}
+.sched-form select, .sched-form input {
+  font-size: 12.5px; padding: 7px 10px; border-radius: 6px;
+  background: var(--bg-2); border: 1px solid var(--border); color: var(--text);
+  font-family: inherit;
+}
+.sched-form select, .sched-form input[type="datetime-local"] { flex: 0 0 auto; }
+.sched-form .sf { flex: 1 1 140px; min-width: 110px; }
+.sched-form input:focus { border-color: color-mix(in oklch, var(--cyan) 50%, transparent); outline: none; }
 .sched-row {
   display: grid; grid-template-columns: 120px 140px 1fr 140px 100px 110px;
   align-items: center; padding: 12px 18px;

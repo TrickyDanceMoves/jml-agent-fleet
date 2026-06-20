@@ -1215,16 +1215,24 @@
             <div class="sched-h">
               <div class="ttl">Schedule a Run <span style="font-family:var(--mono);font-size:11px;color:var(--muted);font-weight:400;margin-left:6px">· one-off · tenant-local</span></div>
             </div>
-            <div style="padding:14px 16px;display:grid;grid-template-columns:140px 1fr 200px 100px auto;gap:10px;align-items:center;border-top:1px solid var(--border)">
+            <div class="sched-form">
               <select id="sched-op">
                 <option value="joiner">Joiner</option>
                 <option value="mover">Mover</option>
                 <option value="leaver-soft">Leaver · Soft</option>
                 <option value="leaver-hard">Leaver · Hard</option>
+                <option value="leaver-delete">Leaver · Delete</option>
               </select>
-              <input id="sched-upn" type="text" placeholder="target UPN" autocomplete="off">
+              <input id="sched-first"   class="sf" data-for="joiner"       type="text" placeholder="First name" autocomplete="off">
+              <input id="sched-last"    class="sf" data-for="joiner"       type="text" placeholder="Last name" autocomplete="off">
+              <input id="sched-upn"     class="sf" data-for="mover leaver" type="text" placeholder="target UPN" autocomplete="off">
+              <input id="sched-dept"    class="sf" data-for="joiner mover" type="text" placeholder="Department">
+              <input id="sched-title"   class="sf" data-for="joiner mover" type="text" placeholder="Job title">
+              <input id="sched-manager" class="sf" data-for="joiner mover" type="text" placeholder="Manager UPN (optional)">
+              <input id="sched-usage"   class="sf" data-for="joiner"       type="text" placeholder="US" maxlength="2" style="text-transform:uppercase;max-width:60px">
+              <input id="sched-reason"  class="sf" data-for="leaver"       type="text" placeholder="Ticket / reason">
               <input id="sched-when" type="datetime-local">
-              <label style="font-size:12px"><input type="checkbox" id="sched-whatif" checked> Safe</label>
+              <label style="font-size:12px;white-space:nowrap"><input type="checkbox" id="sched-whatif" checked> Safe</label>
               <button class="btn primary" id="btn-schedule">+ Schedule</button>
             </div>
             <div id="sched-list">
