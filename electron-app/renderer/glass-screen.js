@@ -218,6 +218,12 @@
     const wrap = el('gs-pipeline');
     if (!wrap) return;
 
+    // The stage click/hover handlers are bound once (on a full rebuild) and reused
+    // across the in-place fast-path. They must read the CURRENT operation, not the
+    // one captured when they were bound — otherwise selecting a joiner after a
+    // leaver was rendered would show the leaver's Execute detail (stale closure).
+    stagesCache.operation = operation;
+
     // In-place patch when the same stage set is already on screen: only update
     // each stage's data-state (and connector fill) on the EXISTING nodes so the
     // CSS transitions on .gs-stage-orb actually animate between frames. A full
@@ -275,15 +281,20 @@
 
     // Hover previews and click/keyboard selects the stage detail. Hover is
     // transient (restores the selected stage on leave); click pins it.
+    // Handlers read stagesCache.operation (the live current op), never a captured
+    // closure value, so the in-place fast-path can reuse them safely.
     wrap.querySelectorAll('.gs-stage').forEach(btn => {
       const id = btn.dataset.stageId;
-      btn.addEventListener('mouseenter', () => renderStageDetail(id, operation, true));
-      btn.addEventListener('mouseleave', () => renderStageDetail(glassScreenState.selectedStageId, operation, false));
-      btn.addEventListener('focus', () => renderStageDetail(id, operation, true));
+      btn.addEventListener('mouseenter', () => renderStageDetail(id, stagesCache.operation, true));
+      btn.addEventListener('mouseleave', () => renderStageDetail(glassScreenState.selectedStageId, stagesCache.operation, false));
+      btn.addEventListener('focus', () => renderStageDetail(id, stagesCache.operation, true));
       btn.addEventListener('click', () => {
         glassScreenState.selectedStageId = (glassScreenState.selectedStageId === id) ? null : id;
-        renderPipeline(stagesCache.stages, null, operation);
-        renderStageDetail(glassScreenState.selectedStageId, operation, false);
+        // Replay the enlarge animation on the clicked orb each time.
+        const orb = btn.querySelector('.gs-stage-orb');
+        if (orb) { orb.classList.remove('gs-orb-pop'); void orb.offsetWidth; orb.classList.add('gs-orb-pop'); }
+        renderPipeline(stagesCache.stages, null, stagesCache.operation);
+        renderStageDetail(glassScreenState.selectedStageId, stagesCache.operation, false);
       });
     });
   }

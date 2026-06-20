@@ -6115,7 +6115,18 @@ html[data-theme="glass"] .tool-result-drawer {
   transition: color 250ms ease, border-color 250ms ease, box-shadow 250ms ease, transform 250ms ease;
 }
 .gs-stage-orb svg { display: block; width: 18px; height: 18px; }
-.gs-stage[data-selected="true"] .gs-stage-orb { box-shadow: 0 0 0 2px color-mix(in oklch, var(--cyan) 55%, transparent); }
+.gs-stage[data-selected="true"] .gs-stage-orb {
+  box-shadow: 0 0 0 2px color-mix(in oklch, var(--cyan) 55%, transparent);
+  transform: scale(1.18);
+}
+/* Click pop: a quick enlarge-and-settle each time a stage is selected. */
+@keyframes gs-orb-pop {
+  0%   { transform: scale(1); }
+  45%  { transform: scale(1.32); }
+  100% { transform: scale(1.18); }
+}
+/* Reduced-motion is handled by the .gs-command-center * rule below. */
+.gs-stage-orb.gs-orb-pop { animation: gs-orb-pop 280ms cubic-bezier(.34,1.56,.64,1); }
 .gs-op-initial { font-family: var(--mono); font-weight: 600; font-size: 15px; }
 /* Corner state badge: state stays readable on top of the identity icon —
    sized for projector legibility, near-opaque backing */
