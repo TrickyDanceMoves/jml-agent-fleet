@@ -74,7 +74,7 @@ flow through Azure Storage Queue and Table Storage to the lifecycle agents.
 
 The current build includes a tamper-evident SHA-256 audit chain, UEBA and drift
 detection, Microsoft Sentinel and Blob export paths, operator RBAC, Safe and Live
-session modes, and 119 automated console tests.
+session modes, and 130 automated console tests.
 
 ## Microsoft Technologies
 
@@ -130,7 +130,7 @@ session modes, and 119 automated console tests.
 
 - Show UEBA, drift, audit-chain verification, and Sentinel or Blob export controls.
 - Show the Microsoft IQ result or grounding evidence.
-- Close on the public repository, case study, release, and 119-test quality gate.
+- Close on the public repository, case study, release, and 130-test quality gate.
 
 ## Judging Alignment
 
@@ -142,7 +142,7 @@ of implementation.
 | **Concept** | Hybrid Agent ID architecture separates reasoning from privileged execution |
 | **Impact** | Reduces manual JML work while preserving approval, traceability, and failure truth |
 | **Use of Microsoft Platform** | Entra ID, Entra Agent ID, Microsoft Graph, Azure Functions, Storage, Sentinel, Purview, and the Foundry IQ layer |
-| **Quality of Implementation** | Live console, replayable lifecycle state, fail-closed controls, 119 tests, CI, threat model, and downloadable release |
+| **Quality of Implementation** | Live console, replayable lifecycle state, fail-closed controls, 130 tests, CI, threat model, and downloadable release |
 
 ## Judge Setup
 

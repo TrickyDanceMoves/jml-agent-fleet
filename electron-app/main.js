@@ -64,6 +64,26 @@ function writeTenantConfig(patch) {
 }
 
 const PENDING_DIR    = path.join(AGENTS_DIR, 'approver', 'pending');
+// Approval tokens carry a 30-min TTL, then linger as "EXPIRED" for a short grace
+// so an operator can see they lapsed — after that they're pruned from the queue.
+const APPROVAL_TTL_MS        = 30 * 60 * 1000;
+const APPROVAL_EXPIRY_GRACE_MS = 10 * 60 * 1000;
+// Delete pending approval files whose expiry is older than the grace window so
+// expired tokens disappear from the Approvals tab (and tray count). Returns the
+// number pruned.
+function pruneExpiredApprovals() {
+  if (!fs.existsSync(PENDING_DIR)) return 0;
+  const cutoff = Date.now() - APPROVAL_EXPIRY_GRACE_MS;
+  let pruned = 0;
+  for (const f of fs.readdirSync(PENDING_DIR).filter(n => n.endsWith('.json'))) {
+    try {
+      const d = readJson(path.join(PENDING_DIR, f));
+      const exp = d && d.expiresAt ? Date.parse(d.expiresAt) : NaN;
+      if (Number.isFinite(exp) && exp < cutoff) { fs.unlinkSync(path.join(PENDING_DIR, f)); pruned++; }
+    } catch { /* skip unreadable file */ }
+  }
+  return pruned;
+}
 const SCHEDULED_FILE = path.join(AGENTS_DIR, 'approver', 'scheduled.json');
 const POLICIES_FILE  = path.join(AGENTS_DIR, 'approver', 'policies.json');
 const SOD_FILE       = path.join(AGENTS_DIR, 'shared', 'sod-policy.json');
@@ -1021,6 +1041,7 @@ function sendToast(title, body) {
 let _lastApprovalCount = -1;
 function pollTrayApprovals() {
   try {
+    pruneExpiredApprovals();
     const count = fs.existsSync(PENDING_DIR)
       ? fs.readdirSync(PENDING_DIR).filter(f => f.endsWith('.json')).length
       : 0;
@@ -1100,6 +1121,7 @@ function routeBlockedLeaverToApproval(input, stage, reason, requiredApproverRole
     requestedByRole: reqRole2,
     requiredApproverRole: reqRole,
     requestedAt: new Date().toISOString(),
+    expiresAt: new Date(Date.now() + APPROVAL_TTL_MS).toISOString(),
     input: { userPrincipalName: input.userPrincipalName, stage, ticketRef: input.ticketRef || '' },
     note: reason || 'Hard-stage leaver submitted by helpdesk — admin approval required to execute.',
     status: 'pending'
@@ -2175,6 +2197,7 @@ ipcMain.handle('search-users', async (event, query) => {
 ipcMain.on('get-pending-approvals', (event) => {
   try {
     if (!fs.existsSync(PENDING_DIR)) { event.sender.send('pending-approvals', []); return; }
+    pruneExpiredApprovals();
     const files = fs.readdirSync(PENDING_DIR).filter(f => f.endsWith('.json'));
     const approvals = files.map(f => {
       try { return readJson(path.join(PENDING_DIR, f)); } catch { return null; }
