@@ -1092,6 +1092,28 @@
             </div>
           </div>
 
+          <!-- Quick Joiner -->
+          <details class="collapse" id="ops-quick-joiner">
+            <summary>Quick Joiner <span style="font-family:var(--mono);font-size:11px;color:var(--muted);margin-left:6px">· create a new identity</span></summary>
+            <div class="collapse-body dense">
+              <div class="qop-form">
+                <div class="qop-row"><label>First name</label><input id="qj-first" type="text" placeholder="Sarah" autocomplete="off"></div>
+                <div class="qop-row"><label>Last name</label><input id="qj-last" type="text" placeholder="Chen" autocomplete="off"></div>
+                <div class="qop-row"><label>Department</label><input id="qj-dept" type="text" placeholder="Engineering"></div>
+                <div class="qop-row"><label>Job title</label><input id="qj-title" type="text" placeholder="Software Engineer"></div>
+                <div class="qop-row"><label>Usage location</label><input id="qj-usage" type="text" placeholder="US" maxlength="2" style="text-transform:uppercase"></div>
+                <div class="qop-row"><label>Manager UPN</label><input id="qj-manager" type="text" placeholder="manager@tenant (optional)"></div>
+                <div class="qop-row checkrow full">
+                  <input type="checkbox" id="qj-whatif" checked> <label for="qj-whatif">Safe (preview only)</label>
+                </div>
+              </div>
+              <div class="qop-actions">
+                <button class="btn primary" id="btn-run-quick-joiner">Run Joiner</button>
+              </div>
+              <div class="qop-result" id="qj-result"></div>
+            </div>
+          </details>
+
           <!-- Quick Mover -->
           <details class="collapse" id="ops-quick-mover">
             <summary>Quick Mover <span style="font-family:var(--mono);font-size:11px;color:var(--muted);margin-left:6px">· dept / title / manager</span></summary>

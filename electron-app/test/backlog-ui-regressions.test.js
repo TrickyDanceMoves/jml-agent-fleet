@@ -18,10 +18,13 @@ test('topbar keeps OS window controls visible at narrow launch widths', () => {
   assert.match(css, /@media\s*\(max-width:\s*1100px\)[\s\S]*?\.topbar\s+\.brand-tb[\s\S]*?display:\s*none/);
 });
 
-test('notifications can route the operator to the affected tab', () => {
+test('every notification is clickable and routes to its related tab', () => {
   assert.match(app, /function addNotification\(icon,\s*title,\s*action/);
-  assert.match(app, /class="notif-item"[^>]*data-action/);
-  assert.match(app, /switchTab\(n\.action\.tab\)/);
+  assert.match(app, /function tabForNotification/);
+  // All items clickable (not gated on data-action), routed via the resolver.
+  assert.match(app, /querySelectorAll\('\.notif-item'\)[\s\S]*?switchTab\(tab\)/);
+  // Explicit action.tab is still honoured.
+  assert.match(app, /n\.action\.tab\)\s*return\s+n\.action\.tab/);
 });
 
 test('attestation export invokes the evidence export API directly', () => {

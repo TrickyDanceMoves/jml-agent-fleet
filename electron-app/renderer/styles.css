@@ -3475,6 +3475,7 @@ strong.risk-low      { color: var(--emerald) !important; }
 .notif-item {
   padding: 10px 14px; border-bottom: 1px solid var(--border);
   font-size: 12.5px; display: flex; gap: 10px; align-items: flex-start;
+  cursor: pointer;
 }
 .notif-item:last-child { border-bottom: 0; }
 .notif-item:hover { background: var(--bg-2); }

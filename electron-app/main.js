@@ -5256,6 +5256,43 @@ $out | ConvertTo-Json -Depth 4 -Compress
   }
 });
 
+// ── Feature: Quick Joiner ─────────────────────────────────────────────────────
+ipcMain.on('run-quick-joiner', async (event, payload) => {
+  if (PRESENTATION_MODE) {
+    event.sender.send('quick-op-result', {
+      type: 'joiner',
+      lines: ['[DEMO] Joiner operation simulated. No tenant change was committed.'],
+      data: demoReceipt('run-quick-joiner', { subject: [payload?.givenName, payload?.surname].filter(Boolean).join(' ') }),
+    });
+    return;
+  }
+  if (!requireWriteToken(event, payload, 'quick-op-result')) return;
+  const { givenName, surname, department, jobTitle, usageLocation, manager, whatif } = payload || {};
+  if (!givenName || !surname) {
+    event.sender.send('quick-op-result', { type: 'joiner', lines: ['First and last name are required.'], data: null, error: true });
+    return;
+  }
+  // UPN is auto-generated firstname.lastname@<tenant-domain>, matching the agent.
+  const domain = getActiveTenantDomain();
+  const userPrincipalName = `${givenName}.${surname}@${domain}`.toLowerCase().replace(/\s+/g, '');
+  const pf = writePayloadFile({
+    givenName, surname, userPrincipalName,
+    department:    department    || null,
+    jobTitle:      jobTitle      || null,
+    usageLocation: usageLocation || 'US',
+    manager:       manager       || null,
+  });
+  try {
+    const raw    = await runPsAsync(path.join(AGENTS_DIR, 'joiner', 'Invoke-JoinerProcess.ps1'), { PayloadPath: pf, WhatIf: !!whatif });
+    const result = parsePs1Output(raw);
+    event.sender.send('quick-op-result', { type: 'joiner', lines: result.lines, data: result.data });
+  } catch (err) {
+    event.sender.send('quick-op-result', { type: 'joiner', lines: [err.message], data: null, error: true });
+  } finally {
+    try { fs.unlinkSync(pf); } catch {}
+  }
+});
+
 // ── Feature: Quick Mover ──────────────────────────────────────────────────────
 ipcMain.on('run-quick-mover', async (event, payload) => {
   if (PRESENTATION_MODE) {

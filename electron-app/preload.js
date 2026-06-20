@@ -100,6 +100,7 @@ contextBridge.exposeInMainWorld('api', {
   onUserDetail:         (cb)     => ipcRenderer.on('user-detail',         (_, d) => cb(d)),
 
   // Feature: Quick Mover / Leaver
+  runQuickJoiner: (payload) => ipcRenderer.send('run-quick-joiner', payload),
   runQuickMover:  (payload) => ipcRenderer.send('run-quick-mover',  payload),
   runQuickLeaver: (payload) => ipcRenderer.send('run-quick-leaver', payload),
   onQuickOpResult:(cb)      => ipcRenderer.on('quick-op-result',    (_, d) => cb(d)),
