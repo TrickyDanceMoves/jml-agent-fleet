@@ -462,10 +462,6 @@
               <div class="lbl stat-label">Identities <span class="live">LIVE</span></div>
               <div class="v stat-value loading" id="stat-users-total">—</div>
               <div class="meta stat-detail loading" id="stat-users-detail">Loading…</div>
-              <svg class="spark" viewBox="0 0 100 40" preserveAspectRatio="none" aria-hidden="true">
-                <polyline fill="oklch(0.55 0.12 195 / .15)" stroke="none" points="0,30 12,28 22,29 35,22 48,24 60,18 72,15 85,12 100,8 100,40 0,40"/>
-                <polyline fill="none" stroke="oklch(0.82 0.14 195)" stroke-width="1.4" points="0,30 12,28 22,29 35,22 48,24 60,18 72,15 85,12 100,8"/>
-              </svg>
             </div>
             <div class="kpi stat-card k-licenses" id="stat-licenses">
               <div class="lbl stat-label">Licenses</div>
@@ -477,22 +473,13 @@
               <div class="v stat-value loading" id="stat-activity-total">—</div>
               <div class="meta stat-detail loading" id="stat-activity-detail">Loading…</div>
               <svg class="spark" viewBox="0 0 100 40" preserveAspectRatio="none" aria-hidden="true">
-                <g fill="oklch(0.55 0.14 75 / .5)" stroke="none">
-                  <rect x="2" y="20" width="6" height="20"/><rect x="12" y="15" width="6" height="25"/>
-                  <rect x="22" y="10" width="6" height="30"/><rect x="32" y="22" width="6" height="18"/>
-                  <rect x="42" y="18" width="6" height="22"/><rect x="52" y="8"  width="6" height="32"/>
-                  <rect x="62" y="12" width="6" height="28"/><rect x="72" y="14" width="6" height="26"/>
-                  <rect x="82" y="10" width="6" height="30"/><rect x="92" y="20" width="6" height="20"/>
-                </g>
+                <g id="stat-ops-spark" fill="oklch(0.55 0.14 75 / .5)" stroke="none"></g>
               </svg>
             </div>
             <div class="kpi stat-card k-risk" id="stat-approvals">
               <div class="lbl stat-label">Pending Approvals</div>
               <div class="v stat-value loading" id="stat-approvals-count">—</div>
               <div class="meta stat-detail" id="stat-approvals-detail">Loading…</div>
-              <svg class="spark" viewBox="0 0 100 40" preserveAspectRatio="none" aria-hidden="true">
-                <polyline fill="none" stroke="oklch(0.70 0.20 24)" stroke-width="1.4" points="0,28 12,30 25,28 38,22 50,24 62,18 75,14 88,10 100,12"/>
-              </svg>
             </div>
           </div>
           </div>
@@ -1731,8 +1718,7 @@
           </div>
 
           <!-- Roadmap connectors: compact footer instead of full empty cards. -->
-          <div class="exp-roadmap" aria-label="Roadmap connectors">
-            <span class="exp-roadmap-lbl">Roadmap</span>
+          <div class="exp-roadmap" aria-label="Planned connectors">
             <span class="exp-roadmap-item">Splunk Cloud <em>HEC</em></span>
             <span class="exp-roadmap-sep">·</span>
             <span class="exp-roadmap-item">AWS S3 Compliance Mirror <em>object-lock / WORM</em></span>
