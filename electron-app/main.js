@@ -3249,7 +3249,10 @@ ipcMain.on('entra-signin-start', async (event) => {
     // Sandboxed, no preload — it is a plain Microsoft login page.
     let authWin = new BrowserWindow({
       width: 480, height: 680,
-      parent: (operatorWin && !operatorWin.isDestroyed()) ? operatorWin : undefined,
+      // Parent to whichever shell launched sign-in: operator-select normally, or
+      // the first-run setup window during OOBE tenant onboarding.
+      parent: (operatorWin && !operatorWin.isDestroyed()) ? operatorWin
+            : (setupWin && !setupWin.isDestroyed()) ? setupWin : undefined,
       autoHideMenuBar: true,
       title: 'Microsoft Entra sign-in',
       backgroundColor: '#ffffff',

@@ -145,6 +145,19 @@
 
     /* Divider */
     .divider { height: 1px; background: var(--border); }
+    /* Labeled "or" divider between the Entra fast-path and manual entry */
+    .or-row {
+      display: flex; align-items: center; gap: 10px;
+      font-size: 10.5px; color: var(--muted);
+      text-transform: uppercase; letter-spacing: .1em; font-family: var(--mono);
+    }
+    .or-row::before, .or-row::after { content:""; flex:1; height:1px; background: var(--border); }
+    /* Entra sign-in status line (device code / progress) */
+    .entra-status { font-size: 11px; color: var(--cyan); min-height: 14px; font-family: var(--mono); }
+    .entra-status b { color: var(--text); }
+    .choice-btn:disabled { opacity: .6; cursor: progress; }
+    .choice-btn.connected { border-color: var(--emerald); }
+    .choice-btn.connected .choice-icon { border-color: var(--emerald); color: var(--emerald); }
 
     /* Action area */
     .panel-actions { display: flex; gap: 8px; align-items: center; margin-top: 4px; }
@@ -260,7 +273,25 @@
     <!-- Panel 3: Tenant -->
     <div class="panel" id="panel-3">
       <div class="panel-title">Connect your tenant</div>
-      <div class="panel-desc">Enter your Microsoft Entra (Azure AD) Tenant ID to wire the agents to your directory. You can skip this now and configure it in Settings → Tenant.</div>
+      <div class="panel-desc">Sign in with Microsoft Entra and we'll read your Tenant ID straight from the sign-in — nothing to copy. You can also enter it manually, or skip and configure it later in Settings → Tenant.</div>
+
+      <!-- Fast path: Entra device-code sign-in (auto-detects the tenant) -->
+      <button class="choice-btn" id="choice-entra-signin">
+        <div class="choice-icon">🔐</div>
+        <div class="choice-meta">
+          <div class="choice-label" id="entra-btn-label">Sign in with Microsoft Entra</div>
+          <div class="choice-desc" id="entra-btn-desc">Opens a Microsoft sign-in window — auto-detects your tenant</div>
+        </div>
+      </button>
+      <div class="win-row" id="entra-connected-row" style="display:none">
+        <div class="win-dot"></div>
+        <span style="color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.08em">Connected</span>
+        <b id="entra-account" style="color:var(--text)">—</b>
+      </div>
+      <div class="entra-status" id="entra-status"></div>
+
+      <div class="or-row">or enter manually</div>
+
       <div class="field-group">
         <div class="field-label">Tenant ID (GUID)</div>
         <input class="field-input" id="setup-tenant-id" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" autocomplete="off" spellcheck="false">
@@ -332,6 +363,66 @@
     document.getElementById('btn-back-3').addEventListener('click', () => goStep(2));
     document.getElementById('btn-skip-tenant').addEventListener('click', () => {
       finish(false);
+    });
+
+    // Step 3 — Entra sign-in fast path. Reuses the operator device-code flow,
+    // which signs in against the `organizations` authority when nothing is
+    // configured yet, then auto-connects + persists the tenant read from the
+    // sign-in token. We mirror that tenant into the manual fields so the
+    // operator sees what was detected and "Start JML Fleet" stays consistent.
+    const entraBtn     = document.getElementById('choice-entra-signin');
+    const entraBtnLbl  = document.getElementById('entra-btn-label');
+    const entraBtnDesc = document.getElementById('entra-btn-desc');
+    const entraStatus  = document.getElementById('entra-status');
+    const entraConnRow = document.getElementById('entra-connected-row');
+    const entraAccount = document.getElementById('entra-account');
+    let _entraBusy = false;
+
+    entraBtn.addEventListener('click', () => {
+      if (_entraBusy) return;
+      _entraBusy = true;
+      entraBtn.disabled = true;
+      entraBtn.classList.remove('connected');
+      entraBtnLbl.textContent = 'Waiting for sign-in…';
+      entraBtnDesc.textContent = 'A Microsoft sign-in window will open';
+      entraStatus.textContent = 'Opening Microsoft sign-in…';
+      document.getElementById('err-tenant').textContent = '';
+      window.api.startEntraOperatorSignin();
+    });
+
+    window.api.onEntraDeviceCode((d) => {
+      if (d && d.userCode) {
+        entraStatus.innerHTML = 'Finish in the Microsoft window. Code: <b>' + d.userCode + '</b>';
+      }
+    });
+
+    window.api.onEntraSigninResult(async (r) => {
+      _entraBusy = false;
+      entraBtn.disabled = false;
+      if (!r || !r.ok) {
+        entraBtnLbl.textContent = 'Sign in with Microsoft Entra';
+        entraBtnDesc.textContent = 'Opens a Microsoft sign-in window — auto-detects your tenant';
+        entraStatus.textContent = '';
+        document.getElementById('err-tenant').textContent =
+          (r && r.error) ? r.error : 'Sign-in failed — try again or enter the Tenant ID manually.';
+        return;
+      }
+      // Resolve the tenant: prefer the id_token `tid` the flow just connected;
+      // fall back to the persisted tenant config if it was already set.
+      let tid = r.tenantConnected || '';
+      if (!tid) {
+        try { const t = await window.api.getTenantConfig(); tid = (t && t.tenantId) || ''; } catch (_) {}
+      }
+      const domain = (r.name && r.name.includes('@')) ? r.name.split('@')[1] : '';
+      if (tid && GUID_RE.test(tid)) document.getElementById('setup-tenant-id').value = tid;
+      if (domain) document.getElementById('setup-primary-domain').value = domain;
+
+      entraAccount.textContent = r.displayName || r.name || 'Signed in';
+      entraConnRow.style.display = '';
+      entraStatus.textContent = '';
+      entraBtn.classList.add('connected');
+      entraBtnLbl.textContent = tid ? 'Signed in — tenant connected' : 'Signed in';
+      entraBtnDesc.textContent = tid ? ('Tenant ' + tid.slice(0, 8) + '…') : 'Tenant not detected — enter it below';
     });
 
     document.getElementById('btn-done').addEventListener('click', () => {
