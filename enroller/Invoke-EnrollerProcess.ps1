@@ -120,7 +120,7 @@ if ($payload.licenses -and $payload.licenses.Count -gt 0) {
         if ($toAdd.Count -gt 0) {
             $addNames = @($payload.licenses | Where-Object { $skuLookup.ContainsKey($_) -and ($currentSkuIds -notcontains $skuLookup[$_]) })
             if (-not $WhatIf) {
-                Set-MgUserLicense -UserId $user.Id -AddLicenses $toAdd -RemoveLicenses @() -ErrorAction Stop | Out-Null
+                Set-AgentUserLicense -UserId $user.Id -AddLicenses $toAdd
                 Write-Log ("Assigned " + $toAdd.Count + " enrollment license(s): " + ($addNames -join ", ")) "ACTION"
                 $results.LicensesAdded = $addNames
             } else {
