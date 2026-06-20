@@ -73,17 +73,40 @@ $blobUrl   = "https://$($config.StorageAccountName).blob.core.windows.net/$($con
 $content   = ($entries | ForEach-Object { $_ | ConvertTo-Json -Compress }) -join "`n"
 $bytes     = [System.Text.Encoding]::UTF8.GetBytes($content)
 
+# ── WORM / immutability ─────────────────────────────────────────────────────────
+# Optional tamper-proofing for compliance: write the audit blob under a
+# time-based retention (WORM) policy and/or a legal hold so it cannot be
+# altered or deleted until the retention window expires — even by a storage
+# account owner. Requires version-level immutability enabled on the container
+# or account. Configure ImmutabilityDays (int) and/or LegalHold (bool).
+$immutabilityDays = if ($config.PSObject.Properties.Name -contains 'ImmutabilityDays') { [int]$config.ImmutabilityDays } else { 0 }
+$immutabilityMode = if ($config.PSObject.Properties.Name -contains 'ImmutabilityMode' -and $config.ImmutabilityMode) { [string]$config.ImmutabilityMode } else { 'Unlocked' }
+$legalHold        = if ($config.PSObject.Properties.Name -contains 'LegalHold') { [bool]$config.LegalHold } else { $false }
+
+$headers = @{ 'x-ms-blob-type' = 'BlockBlob'; 'x-ms-version' = '2021-08-06' }
+$wormNote = 'none'
+if ($immutabilityDays -gt 0) {
+    $untilDate = (Get-Date).ToUniversalTime().AddDays($immutabilityDays).ToString('R')
+    $headers['x-ms-immutability-policy-until-date'] = $untilDate
+    $headers['x-ms-immutability-policy-mode']       = $immutabilityMode
+    $wormNote = "retain-until $untilDate ($immutabilityMode)"
+}
+if ($legalHold) {
+    $headers['x-ms-legal-hold'] = 'true'
+    $wormNote = if ($wormNote -eq 'none') { 'legal-hold' } else { "$wormNote + legal-hold" }
+}
+
 if ($WhatIf) {
-    Write-Host "[WHATIF] Would upload $count entries as '$blobName' to container '$($config.ContainerName)'"
+    Write-Host "[WHATIF] Would upload $count entries as '$blobName' to container '$($config.ContainerName)' (immutability: $wormNote)"
     exit 0
 }
 
 # ── Upload ─────────────────────────────────────────────────────────────────────
-Write-Host "[ACTION] Uploading $count audit entries to blob: $blobName"
+Write-Host "[ACTION] Uploading $count audit entries to blob: $blobName (immutability: $wormNote)"
 try {
     Invoke-RestMethod -Method Put -Uri $blobUrl -Body $bytes `
         -ContentType 'application/octet-stream' `
-        -Headers @{ 'x-ms-blob-type' = 'BlockBlob' } | Out-Null
+        -Headers $headers | Out-Null
 } catch {
     $msg = $_.Exception.Message
     Write-Error "[ERROR] Blob upload failed: $msg"
@@ -109,6 +132,7 @@ $status = @{
     lastBlobName    = $blobName
     storageAccount  = $config.StorageAccountName
     container       = $config.ContainerName
+    immutability    = $wormNote
 }
 Write-Status $status
 Write-Host "[ACTION] Status written to $statusFile"
