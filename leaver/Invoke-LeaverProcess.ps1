@@ -233,8 +233,14 @@ Write-AuditEntry -Agent "leaver" -Action "LeaverProcess" -Subject $UserPrincipal
     errors          = $results.Errors
 }
 
-# Step 6 - Submit Purview IRM termination record (non-fatal; skipped silently if purview/config.json absent)
-Submit-PurviewHREvent -UPN $UserPrincipalName -EffectiveDate (Get-Date) -WhatIf $WhatIf.IsPresent
+# Step 6 - Submit Purview IRM termination record (non-fatal; skipped silently if purview/config.json absent).
+# Skipped for Delete: an insider-risk HR record for a permanently deleted user
+# is moot (nothing left to monitor) and the connector rejects the deleted UPN.
+if ($Stage -ne "Delete") {
+    Submit-PurviewHREvent -UPN $UserPrincipalName -EffectiveDate (Get-Date) -WhatIf $WhatIf.IsPresent
+} else {
+    Write-Log "Skipping Purview IRM submission for Delete (user permanently removed)" "SKIP"
+}
 
 $jsonOutput = $results | ConvertTo-Json -Depth 3
 $jsonOutput | Set-Content -Path (Join-Path $logsDir ($runId + "-" + $UserPrincipalName.Split("@")[0] + ".json"))
