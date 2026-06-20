@@ -1189,6 +1189,29 @@ function _parseMultilineJson(raw, emptyMsg) {
   return { error: 'JSON parse error: no parseable object or array found', raw: trimmed.slice(0, 400) };
 }
 
+// Map an agent script's results JSON (PascalCase) into the camelCase detail
+// shape the Glass Screen reads, so the Execute stage can list the exact
+// licenses/groups changed and the account state for a specific run.
+function operationDetailsFromResult(result, input) {
+  const d = (result && result.data && typeof result.data === 'object') ? result.data : {};
+  const arr = (k) => Array.isArray(d[k]) ? d[k].filter(Boolean) : [];
+  const out = {
+    ticketRef: (input && input.ticketRef) || d.ticketRef || '',
+    accountCreated:  !!d.AccountCreated,
+    accountDisabled: !!d.AccountDisabled,
+    accountDeleted:  !!d.AccountDeleted,
+    sessionsRevoked: !!d.SessionsRevoked,
+    managerSet:      !!d.ManagerSet,
+    licensesAdded:   arr('LicensesAdded'),
+    licensesRemoved: arr('LicensesRemoved'),
+    groupsAdded:     arr('GroupsAdded'),
+    groupsRemoved:   arr('GroupsRemoved'),
+    errors:          arr('Errors'),
+  };
+  if (d.AttributesUpdated && typeof d.AttributesUpdated === 'object') out.attributesUpdated = d.AttributesUpdated;
+  return out;
+}
+
 function parsePs1Output(raw) {
   const lines = raw.trim().split('\n');
   const visible = lines.filter(l => /\[(ACTION|ERROR|WARN|SKIP|WHATIF)\]/.test(l))
@@ -1559,6 +1582,10 @@ async function runAgentLoop(sender, agent, userText) {
           operation = {
             ...operation,
             ...classified,
+            // Carry the concrete per-stage outcome (which licenses/groups were
+            // actually added/removed, account state) so the Glass Screen Execute
+            // detail shows what happened on THIS entry, not a generic call list.
+            details: { ...(operation.details || {}), ...operationDetailsFromResult(result, tool.input) },
             updatedAt: new Date().toISOString(),
             completedAt: new Date().toISOString(),
           };
