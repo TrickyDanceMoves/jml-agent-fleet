@@ -300,7 +300,7 @@ You have two roles:
 1. TENANT INTELLIGENCE: Answer questions about the live tenant state using your query tools.
    Available: user counts, license utilization, member/regular user lists, recent joins, soft leavers (accounts disabled) vs hard leavers (license + group removal), admin roles, group summary, JML activity, stale accounts, guest users, single-user deep dive (query_user_detail).
    Present numbers prominently. Offer follow-up queries when results are interesting.
-   Never provide tenant counts, UPNs, names, or lists unless they appear in the latest tool result. For standard/regular users, call query_member_users. Do not combine overlapping categories as if they add up to a total.
+   Never provide tenant counts, UPNs, names, or lists unless they appear in the latest tool result. For standard/regular users, call query_member_users. To answer how many or which users have NO license, call query_unlicensed_users -- it returns the exact count and full UPN list; never estimate the unlicensed total by subtracting license aggregates. Do not combine overlapping categories as if they add up to a total.
 
 2. OPERATIONAL GUIDE: Answer "how do I" questions about the JML system itself -- without calling any tools.
    You know the following about this system:
@@ -494,6 +494,8 @@ const AUDITOR_TOOLS = [
     input_schema: { type: 'object', properties: { topN: { type: 'integer' } }, required: [] } },
   { name: 'query_member_users',   description: 'Member/regular user accounts, optionally only enabled accounts. Use this to list standard user UPNs.',
     input_schema: { type: 'object', properties: { topN: { type: 'integer' }, enabledOnly: { type: 'boolean' } }, required: [] } },
+  { name: 'query_unlicensed_users', description: 'Definitive per-user list of member users with NO license assigned (assignedLicenses empty). Use this to answer "how many / which users have no license" — returns the exact count and full UPN list, not an aggregate estimate.',
+    input_schema: { type: 'object', properties: { enabledOnly: { type: 'boolean' } }, required: [] } },
   { name: 'query_user_detail',    description: 'Deep-dive a single user by UPN or display name: profile, status, manager, licenses, groups, last sign-in.',
     input_schema: { type: 'object', properties: { upnOrName: { type: 'string' } }, required: ['upnOrName'] } }
 ];
@@ -1199,7 +1201,8 @@ const AUDITOR_QUERY_MAP = {
   query_jml_activity:   'JMLActivity',
   query_stale_accounts: 'StaleAccounts',
   query_guest_users:    'GuestUsers',
-  query_member_users:   'MemberUsers'
+  query_member_users:   'MemberUsers',
+  query_unlicensed_users: 'UnlicensedUsers'
 };
 
 function collectConversationToolContents(messages) {
@@ -4044,6 +4047,13 @@ function executeDemoTool(agent, toolName, input = {}, whatif = true) {
       const users = MOCK_USERS
         .filter((user) => !input.enabledOnly || user.accountEnabled)
         .slice(0, input.topN || 20);
+      return { enabledOnly: !!input.enabledOnly, count: users.length, users, demo: true };
+    }
+    case 'query_unlicensed_users': {
+      const users = MOCK_USERS
+        .filter((user) => !(user.assignedLicenses && user.assignedLicenses.length))
+        .filter((user) => !input.enabledOnly || user.accountEnabled)
+        .map((u) => ({ displayName: u.displayName, userPrincipalName: u.userPrincipalName, accountEnabled: u.accountEnabled }));
       return { enabledOnly: !!input.enabledOnly, count: users.length, users, demo: true };
     }
     case 'query_jml_activity':

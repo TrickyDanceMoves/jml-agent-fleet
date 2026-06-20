@@ -1,6 +1,6 @@
 param(
     [Parameter(Mandatory = $true)]
-    [ValidateSet("UserSummary","LicenseReport","RecentJoins","RecentLeavers","RecentHardLeavers","AdminRoles","GroupSummary","JMLActivity","StaleAccounts","GuestUsers","MemberUsers")]
+    [ValidateSet("UserSummary","LicenseReport","RecentJoins","RecentLeavers","RecentHardLeavers","AdminRoles","GroupSummary","JMLActivity","StaleAccounts","GuestUsers","MemberUsers","UnlicensedUsers")]
     [string]$QueryType,
     [int]$Days = 30,
     [int]$TopN  = 20,
@@ -255,6 +255,34 @@ switch ($QueryType) {
                         userPrincipalName = $_["userPrincipalName"]
                         accountEnabled    = $_["accountEnabled"]
                         createdDateTime   = $_["createdDateTime"]
+                    }
+                })
+            }
+        } catch {
+            $result = @{ error = $_.Exception.Message }
+        }
+    }
+
+    "UnlicensedUsers" {
+        # Definitive per-user list: member users whose assignedLicenses is empty.
+        try {
+            $filter = "userType eq 'Member'"
+            if ($EnabledOnly) { $filter = $filter + " and accountEnabled eq true" }
+            $unlicensed = @()
+            $uri = "https://graph.microsoft.com/v1.0/users?`$filter=" + [uri]::EscapeDataString($filter) + "&`$select=displayName,userPrincipalName,accountEnabled,assignedLicenses&`$top=999"
+            do {
+                $resp = Invoke-MgGraphRequest -Method GET -Uri $uri -Headers @{ ConsistencyLevel = "eventual" }
+                $unlicensed += @($resp.value | Where-Object { -not $_["assignedLicenses"] -or @($_["assignedLicenses"]).Count -eq 0 })
+                $uri = $resp."@odata.nextLink"
+            } while ($uri)
+            $result = @{
+                enabledOnly = $EnabledOnly
+                count = $unlicensed.Count
+                users = @($unlicensed | ForEach-Object {
+                    @{
+                        displayName       = $_["displayName"]
+                        userPrincipalName = $_["userPrincipalName"]
+                        accountEnabled    = $_["accountEnabled"]
                     }
                 })
             }
