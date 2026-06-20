@@ -29,7 +29,7 @@ console, the Azure Functions API + queue worker, and the Microsoft Graph executi
 | # | Threat (STRIDE) | Scenario | Mitigation | Status |
 |---|---|---|---|---|
 | T1 | Spoofing | Forged HRIS webhook triggers mass provisioning | HMAC-SHA256 signature verification (`BAMBOOHR_WEBHOOK_SECRET`); x-api-key fallback | ✅ |
-| T2 | Tampering | Audit log edited to hide an action | SHA-256 hash chain + `Verify-AuditLog.ps1`; Windows Event Log + Sentinel secondary sinks | ✅ |
+| T2 | Tampering | Audit log edited to hide an action | SHA-256 hash chain + `Verify-AuditLog.ps1`; Windows Event Log + Sentinel secondary sinks; optional WORM (time-based immutability / legal hold) on the Azure Blob export so evidence cannot be altered or deleted until retention expires | ✅ |
 | T3 | Repudiation | Operator denies authorizing a change | Operator identity stamped on every audit entry (UPN/role); ticket ref required for leavers | ✅ |
 | T4 | Information disclosure | Secrets committed to the repo | `.gitignore` for config/secret files; CI secret-scan denylist | ✅ |
 | T5 | Elevation of privilege | Helpdesk executes a hard leaver directly | Hard leavers from helpdesk route to admin approval queue; server-side role gate on approve | ✅ |

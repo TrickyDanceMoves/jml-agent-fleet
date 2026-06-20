@@ -1,5 +1,9 @@
 {
   "StorageAccountName": "jmlauditlogs",
   "ContainerName": "audit-exports",
-  "SasToken": "sv=2023-11-03&ss=b&srt=sco&sp=rwdlacu&se=2027-01-01T00:00:00Z&st=2026-01-01T00:00:00Z&spr=https&sig=REPLACE_WITH_YOUR_SAS_SIGNATURE"
+  "SasToken": "sv=2023-11-03&ss=b&srt=sco&sp=rwdlacu&se=2027-01-01T00:00:00Z&st=2026-01-01T00:00:00Z&spr=https&sig=REPLACE_WITH_YOUR_SAS_SIGNATURE",
+  "_comment_immutability": "Optional WORM compliance. Requires version-level immutability enabled on the container/account. ImmutabilityDays writes each audit blob under a time-based retention policy so it cannot be altered or deleted until it expires. ImmutabilityMode: 'Unlocked' (an authorized role can extend/clear) or 'Locked' (permanent). LegalHold pins the blob until the hold is explicitly removed. Set ImmutabilityDays to 0 to disable.",
+  "ImmutabilityDays": 2555,
+  "ImmutabilityMode": "Unlocked",
+  "LegalHold": false
 }
