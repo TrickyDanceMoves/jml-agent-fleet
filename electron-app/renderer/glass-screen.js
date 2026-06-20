@@ -704,8 +704,20 @@
       const subj = String(e.subject).split('@')[0].toLowerCase();
       return realSigs.has(`${String(e.agent).toLowerCase()}|${subj}|${bucketOf(e)}`);
     };
+    // Collapse batch reviews: a certifier access-review campaign writes one audit
+    // entry per group, which otherwise floods the recent-runs log. Keep a single
+    // representative run per agent per ~10-min bucket (the model titles it
+    // "Access review"). Other agents are unaffected.
+    const seenBatch = new Set();
     const backfill = glassScreenState.auditEntries
       .filter(e => e && e.agent && e.subject && (!e.id || !known.has(e.id)) && !dupOfOperation(e))
+      .filter(e => {
+        if (String(e.agent).toLowerCase() !== 'certifier') return true;
+        const key = 'certifier|' + bucketOf(e);
+        if (seenBatch.has(key)) return false;
+        seenBatch.add(key);
+        return true;
+      })
       .slice(0, 10)
       .map(e => normalizeOpAgent({
         ...e,
