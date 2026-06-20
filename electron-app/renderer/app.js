@@ -403,6 +403,32 @@ if (typeof window.api?.onHrQueue === 'function') {
         No queued events. New HR events from BambooHR will appear here in real time.
       </span></div>`;
     }
+
+    // Dashboard HRIS lane — inbound identity events that originate fleet work.
+    const hrisGrid = document.getElementById('hris-events-grid');
+    const hrisMeta = document.getElementById('hris-lane-meta');
+    if (hrisGrid && hr && !hr.error && Array.isArray(hr.events)) {
+      const evs = hr.events.slice(0, 4);
+      if (hrisMeta) {
+        const q = hr.queueDepth ?? hr.queued ?? 0, p = hr.processing ?? 0;
+        hrisMeta.textContent = evs.length ? `${evs.length} recent · ${q} queued · ${p} processing` : 'no events in window';
+      }
+      const VERB = { 'employee.hired': 'New hire', 'employee.terminated': 'Termination', 'employee.transferred': 'Transfer' };
+      const AGENT = { joiner: 'Joiner', leaver: 'Leaver', mover: 'Mover', enroller: 'Enroller' };
+      const dotColor = (s) => s === 'processing' ? 'var(--cyan)' : s === 'queued' ? 'var(--amber)' : 'var(--emerald)';
+      hrisGrid.innerHTML = evs.length ? evs.map(e => {
+        const status = String(e.status || 'queued').toLowerCase();
+        const name = (e.subject || e.upn || '').split('@')[0] || '—';
+        const verb = VERB[e.type || e.eventType] || (e.type || 'HR event');
+        const agent = AGENT[String(e.agent || '').toLowerCase()] || (e.agent || 'fleet');
+        return `<div class="v2-hris-event">
+          <div class="src"><span style="width:6px;height:6px;border-radius:50%;background:${dotColor(status)};display:inline-block"></span>${escHtml(String(e.source || 'hris').toUpperCase())}</div>
+          <div class="name">${escHtml(name)}</div>
+          <div class="detail">${escHtml(verb)} · <span style="text-transform:capitalize">${escHtml(status)}</span></div>
+          <div class="route">→ ${escHtml(agent)}</div>
+        </div>`;
+      }).join('') : '<div class="loading-hint" style="grid-column:1/-1;padding:16px 0;color:var(--text-4);font-size:12px">No inbound HRIS events in the current window.</div>';
+    }
   });
 }
 
