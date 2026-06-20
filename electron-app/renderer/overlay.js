@@ -298,21 +298,11 @@ window.overlayApi.onAgentChunk((d) => {
     _msgEl.innerHTML = ovMarkdown(_msgEl._raw);
     ovThread.scrollTop = ovThread.scrollHeight;
   } else if (d.type === 'tool_start') {
-    removeThinking();
+    // No tool chips — keep the gray thinking line as the only activity cue.
     if (_msgEl) { _msgEl.classList.remove('streaming'); _msgEl = null; }
-    const chip = document.createElement('div');
-    chip.className = 'ov-tool-chip';
-    chip.dataset.tool = d.toolName;
-    chip.textContent = '▶ ' + d.toolName;
-    ovThread.appendChild(chip);
+    showThinking();
     ovThread.scrollTop = ovThread.scrollHeight;
   } else if (d.type === 'tool_done') {
-    const chips = [...ovThread.querySelectorAll('.ov-tool-chip:not(.done):not(.fail)')];
-    const chip  = chips.reverse().find(c => c.dataset.tool === d.toolName);
-    if (chip) {
-      chip.className   = 'ov-tool-chip ' + (d.success ? 'done' : 'fail');
-      chip.textContent = (d.success ? '✓ ' : '✗ ') + d.toolName;
-    }
     showThinking();
   }
 });

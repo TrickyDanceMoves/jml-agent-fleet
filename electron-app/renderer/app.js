@@ -1030,101 +1030,15 @@ window.api.onChunk(({ agent: chunkAgent, type, text, toolName, success, result }
       lcAdvanceTo(_TOOL_TO_LC_STAGE[toolName]);
     }
     if (agent === 'auditor') audTrackTool(toolName, 'running');
-
-    // Once a tool starts, its own spinner represents activity — hide the
-    // generic thinking dots so only one "loading" animation runs at a time.
-    const thinkEl = msgEl.querySelector('.thinking-indicator');
-    if (thinkEl) thinkEl.style.display = 'none';
-    msgEl.classList.remove('thinking');
-    if (SUBMIT_LABELS[toolName]) {
-      const lbl = SUBMIT_LABELS[toolName];
-      if (!_submitBatch[agent][toolName]) _submitBatch[agent][toolName] = { el: null, started: 0, done: 0, failed: 0 };
-      const b = _submitBatch[agent][toolName];
-      b.started++;
-      if (!b.el || !b.el.isConnected) {
-        const ind = document.createElement('div');
-        ind.className = 'tool-indicator running';
-        ind.dataset.tool = toolName + '-batch';
-        ind.innerHTML = `<span class="tool-spinner"></span><span class="tool-label">${lbl.action} (0 / ${b.started})</span>`;
-        toolEl.appendChild(ind);
-        b.el = ind;
-      } else {
-        b.el.querySelector('.tool-label').textContent = `${lbl.action} (${b.done + b.failed} / ${b.started})`;
-      }
-    } else {
-      const ind = document.createElement('div');
-      ind.className    = 'tool-indicator running';
-      ind.dataset.tool = toolName;
-      ind.innerHTML    = `<span class="tool-spinner"></span><span class="tool-label">${formatToolName(toolName)}</span>`;
-      toolEl.appendChild(ind);
-    }
-  }
-
-  if (type === 'tool_running') {
-    if (!SUBMIT_LABELS[toolName]) {
-      const ind = toolEl.querySelector('[data-tool="' + toolName + '"]');
-      if (ind) ind.querySelector('.tool-label').textContent = formatToolName(toolName) + '…';
-    }
+    // No per-tool chips in the reply — keep the gray thinking line as the only
+    // in-message activity cue. The approver lifecycle rail and the auditor
+    // query card already show which tools ran.
   }
 
   if (type === 'tool_done') {
-    // Capture structured results for contextual card rendering
+    // Capture structured results for contextual card rendering (risk card).
     if (toolName === 'score_risk' && success && result && !result.error) _lastRiskResult = result;
     if (agent === 'auditor') audTrackTool(toolName, 'done');
-    if (SUBMIT_LABELS[toolName]) {
-      const lbl = SUBMIT_LABELS[toolName];
-      const b = _submitBatch[agent][toolName];
-      if (!b) return;
-      if (success) b.done++; else b.failed++;
-      const finished = b.done + b.failed;
-      if (b.el) {
-        if (finished < b.started) {
-          b.el.querySelector('.tool-label').textContent = `${lbl.action} (${finished} / ${b.started})`;
-        } else {
-          b.el.classList.remove('running');
-          b.el.classList.add(b.failed > 0 ? 'failed' : 'done');
-          b.el.querySelector('.tool-spinner').outerHTML = b.failed > 0
-            ? '<span class="tool-status-icon">✗</span>'
-            : '<span class="tool-status-icon">✓</span>';
-          b.el.querySelector('.tool-label').textContent = b.failed > 0
-            ? `${b.done} ${lbl.plural}, ${b.failed} failed`
-            : `${b.done} ${lbl.plural}`;
-        }
-      }
-    } else {
-      const ind = toolEl.querySelector('[data-tool="' + toolName + '"]');
-      if (ind) {
-        ind.classList.remove('running');
-        ind.classList.add(success ? 'done' : 'failed');
-        ind.querySelector('.tool-spinner').outerHTML = success
-          ? '<span class="tool-status-icon">✓</span>'
-          : '<span class="tool-status-icon">✗</span>';
-        ind.querySelector('.tool-label').textContent = formatToolName(toolName);
-        // Attach expandable result drawer for successful non-error results
-        if (success && result && !result.error) {
-          const wrap = document.createElement('div');
-          wrap.className = 'tool-indicator-wrap';
-          ind.parentNode.insertBefore(wrap, ind);
-          wrap.appendChild(ind);
-          const drawer = document.createElement('div');
-          drawer.className = 'tool-result-drawer';
-          try {
-            const pretty = JSON.stringify(typeof result === 'string' ? JSON.parse(result) : result, null, 2);
-            drawer.innerHTML = '<pre>' + highlightJson(pretty) + '</pre>';
-          } catch { drawer.textContent = String(result); }
-          wrap.appendChild(drawer);
-          const chev = document.createElement('span');
-          chev.className = 'tool-expand-chev';
-          chev.textContent = ' ›';
-          ind.appendChild(chev);
-          ind.classList.add('has-result');
-          ind.addEventListener('click', () => {
-            drawer.classList.toggle('open');
-            chev.classList.toggle('rotated');
-          });
-        }
-      }
-    }
   }
 
   if (msgs) msgs.scrollTop = msgs.scrollHeight;
