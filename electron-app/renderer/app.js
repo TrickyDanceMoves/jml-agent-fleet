@@ -3665,7 +3665,33 @@ function updateDashboardOperationStatus() {
   sub.classList.toggle('operation-failed', current.status === 'failed');
 }
 
-function applyOperationStatus(operation) {
+// Completion toasts — fired once per operation when it reaches a terminal
+// state, and silenceable via the bell dropdown (persisted in localStorage).
+const _toastedOps = new Set();
+function opToastsMuted() {
+  try { return localStorage.getItem('jmlMuteOpToasts') === '1'; } catch { return false; }
+}
+function isTerminalOp(op) {
+  const s = String(op.status || '').toLowerCase();
+  const o = String(op.outcome || '').toLowerCase();
+  return ['succeeded', 'failed', 'partial'].includes(s)
+    || ['success', 'failed', 'partial'].includes(o);
+}
+function maybeToastCompletion(op, fromBulk) {
+  if (!op || !op.id || !isTerminalOp(op) || _toastedOps.has(op.id)) return;
+  _toastedOps.add(op.id);
+  if (fromBulk || opToastsMuted()) return; // history load / muted → mark only
+  const outcome = String(op.outcome || op.status || '').toLowerCase();
+  const ok      = outcome === 'success' || outcome === 'succeeded';
+  const partial = outcome === 'partial';
+  const agent = String(op.agent || 'operation');
+  const subj  = (op.subject || '').split('@')[0] || op.subject || '';
+  const verb  = ok ? 'completed' : partial ? 'completed with follow-ups' : 'failed';
+  showToast(`${agent.charAt(0).toUpperCase() + agent.slice(1)} ${verb}${subj ? ' — ' + subj : ''}`,
+    ok ? 'success' : partial ? 'warning' : 'error');
+}
+
+function applyOperationStatus(operation, fromBulk) {
   if (!operation || !operation.id) return;
   _operationRecords.set(operation.id, operation);
   if (operation.status === 'running') {
@@ -3677,6 +3703,7 @@ function applyOperationStatus(operation) {
   renderOpsCompleted(mergedCompletedOperations());
   updateDashboardOperationStatus();
   lcApplyOperation(operation);
+  maybeToastCompletion(operation, fromBulk);
   window.JmlGlassScreen?.onOperationStatus(operation);
 }
 
@@ -3726,7 +3753,7 @@ window.api.onOperationStatus(applyOperationStatus);
 window.api.onOperationStatuses(operations => {
   _operationRecords.clear();
   _inflightOps.clear();
-  (operations || []).slice().reverse().forEach(applyOperationStatus);
+  (operations || []).slice().reverse().forEach(op => applyOperationStatus(op, true));
   window.JmlGlassScreen?.onOperationStatuses(operations || []);
   renderTelemetryChart(operations || []);
 });
@@ -6289,6 +6316,16 @@ function renderNotifications() {
     clearAll.addEventListener('click', () => {
       _notifications = [];
       renderNotifications();
+    });
+  }
+
+  // Mute completion toasts toggle (persisted).
+  const muteCb = document.getElementById('notif-mute-toasts');
+  if (muteCb) {
+    muteCb.checked = opToastsMuted();
+    muteCb.addEventListener('change', () => {
+      try { localStorage.setItem('jmlMuteOpToasts', muteCb.checked ? '1' : '0'); } catch {}
+      showToast(muteCb.checked ? 'Completion toasts muted' : 'Completion toasts on', 'info');
     });
   }
 })();
