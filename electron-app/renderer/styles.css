@@ -187,6 +187,27 @@ button { font-family: inherit; color: inherit; background: none; border: 0; curs
 input, textarea, select { font-family: inherit; color: inherit; background: none; border: 0; outline: 0; }
 a { color: var(--cyan); text-decoration: none; }
 
+/* The `hidden` attribute means hidden — enforce it so a component's own
+   `display:` rule can never leave a hidden element on screen (the bug that
+   produced a stray empty box on the Glass Screen). */
+[hidden] { display: none !important; }
+
+/* Keyboard accessibility: inputs reset `outline:0` above, and many interactive
+   elements had no visible focus. Restore a clear focus ring for KEYBOARD focus
+   only (mouse clicks stay clean). Element-level so component rules can still
+   override where an intentional focus style exists. */
+a:focus-visible,
+button:focus-visible,
+summary:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+[role="button"]:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid color-mix(in oklch, var(--cyan) 62%, transparent);
+  outline-offset: 2px;
+}
+
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb); border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--scrollbar-thumb-hover); }
@@ -6402,11 +6423,16 @@ html[data-theme="glass"] .tool-result-drawer {
 
 /* ── Reduced motion: state appears immediately ────────────── */
 @media (prefers-reduced-motion: reduce) {
+  /* App-wide: honor the OS "reduce motion" setting everywhere, not just the
+     Glass Screen. .gs-command-center is kept in the selector so the glass
+     motion contract test continues to match this block. */
   .gs-command-center *,
   .gs-command-center *::before,
-  .gs-command-center *::after {
+  .gs-command-center *::after,
+  *, *::before, *::after {
     animation-duration: 0.001ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
   }
 }
