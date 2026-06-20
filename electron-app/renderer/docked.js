@@ -1225,12 +1225,33 @@ function acScrollBottom() {
   acThread.scrollTop = acThread.scrollHeight;
 }
 
+function acRenderAssistant(el, text) {
+  // Render the agent reply as markdown when the shared renderer is available;
+  // fall back to plain text otherwise.
+  if (window.JMLMarkdown && typeof window.JMLMarkdown.render === 'function') {
+    el.classList.add('md');
+    el.innerHTML = window.JMLMarkdown.render(text);
+  } else {
+    el.textContent = text;
+  }
+}
+
+// Finalize the live streaming bubble: re-render its accumulated raw text as
+// markdown and release it. Called when the turn ends or a tool call splits it.
+function acFinalizeStreaming() {
+  if (!_chatMsgEl) return;
+  _chatMsgEl.classList.remove('streaming');
+  acRenderAssistant(_chatMsgEl, _chatMsgEl.textContent);
+  _chatMsgEl = null;
+}
+
 function acAppendMsg(role, text) {
   const empty = acThread.querySelector('.ac-empty');
   if (empty) empty.remove();
   const el = document.createElement('div');
   el.className = 'ac-msg ' + role;
-  el.textContent = text;
+  if (role === 'assistant') acRenderAssistant(el, text);
+  else el.textContent = text;
   acThread.appendChild(el);
   acScrollBottom();
   return el;
@@ -1296,7 +1317,7 @@ window.panelApi.onAgentChunk((d) => {
     acScrollBottom();
   } else if (d.type === 'tool_start') {
     // No tool chips — keep the gray thinking line as the only activity cue.
-    if (_chatMsgEl) { _chatMsgEl.classList.remove('streaming'); _chatMsgEl = null; }
+    acFinalizeStreaming();
     const empty = acThread.querySelector('.ac-empty');
     if (empty) empty.remove();
     acShowThinking();
@@ -1308,13 +1329,13 @@ window.panelApi.onAgentChunk((d) => {
 
 window.panelApi.onAgentComplete(() => {
   acRemoveThinking();
-  if (_chatMsgEl) { _chatMsgEl.classList.remove('streaming'); _chatMsgEl = null; }
+  acFinalizeStreaming();
   acSetStreaming(false);
 });
 
 window.panelApi.onAgentError((d) => {
   acRemoveThinking();
-  if (_chatMsgEl) { _chatMsgEl.classList.remove('streaming'); _chatMsgEl = null; }
+  acFinalizeStreaming();
   acSetStreaming(false);
   const el = document.createElement('div');
   el.className = 'ac-msg assistant';

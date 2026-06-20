@@ -366,6 +366,8 @@
     if (countEl) countEl.textContent = vm.recentTotal ? '· ' + vm.recentTotal : '';
     const hintEl = (typeof document !== 'undefined') ? document.querySelector('.gs-recent-hint') : null;
     if (hintEl) hintEl.style.display = vm.recent.length ? '' : 'none';
+    const headEl = el('gs-recent-head-row');
+    if (headEl) headEl.hidden = !vm.recent.length;
     if (!vm.recent.length) {
       const f = glassScreenState.recentFilter;
       const filtered = f && (f.mode !== 'all' || f.outcome !== 'all' || f.agent !== 'all');
