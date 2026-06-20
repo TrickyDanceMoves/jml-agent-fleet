@@ -2490,6 +2490,7 @@ window.api.onAuditLogData((entries) => {
   // Feed Operations kanban Completed-today column from audit log
   _opsAuditEntries = entries || [];
   renderOpsCompleted(mergedCompletedOperations());
+  renderDashLiveOps();
 
   // Feed dashboard Audit widget
   if (Array.isArray(entries)) {
@@ -3764,6 +3765,45 @@ function maybeToastCompletion(op, fromBulk) {
     ok ? 'success' : partial ? 'warning' : 'error');
 }
 
+// Dashboard "Live Operations" widget: recent runs (running first, then newest
+// completed). Reuses the same operation/audit data as the Operations tab.
+function renderDashLiveOps() {
+  const body = document.getElementById('v2-liveops-body');
+  if (!body) return;
+  const running = [..._operationRecords.values()]
+    .filter(op => op.status === 'running')
+    .map(op => ({ ...op, timestamp: op.updatedAt || op.startedAt, _running: true }));
+  const rows = [...running, ...mergedCompletedOperations()]
+    .sort((a, b) => new Date(b.timestamp || 0) - new Date(a.timestamp || 0))
+    .slice(0, 6);
+  if (!rows.length) {
+    body.innerHTML = '<div class="v2-liveops-row"><span class="lr-ts">—</span>'
+      + '<span style="grid-column:2/-1;color:var(--muted);font-size:11px">no operations in flight</span></div>';
+    return;
+  }
+  body.innerHTML = rows.map(op => {
+    const ts = op.timestamp ? new Date(op.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—';
+    const status = op._running ? 'running' : String(op.outcome || op.status || '').toLowerCase();
+    const stCls = status === 'running' ? 'lr-state-running'
+      : (status === 'awaiting' || status === 'awaiting-approval' || status === 'queued') ? 'lr-state-awaiting'
+      : status === 'failed' ? '' : 'lr-state-done';
+    const failColor = status === 'failed' ? 'color:var(--coral)' : '';
+    const subj = (op.subject || '').split('@')[0] || op.subject || '—';
+    const mode = op.whatif ? 'SAFE' : 'LIVE';
+    const ticket = (op.details?.ticketRef || op.ticketRef || '').toString().slice(0, 12);
+    const label = status === 'running' ? 'running'
+      : (status === 'success' || status === 'succeeded') ? 'done' : status || '—';
+    return `<div class="v2-liveops-row">
+      <span class="lr-ts">${escHtml(ts)}</span>
+      <span class="${stCls}" style="${failColor}">${escHtml(op.agent || '—')}</span>
+      <span style="color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(subj)}</span>
+      <span class="${stCls}" style="${failColor};text-transform:uppercase;font-size:10px">${escHtml(label)}</span>
+      <span style="font-size:9.5px;color:var(--muted)">${mode}</span>
+      <span class="lr-rb" style="color:var(--muted)">${escHtml(ticket)}</span>
+    </div>`;
+  }).join('');
+}
+
 function applyOperationStatus(operation, fromBulk) {
   if (!operation || !operation.id) return;
   _operationRecords.set(operation.id, operation);
@@ -3774,6 +3814,7 @@ function applyOperationStatus(operation, fromBulk) {
   }
   renderOpsInflight();
   renderOpsCompleted(mergedCompletedOperations());
+  renderDashLiveOps();
   updateDashboardOperationStatus();
   lcApplyOperation(operation);
   maybeToastCompletion(operation, fromBulk);
@@ -6334,6 +6375,94 @@ document.getElementById('dash-action-leaver').addEventListener('click', () => _d
 document.getElementById('dash-action-audit').addEventListener('click',  () => { switchTab('auditor'); document.getElementById('input-auditor').focus(); });
 document.getElementById('dash-open-security').addEventListener('click', () => switchTab('security'));
 document.getElementById('dash-open-ops')?.addEventListener('click', () => switchTab('operations'));
+
+// Dashboard fleet tiles — click an agent to see a brief description, its last
+// activity, and a route to its respective page.
+const AGENT_INFO = {
+  joiner:      { name: 'Joiner',      type: 'PowerShell execution agent', tab: 'operations',     tabLabel: 'Operations', desc: 'Provisions new identities — creates the Entra account, sets the manager, assigns licenses, and adds baseline group memberships.' },
+  mover:       { name: 'Mover',       type: 'PowerShell execution agent', tab: 'operations',     tabLabel: 'Operations', desc: 'Applies role changes — updates department, title, and manager, then reconciles license and group membership (idempotent add/remove).' },
+  leaver:      { name: 'Leaver',      type: 'PowerShell execution agent', tab: 'operations',     tabLabel: 'Operations', desc: 'Offboards identities — disables the account and revokes sessions; hard/delete stages strip licenses and group memberships behind admin approval.' },
+  enroller:    { name: 'Enroller',    type: 'PowerShell execution agent', tab: 'operations',     tabLabel: 'Operations', desc: 'Handles enrollment — assigns enrollment-phase licenses, adds compliance groups, and inventories the new hire’s registered devices.' },
+  approver:    { name: 'Approver',    type: 'AI reasoning agent · Entra Agent ID', tab: 'approver', tabLabel: 'Approver', desc: 'The conversational front door. Gathers context, scores risk, checks policy, and gates JML operations — it proposes; policy and approval decide.' },
+  provisioner: { name: 'Provisioner', type: 'Privilege / PIM control plane', tab: 'security',     tabLabel: 'Security', desc: 'Manages just-in-time privilege — agents hold zero standing write access and elevate through PIM-eligible group membership per approved operation.' },
+  auditor:     { name: 'Auditor',     type: 'AI reasoning agent · Entra Agent ID', tab: 'auditor', tabLabel: 'Auditor', desc: 'Tenant intelligence — answers questions about users, licenses, unlicensed accounts, admin roles, stale accounts, drift, and JML activity.' },
+  certifier:   { name: 'Certifier',   type: 'PowerShell execution agent', tab: 'certifications', tabLabel: 'Access Reviews', desc: 'Runs access-certification campaigns — reviews group and PIM memberships for stale, unexpected, or lingering privileged access.' },
+};
+
+function agentLastActivity(agent) {
+  const a = String(agent).toLowerCase();
+  const fromRecords = [..._operationRecords.values()]
+    .filter(o => String(o.agent || '').toLowerCase() === a)
+    .sort((x, y) => new Date(y.updatedAt || y.startedAt || 0) - new Date(x.updatedAt || x.startedAt || 0));
+  const last = fromRecords[0]
+    || mergedCompletedOperations().find(o => String(o.agent || '').toLowerCase() === a);
+  if (!last) return null;
+  const when = last.completedAt || last.updatedAt || last.timestamp;
+  return {
+    subject: (last.subject || '').split('@')[0] || last.subject || '—',
+    outcome: String(last.outcome || last.status || '—'),
+    when: when ? new Date(when).toLocaleString() : '—',
+  };
+}
+
+function showAgentCard(agent) {
+  const info = AGENT_INFO[String(agent).toLowerCase()];
+  if (!info) return;
+  const act = agentLastActivity(agent);
+  const actHtml = act
+    ? `<div class="ap-row"><span class="k">Last run</span><span class="v">${escHtml(act.subject)} · ${escHtml(act.outcome)}</span></div>
+       <div class="ap-row"><span class="k">When</span><span class="v">${escHtml(act.when)}</span></div>`
+    : '<div class="ap-row"><span class="k">Activity</span><span class="v">no recent runs</span></div>';
+  const overlay = document.createElement('div');
+  overlay.className = 'pin-overlay';
+  overlay.innerHTML = `
+    <div class="pin-modal" style="width:460px;max-width:94vw">
+      <div class="pin-header"><div class="pin-title">${escHtml(info.name)} agent</div></div>
+      <div class="pin-body">
+        <div style="font-size:10.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px">${escHtml(info.type)}</div>
+        <p style="font-size:13px;line-height:1.5;color:var(--text);margin:0 0 12px">${escHtml(info.desc)}</p>
+        <div style="display:flex;flex-direction:column;gap:6px;font-family:var(--mono);font-size:12px">${actHtml}</div>
+      </div>
+      <div class="pin-footer">
+        <button class="btn primary ac-go">Open ${escHtml(info.tabLabel)}</button>
+        <button class="btn ghost dp-close">Close</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+  overlay.querySelector('.dp-close').addEventListener('click', () => overlay.remove());
+  overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+  overlay.querySelector('.ac-go').addEventListener('click', () => { overlay.remove(); switchTab(info.tab); });
+}
+
+(function initFleetTileCards() {
+  document.querySelectorAll('.v2-fleet-tile[data-agent]').forEach(tile => {
+    tile.style.cursor = 'pointer';
+    tile.setAttribute('tabindex', '0');
+    tile.setAttribute('role', 'button');
+    tile.addEventListener('click', () => showAgentCard(tile.dataset.agent));
+    tile.addEventListener('keydown', e => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); showAgentCard(tile.dataset.agent); }
+    });
+  });
+})();
+
+// Live Operations widget — collapse/expand, persisted.
+(function initLiveOpsCollapse() {
+  const card = document.getElementById('dash-liveops-card');
+  const btn  = document.getElementById('dash-liveops-collapse');
+  if (!card || !btn) return;
+  const KEY = 'jml-dash-liveops-collapsed';
+  const apply = (collapsed) => {
+    card.classList.toggle('collapsed', collapsed);
+    btn.setAttribute('aria-expanded', String(!collapsed));
+  };
+  try { apply(localStorage.getItem(KEY) === '1'); } catch {}
+  btn.addEventListener('click', () => {
+    const collapsed = !card.classList.contains('collapsed');
+    apply(collapsed);
+    try { localStorage.setItem(KEY, collapsed ? '1' : '0'); } catch {}
+  });
+})();
 
 // Shared helper: open a <details> then smooth-scroll to it within its .view container
 function openSecSection(key) {

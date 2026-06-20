@@ -367,13 +367,12 @@
           <!-- V2 Bottom Row: Live Ops + Telemetry -->
           <div class="v2-bottom-row">
             <!-- Live Operations Card -->
-            <div class="v2-liveops-card">
+            <div class="v2-liveops-card" id="dash-liveops-card">
               <div class="card-head">
+                <button class="liveops-collapse" id="dash-liveops-collapse" title="Collapse / expand" aria-expanded="true">▾</button>
                 <span class="ft-dot ok" style="width:7px;height:7px;border-radius:50%;display:inline-block;background:var(--ok);box-shadow:0 0 6px var(--ok)"></span>
-                <h3>Live Operations</h3>
-                <span class="ks">streaming</span>
+                <h3>Live Operations <span class="ks" style="font-weight:400">· recent runs</span></h3>
                 <div class="actions">
-                  <button class="btn ghost sm">Pause</button>
                   <button class="btn ghost sm" id="dash-open-ops">Open queue</button>
                 </div>
               </div>
