@@ -1295,23 +1295,13 @@ window.panelApi.onAgentChunk((d) => {
     _chatMsgEl.textContent += d.text;
     acScrollBottom();
   } else if (d.type === 'tool_start') {
-    acRemoveThinking();
+    // No tool chips — keep the gray thinking line as the only activity cue.
     if (_chatMsgEl) { _chatMsgEl.classList.remove('streaming'); _chatMsgEl = null; }
     const empty = acThread.querySelector('.ac-empty');
     if (empty) empty.remove();
-    const chip = document.createElement('div');
-    chip.className = 'ac-tool-chip';
-    chip.dataset.tool = d.toolName;
-    chip.textContent = '▶ ' + d.toolName;
-    acThread.appendChild(chip);
+    acShowThinking();
     acScrollBottom();
   } else if (d.type === 'tool_done') {
-    const chips = [...acThread.querySelectorAll('.ac-tool-chip:not(.done):not(.fail)')];
-    const chip = chips.reverse().find(c => c.dataset.tool === d.toolName);
-    if (chip) {
-      chip.className = 'ac-tool-chip ' + (d.success ? 'done' : 'fail');
-      chip.textContent = (d.success ? '✓ ' : '✗ ') + d.toolName;
-    }
     acShowThinking();
   }
 });
