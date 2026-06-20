@@ -46,6 +46,18 @@
       },
       "additionalProperties": false
     },
+    "sanitized": {
+      "type": "array",
+      "description": "Audit record of untrusted HR text fields that were cleaned of indirect prompt injection before reaching the reasoning agents.",
+      "items": {
+        "type": "object",
+        "properties": {
+          "field":   { "type": "string" },
+          "removed": { "type": "array", "items": { "type": "string" } }
+        },
+        "additionalProperties": false
+      }
+    },
     "changes": {
       "type": "object",
       "description": "Required for eventType=transfer. Describes what is changing.",
