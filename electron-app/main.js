@@ -68,6 +68,22 @@ const PENDING_DIR    = path.join(AGENTS_DIR, 'approver', 'pending');
 // so an operator can see they lapsed — after that they're pruned from the queue.
 const APPROVAL_TTL_MS        = 30 * 60 * 1000;
 const APPROVAL_EXPIRY_GRACE_MS = 10 * 60 * 1000;
+// Start the TTL clock on pending approvals only once an admin operator is logged
+// in to act on them (sets expiresAt on tokens that don't have one yet). This is
+// why a request created overnight doesn't expire before an admin arrives.
+function maybeStartApprovalTimers() {
+  if (String(currentRole || '').toLowerCase() !== 'admin') return;
+  if (!fs.existsSync(PENDING_DIR)) return;
+  const exp = new Date(Date.now() + APPROVAL_TTL_MS).toISOString();
+  for (const f of fs.readdirSync(PENDING_DIR).filter(n => n.endsWith('.json'))) {
+    try {
+      const p = path.join(PENDING_DIR, f);
+      const d = readJson(p);
+      if (d && !d.expiresAt) { d.expiresAt = exp; fs.writeFileSync(p, JSON.stringify(d, null, 2), 'utf8'); }
+    } catch { /* skip */ }
+  }
+}
+
 // Delete pending approval files whose expiry is older than the grace window so
 // expired tokens disappear from the Approvals tab (and tray count). Returns the
 // number pruned.
@@ -1058,6 +1074,7 @@ function sendToast(title, body) {
 let _lastApprovalCount = -1;
 function pollTrayApprovals() {
   try {
+    maybeStartApprovalTimers();
     pruneExpiredApprovals();
     const count = fs.existsSync(PENDING_DIR)
       ? fs.readdirSync(PENDING_DIR).filter(f => f.endsWith('.json')).length
@@ -1138,7 +1155,10 @@ function routeBlockedLeaverToApproval(input, stage, reason, requiredApproverRole
     requestedByRole: reqRole2,
     requiredApproverRole: reqRole,
     requestedAt: new Date().toISOString(),
-    expiresAt: new Date(Date.now() + APPROVAL_TTL_MS).toISOString(),
+    // No expiry yet — the TTL clock only starts once an admin operator is logged
+    // in to act on it (set by maybeStartApprovalTimers), so a request submitted
+    // overnight can't lapse before any admin has a chance to see it.
+    expiresAt: null,
     input: { userPrincipalName: input.userPrincipalName, stage, ticketRef: input.ticketRef || '' },
     note: reason || 'Hard-stage leaver submitted by helpdesk — admin approval required to execute.',
     status: 'pending'
@@ -2276,6 +2296,7 @@ ipcMain.handle('search-users', async (event, query) => {
 ipcMain.on('get-pending-approvals', (event) => {
   try {
     if (!fs.existsSync(PENDING_DIR)) { event.sender.send('pending-approvals', []); return; }
+    maybeStartApprovalTimers();
     pruneExpiredApprovals();
     const files = fs.readdirSync(PENDING_DIR).filter(f => f.endsWith('.json'));
     const approvals = files.map(f => {

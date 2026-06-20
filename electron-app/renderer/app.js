@@ -3507,7 +3507,9 @@ window.api.onPendingApprovals((data) => {
     const now       = new Date();
     const expired   = op.expiresAt && new Date(op.expiresAt) < now;
 
-    // TTL countdown text (mm:ss)
+    // TTL countdown text (mm:ss). The timer only starts once an admin operator
+    // is logged in (main sets expiresAt then); until then it shows "awaiting
+    // admin" rather than counting down.
     let ttlText = '';
     if (op.expiresAt && !expired) {
       const ms = new Date(op.expiresAt) - now;
@@ -3516,6 +3518,8 @@ window.api.onPendingApprovals((data) => {
       ttlText = `EXPIRES IN ${String(min).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
     } else if (expired) {
       ttlText = 'EXPIRED';
+    } else if (!op.expiresAt) {
+      ttlText = 'AWAITING ADMIN';
     }
     const ttlIsWarn = op.expiresAt && !expired && (new Date(op.expiresAt) - now) < 5 * 60 * 1000;
 
