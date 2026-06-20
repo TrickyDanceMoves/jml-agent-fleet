@@ -26,6 +26,7 @@ contextBridge.exposeInMainWorld('api', {
   onError:          (cb) => ipcRenderer.on('msg-error',       (_, d) => cb(d)),
   onHistoryCleared: (cb) => ipcRenderer.on('history-cleared', (_, d) => cb(d)),
   onAuditLogData:    (cb) => ipcRenderer.on('audit-log-data',     (_, d) => cb(d)),
+  onAuditChainStatus:(cb) => ipcRenderer.on('audit-chain-status', (_, d) => cb(d)),
   onOperationStatus: (cb) => ipcRenderer.on('operation-status',   (_, d) => cb(d)),
   onOperationStatuses:(cb) => ipcRenderer.on('operation-statuses', (_, d) => cb(d)),
   onDashboardStats:  (cb) => ipcRenderer.on('dashboard-stats',    (_, d) => cb(d)),

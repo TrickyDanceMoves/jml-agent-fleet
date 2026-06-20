@@ -1704,12 +1704,48 @@ ipcMain.on('clear-history', (event, { agent }) => {
   event.sender.send('history-cleared', { agent });
 });
 
+// Canonical hash-chain verification matching shared/Verify-AuditLog.ps1:
+// entry.prevHash === sha256(previous raw line) (or 'genesis' for the first).
+// Runs over the raw lines (only the main process has them); the renderer just
+// displays the verdict. rawLines[i] must align with entries[i].
+function auditChainStatus(rawLines, entries) {
+  const sha = (s) => crypto.createHash('sha256').update(s, 'utf8').digest('hex');
+  let breaks = 0, brokenAt = -1;
+  for (let i = 0; i < entries.length; i++) {
+    const expected = i === 0 ? 'genesis' : sha(rawLines[i - 1]);
+    if (entries[i].prevHash !== expected) { breaks++; if (brokenAt < 0) brokenAt = i; }
+  }
+  const head = entries[entries.length - 1] || null; // newest = last appended
+  return {
+    configured: true, total: entries.length, verified: breaks === 0, breaks, brokenAt,
+    headHash: head ? head.hash : null, lastSeal: head ? head.timestamp : null,
+  };
+}
+
+// Demo/capture audit is trusted, pre-sealed sample data — report it verified.
+function demoChainStatus() {
+  const head = (typeof MOCK_AUDIT !== 'undefined' && MOCK_AUDIT[0]) || null;
+  return { configured: true, total: (typeof MOCK_AUDIT !== 'undefined' ? MOCK_AUDIT.length : 0),
+    verified: true, breaks: 0, headHash: head ? head.hash : null, lastSeal: head ? head.timestamp : null };
+}
+
 ipcMain.on('get-audit-log', (event) => {
   const auditPath = path.join(AGENTS_DIR, 'audit.jsonl');
-  if (!fs.existsSync(auditPath)) { event.sender.send('audit-log-data', []); return; }
-  const lines   = fs.readFileSync(auditPath, 'utf8').trim().split('\n').filter(Boolean);
-  const entries = lines.map(l => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean);
-  event.sender.send('audit-log-data', entries.reverse());
+  if (!fs.existsSync(auditPath)) {
+    event.sender.send('audit-log-data', []);
+    event.sender.send('audit-chain-status', { configured: false, total: 0, verified: true, breaks: 0 });
+    return;
+  }
+  // Build rawLines and entries together so indices stay aligned (a line that
+  // fails to parse is skipped from BOTH).
+  const rawLines = [], entries = [];
+  for (const l of fs.readFileSync(auditPath, 'utf8').split('\n')) {
+    const t = l.trim(); if (!t) continue;
+    let e; try { e = JSON.parse(t); } catch { continue; }
+    rawLines.push(t); entries.push(e);
+  }
+  event.sender.send('audit-log-data', entries.slice().reverse());
+  event.sender.send('audit-chain-status', auditChainStatus(rawLines, entries));
 });
 
 ipcMain.on('get-operation-statuses', (event) => {
@@ -4155,6 +4191,7 @@ function seedDemoData(w) {
   w.webContents.send('pending-approvals', MOCK_APPROVALS);
   w.webContents.send('security-reports',  MOCK_SECURITY);
   w.webContents.send('audit-log-data',    MOCK_AUDIT);
+  w.webContents.send('audit-chain-status', demoChainStatus());
   w.webContents.send('hr-queue',          MOCK_HR);
   w.webContents.send('operation-statuses', MOCK_OPERATIONS);
 }
@@ -4181,7 +4218,7 @@ function installDemoHandlers() {
     e.sender.send('user-search-results', { users });
   });
   ipcMain.on('get-security-reports', (e) => e.sender.send('security-reports', MOCK_SECURITY));
-  ipcMain.on('get-audit-log', (e) => e.sender.send('audit-log-data', MOCK_AUDIT));
+  ipcMain.on('get-audit-log', (e) => { e.sender.send('audit-log-data', MOCK_AUDIT); e.sender.send('audit-chain-status', demoChainStatus()); });
   ipcMain.on('get-hr-queue', (e) => e.sender.send('hr-queue', MOCK_HR));
   ipcMain.on('get-operation-statuses', (e) => e.sender.send('operation-statuses', MOCK_OPERATIONS));
   ipcMain.on('get-pending-approvals', (e) => e.sender.send('pending-approvals', MOCK_APPROVALS));
@@ -4904,7 +4941,7 @@ async function runDemoDrive() {
     for (const scene of byAct(act)) {
       // re-assert on-demand seed data as we enter data tabs
       if (scene.id === 'security-evidence') win.webContents.send('security-reports', MOCK_SECURITY);
-      if (scene.id === 'tamper-evident')   win.webContents.send('audit-log-data', MOCK_AUDIT);
+      if (scene.id === 'tamper-evident')   { win.webContents.send('audit-log-data', MOCK_AUDIT); win.webContents.send('audit-chain-status', demoChainStatus()); }
       for (let li = 0; li < scene.lines.length; li++) {
         timing.push({ scene: scene.id, line: li, offsetMs: Date.now() - recStartWall });
         await playLine(scene.lines[li]);
