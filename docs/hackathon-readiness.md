@@ -20,7 +20,7 @@ met by **Foundry IQ** (live; grounds risk/approval decisions on the JML policy c
 | Live demo | Ready | Electron console, Glass Screen lifecycle replay, approval and audit surfaces |
 | Microsoft identity platform | Ready | Entra ID, Microsoft Graph, and live Entra Agent ID authentication |
 | Microsoft IQ requirement | Ready | Foundry IQ grounds risk/approval decisions on the JML policy corpus with citations and fail-closed behavior (`lib/foundry-iq.js`, 8 tests) |
-| Automated quality | Ready | 119 Electron tests pass; PowerShell parse checks pass; CI runs the suite |
+| Automated quality | Ready | 130 Electron tests pass; PowerShell parse checks pass; CI runs the suite |
 | Dependency security | Ready | Production dependency audits report zero known vulnerabilities |
 | Public release | Ready | Installer and portable ZIP are attached to GitHub Release v1.1.9 |
 | Documentation accuracy | Improved | Case study, README, hackathon guide, and QA language aligned to current state |
@@ -132,7 +132,7 @@ On June 12, 2026:
 
 - [x] Add and demonstrate one Microsoft IQ layer. **(Foundry IQ — done 2026-06-12)**
 - [x] Sanitize public tenant identifiers and screenshots. **(Verified 2026-06-12: no tenant identifiers in tracked files; captures sanitize the domain.)**
-- [x] Add API and worker tests. **(Done 2026-06-12: `api/test/` 6 tests — canonical
+- [x] Add API and worker tests. **(Done 2026-06-12: `api/test/` 8 tests — canonical
   schema, BambooHR adapter, api-key gate; `worker/test/` 10 tests — dispatch routing,
   PIM activate/deactivate ordering, payload shapes, queue retry/dead-letter semantics.
   Worker refactored for testability: `src/message-handler.js` factory + injectable
