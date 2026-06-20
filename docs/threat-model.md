@@ -59,6 +59,6 @@ actions fail closed when:
 
 ## Residual risks (documented, not yet mitigated)
 
-- Electron windows run with `sandbox: false` (preload requires Node `os`/`fs`). Tracked in electron-security.md.
+- Electron windows run with `sandbox: true` (preloads carry no Node deps; operator username resolved via main-process IPC). See electron-security.md.
 - Operator RBAC is local (Windows username / PIN) in dev; Entra-backed operator identity is roadmap.
 - Conditional Access for the agent workload identities requires Entra Workload Identities Premium (P2) — script present, not enabled.

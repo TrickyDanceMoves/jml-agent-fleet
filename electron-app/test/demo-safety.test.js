@@ -120,10 +120,14 @@ test('preload exposes a generic current user in demo and capture modes', () => {
   const preload = fs.readFileSync(path.join(__dirname, '..', 'preload.js'), 'utf8');
   const main = fs.readFileSync(path.join(__dirname, '..', 'main.js'), 'utf8');
 
-  assert.match(preload, /DEMO_CURRENT_USER\s*=\s*'Demo Operator'/);
-  assert.match(preload, /isDemoOrCaptureMode/);
-  assert.match(preload, /--jml-demo-operator/);
-  assert.match(preload, /currentUser:\s*isDemoOrCaptureMode\s*\?\s*DEMO_CURRENT_USER\s*:\s*os\.userInfo\(\)\.username/);
+  // The username override moved out of the preload (so the preload needs no
+  // Node modules and every window runs sandbox: true); main resolves it.
+  assert.match(preload, /currentUser:\s*ipcRenderer\.sendSync\('resolve-current-user'\)/);
+  assert.doesNotMatch(preload, /require\('os'\)/);
+  assert.match(main, /ipcMain\.on\('resolve-current-user'/);
+  assert.match(main, /'Demo Operator'/);
+  assert.match(main, /--jml-demo-operator/);
+  assert.match(main, /os\.userInfo\(\)\.username/);
   assert.match(main, /additionalArguments:\s*demoPreloadArgs\(\)/);
   assert.doesNotMatch(main, /nick\.bohanan@contoso\.onmicrosoft\.com/);
 });

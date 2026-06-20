@@ -303,7 +303,7 @@ Honest current state, so reviewers know what's proven vs. planned:
 | Hackathon IQ layer | ✅ **Foundry IQ live**: risk/approval decisions grounded on the JML policy corpus with citations and fail-closed behavior (`lib/foundry-iq.js`) | Expand the grounded policy corpus and surface citations in the operator UI |
 | AI observability | ✅ Per-turn run telemetry (provider, model, latency, tokens) in Settings → AI Provider | Foundry-native trace correlation IDs |
 | Copilot integration | ✅ OpenAPI action surface + Power Platform connector (`api/apiProperties.json`, `docs/copilot-studio-setup.md`) | Live Copilot Studio agent in tenant |
-| Electron sandbox | `sandbox: false` (preload needs Node); CSP enforced on main renderer | `sandbox: true` after moving Node logic to IPC |
+| Electron sandbox | ✅ `sandbox: true` on every window; preloads carry no Node deps (operator username resolved via main-process IPC); CSP enforced on main renderer | — |
 
 ## Quality Assurance
 
