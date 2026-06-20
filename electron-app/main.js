@@ -5139,10 +5139,13 @@ app.whenReady().then(() => {
         let raw;
         const opName  = (op.operation || '').toLowerCase();
         if (opName === 'joiner') {
+          const _domain = getActiveTenantDomain();
+          const _upn = payload.userPrincipalName
+            || `${payload.givenName}.${payload.surname}@${_domain}`.toLowerCase().replace(/\s+/g, '');
           const _pf3 = writePayloadFile({
             givenName: payload.givenName, surname: payload.surname,
-            userPrincipalName: payload.userPrincipalName, department: payload.department,
-            jobTitle: payload.jobTitle, usageLocation: payload.usageLocation
+            userPrincipalName: _upn, department: payload.department,
+            jobTitle: payload.jobTitle, usageLocation: payload.usageLocation, manager: payload.manager
           });
           try { raw = await runPsAsync(path.join(AGENTS_DIR, 'joiner', 'Invoke-JoinerProcess.ps1'), { PayloadPath: _pf3, WhatIf: w }); }
           finally { try { fs.unlinkSync(_pf3); } catch {} }
