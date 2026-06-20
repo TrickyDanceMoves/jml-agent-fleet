@@ -505,13 +505,19 @@
     let operation;
     let recentHold = false;
     const selectedOp = selectedId ? (operations.find(o => o && o.id === selectedId) || null) : null;
-    if (running) {
-      // A live running op always owns the page (even over a historical selection).
+    if (selectedOp) {
+      // An explicit selection (the operator clicked a run to inspect it) is
+      // always honored — otherwise selecting a completed joiner while a leaver
+      // is running would render the leaver's stages on the joiner's entry,
+      // misattributing the run. A NEWLY-arrived live op still interrupts the
+      // replay: the controller (onOperationStatus / liveOperationInterruptsReplay)
+      // clears the selection on arrival, after which the running op owns the page.
+      operation = selectedOp;
+      mode = normalizeStatus(selectedOp) === 'running' ? 'live' : 'replay';
+    } else if (running) {
+      // No explicit selection: a live running op owns the page by default.
       mode = 'live';
       operation = running;
-    } else if (selectedOp) {
-      operation = selectedOp;
-      mode = 'replay';
     } else {
       // Idle: clean Fleet Ready, optionally holding the last COMPLETED run for a
       // short window. Pending approvals are skipped here so they never own the hero.

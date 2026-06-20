@@ -94,10 +94,29 @@ test('partial outcome names completed work and remaining follow-up', () => {
   assert.match(`${vm.recovery.message} ${vm.recovery.detail || ''}`.toLowerCase(), /follow|remain|group/);
 });
 
-test('active operation wins over selected historical replay', () => {
+test('an explicit historical selection is honored even while another op is running', () => {
+  // Regression: selecting a completed joiner while a leaver was running used to
+  // render the running leaver on the joiner's entry, misattributing the run.
+  // An explicit click must win; a NEWLY-arrived live op interrupts via the
+  // controller (liveOperationInterruptsReplay), which clears the selection.
   const active = op({ id: 'live-1', status: 'running' });
   const past = op({ id: 'old-1', status: 'succeeded', outcome: 'success', updatedAt: new Date(T0 - 9e5).toISOString() });
   const vm = buildGlassScreenViewModel({ operations: [past, active], selectedId: 'old-1', now: T0 });
+  assert.equal(vm.mode, 'replay');
+  assert.equal(vm.operation.id, 'old-1');
+});
+
+test('a running op owns the hero by default when nothing is explicitly selected', () => {
+  const active = op({ id: 'live-1', status: 'running' });
+  const past = op({ id: 'old-1', status: 'succeeded', outcome: 'success', updatedAt: new Date(T0 - 9e5).toISOString() });
+  const vm = buildGlassScreenViewModel({ operations: [past, active], now: T0 });
+  assert.equal(vm.mode, 'live');
+  assert.equal(vm.operation.id, 'live-1');
+});
+
+test('selecting the running op itself shows it live', () => {
+  const active = op({ id: 'live-1', status: 'running' });
+  const vm = buildGlassScreenViewModel({ operations: [active], selectedId: 'live-1', now: T0 });
   assert.equal(vm.mode, 'live');
   assert.equal(vm.operation.id, 'live-1');
 });
