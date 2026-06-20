@@ -133,6 +133,7 @@
     replayDone: false,
     recentExpanded: false,   // "show all runs" toggle for the recent-runs list
     recentFilter: { mode: 'all', outcome: 'all' },  // recent-runs filters
+    recentSort: 'recent',                            // 'recent' | 'operation'
     lastRenderedStageKey: null,
     replayTimers: [],
     elapsedTimer: null,
@@ -459,6 +460,7 @@
       selectedId: glassScreenState.selectedId,
       recentLimit: glassScreenState.recentExpanded ? Infinity : 3,
       recentFilter: glassScreenState.recentFilter,
+      recentSort: glassScreenState.recentSort,
     });
 
     hero.dataset.mode = vm.mode;
@@ -731,11 +733,16 @@
       const chip = e.target.closest('.gs-filter-chip');
       const group = chip && chip.closest('.gs-filter-group');
       if (!chip || !group) return;
-      const dim = group.dataset.filter; // 'mode' | 'outcome'
-      if (glassScreenState.recentFilter[dim] === chip.dataset.val) return;
-      glassScreenState.recentFilter[dim] = chip.dataset.val;
+      const dim = group.dataset.filter; // 'mode' | 'outcome' | 'sort'
+      if (dim === 'sort') {
+        if (glassScreenState.recentSort === chip.dataset.val) return;
+        glassScreenState.recentSort = chip.dataset.val;
+      } else {
+        if (glassScreenState.recentFilter[dim] === chip.dataset.val) return;
+        glassScreenState.recentFilter[dim] = chip.dataset.val;
+      }
       group.querySelectorAll('.gs-filter-chip').forEach(c => c.classList.toggle('active', c === chip));
-      glassScreenState.recentExpanded = false; // collapse "show all" when the filter changes
+      glassScreenState.recentExpanded = false; // collapse "show all" when the view changes
       render();
     });
   }

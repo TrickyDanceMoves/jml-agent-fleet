@@ -476,7 +476,7 @@
     return true;
   }
 
-  function buildGlassScreenViewModel({ operations = [], selectedId = null, now = Date.now(), recentLimit = 3, recentFilter = null } = {}) {
+  function buildGlassScreenViewModel({ operations = [], selectedId = null, now = Date.now(), recentLimit = 3, recentFilter = null, recentSort = 'recent' } = {}) {
     // Only a RUNNING operation owns the live hero. A pending approval is not a
     // "run that's going" — it never dominates the default state; it appears in
     // the recent-runs list (⏸ held) instead, keeping tab entry clean.
@@ -490,6 +490,14 @@
       .sort((a, b) => timeOf(b) - timeOf(a));
     let recentPool = nonRunning;
     if (recentFilter) recentPool = recentPool.filter(o => matchesRecentFilter(o, recentFilter));
+    // Sort by JML operation (agent A→Z, newest within each) when requested;
+    // otherwise keep the default newest-first ordering.
+    if (recentSort === 'operation') {
+      recentPool = recentPool.slice().sort((a, b) => {
+        const ag = String(a.agent || '').toLowerCase().localeCompare(String(b.agent || '').toLowerCase());
+        return ag !== 0 ? ag : timeOf(b) - timeOf(a);
+      });
+    }
     const recentOps = recentPool.slice(0, recentLimit);
 
     let mode;
