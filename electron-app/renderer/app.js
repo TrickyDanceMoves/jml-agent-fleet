@@ -3273,6 +3273,65 @@ function loadApprovals() {
   window.api.getPendingApprovals();
 }
 
+// ── Approval-card access-impact diff ─────────────────────────────────────────
+// Shows the admin exactly what access a queued leaver strips BEFORE they sign
+// off — the same green/red/grey delta as the Quick-Leaver preview, fetched live
+// per card. Read-only; makes no tenant change.
+function _apprDiffList(before, after) {
+  const b = new Set(before || []), a = new Set(after || []);
+  return {
+    removed: [...b].filter(x => !a.has(x)),
+    kept:    [...b].filter(x => a.has(x)),
+  };
+}
+function _apprChip(t, kind) {
+  const style = kind === 'rem'
+    ? 'background:color-mix(in oklab,var(--coral),transparent 80%);color:var(--coral);text-decoration:line-through'
+    : 'background:var(--bg-2);color:var(--text-3)';
+  return `<span style="display:inline-block;margin:2px 4px 2px 0;padding:1px 7px;border-radius:99px;font-size:11px;${style}">${escHtml(t)}</span>`;
+}
+function _renderApprovalDiff(snap, stage) {
+  const st = String(stage || 'Soft').toLowerCase();
+  // Hard/Delete strip all groups + licenses; Soft disables but retains them.
+  const stripsAll = st === 'hard' || st === 'delete';
+  const after = stripsAll ? { groups: [], licenses: [] } : { groups: snap.groups, licenses: snap.licenses };
+  const section = (label, before, aft) => {
+    const d = _apprDiffList(before, aft);
+    const parts = [];
+    d.removed.forEach(x => parts.push(_apprChip(x, 'rem')));
+    d.kept.forEach(x => parts.push(_apprChip(x, 'keep')));
+    return `<div style="margin-top:6px"><span style="color:var(--muted);font-size:11px">${label}:</span> ${parts.length ? parts.join('') : '<span class="dim">none</span>'}</div>`;
+  };
+  const fate = st === 'delete'
+    ? '<div style="margin-top:4px;color:var(--coral);font-size:12px">Account will be PERMANENTLY DELETED + sessions revoked</div>'
+    : '<div style="margin-top:4px;color:var(--coral);font-size:12px">Account will be DISABLED + sessions revoked</div>';
+  return `<div style="font-family:var(--mono);font-size:12px;line-height:1.6;margin-top:8px;padding-top:8px;border-top:1px solid var(--border)">
+    <div style="color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.04em">Access impact — ${escHtml(snap.displayName || '')}</div>
+    ${fate}
+    ${section('Groups', snap.groups, after.groups)}
+    ${section('Licenses', snap.licenses, after.licenses)}
+    <div style="margin-top:6px;color:var(--text-4);font-size:10.5px">red = removed · grey = retained · live read-only preview, no changes made</div>
+  </div>`;
+}
+async function _hydrateApprovalDiffs(container) {
+  if (typeof window.api?.getAccessSnapshot !== 'function') return;
+  const slots = container.querySelectorAll('.approval-diff[data-upn]');
+  for (const slot of slots) {
+    const upn = slot.getAttribute('data-upn');
+    const stage = slot.getAttribute('data-stage');
+    if (!upn) continue;
+    slot.innerHTML = '<span class="dim" style="font-size:11px">Reading current access…</span>';
+    try {
+      const r = await window.api.getAccessSnapshot(upn);
+      slot.innerHTML = (r && r.ok && r.snapshot)
+        ? _renderApprovalDiff(r.snapshot, stage)
+        : `<span class="dim" style="font-size:11px">Access preview unavailable${r && r.error ? ': ' + escHtml(r.error) : ''}</span>`;
+    } catch {
+      slot.innerHTML = '<span class="dim" style="font-size:11px">Access preview unavailable</span>';
+    }
+  }
+}
+
 window.api.onPendingApprovals((data) => {
   const listEl  = document.getElementById('approvals-list');
   const countEl = document.getElementById('approvals-count');
@@ -3434,6 +3493,16 @@ window.api.onPendingApprovals((data) => {
               style="opacity:.45;cursor:not-allowed">Admin sign-off needed</button>`
       : '';
 
+    // Access-impact preview slot for leaver approvals — hydrated live after
+    // render so the admin sees what access is stripped before signing off.
+    const isLeaverAppr = tool.startsWith('submit_leaver');
+    const leaverStage  = tool === 'submit_leaver_hard' ? 'Hard'
+      : tool === 'submit_leaver_delete' ? 'Delete'
+      : (inp.stage || 'Soft');
+    const diffSlot = (isLeaverAppr && !expired && inp.userPrincipalName)
+      ? `<div class="approval-diff" data-upn="${escHtml(inp.userPrincipalName)}" data-stage="${escHtml(leaverStage)}"></div>`
+      : '';
+
     return `<div class="approval-card card ${severity === 'crit' ? 'crit' : 'info'}${expired ? ' expired' : ''}" data-id="${escHtml(token)}">
       <div class="card-h approval-header">
         <span class="tag approval-badge ${badgeClass}">${opLabel}</span>
@@ -3447,6 +3516,7 @@ window.api.onPendingApprovals((data) => {
         ${kvHtml}
         ${submitterHtml}
         ${noteHtml}
+        ${diffSlot}
       </div>
       <div class="card-f approval-actions">
         ${approverRow}
@@ -3457,6 +3527,9 @@ window.api.onPendingApprovals((data) => {
       </div>
     </div>`;
   }).join('');
+
+  // Fetch live access snapshots and render the impact diff on each leaver card.
+  _hydrateApprovalDiffs(listEl);
 
   listEl.querySelectorAll('.btn-approve').forEach(btn => {
     btn.addEventListener('click', async () => {
