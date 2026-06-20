@@ -132,7 +132,7 @@
     replaying: false,
     replayDone: false,
     recentExpanded: false,   // "show all runs" toggle for the recent-runs list
-    recentFilter: { mode: 'all', outcome: 'all' },  // recent-runs filters
+    recentFilter: { mode: 'all', outcome: 'all', agent: 'all' },  // recent-runs filters
     recentSort: 'recent',                            // 'recent' | 'operation'
     lastRenderedStageKey: null,
     replayTimers: [],
@@ -357,7 +357,7 @@
     if (hintEl) hintEl.style.display = vm.recent.length ? '' : 'none';
     if (!vm.recent.length) {
       const f = glassScreenState.recentFilter;
-      const filtered = f && (f.mode !== 'all' || f.outcome !== 'all');
+      const filtered = f && (f.mode !== 'all' || f.outcome !== 'all' || f.agent !== 'all');
       list.innerHTML = filtered
         ? '<div class="gs-recent-empty">No runs match this filter.</div>'
         : '<div class="gs-recent-empty">No completed runs yet — live actions will appear here automatically.</div>';
@@ -379,14 +379,15 @@
       btn.addEventListener('click', () => {
         const id = btn.dataset.opId;
         if (!id) return;
-        // Clicking a run shows its END RESULT (final pipeline state). It does
-        // not auto-replay — the operator drives the animation via the Replay
-        // button, so the outcome stays put until they ask to watch it again.
+        // Clicking a run animates its replay and stops at the run's final
+        // state: a completed run lands on Complete (full details); a run that
+        // failed / is awaiting approval stops at that stage.
         clearReplayTimers();
         glassScreenState.selectedId = id;
         glassScreenState.replaying = false;
         glassScreenState.replayDone = false;
         render();
+        runReplay();
       });
     });
 
@@ -743,6 +744,11 @@
       }
       group.querySelectorAll('.gs-filter-chip').forEach(c => c.classList.toggle('active', c === chip));
       glassScreenState.recentExpanded = false; // collapse "show all" when the view changes
+      render();
+    });
+    document.getElementById('gs-recent-agent')?.addEventListener('change', (e) => {
+      glassScreenState.recentFilter.agent = e.target.value || 'all';
+      glassScreenState.recentExpanded = false;
       render();
     });
   }

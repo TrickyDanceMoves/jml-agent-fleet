@@ -473,6 +473,7 @@
     if (f.mode === 'live' && op.whatif) return false;
     if (f.mode === 'safe' && !op.whatif) return false;
     if (f.outcome && f.outcome !== 'all' && outcomeKey(op) !== f.outcome) return false;
+    if (f.agent && f.agent !== 'all' && String(op.agent || '').toLowerCase() !== f.agent) return false;
     return true;
   }
 

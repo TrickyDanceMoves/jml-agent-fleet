@@ -772,10 +772,17 @@
                   <button class="gs-filter-chip" data-val="failed" title="Failed">✕</button>
                   <button class="gs-filter-chip" data-val="awaiting" title="Awaiting approval">⏸</button>
                 </div>
-                <div class="gs-filter-group" data-filter="sort" role="group" aria-label="Sort recent runs">
-                  <button class="gs-filter-chip active" data-val="recent" title="Newest first">Recent</button>
-                  <button class="gs-filter-chip" data-val="operation" title="Group by JML operation">By operation</button>
-                </div>
+                <select id="gs-recent-agent" class="gs-filter-select" title="Filter by JML operation" aria-label="Filter by JML operation">
+                  <option value="all">All operations</option>
+                  <option value="joiner">Joiner</option>
+                  <option value="enroller">Enroller</option>
+                  <option value="mover">Mover</option>
+                  <option value="leaver">Leaver</option>
+                  <option value="certifier">Certifier</option>
+                  <option value="provisioner">Provisioner</option>
+                  <option value="approver">Approver</option>
+                  <option value="auditor">Auditor</option>
+                </select>
               </div>
               <div class="gs-recent-runs" id="gs-recent-runs"></div>
               <button class="gs-recent-expand" id="gs-recent-expand" type="button" hidden aria-expanded="false"></button>

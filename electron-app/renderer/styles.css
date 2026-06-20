@@ -6241,6 +6241,13 @@ html[data-theme="glass"] .tool-result-drawer {
 }
 .gs-filter-chip:hover { color: var(--text-2); }
 .gs-filter-chip.active { background: color-mix(in oklch, var(--cyan-dim) 22%, transparent); color: var(--cyan); }
+.gs-filter-select {
+  font-family: var(--mono); font-size: 10.5px; color: var(--text-2);
+  padding: 4px 8px; border-radius: 8px; cursor: pointer;
+  background: color-mix(in oklch, var(--bg-2) 50%, transparent);
+  border: 1px solid var(--border);
+}
+.gs-filter-select:hover { border-color: var(--cyan-dim); }
 .gs-recent-runs { display: flex; flex-direction: column; }
 /* Expanded "show all runs" view: cap height and scroll so a long history
    doesn't push the rest of the screen off. */
