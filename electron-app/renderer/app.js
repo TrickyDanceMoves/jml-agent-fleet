@@ -631,6 +631,7 @@ if (window.api.onConversationReset) {
     lcSetIdle();
     _lastRiskResult = null;
     audClearState();
+    clearNotifications();
   });
 }
 
@@ -5543,6 +5544,7 @@ if (typeof window.api?.getTenantConfig === 'function') {
   window.api.onOperatorSwitched(d => {
     setSidebarOperator(d.name);
     applyRoleUI(d.role);
+    clearNotifications();
     switchTab('dashboard');
   });
 })();
@@ -6581,6 +6583,14 @@ function addNotification(icon, title, action) {
   _notifications.unshift(n);
   renderNotifications();
   showToast(title, 'info');
+}
+
+// Notifications belong to the signed-in operator — drop them on operator change
+// so a new operator never inherits the previous operator's notifications.
+function clearNotifications() {
+  _notifications = [];
+  _toastedOps.clear();
+  renderNotifications();
 }
 
 function renderNotifications() {
