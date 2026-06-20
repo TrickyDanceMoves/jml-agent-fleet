@@ -13,6 +13,14 @@
   "build": {
     "appId": "com.jml.console",
     "productName": "JML Console",
+    "artifactName": "JML.Console-${version}-win.${ext}",
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "TrickyDanceMoves",
+        "repo": "jml-agent-fleet"
+      }
+    ],
     "win": {
       "target": [
         "nsis",
@@ -26,14 +34,16 @@
       "perMachine": false,
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
-      "createStartMenuShortcut": true
+      "createStartMenuShortcut": true,
+      "artifactName": "JML.Console.Setup.${version}.${ext}"
     },
     "msi": {
       "perMachine": false,
       "upgradeCode": "1EE847D0-E748-4A43-B2B3-2CDC7F89447E",
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "runAfterFinish": true
+      "runAfterFinish": true,
+      "artifactName": "JML.Console.${version}.${ext}"
     },
     "files": [
       "main.js",
@@ -117,6 +127,7 @@
     "@azure/data-tables": "^13.3.0",
     "@azure/identity": "^4.13.1",
     "@azure/storage-queue": "^12.23.0",
+    "electron-updater": "^6.8.9",
     "openai": "^4.96.0"
   },
   "devDependencies": {
