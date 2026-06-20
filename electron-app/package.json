@@ -1,6 +1,6 @@
 {
   "name": "jml-console",
-  "version": "1.1.9",
+  "version": "1.1.10",
   "description": "JML Identity Management Console",
   "author": "Nicholas Bohanan",
   "main": "main.js",
