@@ -241,6 +241,32 @@ test('stageDetail execute calls differ by agent and leaver stage', () => {
   assert.ok(leaverHard.activities.some(a => /assignLicense/.test(a.name)), 'hard leaver removes licenses');
 });
 
+test('stageDetail execute lists the concrete changes when details are recorded', () => {
+  const done = op({
+    agent: 'leaver', stage: 'hard', status: 'succeeded', outcome: 'success',
+    details: {
+      accountDisabled: true, sessionsRevoked: true,
+      licensesRemoved: ['Microsoft_Entra_Suite', 'INTUNE_D'],
+      groupsRemoved: ['All Company', 'Engineering'],
+    },
+  });
+  const exec = stageDetail('execute', done);
+  // Concrete outcomes replace the generic Graph-call list.
+  assert.ok(exec.activities.some(a => /Account disabled/.test(a.name)), 'shows account disabled');
+  const lic = exec.activities.find(a => /Licenses removed/.test(a.name));
+  assert.ok(lic, 'shows licenses removed');
+  assert.match(lic.note, /Microsoft_Entra_Suite/);
+  assert.match(lic.note, /INTUNE_D/);
+  const grp = exec.activities.find(a => /Groups removed/.test(a.name));
+  assert.match(grp.note, /All Company/);
+  assert.ok(!exec.activities.some(a => /assignLicense/.test(a.name)), 'generic call list is replaced');
+});
+
+test('stageDetail execute falls back to generic calls without details (Safe preview)', () => {
+  const preview = stageDetail('execute', op({ agent: 'leaver', stage: 'hard', status: 'succeeded', outcome: 'success' }));
+  assert.ok(preview.activities.some(a => /assignLicense/.test(a.name)), 'no details → generic call list');
+});
+
 test('stageDetail risk surfaces Foundry IQ grounding when present', () => {
   const grounded = op({
     status: 'running',

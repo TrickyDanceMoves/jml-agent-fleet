@@ -156,6 +156,35 @@
     }
   }
 
+  // Concrete "what actually happened" in Execute for a specific run, read from
+  // the operation's recorded details (the agent script's results / audit entry).
+  // Returns [] when there's no detail (e.g. a Safe/WhatIf preview or an
+  // audit-only backfill), so the caller falls back to the generic call list.
+  function executeOutcomes(operation) {
+    const d = operation && operation.details ? operation.details : null;
+    if (!d) return [];
+    const acts = [];
+    const list = (k) => Array.isArray(d[k]) ? d[k].filter(Boolean) : [];
+    if (d.accountDeleted)  acts.push({ name: 'Account deleted', note: 'user object permanently removed' });
+    if (d.accountCreated)  acts.push({ name: 'Account created', note: 'Entra identity provisioned' });
+    if (d.accountDisabled) acts.push({ name: 'Account disabled', note: 'accountEnabled set to false' });
+    if (d.sessionsRevoked) acts.push({ name: 'Sessions revoked', note: 'active sign-in sessions invalidated' });
+    if (d.managerSet)      acts.push({ name: 'Manager set', note: 'reporting line updated' });
+    if (d.attributesUpdated && typeof d.attributesUpdated === 'object') {
+      const keys = Object.keys(d.attributesUpdated);
+      if (keys.length) acts.push({ name: 'Attributes updated', note: keys.map(k => `${k} → ${d.attributesUpdated[k]}`).join(' · ') });
+    }
+    const la = list('licensesAdded'), lr = list('licensesRemoved');
+    const ga = list('groupsAdded'),   gr = list('groupsRemoved');
+    if (la.length) acts.push({ name: `Licenses added (${la.length})`,   note: la.join(', ') });
+    if (lr.length) acts.push({ name: `Licenses removed (${lr.length})`, note: lr.join(', ') });
+    if (ga.length) acts.push({ name: `Groups added (${ga.length})`,     note: ga.join(', ') });
+    if (gr.length) acts.push({ name: `Groups removed (${gr.length})`,   note: gr.join(', ') });
+    const errs = list('errors');
+    if (errs.length) acts.push({ name: `Issues (${errs.length})`, note: errs.join('; '), failed: true });
+    return acts;
+  }
+
   function verifyChecks(operation) {
     const agent = String(operation?.agent || '').toLowerCase();
     if (agent === 'leaver') return [
@@ -214,9 +243,15 @@
         }
         break;
       }
-      case 'execute':
-        activities = executeCalls(operation).map(c => ({ ...c, status: aSt }));
+      case 'execute': {
+        // Prefer the concrete per-run outcome (actual licenses/groups changed);
+        // fall back to the generic Graph-call list when no detail is recorded.
+        const outcomes = executeOutcomes(operation);
+        activities = outcomes.length
+          ? outcomes.map(o => ({ name: o.name, note: o.note, status: o.failed ? 'partial' : aSt }))
+          : executeCalls(operation).map(c => ({ ...c, status: aSt }));
         break;
+      }
       case 'verify':
         activities = verifyChecks(operation).map(c => ({ ...c, status: aSt }));
         break;
