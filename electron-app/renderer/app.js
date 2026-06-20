@@ -2392,8 +2392,19 @@ let _logEntries = [];
 function renderAuditPage() {
   const tbody   = document.getElementById('log-tbody');
   const paginEl = document.getElementById('log-pagination');
-  const entries = _logEntries;
+  if (!tbody) return;
+  // Coming back from the timeline view: show the table, hide the timeline.
+  const tableEl  = document.getElementById('log-table');
+  const timeline = document.getElementById('log-timeline');
+  if (tableEl)  tableEl.style.display  = '';
+  if (timeline) timeline.style.display = 'none';
+  const entries = _logEntries || [];
   const total   = entries.length;
+  if (!total) {
+    tbody.innerHTML = '<tr><td colspan="7" class="empty-row">No entries match.</td></tr>';
+    if (paginEl) paginEl.innerHTML = '';
+    return;
+  }
   const start   = _logPage * LOG_PAGE_SIZE;
   const end     = Math.min(start + LOG_PAGE_SIZE, total);
   const page    = entries.slice(start, end);
@@ -2408,7 +2419,7 @@ function renderAuditPage() {
     const operator = e.operator ? escHtml(e.operator) : '<span class="dim">—</span>';
     return `<tr data-audit-idx="${idx}" style="cursor:pointer">
       <td class="mono">${ts}</td>
-      <td>${escHtml(e.agent || '--')}</td>
+      <td>${agentScopeTip(e.agent || '', e.agent || '--')}</td>
       <td class="mono" title="${escHtml(e.subject || '')}">${escHtml(e.subject || '--')}</td>
       <td title="${escHtml(e.operator || '')}">${operator}</td>
       <td>${ticket}</td>
@@ -2504,9 +2515,8 @@ window.api.onAuditLogData((entries) => {
   }
   if (countEl) countEl.textContent = entries.length + ' entries';
   window._lastAuditEntries = entries;
-  _logEntries = entries;
-  _logPage = 0;
-  renderAuditPage();
+  // The table itself is rendered by the filter pipeline (applyAuditFilters →
+  // renderAuditPage) so there is a single, clickable, paginated renderer.
   window.JmlGlassScreen?.onAuditEntries(entries);
 });
 
@@ -6354,7 +6364,10 @@ function applyAuditFilters() {
   if (_timelineActive) {
     renderTimeline(filtered);
   } else {
-    renderAuditTable(filtered);
+    // Single clickable, paginated renderer (detail popover + Glass Screen replay).
+    _logEntries = filtered;
+    _logPage = 0;
+    renderAuditPage();
   }
 }
 
