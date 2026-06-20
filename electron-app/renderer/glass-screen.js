@@ -347,7 +347,9 @@
     const box = el('gs-recovery');
     if (!box) return;
     const r = vm.recovery;
-    if (!r) { box.hidden = true; box.innerHTML = ''; return; }
+    // Clear the tone too — otherwise a stale data-tone="failed" leaves a coral
+    // border on the (now empty) box.
+    if (!r) { box.hidden = true; box.innerHTML = ''; box.removeAttribute('data-tone'); return; }
     box.hidden = false;
     box.dataset.tone = r.tone;
     box.innerHTML = `
