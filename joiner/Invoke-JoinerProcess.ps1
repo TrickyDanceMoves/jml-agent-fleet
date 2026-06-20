@@ -209,12 +209,12 @@ if ($payload.groups -and $payload.groups.Count -gt 0) {
                     $results.GroupsFailed += $groupName
                     $results.Errors += ("Group not found: " + $groupName)
                 } else {
-                    $group     = $groupResp.value[0]
-                    $memberRef = @{ "@odata.id" = "https://graph.microsoft.com/v1.0/directoryObjects/" + $results.ObjectId }
-                    Invoke-GraphWithRetry -Method POST `
-                        -Uri ("https://graph.microsoft.com/v1.0/groups/" + $group["id"] + "/members/`$ref") `
-                        -Body $memberRef | Out-Null
-                    Write-Log ("Added to group: " + $groupName) "ACTION"
+                    $group = $groupResp.value[0]
+                    # Idempotent add — a resumed joiner won't fail on a group the
+                    # user is already in.
+                    $st = Add-AgentGroupMember -GroupId $group["id"] -UserId $results.ObjectId
+                    if ($st -eq 'already') { Write-Log ("Already a member, skipping: " + $groupName) "SKIP" }
+                    else { Write-Log ("Added to group: " + $groupName) "ACTION" }
                     $results.GroupsAdded += $groupName
                 }
             } catch {

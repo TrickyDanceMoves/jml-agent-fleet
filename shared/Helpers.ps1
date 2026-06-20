@@ -316,6 +316,73 @@ function Set-AgentUserLicense {
         -Body $body | Out-Null
 }
 
+# ── Idempotent group membership ──────────────────────────────────────────────
+# Re-running a partially-completed Joiner/Mover/Leaver must CONVERGE on the
+# desired state, not error on "already a member" / "not a member". These helpers
+# check current membership first and also tolerate the race where membership
+# changed between the check and the write. They return a status string so the
+# caller can record converged steps as success, not failure:
+#   add    -> 'added' | 'already'
+#   remove -> 'removed' | 'absent'
+# Anything else throws (a real, non-convergence error).
+
+# Snapshot the user's current group object-IDs as a lookup (one paged GET).
+function Get-AgentUserGroupIds {
+    param([Parameter(Mandatory=$true)][string]$UserId)
+    $ids = @{}
+    $uri = "https://graph.microsoft.com/v1.0/users/$UserId/memberOf/microsoft.graph.group?`$select=id&`$top=999"
+    do {
+        $resp = Invoke-GraphWithRetry -Method GET -Uri $uri
+        foreach ($g in @($resp.value)) { if ($g["id"]) { $ids[$g["id"]] = $true } }
+        $uri = $resp."@odata.nextLink"
+    } while ($uri)
+    return $ids
+}
+
+# True when a Graph error means the desired end-state already holds (so a resume
+# can treat it as converged rather than a failure).
+function Test-AgentGraphAlreadyConverged {
+    param([string]$Message)
+    return ($Message -match "already exist|already a member|object references already exist|do(es)? not exist|not found|Request_ResourceNotFound|removed object references do not exist")
+}
+
+function Add-AgentGroupMember {
+    param(
+        [Parameter(Mandatory=$true)][string]$GroupId,
+        [Parameter(Mandatory=$true)][string]$UserId,
+        [hashtable]$CurrentGroupIds = $null
+    )
+    if ($CurrentGroupIds -and $CurrentGroupIds.ContainsKey($GroupId)) { return 'already' }
+    try {
+        $ref = @{ "@odata.id" = "https://graph.microsoft.com/v1.0/directoryObjects/" + $UserId }
+        Invoke-GraphWithRetry -Method POST `
+            -Uri ("https://graph.microsoft.com/v1.0/groups/" + $GroupId + "/members/`$ref") -Body $ref | Out-Null
+        if ($null -ne $CurrentGroupIds) { $CurrentGroupIds[$GroupId] = $true }
+        return 'added'
+    } catch {
+        if (Test-AgentGraphAlreadyConverged $_.Exception.Message) { return 'already' }
+        throw
+    }
+}
+
+function Remove-AgentGroupMember {
+    param(
+        [Parameter(Mandatory=$true)][string]$GroupId,
+        [Parameter(Mandatory=$true)][string]$UserId,
+        [hashtable]$CurrentGroupIds = $null
+    )
+    if ($CurrentGroupIds -and -not $CurrentGroupIds.ContainsKey($GroupId)) { return 'absent' }
+    try {
+        Invoke-GraphWithRetry -Method DELETE `
+            -Uri ("https://graph.microsoft.com/v1.0/groups/" + $GroupId + "/members/" + $UserId + "/`$ref") | Out-Null
+        if ($null -ne $CurrentGroupIds) { $CurrentGroupIds.Remove($GroupId) }
+        return 'removed'
+    } catch {
+        if (Test-AgentGraphAlreadyConverged $_.Exception.Message) { return 'absent' }
+        throw
+    }
+}
+
 # ── PIM for Groups -JIT role activation ──────────────────────────────────────
 
 function Request-PIMActivation {

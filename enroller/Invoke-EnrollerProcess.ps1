@@ -144,14 +144,14 @@ if ($payload.groups -and $payload.groups.Count -gt 0) {
                 $results.GroupsFailed += $groupName
                 $results.Errors += ("Group not found: " + $groupName)
             } else {
-                $group     = $groupResp.value[0]
-                $memberRef = @{ "@odata.id" = "https://graph.microsoft.com/v1.0/directoryObjects/" + $user.Id }
+                $group = $groupResp.value[0]
                 if (-not $WhatIf) {
                     try {
-                        Invoke-GraphWithRetry -Method POST `
-                            -Uri ("https://graph.microsoft.com/v1.0/groups/" + $group["id"] + "/members/`$ref") `
-                            -Body $memberRef | Out-Null
-                        Write-Log ("Added to group: " + $groupName) "ACTION"
+                        # Idempotent add — a re-run of enrollment converges
+                        # instead of failing on an existing membership.
+                        $st = Add-AgentGroupMember -GroupId $group["id"] -UserId $user.Id
+                        if ($st -eq 'already') { Write-Log ("Already a member, skipping: " + $groupName) "SKIP" }
+                        else { Write-Log ("Added to group: " + $groupName) "ACTION" }
                         $results.GroupsAdded += $groupName
                     } catch {
                         Write-Log ("Could not add to group " + $groupName + ": " + $_.Exception.Message) "WARN"
