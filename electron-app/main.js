@@ -3997,6 +3997,25 @@ const MOCK_AUDIT = [
   { timestamp: _iso(520), agent: 'certifier',action: 'review.campaign.start',        subject: 'Q2 access review · Finance',               operator: 'Nick', outcome: 'success', ticketRef: '', whatif: false, details: { scope: 'Finance-Admins' } },
   { timestamp: _iso(640), agent: 'provisioner', action: 'cert.rotate',               subject: 'jml-fleet-mover',                         operator: 'system', outcome: 'success', ticketRef: '', whatif: false, details: {} },
 ];
+// Give the demo entries a coherent hash chain so the Chain Integrity panel shows
+// a realistic, verifiable chain (newest-first: each entry's prevHash === the
+// next/older entry's hash). Deterministic 64-hex synthesis — demo only.
+(function chainMockAudit() {
+  const synth = (s) => {
+    let h = 0x811c9dc5 >>> 0, out = '';
+    for (let k = 0; k < 64; k++) {
+      h ^= (s.charCodeAt(k % s.length) || (k + 7));
+      h = Math.imul(h, 0x01000193) >>> 0;
+      out += ((h >>> (k % 24)) & 0xf).toString(16);
+    }
+    return out;
+  };
+  for (let i = MOCK_AUDIT.length - 1; i >= 0; i--) {
+    const e = MOCK_AUDIT[i];
+    e.prevHash = (i === MOCK_AUDIT.length - 1) ? '0'.repeat(64) : MOCK_AUDIT[i + 1].hash;
+    e.hash = synth(e.timestamp + '|' + e.agent + '|' + e.action + '|' + e.subject + '|' + e.prevHash);
+  }
+})();
 // HRIS inbound queue (dashboard "identity work origin" lane + Integrations tab)
 const MOCK_HR = { queueDepth: 3, processing: 1, dlq: 0, events: [
   { eventType: 'employee.terminated', upn: 'robert.martinez@contoso.onmicrosoft.com', status: 'processed',  timestamp: _iso(4),  source: 'bamboohr', subject: 'robert.martinez@contoso.onmicrosoft.com', type: 'employee.terminated', agent: 'leaver' },
