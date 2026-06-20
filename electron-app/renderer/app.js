@@ -2477,12 +2477,15 @@ function renderAuditPage() {
           try { navigator.clipboard.writeText(e.hash || ''); showToast('Hash copied', 'success'); } catch (_) {}
         }}
       ];
-      // Lifecycle operations (JoinerProcess/MoverProcess/LeaverProcess/…) can be
-      // replayed on the Glass Screen; other audit events (sign-in, config) can't.
-      if (e.agent && e.subject && /Process$/i.test(e.action || '') && window.JmlGlassScreen?.replayAudit) {
-        _actions.unshift({ id: 'replay', label: '▶ Replay in Glass Screen', onClick: () => {
-          if (typeof switchTab === 'function') { try { switchTab('glass-screen'); } catch (_) {} }
-          setTimeout(() => { try { window.JmlGlassScreen.replayAudit(e); } catch (_) {} }, 150);
+      // Lifecycle entries (any JML agent with a subject) get a Glass Screen
+      // preview: a hover-style mini run with quick details and a button to open
+      // the full Glass Screen tab and replay. Non-lifecycle events (sign-in,
+      // config, integrity checks) aren't replayable.
+      const LIFECYCLE_AGENTS = ['joiner', 'mover', 'leaver', 'enroller', 'certifier'];
+      const ag = String(e.agent || '').toLowerCase();
+      if (e.subject && LIFECYCLE_AGENTS.includes(ag) && window.JmlGlassScreen?.previewEntry) {
+        _actions.unshift({ id: 'preview', label: '▶ Preview run', onClick: () => {
+          try { window.JmlGlassScreen.previewEntry(e); } catch (_) {}
         }});
       }
       showDetailPopover({

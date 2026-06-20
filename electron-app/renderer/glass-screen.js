@@ -828,6 +828,57 @@
     });
   }
 
+  // Hover-style preview of an audit/operation entry as a mini Glass Screen run:
+  // the pipeline at its final state + quick details, with a button to open the
+  // full Glass Screen tab and replay it.
+  function previewEntry(entry) {
+    if (!entry || typeof document === 'undefined') return;
+    document.querySelectorAll('.gs-preview-overlay').forEach(o => o.remove());
+    const op = normalizeOpAgent({
+      ...entry,
+      status: entry.status || (String(entry.outcome || '').toLowerCase() === 'success' ? 'succeeded' : (entry.outcome || null)),
+    });
+    const stages = model.mapPipeline(op);
+    const meta = model.metadataFor(op);
+    const outcome = String(op.outcome || op.status || '').toLowerCase();
+    const when = op.completedAt || op.updatedAt || op.timestamp || op.startedAt;
+    const pipeHtml = stages.map((s, i) =>
+      `${i ? '<span class="gsp-conn" data-on="' + reachedState(s.state) + '"></span>' : ''}` +
+      `<span class="gsp-stage" data-state="${esc(s.state)}"><span class="gsp-dot"></span><span class="gsp-lbl">${esc(s.label)}</span></span>`
+    ).join('');
+    const kv = (k, v) => v ? `<div class="gsp-kv-row"><span>${esc(k)}</span><b>${esc(v)}</b></div>` : '';
+    const overlay = document.createElement('div');
+    overlay.className = 'pin-overlay gs-preview-overlay';
+    overlay.innerHTML =
+      `<div class="pin-modal gs-preview" style="width:540px;max-width:94vw">
+        <div class="gsp-head">
+          <span class="gsp-title">${esc(model.titleFor(op))}</span>
+          <span class="gsp-outcome" data-outcome="${esc(outcome)}">${esc(outcome || 'pending')}</span>
+        </div>
+        <div class="gsp-pipeline">${pipeHtml}</div>
+        <div class="gsp-kv">
+          ${kv('Agent', (op.agent || '—').toUpperCase())}
+          ${kv('Operator', op.operator)}
+          ${kv('Mode', meta.mode)}
+          ${kv('When', when ? new Date(when).toLocaleString() : null)}
+          ${kv('Ticket', meta.ticket)}
+        </div>
+        <div class="gsp-actions">
+          <button class="btn primary gsp-open">See all live operations →</button>
+          <button class="btn ghost gsp-close">Close</button>
+        </div>
+      </div>`;
+    document.body.appendChild(overlay);
+    const close = () => overlay.remove();
+    overlay.querySelector('.gsp-close').addEventListener('click', close);
+    overlay.addEventListener('click', e => { if (e.target === overlay) close(); });
+    overlay.querySelector('.gsp-open').addEventListener('click', () => {
+      close();
+      try { if (typeof global.switchTab === 'function') global.switchTab('glass-screen'); } catch (_) {}
+      setTimeout(() => { try { replayAudit(entry); } catch (_) {} }, 150);
+    });
+  }
+
   const api = {
     mergeOperationUpdate,
     liveOperationInterruptsReplay,
@@ -838,6 +889,7 @@
     onOperationStatuses,
     onAuditEntries,
     replayAudit,
+    previewEntry,
     render,
     captureState,
     _state: glassScreenState,

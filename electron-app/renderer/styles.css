@@ -6381,3 +6381,26 @@ html[data-theme="glass"] .tool-result-drawer {
     scroll-behavior: auto !important;
   }
 }
+
+/* ── Audit → Glass Screen run preview popover ───────────────────── */
+.gs-preview .gsp-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+.gsp-title { font-size: 15px; font-weight: 650; color: var(--text); }
+.gsp-outcome { font-family: var(--mono); font-size: 11px; text-transform: uppercase; letter-spacing: .06em; padding: 3px 9px; border-radius: 999px; color: var(--muted); background: var(--bg-2); border: 1px solid var(--border); }
+.gsp-outcome[data-outcome="success"], .gsp-outcome[data-outcome="succeeded"] { color: var(--ok); border-color: color-mix(in oklch, var(--ok) 40%, transparent); background: color-mix(in oklch, var(--ok) 10%, transparent); }
+.gsp-outcome[data-outcome="failed"] { color: var(--coral); border-color: color-mix(in oklch, var(--coral) 40%, transparent); background: color-mix(in oklch, var(--coral) 10%, transparent); }
+.gsp-outcome[data-outcome="partial"], .gsp-outcome[data-outcome="awaiting-approval"] { color: var(--warn); border-color: color-mix(in oklch, var(--warn) 40%, transparent); }
+.gsp-pipeline { display: flex; align-items: flex-start; margin: 4px 0 16px; }
+.gsp-stage { display: flex; flex-direction: column; align-items: center; gap: 5px; flex-shrink: 0; }
+.gsp-dot { width: 13px; height: 13px; border-radius: 50%; border: 1.5px solid var(--border); background: transparent; }
+.gsp-stage[data-state="succeeded"] .gsp-dot { background: var(--ok); border-color: var(--ok); }
+.gsp-stage[data-state="failed"] .gsp-dot { background: var(--coral); border-color: var(--coral); }
+.gsp-stage[data-state="partial"] .gsp-dot, .gsp-stage[data-state="awaiting-approval"] .gsp-dot { background: var(--warn); border-color: var(--warn); }
+.gsp-stage[data-state="active"] .gsp-dot { background: var(--violet); border-color: var(--violet); }
+.gsp-lbl { font-size: 10px; color: var(--text-3); }
+.gsp-conn { flex: 1; height: 2px; background: var(--border); margin: 6px 4px 0; }
+.gsp-conn[data-on="true"] { background: color-mix(in oklch, var(--cyan) 45%, transparent); }
+.gsp-kv { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px 18px; margin-bottom: 16px; }
+.gsp-kv-row { display: flex; justify-content: space-between; gap: 10px; font-size: 12.5px; }
+.gsp-kv-row span { color: var(--muted); }
+.gsp-kv-row b { color: var(--text); font-weight: 600; font-family: var(--mono); font-size: 11.5px; }
+.gsp-actions { display: flex; gap: 8px; justify-content: flex-end; }
