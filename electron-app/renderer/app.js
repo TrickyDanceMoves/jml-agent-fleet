@@ -2487,18 +2487,24 @@ function renderAuditPage() {
   }
 }
 
-// Chain Integrity panel (Audit Log) — real verification from the hash chain.
-// Each entry's prevHash should equal the next (older) entry's hash; any break
-// flips the badge. Renders the actual recent links instead of a decorative grid.
-function renderChainIntegrity(entries) {
+// Chain Integrity panel (Audit Log). The cryptographic verification runs in the
+// main process (canonical sha256-of-raw-line check, matching Verify-AuditLog.ps1)
+// and arrives via onAuditChainStatus — the renderer only displays the verdict.
+// Entries (newest-first) drive the recent-links visualization.
+let _chainEntries = [];
+let _chainStatus = null;
+
+function renderChainIntegrity() {
   const card = document.getElementById('chain-integrity');
   if (!card) return;
-  const list = Array.isArray(entries) ? entries : [];
+  const list = Array.isArray(_chainEntries) ? _chainEntries : [];
+  const status = _chainStatus;
   const set = (id, txt) => { const el = document.getElementById(id); if (el) el.textContent = txt; };
   const badge = document.getElementById('ci-badge');
   const linksEl = document.getElementById('ci-links');
+  const total = status ? status.total : list.length;
 
-  if (!list.length) {
+  if (!total) {
     card.dataset.verified = 'true';
     set('ci-entries', '0'); set('ci-head', '—'); set('ci-seal', '—'); set('ci-badge-text', 'No entries');
     if (badge) badge.className = 'ci-badge muted';
@@ -2506,19 +2512,27 @@ function renderChainIntegrity(entries) {
     return;
   }
 
-  // Verify linkage across the chain (entries are newest-first).
-  let verified = true;
-  for (let i = 0; i < list.length - 1; i++) {
-    const a = list[i], b = list[i + 1];
-    if (a && b && a.prevHash && b.hash && a.prevHash !== b.hash) { verified = false; break; }
+  const head = list[0] || null;
+  set('ci-entries', Number(total).toLocaleString());
+  set('ci-head', (status && status.headHash) ? String(status.headHash).slice(0, 12) + '…'
+    : (head && head.hash) ? String(head.hash).slice(0, 12) + '…' : '—');
+  const seal = (status && status.lastSeal) || (head && head.timestamp);
+  set('ci-seal', seal ? new Date(seal).toLocaleString() : '—');
+
+  // Badge from the authoritative main-process verdict.
+  if (!status) {
+    card.dataset.verified = 'true';
+    if (badge) badge.className = 'ci-badge muted';
+    set('ci-badge-text', 'Checking…');
+  } else if (status.verified) {
+    card.dataset.verified = 'true';
+    if (badge) badge.className = 'ci-badge ok';
+    set('ci-badge-text', 'Verified');
+  } else {
+    card.dataset.verified = 'false';
+    if (badge) badge.className = 'ci-badge crit';
+    set('ci-badge-text', status.breaks === 1 ? '1 chain break' : `${status.breaks} chain breaks`);
   }
-  const head = list[0];
-  card.dataset.verified = String(verified);
-  set('ci-entries', list.length.toLocaleString());
-  set('ci-head', head.hash ? String(head.hash).slice(0, 12) + '…' : '—');
-  set('ci-seal', head.timestamp ? new Date(head.timestamp).toLocaleString() : '—');
-  set('ci-badge-text', verified ? 'Verified' : 'Broken link');
-  if (badge) badge.className = 'ci-badge ' + (verified ? 'ok' : 'crit');
 
   if (linksEl) {
     const recent = list.slice(0, 7).reverse(); // oldest → newest (head on the right)
@@ -2557,7 +2571,8 @@ window.api.onAuditLogData((entries) => {
     if (headEl && last && last.hash) headEl.textContent = String(last.hash).slice(0, 12) + '…';
   }
 
-  renderChainIntegrity(Array.isArray(entries) ? entries : []);
+  _chainEntries = Array.isArray(entries) ? entries : [];
+  renderChainIntegrity();
 
   const countEl = document.getElementById('log-count');
   if (!entries.length) {
@@ -6767,6 +6782,16 @@ window.api.onAuditLogData((entries) => {
   populateAgentFilter(entries);
   applyAuditFilters();
 });
+
+// Authoritative chain-integrity verdict from the main process (canonical
+// sha256-of-raw-line verification). The renderer can't recompute it correctly
+// (it has parsed objects, not raw lines), so it just displays this result.
+if (typeof window.api.onAuditChainStatus === 'function') {
+  window.api.onAuditChainStatus((status) => {
+    _chainStatus = status || null;
+    renderChainIntegrity();
+  });
+}
 
 function populateAgentFilter(entries) {
   const sel = document.getElementById('log-filter-agent');
