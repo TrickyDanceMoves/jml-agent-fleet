@@ -312,10 +312,20 @@ for a single-user deep dive.
 
 SECURITY POSTURE: you can also read the latest security scan — query_risky_users
 (Identity Protection), query_signin_anomalies (UEBA), query_config_drift, and
-query_security_posture (combined). Use these to answer security questions, and to
-sanity-check a target before a sensitive operation: if a leaver/mover target is a
-flagged risky user or appears in a sign-in anomaly, call it out in your risk
-summary so the operator decides with that context.
+query_security_posture (combined). Pass live:true to refresh from Graph. Use these
+to answer security questions, and to sanity-check a target before a sensitive
+operation: if a leaver/mover target is a flagged risky user or appears in a
+sign-in anomaly, call it out in your risk summary so the operator decides with
+that context.
+
+DEVICE LIFECYCLE: you manage user devices. Use list_user_devices / query_device_detail
+to find a device and its ids, then manage_device to act: enable, disable, sync,
+rename, retire (remove company data), wipe (factory reset), or delete (remove the
+Entra device object). Always confirm the exact device and action first. wipe and
+delete are destructive and irreversible — state that plainly and get explicit
+confirmation; they require an admin operator (helpdesk is refused in code). When
+offboarding, offboarding a user's company data from their devices is a natural
+follow-up: after a leaver, offer to retire or wipe their managed devices.
 
 RESPONSE STYLE (always follow):
 - Be brief. Routine confirmations and acknowledgements: 1-3 short sentences.
@@ -342,7 +352,8 @@ You have two roles:
 
 1. TENANT INTELLIGENCE: Answer questions about the live tenant state using your query tools.
    Available: user counts, license utilization, member/regular user lists, recent joins, soft leavers (accounts disabled) vs hard leavers (license + group removal), admin roles, group summary, JML activity, stale accounts, guest users, single-user deep dive (query_user_detail).
-   SECURITY POSTURE: you CAN report on security risk. For Identity Protection risky/compromised users call query_risky_users; for anomalous sign-in or suspicious behavior patterns call query_signin_anomalies (UEBA); for configuration/access drift call query_config_drift; for a broad "any risks/concerns flagged?" question call query_security_posture. These read the latest security scan — never claim you lack access to risky users or sign-in anomalies. If a tool returns available:false, say a security scan needs to be run (from the Security tab) rather than that the data doesn't exist.
+   SECURITY POSTURE: you CAN report on security risk. For Identity Protection risky/compromised users call query_risky_users; for anomalous sign-in or suspicious behavior patterns call query_signin_anomalies (UEBA); for configuration/access drift call query_config_drift; for a broad "any risks/concerns flagged?" question call query_security_posture. These read the latest security scan by default; when the operator asks for current/fresh/live data, pass live:true to query Microsoft Graph Identity Protection directly. Never claim you lack access to risky users or sign-in anomalies. If a tool returns available:false, say a scan needs to run (or offer live:true) rather than that the data doesn't exist.
+   DEVICE INTELLIGENCE: you can report on user devices. For a user's devices and their compliance call list_user_devices; for one device call query_device_detail; for cleanup candidates call query_stale_devices. (You are read-only — to actually act on a device the operator uses the Approver agent.)
    Present numbers prominently. Offer follow-up queries when results are interesting.
    Never provide tenant counts, UPNs, names, or lists unless they appear in the latest tool result. For standard/regular users, call query_member_users. To answer how many or which users have NO license, call query_unlicensed_users -- it returns the exact count and full UPN list; never estimate the unlicensed total by subtracting license aggregates. Do not combine overlapping categories as if they add up to a total.
 
@@ -533,6 +544,21 @@ const APPROVER_TOOLS = [
       },
       required: ['operation', 'scheduledFor', 'payload']
     }
+  },
+  {
+    name: 'manage_device',
+    description: "Manage a user's device through its lifecycle. Identify the device by its Entra device id, Azure AD deviceId, or display name (use list_user_devices first to resolve it). Actions: enable / disable (Entra device sign-in), sync (force Intune check-in), rename, retire (remove company data, leave personal data), wipe (factory reset — destructive), delete (remove the Entra device object — destructive). Destructive actions (wipe, delete) require an admin operator; retire requires helpdesk or admin. Always confirm the exact device and action with the operator first.",
+    input_schema: {
+      type: 'object',
+      properties: {
+        action:          { type: 'string', enum: ['enable', 'disable', 'sync', 'retire', 'wipe', 'delete', 'rename'] },
+        deviceId:        { type: 'string', description: 'Entra device object id or Azure AD deviceId.' },
+        deviceName:      { type: 'string', description: 'Device display name (alternative to deviceId).' },
+        newName:         { type: 'string', description: 'Required for the rename action.' },
+        ticketRef:       { type: 'string', description: 'Change/incident reference for the audit trail.' }
+      },
+      required: ['action']
+    }
   }
 ];
 
@@ -557,14 +583,20 @@ const AUDITOR_TOOLS = [
     input_schema: { type: 'object', properties: { topN: { type: 'integer' }, enabledOnly: { type: 'boolean' } }, required: [] } },
   { name: 'query_unlicensed_users', description: 'Definitive per-user list of member users with NO license assigned (assignedLicenses empty). Use this to answer "how many / which users have no license" — returns the exact count and full UPN list, not an aggregate estimate.',
     input_schema: { type: 'object', properties: { enabledOnly: { type: 'boolean' } }, required: [] } },
-  { name: 'query_risky_users',    description: 'Identity Protection risky users from the latest security scan: flagged accounts with risk level (high/medium/low). Use for "risky users / compromised / flagged accounts" questions.',
-    input_schema: { type: 'object', properties: {}, required: [] } },
-  { name: 'query_signin_anomalies', description: 'Anomalous sign-in / behavior patterns (UEBA) from the latest security scan: after-hours privileged actions, impossible-travel, unusual bursts. Use for "anomalous sign-ins / suspicious activity" questions.',
-    input_schema: { type: 'object', properties: {}, required: [] } },
+  { name: 'query_risky_users',    description: 'Identity Protection risky users: flagged accounts with risk level (high/medium/low). Reads the latest security scan by default; set live:true to pull current data straight from Microsoft Graph Identity Protection.',
+    input_schema: { type: 'object', properties: { live: { type: 'boolean', description: 'Query Graph live instead of the cached scan.' } }, required: [] } },
+  { name: 'query_signin_anomalies', description: 'Anomalous sign-in / risk detections (after-hours privileged actions, impossible-travel, unfamiliar-location, unusual bursts). Reads the latest UEBA scan by default; set live:true to pull current Identity Protection risk detections from Graph.',
+    input_schema: { type: 'object', properties: { live: { type: 'boolean', description: 'Query Graph live instead of the cached scan.' } }, required: [] } },
   { name: 'query_config_drift',   description: 'Configuration / access drift vs. baseline from the latest security scan (group-membership drift, license reallocation).',
     input_schema: { type: 'object', properties: {}, required: [] } },
-  { name: 'query_security_posture', description: 'Combined security posture from the latest scan: counts + top findings for risky users, sign-in anomalies (UEBA), and config drift. Use for broad "any security concerns / risks flagged?" questions.',
-    input_schema: { type: 'object', properties: {}, required: [] } },
+  { name: 'query_security_posture', description: 'Combined security posture: counts + top findings for risky users, sign-in anomalies, and config drift. Reads the latest scan by default; set live:true to refresh risky users + sign-in detections from Graph. Use for broad "any security concerns / risks flagged?" questions.',
+    input_schema: { type: 'object', properties: { live: { type: 'boolean', description: 'Refresh risky users + sign-in detections from Graph.' } }, required: [] } },
+  { name: 'list_user_devices',    description: "List a user's devices (Entra registered/owned joined with Intune managed records): name, OS, compliance, managed state, last sign-in/sync, and the ids needed to act on them. Use for 'what devices does X have / are they compliant'.",
+    input_schema: { type: 'object', properties: { upnOrName: { type: 'string', description: 'Full UPN or display-name prefix.' } }, required: ['upnOrName'] } },
+  { name: 'query_device_detail', description: 'Deep-dive a single device by Entra device id, Azure AD deviceId, or display name: OS, trust type, compliance, encryption, enrollment, last sync.',
+    input_schema: { type: 'object', properties: { deviceId: { type: 'string' }, deviceName: { type: 'string' } }, required: [] } },
+  { name: 'query_stale_devices',  description: 'Devices with no sign-in in the last N days (default 90) — stale/abandoned device cleanup candidates.',
+    input_schema: { type: 'object', properties: { days: { type: 'integer' }, topN: { type: 'integer' } }, required: [] } },
   { name: 'query_user_detail',    description: 'Deep-dive a single user by UPN or display name: profile, status, manager, licenses, groups, last sign-in.',
     input_schema: { type: 'object', properties: { upnOrName: { type: 'string' } }, required: ['upnOrName'] } }
 ];
@@ -1348,21 +1380,57 @@ function latestSecurityReport(prefix) {
   } catch { return null; }
 }
 
+// ── Live Identity Protection (Microsoft Graph) ──────────────────────────────
+// Pull current risky users / risk detections straight from Graph via the warm
+// auditor session, instead of the cached scan report. Requires the auditor app
+// to hold IdentityRiskyUser.Read.All / IdentityRiskEvent.Read.All — a missing
+// scope surfaces as { available:false, note } the agent can relay.
+async function liveRiskyUsersGraph() {
+  const ps = `
+$r = Invoke-GraphWithRetry -Method GET -Uri "https://graph.microsoft.com/v1.0/identityProtection/riskyUsers\`?\`$top=100&\`$filter=riskState ne 'dismissed' and riskState ne 'remediated'"
+@{
+  source = 'Identity Protection (live)'
+  count  = @($r.value).Count
+  users  = @($r.value | ForEach-Object { @{ displayName = $_.userDisplayName; upn = $_.userPrincipalName; riskLevel = $_.riskLevel; riskState = $_.riskState; riskDetail = $_.riskDetail; lastUpdated = $_.riskLastUpdatedDateTime } })
+} | ConvertTo-Json -Depth 5 -Compress
+`;
+  const raw = (await runAuditorGraph(ps)).split(String.fromCharCode(0xFEFF)).join('');
+  return _parseMultilineJson(raw, 'No output from live risky-users query');
+}
+async function liveSigninDetectionsGraph() {
+  const ps = `
+$r = Invoke-GraphWithRetry -Method GET -Uri "https://graph.microsoft.com/v1.0/identityProtection/riskDetections\`?\`$top=100&\`$orderby=detectedDateTime desc"
+@{
+  source     = 'Identity Protection risk detections (live)'
+  count      = @($r.value).Count
+  detections = @($r.value | ForEach-Object { @{ user = $_.userPrincipalName; riskEventType = $_.riskEventType; riskLevel = $_.riskLevel; riskState = $_.riskState; detectedDateTime = $_.detectedDateTime; ipAddress = $_.ipAddress; location = (@($_.location.city, $_.location.countryOrRegion) | Where-Object { $_ }) -join ', ' } })
+} | ConvertTo-Json -Depth 5 -Compress
+`;
+  const raw = (await runAuditorGraph(ps)).split(String.fromCharCode(0xFEFF)).join('');
+  return _parseMultilineJson(raw, 'No output from live risk-detections query');
+}
+
 // Read-only security posture queries (Identity Protection risky users, UEBA
-// sign-in anomalies, config drift) shared by the auditor and approver. They read
-// the latest cached security-scan report so the chat agents can answer
-// "any risky users / anomalous sign-ins?" instead of claiming no such data exists.
+// sign-in anomalies, config drift) shared by the auditor and approver. Read the
+// latest cached scan by default; live:true pulls current data from Graph so the
+// agents can answer "any risky users / anomalous sign-ins right now?".
 const SECURITY_POSTURE_TOOLS = new Set([
   'query_risky_users', 'query_signin_anomalies', 'query_config_drift', 'query_security_posture',
 ]);
-function securityPostureQuery(toolName) {
-  const noScan = 'No security-scan report found yet. Run a scan from the Security tab (or the scheduled Auditor scan) to populate this data.';
+async function securityPostureQuery(toolName, input = {}) {
+  const live = !!input.live;
+  const noScan = 'No security-scan report found yet. Run a scan from the Security tab (or the scheduled Auditor scan), or call again with live:true to query Microsoft Graph directly.';
+  const liveErr = (e) => ({ available: false, live: true, error: (e && e.message) || String(e),
+    note: 'Live Identity Protection query failed — the auditor app may lack IdentityRiskyUser.Read.All / IdentityRiskEvent.Read.All consent, or no tenant is connected. The latest cached scan is still available without live:true.' });
+
   if (toolName === 'query_risky_users') {
+    if (live) { try { return await liveRiskyUsersGraph(); } catch (e) { return liveErr(e); } }
     const r = latestSecurityReport('risky-users-');
     if (!r) return { available: false, note: noScan };
     return { source: 'Identity Protection (latest scan)', summary: r.summary || null, count: (r.users || []).length, users: r.users || [] };
   }
   if (toolName === 'query_signin_anomalies') {
+    if (live) { try { return await liveSigninDetectionsGraph(); } catch (e) { return liveErr(e); } }
     const r = latestSecurityReport('ueba-');
     if (!r) return { available: false, note: noScan };
     return { source: 'UEBA behavior analytics (latest scan)', summary: r.summary || null, count: (r.findings || []).length, findings: r.findings || [] };
@@ -1373,6 +1441,14 @@ function securityPostureQuery(toolName) {
     return { source: 'Config/access drift (latest scan)', summary: r.summary || null, count: (r.findings || []).length, findings: r.findings || [] };
   }
   // query_security_posture — combined summary
+  if (live) {
+    const out = { source: 'Live security posture (Graph)' };
+    try { const ru = await liveRiskyUsersGraph(); out.riskyUsers = { count: ru.count, top: (ru.users || []).slice(0, 5) }; } catch (e) { out.riskyUsers = liveErr(e); }
+    try { const sd = await liveSigninDetectionsGraph(); out.signinAnomalies = { count: sd.count, top: (sd.detections || []).slice(0, 5) }; } catch (e) { out.signinAnomalies = liveErr(e); }
+    const drift = latestSecurityReport('drift-');
+    out.configDrift = drift ? { summary: drift.summary || null, count: (drift.findings || []).length, top: (drift.findings || []).slice(0, 5) } : null;
+    return out;
+  }
   const risky = latestSecurityReport('risky-users-');
   const ueba  = latestSecurityReport('ueba-');
   const drift = latestSecurityReport('drift-');
@@ -1385,6 +1461,23 @@ function securityPostureQuery(toolName) {
   };
 }
 
+// Read-only device queries (Entra + Intune) shared by both chat agents.
+const DEVICE_READ_TOOLS = {
+  list_user_devices:   'UserDevices',
+  query_device_detail: 'DeviceDetail',
+  query_stale_devices: 'StaleDevices',
+};
+async function deviceReadQuery(toolName, input = {}) {
+  const params = { QueryType: DEVICE_READ_TOOLS[toolName] };
+  if (input.upnOrName)  params.UpnOrName  = input.upnOrName;
+  if (input.deviceId)   params.DeviceId   = input.deviceId;
+  if (input.deviceName) params.DeviceName = input.deviceName;
+  if (input.days)       params.Days       = input.days;
+  if (input.topN)       params.TopN       = input.topN;
+  const raw = await runPsAsync(path.join(AGENTS_DIR, 'auditor', 'Invoke-DeviceQuery.ps1'), params);
+  return _parseMultilineJson(raw, 'No output from device query script');
+}
+
 async function executeTool(agent, toolName, input, whatif) {
   if (PRESENTATION_MODE) {
     return executeDemoTool(agent, toolName, input || {}, !!whatif);
@@ -1392,7 +1485,11 @@ async function executeTool(agent, toolName, input, whatif) {
 
   // Security posture reads — available to both auditor and approver (pure reads).
   if (SECURITY_POSTURE_TOOLS.has(toolName)) {
-    return securityPostureQuery(toolName);
+    return await securityPostureQuery(toolName, input || {});
+  }
+  // Device reads (Entra + Intune) — available to both agents (pure reads).
+  if (DEVICE_READ_TOOLS[toolName]) {
+    return await deviceReadQuery(toolName, input || {});
   }
 
   if (agent === 'auditor') {
@@ -1495,6 +1592,35 @@ async function executeTool(agent, toolName, input, whatif) {
       mode: scheduled.whatif ? 'Safe' : 'Live',
       message: `Scheduled ${op} for ${new Date(when).toLocaleString()} (${scheduled.whatif ? 'Safe' : 'Live'} mode). It will run automatically — view or cancel it under Operations → Scheduled.`,
     };
+  }
+
+  // Device lifecycle action (approver). RBAC is enforced in code, not just the
+  // prompt: read-only roles are blocked; destructive wipe/delete require admin.
+  // WhatIf flows straight through to the script (simulated, no Graph write).
+  if (toolName === 'manage_device') {
+    const role = (currentRole || 'viewer').toLowerCase();
+    if (role === 'viewer' || role === 'guest') {
+      return { error: 'RBAC: device management requires a helpdesk or admin account.' };
+    }
+    const action = String(input.action || '').toLowerCase();
+    const valid = ['enable', 'disable', 'sync', 'retire', 'wipe', 'delete', 'rename'];
+    if (!valid.includes(action)) return { error: `manage_device: action must be one of ${valid.join(', ')}.` };
+    if ((action === 'wipe' || action === 'delete') && role !== 'admin') {
+      return { error: `RBAC: '${action}' is destructive and requires an admin operator (current role: ${role}).` };
+    }
+    if (action === 'rename' && !input.newName) return { error: 'manage_device: rename requires newName.' };
+    if (!input.deviceId && !input.deviceName) {
+      return { error: 'manage_device: provide deviceId or deviceName — call list_user_devices first to resolve it.' };
+    }
+    const _pf = writePayloadFile({
+      action,
+      deviceId:   input.deviceId,
+      deviceName: input.deviceName,
+      newName:    input.newName,
+      ticketRef:  input.ticketRef,
+    });
+    try { return parsePs1Output(await runPsAsync(path.join(AGENTS_DIR, 'enroller', 'Invoke-DeviceAction.ps1'), { PayloadPath: _pf, WhatIf: w })); }
+    finally { try { fs.unlinkSync(_pf); } catch {} }
   }
 
   // LIVE-mode risk gate: every submit_* in Live mode requires a fresh score_risk
@@ -4267,6 +4393,11 @@ const MOCK_SECURITY = {
     { displayName: 'Lena Fischer', upn: 'lena.fischer@contoso.onmicrosoft.com', riskLevel: 'medium' },
   ]},
 };
+const MOCK_DEVICES = [
+  { id: 'dev-obj-001', deviceId: 'aad-dev-001', managedDeviceId: 'mdm-001', displayName: 'SARAH-LAPTOP', operatingSystem: 'Windows', operatingSystemVersion: '10.0.22631', trustType: 'AzureAd', accountEnabled: true,  isManaged: true,  isCompliant: true,  complianceState: 'compliant',    managementAgent: 'mdm', manufacturer: 'Dell',    model: 'Latitude 7440', isEncrypted: true,  lastSyncDateTime: _iso(2),   enrolledDateTime: _iso(900),  approximateLastSignIn: _iso(2),   owner: 'sarah.chen@contoso.onmicrosoft.com' },
+  { id: 'dev-obj-002', deviceId: 'aad-dev-002', managedDeviceId: 'mdm-002', displayName: 'SARAH-IPHONE', operatingSystem: 'iOS',     operatingSystemVersion: '17.5',       trustType: 'Workplace', accountEnabled: true, isManaged: true,  isCompliant: false, complianceState: 'noncompliant', managementAgent: 'mdm', manufacturer: 'Apple',   model: 'iPhone 15',     isEncrypted: true,  lastSyncDateTime: _iso(53),  enrolledDateTime: _iso(700),  approximateLastSignIn: _iso(50),  owner: 'sarah.chen@contoso.onmicrosoft.com' },
+  { id: 'dev-obj-003', deviceId: 'aad-dev-003', managedDeviceId: null,      displayName: 'ROBERT-SURFACE', operatingSystem: 'Windows', operatingSystemVersion: '10.0.19045', trustType: 'AzureAd', accountEnabled: false, isManaged: false, isCompliant: null,  complianceState: null,           managementAgent: null,  manufacturer: 'Microsoft', model: 'Surface Pro 9', isEncrypted: null, lastSyncDateTime: null,      enrolledDateTime: null,        approximateLastSignIn: _iso(1620), owner: 'robert.martinez@contoso.onmicrosoft.com' },
+];
 const MOCK_AUDIT = [
   { timestamp: _iso(3),   agent: 'leaver',   action: 'graph.user.disable',           subject: 'robert.martinez@contoso.onmicrosoft.com', operator: 'Nick', outcome: 'success', ticketRef: 'INC-1042', whatif: false, details: { stage: 'Hard' } },
   { timestamp: _iso(3),   agent: 'leaver',   action: 'graph.user.revokeSessions',    subject: 'robert.martinez@contoso.onmicrosoft.com', operator: 'Nick', outcome: 'success', ticketRef: 'INC-1042', whatif: false, details: { sessions: 3 } },
@@ -4368,12 +4499,41 @@ function executeDemoTool(agent, toolName, input = {}, whatif = true) {
       return { source: 'Config/access drift (demo)', summary: MOCK_SECURITY.drift.summary, count: MOCK_SECURITY.drift.findings.length, findings: MOCK_SECURITY.drift.findings, demo: true };
     case 'query_security_posture':
       return {
-        source: 'Latest security scan (demo)',
+        source: input.live ? 'Live security posture (demo)' : 'Latest security scan (demo)',
         riskyUsers:      { summary: MOCK_SECURITY.riskyUsers.summary, count: MOCK_SECURITY.riskyUsers.users.length,  top: MOCK_SECURITY.riskyUsers.users },
         signinAnomalies: { summary: MOCK_SECURITY.ueba.summary,       count: MOCK_SECURITY.ueba.findings.length,     top: MOCK_SECURITY.ueba.findings },
         configDrift:     { summary: MOCK_SECURITY.drift.summary,      count: MOCK_SECURITY.drift.findings.length,    top: MOCK_SECURITY.drift.findings },
         demo: true,
       };
+    case 'list_user_devices': {
+      const q = String(input.upnOrName || '').toLowerCase();
+      const devices = MOCK_DEVICES.filter(d => !q || d.owner.toLowerCase().includes(q) || q.includes(d.owner.split('@')[0]));
+      const list = (devices.length ? devices : MOCK_DEVICES).map(({ owner, ...d }) => d);
+      return {
+        user: { userPrincipalName: (devices[0] || MOCK_DEVICES[0]).owner },
+        count: list.length,
+        compliant: list.filter(d => d.complianceState === 'compliant').length,
+        noncompliant: list.filter(d => d.complianceState === 'noncompliant').length,
+        managed: list.filter(d => d.isManaged).length,
+        devices: list, demo: true,
+      };
+    }
+    case 'query_device_detail': {
+      const q = String(input.deviceId || input.deviceName || '').toLowerCase();
+      const dev = MOCK_DEVICES.find(d => d.id.toLowerCase() === q || d.deviceId.toLowerCase() === q || d.displayName.toLowerCase().includes(q)) || MOCK_DEVICES[0];
+      const { owner, ...rest } = dev;
+      return { device: rest, demo: true };
+    }
+    case 'query_stale_devices': {
+      const list = MOCK_DEVICES.filter(d => d.id === 'dev-obj-003').map(({ owner, ...d }) => d);
+      return { days: input.days || 90, count: list.length, devices: list, demo: true };
+    }
+    case 'manage_device':
+      return demoReceipt('manage_device', {
+        action: input.action, device: input.deviceName || input.deviceId,
+        mode: whatif ? 'safe' : 'live', outcome: 'simulated',
+        lines: [`[DEMO] device ${input.action} simulated for ${input.deviceName || input.deviceId}.`, '[DEMO] No Microsoft Graph / Intune write was attempted.'],
+      });
     case 'list_groups':
       return {
         groups: [

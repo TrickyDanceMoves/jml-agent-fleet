@@ -25,13 +25,13 @@ test('approver inherits the posture tools (push excludes only query_user_detail)
 
 test('posture tools are executed by a shared read path before the agent branches', () => {
   assert.match(main, /const SECURITY_POSTURE_TOOLS = new Set\(\[/);
-  assert.match(main, /function securityPostureQuery\(toolName\)/);
+  assert.match(main, /async function securityPostureQuery\(toolName, input/);
   assert.match(main, /function latestSecurityReport\(prefix\)/);
   // The shared dispatch must sit inside executeTool ahead of the auditor branch.
   const fn = main.match(/async function executeTool\([\s\S]*?if \(agent === 'auditor'\)/);
   assert.ok(fn, 'executeTool prelude must exist');
   assert.match(fn[0], /SECURITY_POSTURE_TOOLS\.has\(toolName\)/);
-  assert.match(fn[0], /return securityPostureQuery\(toolName\)/);
+  assert.match(fn[0], /return await securityPostureQuery\(toolName, input/);
 });
 
 test('each posture tool reads the matching scan report', () => {
