@@ -1,6 +1,6 @@
 'use strict';
 
-const { app, BrowserWindow, ipcMain, dialog, nativeImage, Tray, Menu, Notification, globalShortcut, screen, shell } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, nativeImage, Tray, Menu, Notification, globalShortcut, screen, shell, session } = require('electron');
 const { execFileSync, execFile, spawnSync } = require('child_process');
 const path  = require('path');
 const fs    = require('fs');
@@ -3848,6 +3848,42 @@ ipcMain.handle('open-external', (_, url) => {
   } catch { return; }
 });
 
+// ── Renderer hardening: lock down navigation, popups, and webviews ───────────
+// Defense-in-depth on top of contextIsolation + sandbox + nodeIntegration:false.
+// The app is a local file:// SPA that must NEVER navigate to a remote origin
+// (which would run with the privileged preload attached), open child windows, or
+// embed a webview. The only legitimate remote navigation is the Microsoft
+// sign-in popup; external links go out through the validated open-external IPC.
+const AUTH_NAV_HOSTS = [
+  'login.microsoftonline.com', 'login.microsoft.com', 'login.live.com',
+  'login.windows.net', 'microsoftonline.com', 'msauth.net', 'msftauth.net',
+];
+function _navAllowed(targetUrl) {
+  try {
+    const u = new URL(targetUrl);
+    if (u.protocol === 'file:') return true; // local app pages
+    if (u.protocol === 'https:' && AUTH_NAV_HOSTS.some(h => u.hostname === h || u.hostname.endsWith('.' + h))) return true;
+    return false;
+  } catch { return false; }
+}
+app.on('web-contents-created', (_e, contents) => {
+  const guard = (event, navUrl) => {
+    if (_navAllowed(navUrl)) return;
+    event.preventDefault();
+    // Allow-listed external links open in the system browser rather than the app window.
+    try {
+      const u = new URL(navUrl);
+      if (u.protocol === 'https:' && ALLOWED_EXTERNAL_HOSTS.some(h => u.hostname === h || u.hostname.endsWith('.' + h))) {
+        shell.openExternal(navUrl);
+      }
+    } catch {}
+  };
+  contents.on('will-navigate', guard);
+  contents.on('will-redirect', guard);
+  contents.setWindowOpenHandler(() => ({ action: 'deny' }));
+  contents.on('will-attach-webview', (event) => event.preventDefault());
+});
+
 ipcMain.handle('pick-image-file', async () => {
   const { canceled, filePaths } = await dialog.showOpenDialog({
     properties: ['openFile'],
@@ -5845,6 +5881,10 @@ function ensureDataDirs() {
 
 app.whenReady().then(() => {
   app.setAppUserModelId('com.jml.console');
+  // The app uses its own in-app notification UI and never accesses camera, mic,
+  // geolocation, etc. Deny every renderer permission request + check outright.
+  session.defaultSession.setPermissionRequestHandler((_wc, _perm, cb) => cb(false));
+  session.defaultSession.setPermissionCheckHandler(() => false);
   if (process.argv.includes('--capture-windows')) { runCaptureWindows().catch(e => { console.error('Window capture error:', e); app.quit(); process.exitCode = 1; }); return; }
   if (GS_STATES_QC_MODE) { runGlassScreenQc().catch(e => { console.error('Glass QC error:', e); app.quit(); process.exitCode = 1; }); return; }
   if (CAPTURE_MODE) { runCapture().catch(e => { console.error('Capture error:', e); app.quit(); process.exitCode = 1; }); return; }
@@ -5852,7 +5892,7 @@ app.whenReady().then(() => {
   if (CAPTURE_CHROME_MODE) { runCaptureChrome().catch(e => { console.error('Chrome capture error:', e); app.quit(); process.exitCode = 1; }); return; }
   if (RENDER_DIAGRAM_MODE) {
     (async () => {
-      const w = new BrowserWindow({ width: 1600, height: 900, show: false, backgroundColor: '#070b13', webPreferences: { offscreen: false } });
+      const w = new BrowserWindow({ width: 1600, height: 900, show: false, backgroundColor: '#070b13', webPreferences: { offscreen: false, sandbox: true, contextIsolation: true, nodeIntegration: false } });
       await w.loadFile(path.join(__dirname, '..', 'docs', 'architecture.html'));
       await sleep(900);
       const img = await w.webContents.capturePage();
