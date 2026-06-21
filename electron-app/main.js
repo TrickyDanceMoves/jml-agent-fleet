@@ -1996,6 +1996,66 @@ async function runAgentLoop(sender, agent, userText) {
   sender.send('msg-complete', { agent });
 }
 
+// ── IPC defense-in-depth: trusted-sender + payload schema validation ─────────
+// Every IPC message must originate from one of our own local file:// renderer
+// frames (never an injected or remote frame), and the highest-privilege channels
+// additionally type-check their payload so a confused/compromised renderer can't
+// smuggle malformed input toward PowerShell, Graph, or security config.
+function _isTrustedSender(event) {
+  try {
+    const u = (event && event.senderFrame && event.senderFrame.url) || '';
+    if (!u) return true; // internal / pre-navigation frame — other gates apply
+    return new URL(u).protocol === 'file:'; // only our packaged renderer pages
+  } catch { return false; }
+}
+// Field validators (type/shape only — format/RBAC stay in the handlers).
+const _isStr = (v) => typeof v === 'string';
+const _optStr = (v) => v === undefined || typeof v === 'string';
+const _optBool = (v) => v === undefined || typeof v === 'boolean';
+const _optInt = (v) => v === undefined || Number.isInteger(v);
+const _optStrArr = (v) => v === undefined || (Array.isArray(v) && v.every((x) => typeof x === 'string'));
+const _isObj = (v) => !!v && typeof v === 'object' && !Array.isArray(v);
+const _optObj = (v) => v === undefined || _isObj(v);
+const _oneOf = (...a) => (v) => a.includes(v);
+const _optOneOf = (...a) => (v) => v === undefined || a.includes(v);
+const _DEVICE_ACTIONS = ['enable', 'disable', 'sync', 'restart', 'lock', 'bitlocker', 'rename', 'retire', 'wipe', 'delete'];
+const _common = { whatif: _optBool, override: _optBool, writeToken: _optStr, ticketRef: _optStr, reason: _optStr };
+const IPC_SCHEMAS = {
+  'run-quick-joiner':  { givenName: _optStr, surname: _optStr, department: _optStr, jobTitle: _optStr, usageLocation: _optStr, manager: _optStr, licenses: _optStrArr, groups: _optStrArr, ..._common },
+  'run-quick-mover':   { upn: _optStr, userPrincipalName: _optStr, department: _optStr, jobTitle: _optStr, manager: _optStr, licensesToAdd: _optStrArr, licensesToRemove: _optStrArr, groupsToAdd: _optStrArr, groupsToRemove: _optStrArr, ..._common },
+  'run-quick-leaver':  { upn: _isStr, stage: _optOneOf('Soft', 'Hard', 'Delete', 'Both'), ..._common },
+  'device-action':     { action: _oneOf(..._DEVICE_ACTIONS), deviceId: _optStr, deviceName: _optStr, newName: _optStr, ..._common },
+  'quarantine-agent':  { agent: _isStr, action: _optStr, reason: _optStr, revoke: _optBool, whatif: _optBool, writeToken: _optStr },
+  'activate-pim-role': { roleDefinitionId: _optStr, justification: _optStr, durationHours: _optInt },
+  'create-agent-app-registrations': { agentNames: _optStrArr },
+  'save-operators':    { operators: _isObj, roles: _optObj },
+  'save-policy':       { policies: _isObj, sod: _optObj },
+  'save-tenant-config':{ tenantId: _optStr, primaryDomain: _optStr, region: _optStr, clientIds: _optObj },
+};
+function _validatePayload(schema, payload) {
+  if (!_isObj(payload)) return 'payload must be an object';
+  for (const [key, check] of Object.entries(schema)) {
+    if (!check(payload[key])) return `invalid field: ${key}`;
+  }
+  return null;
+}
+// Wrap ipcMain.handle/on once so the checks apply uniformly to every channel
+// (registered below) without touching each call site.
+const _ipcHandle = ipcMain.handle.bind(ipcMain);
+ipcMain.handle = (channel, listener) => _ipcHandle(channel, (event, ...args) => {
+  if (!_isTrustedSender(event)) return { ok: false, error: 'IPC rejected: untrusted sender' };
+  const schema = IPC_SCHEMAS[channel];
+  if (schema) { const err = _validatePayload(schema, args[0]); if (err) return { ok: false, error: 'IPC rejected: ' + err }; }
+  return listener(event, ...args);
+});
+const _ipcOn = ipcMain.on.bind(ipcMain);
+ipcMain.on = (channel, listener) => _ipcOn(channel, (event, ...args) => {
+  if (!_isTrustedSender(event)) return;
+  const schema = IPC_SCHEMAS[channel];
+  if (schema && _validatePayload(schema, args[0])) return; // drop malformed privileged calls
+  return listener(event, ...args);
+});
+
 // ── IPC handlers ──────────────────────────────────────────────────────────────
 ipcMain.on('send-message', (event, { agent, text }) => {
   // Store and mirror the user turn before the agent responds

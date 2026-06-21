@@ -51,10 +51,14 @@ context-isolated with Node integration disabled.
       and refuses `<webview>` (`will-attach-webview`). All web permission requests/checks
       are denied. External links go through the https host-allowlisted `open-external` IPC.
       Regression-locked by `test/electron-hardening.test.js`.
-- [ ] Validate `event.senderFrame` origin in each IPC handler (defence in depth).
-- [ ] Add a JSON-schema validator for IPC payloads on the highest-privilege channels
-      (`run-quick-leaver`, `activate-pim-role`, `create-agent-app-registrations`,
-      `quarantine-agent`).
+- [x] Validate `event.senderFrame` origin on every IPC channel (defence in depth):
+      `ipcMain.handle`/`ipcMain.on` are wrapped once with `_isTrustedSender`, which
+      only accepts `file://` renderer frames — injected or remote frames are rejected.
+- [x] Schema-validate IPC payloads on the highest-privilege channels (`IPC_SCHEMAS`):
+      `run-quick-joiner` / `run-quick-mover` / `run-quick-leaver`, `device-action`,
+      `quarantine-agent`, `activate-pim-role`, `create-agent-app-registrations`,
+      `save-operators`, `save-policy`, `save-tenant-config`. Type/shape/enum checks run
+      before the handler so malformed input can't reach PowerShell, Graph, or config.
 
 ## References
 - Electron security checklist: contextIsolation, sandbox, and process model are the
