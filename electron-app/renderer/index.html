@@ -2650,6 +2650,10 @@
             For each agent, an admin must grant the required Graph API permissions in the Entra portal. Click each link below to open the admin-consent flow, then return here and click <b>Save & Sync →</b>.
           </div>
           <div id="wizard-consent-list" style="display:flex;flex-direction:column;gap:6px;font-family:var(--mono);font-size:12px"></div>
+          <div style="margin-top:12px;display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
+            <button class="btn ghost sm" id="wizard-grant-all-consent">Grant consent for all agents</button>
+            <span id="wizard-consent-status" style="font-family:var(--mono);font-size:11px;color:var(--muted)"></span>
+          </div>
           <div style="margin-top:14px;padding:12px;background:var(--bg-2);border:1px solid var(--border);border-radius:8px;font-size:12px;color:var(--text-2);line-height:1.55">
             <b style="color:var(--text)">Almost done.</b> Save & Sync writes the TenantId + per-agent ClientId into every agent's <code>config.json</code>, then continues to Step 4 to deploy certificates on this PC.
           </div>

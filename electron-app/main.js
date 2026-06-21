@@ -5252,23 +5252,38 @@ async function runGlassScreenQc() {
 }
 
 // ── First-run setup ───────────────────────────────────────────────────────────
-ipcMain.handle('complete-first-run', (event, { winAuth, tenantId, primaryDomain } = {}) => {
+ipcMain.handle('complete-first-run', (event, { winAuth, tenantId, primaryDomain, entraOperator } = {}) => {
   if (PRESENTATION_MODE) return demoReceipt('complete-first-run', { tenantId, primaryDomain });
   try {
     fs.writeFileSync(SETUP_FILE, JSON.stringify({
       firstRunComplete: true, completedAt: new Date().toISOString(), skipped: false
     }, null, 2), 'utf8');
 
+    let opsData = {};
+    try { opsData = readJson(OPERATORS_FILE); } catch {}
+    if (!opsData.operators) opsData.operators = {};
+
+    if (entraOperator && entraOperator.name) {
+      const name = String(entraOperator.name).slice(0, 200);
+      const role = ['admin', 'helpdesk', 'viewer'].includes(String(entraOperator.role || '').toLowerCase())
+        ? String(entraOperator.role).toLowerCase()
+        : 'viewer';
+      if (!opsData.operators[name]) opsData.operators[name] = role;
+      _verifiedRoles.set(name, role);
+      if (entraOperator.displayName) _verifiedRoles.set(String(entraOperator.displayName).slice(0, 200), role);
+      if (name.includes('@')) _verifiedRoles.set(name.split('@')[0], role);
+      logOperatorActivity('first_run.entra_operator_registered', { target: name, role });
+    }
+
     if (winAuth) {
       const username = os.userInfo().username;
-      let opsData = {};
-      try { opsData = readJson(OPERATORS_FILE); } catch {}
-      if (!opsData.operators) opsData.operators = {};
       if (!opsData.operators[username]) opsData.operators[username] = 'admin';
-      fs.writeFileSync(OPERATORS_FILE, JSON.stringify(opsData, null, 2), 'utf8');
       const authData = readOperatorAuth();
       if (!authData[username]) authData[username] = { mode: 'windows', updatedAt: new Date().toISOString() };
       writeOperatorAuth(authData);
+    }
+    if (Object.keys(opsData.operators).length) {
+      fs.writeFileSync(OPERATORS_FILE, JSON.stringify(opsData, null, 2), 'utf8');
     }
 
     if (tenantId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(tenantId)) {

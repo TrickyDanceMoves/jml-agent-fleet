@@ -377,6 +377,7 @@
     const entraConnRow = document.getElementById('entra-connected-row');
     const entraAccount = document.getElementById('entra-account');
     let _entraBusy = false;
+    let _entraOperator = null;
 
     entraBtn.addEventListener('click', () => {
       if (_entraBusy) return;
@@ -413,6 +414,11 @@
       if (!tid) {
         try { const t = await window.api.getTenantConfig(); tid = (t && t.tenantId) || ''; } catch (_) {}
       }
+      _entraOperator = {
+        name: r.name || '',
+        displayName: r.displayName || r.name || '',
+        role: r.role || 'viewer'
+      };
       const domain = (r.name && r.name.includes('@')) ? r.name.split('@')[1] : '';
       if (tid && GUID_RE.test(tid)) document.getElementById('setup-tenant-id').value = tid;
       if (domain) document.getElementById('setup-primary-domain').value = domain;
@@ -442,7 +448,8 @@
       await window.api.completeFirstRun({
         winAuth:       _accountChoice === 'windows',
         tenantId:      tenantId      || null,
-        primaryDomain: primaryDomain || null
+        primaryDomain: primaryDomain || null,
+        entraOperator: _entraOperator
       });
     }
 

@@ -4742,6 +4742,23 @@ document.getElementById('btn-notif-add')?.addEventListener('click', () => {
     if (_signinPoll) { clearInterval(_signinPoll); _signinPoll = null; }
     overlay.style.display = 'none';
   }
+  function wizardConsentUrl(app) {
+    if (!_wizState.tenantId || !app || !app.appId) return '';
+    return `https://login.microsoftonline.com/${encodeURIComponent(_wizState.tenantId)}/adminconsent?client_id=${encodeURIComponent(app.appId)}`;
+  }
+  function openWizardConsentUrls() {
+    const status = document.getElementById('wizard-consent-status');
+    const apps = (_wizState.createdApps || []).filter(app => wizardConsentUrl(app));
+    if (!apps.length) {
+      if (status) status.textContent = 'Create app registrations first.';
+      return;
+    }
+    apps.forEach((app, i) => {
+      const url = wizardConsentUrl(app);
+      setTimeout(() => window.api.openExternal(url), i * 250);
+    });
+    if (status) status.textContent = `Opened ${apps.length} admin-consent pages. Complete each Microsoft prompt, then return here.`;
+  }
 
   document.getElementById('btn-tenant-wizard').addEventListener('click', openWizard);
   document.getElementById('wizard-cancel').addEventListener('click', closeWizard);
@@ -4830,16 +4847,19 @@ document.getElementById('btn-notif-add')?.addEventListener('click', () => {
       // Populate consent links
       const list = document.getElementById('wizard-consent-list');
       list.innerHTML = _wizState.createdApps.map(c => {
-        const url = `https://login.microsoftonline.com/${_wizState.tenantId}/adminconsent?client_id=${c.appId}`;
+        const url = wizardConsentUrl(c);
         return `<div style="display:grid;grid-template-columns:120px 1fr auto;gap:10px;padding:6px 0;border-bottom:1px solid var(--border);align-items:center">
           <span style="color:var(--text)">${escHtml(c.agent)}</span>
           <span style="color:var(--muted);font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(c.appId)}</span>
           <a href="${url}" target="_blank" rel="noopener" class="btn-text-link" style="font-family:var(--mono);font-size:11px">Grant consent →</a>
         </div>`;
       }).join('');
+      const status = document.getElementById('wizard-consent-status');
+      if (status) status.textContent = '';
       showStep(3);
     }
   });
+  document.getElementById('wizard-grant-all-consent')?.addEventListener('click', openWizardConsentUrls);
 
   // Finish — push tenant id + client ids into the existing tenant config form, save
   // Step 3 finish — save tenant config then proceed to cert deployment
