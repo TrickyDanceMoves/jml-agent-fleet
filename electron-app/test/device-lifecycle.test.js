@@ -84,6 +84,15 @@ test('Devices tab is wired end to end (UI + preload + main IPC)', () => {
   assert.match(main, /PIN verification required for Live device actions/);
 });
 
+test('user profile has a Devices jump that opens the tab for that user', () => {
+  const html = fs.readFileSync(path.join(root, 'renderer', 'index.html'), 'utf8');
+  const app = fs.readFileSync(path.join(root, 'renderer', 'app.js'), 'utf8');
+  assert.match(html, /id="udp-btn-devices"/);
+  assert.match(app, /window\.JmlDevices\s*=\s*\{/);
+  assert.match(app, /openForUser\(upn\)/);
+  assert.match(app, /switchTab\('devices'\)[\s\S]*?JmlDevices\?\.openForUser\(_selectedUser\.upn\)/);
+});
+
 test('both prompts describe device capabilities', () => {
   const auditor = main.match(/function buildAuditorSystem\([\s\S]*?\.trim\(\); \}/)[0];
   const approver = main.match(/function buildApproverSystem\([\s\S]*?\.trim\(\); \}/)[0];

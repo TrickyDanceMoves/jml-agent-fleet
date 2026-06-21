@@ -1414,6 +1414,16 @@ function loadSecurity() {
     let dev = {}; try { dev = JSON.parse(decodeURIComponent(row.dataset.dev)); } catch {}
     doAction(b.dataset.devAct, dev);
   });
+
+  // Cross-tab entry point (e.g. the "Devices" jump on a user profile): prefill
+  // the search box and load that user's devices.
+  window.JmlDevices = {
+    openForUser(upn) {
+      if (!upn) return;
+      if (sInput) sInput.value = upn;
+      search(upn);
+    },
+  };
 })();
 
 function buildCountBadges(crit, warn, info) {
@@ -7597,6 +7607,13 @@ function loadRecentUsers() {
       const sb = document.getElementById('btn-user-search');
       if (sb) sb.click();
     }
+  });
+
+  const btnDevices = document.getElementById('udp-btn-devices');
+  if (btnDevices) btnDevices.addEventListener('click', () => {
+    if (!_selectedUser) return;
+    switchTab('devices');
+    setTimeout(() => window.JmlDevices?.openForUser(_selectedUser.upn), 100);
   });
 
   if (btnMover)      btnMover.addEventListener('click',      () => quickInitiate('qm'));
