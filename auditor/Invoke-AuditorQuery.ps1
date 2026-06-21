@@ -95,7 +95,33 @@ switch ($QueryType) {
                 })
             }
         } catch {
-            $result = @{ error = "AuditLog.Read.All permission required"; details = $_.Exception.Message }
+            # The directory audit log needs AuditLog.Read.All. When that scope
+            # isn't consented, fall back to the current directory STATE — accounts
+            # that are presently disabled — which only needs User.Read.All. We
+            # can't date-filter (the user object has no "disabled at" timestamp),
+            # so we return the disabled set with a clear note about the source so
+            # the agent reports it accurately rather than just "permission denied".
+            try {
+                $disabled = @()
+                $uri = "https://graph.microsoft.com/v1.0/users?`$filter=accountEnabled eq false&`$select=displayName,userPrincipalName&`$top=999"
+                do {
+                    $r = Invoke-MgGraphRequest -Method GET -Uri $uri -Headers @{ ConsistencyLevel = "eventual" }
+                    $disabled += @($r.value)
+                    $uri = $r."@odata.nextLink"
+                } while ($uri)
+                $result = @{
+                    days          = $Days
+                    source        = "directory state (accountEnabled eq false)"
+                    note          = "Native directory audit row unavailable (AuditLog.Read.All not consented) -- listing accounts currently disabled instead. These reflect present state, not when each account was disabled, so the $Days-day window could not be applied."
+                    auditLogError = $_.Exception.Message
+                    count         = @($disabled).Count
+                    users         = @($disabled | Select-Object -First $TopN | ForEach-Object {
+                        @{ displayName = $_["displayName"]; userPrincipalName = $_["userPrincipalName"] }
+                    })
+                }
+            } catch {
+                $result = @{ error = "AuditLog.Read.All permission required, and the directory-state fallback also failed"; details = $_.Exception.Message }
+            }
         }
     }
 

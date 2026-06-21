@@ -46,6 +46,8 @@ approver/notification-rules.json
 approver/tenant.json
 # Security finding ownership — maps finding -> real operator UPN
 approver/security-assignments.json
+# Shared finding status (acknowledged/deleted findings) — references real findings
+approver/security-status.json
 
 # Auditor report outputs (contain tenant UPNs / security findings)
 auditor/reports/
