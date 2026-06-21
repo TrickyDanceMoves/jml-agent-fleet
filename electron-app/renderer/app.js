@@ -1300,6 +1300,7 @@ let _secFocused = null; // currently focused finding index
 let _secAckedKeys     = new Set();  // stable keys (rule|title) of acknowledged findings — survives rescans
 let _secAckedFindings = [];         // ordered list of acked finding objects for the acked section
 let _secDeletedKeys   = new Set();  // stable keys of admin-deleted findings — permanently hidden from inbox
+let _secAssignments   = new Map();  // stable key (rule|title) -> assignee name — survives rescans
 let _secCheckedSet    = new Set();  // original indices of checkbox-selected findings
 let _secFilter = { sev: '', source: '', assign: 'unassigned', maxAge: 0 }; // active inbox filter state
 
@@ -1598,6 +1599,14 @@ function renderSecurityInbox(data) {
     });
   }
 
+  // Reapply operator assignments saved this session. Findings are rebuilt from
+  // scratch on every scan (assignee defaults to '—'), so without this the
+  // assignee column resets on each poll/re-scan and assignment appears broken.
+  _secFindings.forEach(f => {
+    const a = _secAssignments.get(_secKey(f));
+    if (a) f.assignee = a;
+  });
+
   // Sort: crit first, then warn, then info
   const sevOrder = { crit: 0, warn: 1, info: 2 };
   _secFindings.sort((a, b) => (sevOrder[a.sev] ?? 3) - (sevOrder[b.sev] ?? 3));
@@ -1651,6 +1660,12 @@ function focusFinding(idx) {
   if (tagEl) { tagEl.className = 'tag ' + f.sev; tagEl.textContent = 'FOCUSED · ' + f.sev.toUpperCase(); }
   if (titleEl) titleEl.textContent = f.title;
   if (ruleEl) ruleEl.textContent = f.rule;
+  const assigneeEl = document.getElementById('sec-focused-assignee');
+  if (assigneeEl) {
+    const assigned = f.assignee && f.assignee !== '—';
+    assigneeEl.textContent = assigned ? f.assignee : 'unassigned';
+    assigneeEl.style.color = assigned ? 'var(--text-1)' : 'var(--text-3)';
+  }
   if (descEl) descEl.textContent = '';
 
   // Update pivot button hash label — show a compact rule/check identifier
@@ -2200,7 +2215,12 @@ document.getElementById('sec-btn-assign')?.addEventListener('click', function ()
   if (_secCheckedSet.size === 0) return;
   const n = _secCheckedSet.size;
   _showAssignPicker(name => {
-    _secCheckedSet.forEach(idx => { if (_secFindings[idx]) _secFindings[idx].assignee = name; });
+    _secCheckedSet.forEach(idx => {
+      const f = _secFindings[idx];
+      if (!f) return;
+      f.assignee = name;
+      _secAssignments.set(_secKey(f), name); // survive rescans
+    });
     showToast(n + ' finding' + (n > 1 ? 's' : '') + ' assigned to ' + name);
     _renderSecRows();
   });
@@ -2210,7 +2230,9 @@ document.getElementById('sec-btn-assign')?.addEventListener('click', function ()
 document.getElementById('sec-action-assign')?.addEventListener('click', () => {
   if (_secFocused === null || !_secFindings[_secFocused]) return;
   _showAssignPicker(name => {
-    _secFindings[_secFocused].assignee = name;
+    const f = _secFindings[_secFocused];
+    f.assignee = name;
+    _secAssignments.set(_secKey(f), name); // survive rescans
     showToast('Finding assigned to ' + name);
     _renderSecRows();
     focusFinding(_secFocused); // refresh right-rail assignee display
