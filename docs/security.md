@@ -19,7 +19,7 @@
 | Policy guardrails | Active | Sensitive entitlements and freeze windows in `policies.json` |
 | Credential expiry alerts | Active | 60-day warning through `Test-CredentialExpiry` |
 | Purview integration path | Implemented | Termination records can flow to the configured HR connector |
-| Workload Identity Conditional Access | Gap | Service-principal enforcement requires Entra Workload Identities Premium; Agent ID policy must be verified separately |
+| Workload Identity Conditional Access | Partial | Service-principal enforcement requires Entra Workload Identities Premium (not held by the demo tenant), so no SP policy is deployed. The Agent ID-scoped policy (`AgentGeneralCAPol`, target `AllAgentIdResources`, grant `block`) is enabled and verified via Graph — pre-staged with an empty principal scope on the tenant's existing P1/P2 licensing. |
 
 ## Audit Log Format
 
@@ -56,6 +56,6 @@ and Teams notifications when configured.
 | Gap | Risk | Mitigation |
 |---|---|---|
 | Service-principal Workload Identity CA not verified | Medium | Certificate auth, isolated identities, least privilege, and quarantine controls; policy script requires the premium SKU |
-| Agent ID Conditional Access not verified | Medium | Native owner and sponsor governance, read-only Agent ID scopes, and separate write execution identities |
+| Agent ID Conditional Access pre-staged (empty scope) | Low | Policy enabled and verified via Graph but not yet scoped to principals; plus native owner/sponsor governance, read-only Agent ID scopes, and separate write execution identities |
 | Electron sandbox disabled | Medium | CSP, context isolation, bounded preload APIs, and documented migration path |
 | Tenant-specific public artifacts | Medium | Sanitize screenshots and move tenant-bound identifiers to ignored runtime config before submission |
