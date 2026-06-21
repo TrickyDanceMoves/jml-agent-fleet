@@ -43,17 +43,15 @@ test('manage_device is an approver-only write tool with RBAC-gated destructive a
   assert.match(main, /Invoke-DeviceAction\.ps1/);
 });
 
-test('irreversible actions are two-person with an admin break-glass override', () => {
+test('irreversible actions require an admin: admin runs directly, non-admin queues', () => {
   // Approve path can execute approved device actions.
   assert.match(main, /tool === 'manage_device'[\s\S]*?Invoke-DeviceAction\.ps1/);
-  // Device IPC: queue by default, admin override executes + audits.
-  assert.match(main, /IRREVERSIBLE_DEVICE_ACTIONS\.has\(act\)/);
-  assert.match(main, /override && role === 'admin'/);
-  assert.match(main, /logOperatorActivity\('security\.override'/);
-  // UI offers cancel / request approval / override.
+  // Device IPC: admin executes directly; non-admin queues for an admin.
+  assert.match(main, /IRREVERSIBLE_DEVICE_ACTIONS\.has\(act\) && role !== 'admin'/);
+  // No mandatory two-person / break-glass override anymore.
+  assert.ok(!/security\.override/.test(main), 'override path removed');
   const app = fs.readFileSync(path.join(root, 'renderer', 'app.js'), 'utf8');
-  assert.match(app, /function destructiveChoice/);
-  assert.match(app, /dd-override/);
+  assert.ok(!/destructiveChoice|dd-override/.test(app), 'UI override path removed');
   assert.match(app, /approvalQueued/);
 });
 
@@ -137,5 +135,5 @@ test('both prompts describe device capabilities', () => {
   const approver = main.match(/function buildApproverSystem\([\s\S]*?\.trim\(\); \}/)[0];
   assert.match(auditor, /list_user_devices/);
   assert.match(approver, /manage_device/);
-  assert.match(approver, /second admin/i);
+  assert.match(approver, /require[s]? an admin/i);
 });

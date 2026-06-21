@@ -54,11 +54,10 @@ test('destructive leaver approvals enforce admin-only final say + separation of 
   assert.match(main, /const gate = approvalGate\(op\)/);
   assert.equal((main.match(/approvalGate\(op\)/g) || []).length >= 2, true,
     'approvalGate must guard both approve-pending and panel-approve-pending');
-  // Hard/Delete/Both quick leavers always require a second admin (two-person),
-  // unless a human admin takes an audited break-glass override.
-  assert.match(main, /function leaverNeedsTwoPerson/);
-  assert.match(main, /leaverNeedsTwoPerson\(_stg\)/);
-  assert.match(main, /override && _role === 'admin'/);
+  // Hard/Delete/Both quick leavers require an admin: an admin runs them directly,
+  // a non-admin's request is queued for an admin to approve.
+  assert.match(main, /function isIrreversibleLeaver/);
+  assert.match(main, /isIrreversibleLeaver\(_stg\) && _role !== 'admin'/);
 });
 
 test('queued approvals surface on the Glass Screen as awaiting-approval runs', () => {
