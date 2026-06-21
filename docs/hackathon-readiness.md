@@ -20,7 +20,7 @@ met by **Foundry IQ** (live; grounds risk/approval decisions on the JML policy c
 | Live demo | Ready | Electron console, Glass Screen lifecycle replay, approval and audit surfaces |
 | Microsoft identity platform | Ready | Entra ID, Microsoft Graph, and live Entra Agent ID authentication |
 | Microsoft IQ requirement | Ready | Foundry IQ grounds risk/approval decisions on the JML policy corpus with citations and fail-closed behavior (`lib/foundry-iq.js`, 8 tests) |
-| Automated quality | Ready | 130 Electron tests pass; PowerShell parse checks pass; CI runs the suite |
+| Automated quality | Ready | 165 Electron tests pass; PowerShell parse checks pass; CI runs the suite |
 | Dependency security | Ready | Production dependency audits report zero known vulnerabilities |
 | Public release | Ready | Installer and portable ZIP are attached to GitHub Release v1.1.12 |
 | Documentation accuracy | Improved | Case study, README, hackathon guide, and QA language aligned to current state |
