@@ -2,11 +2,11 @@
 
 **Track:** Enterprise Agents
 
-**Registration deadline:** June 30, 2026
+**Registration deadline:** June 12, 2026
 
-**Coding period:** June 1 through July 12, 2026
+**Coding period:** June 1 through June 14, 2026
 
-**Submission deadline:** July 12, 2026 at 11:59 PM Pacific Time
+**Submission deadline:** June 14, 2026 at 11:59 PM Pacific Time — **submitted ✅**
 
 **Format:** Virtual, global, public code repository, and public demo video up to five minutes
 
@@ -33,7 +33,7 @@ Track this and the remaining repository risks in
 
 ## Submission Checklist
 
-- [ ] Register before June 30, 2026.
+- [x] Register before June 12, 2026. **(Done — submitted before the June 14 deadline)**
 - [x] Integrate and demonstrate at least one Microsoft IQ layer. **(Foundry IQ — done)**
 - [ ] Record a public YouTube or Vimeo demo no longer than five minutes.
 - [ ] Confirm the repository and demo disclose every third-party component used.

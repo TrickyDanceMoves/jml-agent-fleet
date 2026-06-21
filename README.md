@@ -21,6 +21,24 @@ Five minutes to the core of it:
 
 > **The model proposes; policy and approval decide what executes.**
 
+### Judge Quickstart — what to click (no tenant required)
+
+**Run it safely in ~5 minutes, no Microsoft tenant needed.** Launch in **demo mode** — it serves synthetic Contoso data and *simulates every action* (no Microsoft Graph call is made):
+
+- **Packaged app:** `"JML Console.exe" --demo`
+- **From source:** `cd electron-app && npm start -- --demo`
+
+Then walk this path:
+
+1. **Glass Screen** — watch a lifecycle operation advance **Request → Risk → Execute → Verify → Complete**.
+2. **Approver agent** — ask it to *"offboard robert.martinez"*. Watch it **score risk**, cite the JML policy corpus (**Foundry IQ grounding**), and route the irreversible step to **admin approval** instead of executing.
+3. **Approvals** — see the queued offboard awaiting an admin's sign-off (separation of duties — the requester can't approve their own request).
+4. **Audit Log** — the **hash-chained** trail with live chain-integrity verification.
+5. **Security** — Identity Protection risky users, UEBA anomalies, and config drift; assign a finding to an operator.
+6. **Devices** — AI-assisted search for a user, then the device lifecycle (sync, lock, retire, wipe…) with **per-device Safe mode**.
+
+**What needs a live tenant** (don't attempt without one): the Setup Wizard tenant bind, real Graph reads, **Live-mode** writes, and live Identity Protection pulls. Outside `--demo`, keep **Safe mode** on to explore without touching a directory.
+
 ## Screenshots
 
 | Operator Selector | Auth Selection (PIN / Windows) |
