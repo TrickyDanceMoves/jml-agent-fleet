@@ -1305,12 +1305,20 @@ function loadSecurity() {
     const days = Math.floor((Date.now() - d) / 86400000);
     return days <= 0 ? 'today' : days + 'd ago';
   }
+  function osIcon(os) {
+    const o = String(os || '').toLowerCase();
+    if (o.includes('windows')) return '🪟';
+    if (o.includes('ios') || o.includes('ipad') || o.includes('mac')) return '';
+    if (o.includes('android')) return '🤖';
+    if (o.includes('linux')) return '🐧';
+    return '🖥️';
+  }
   function complianceBadge(d) {
     const c = String(d.complianceState || '').toLowerCase();
-    if (c === 'compliant')    return '<span class="tag info" style="color:var(--ok);border-color:var(--ok)">compliant</span>';
-    if (c === 'noncompliant') return '<span class="tag crit">noncompliant</span>';
-    if (!d.isManaged)         return '<span class="tag" style="opacity:.6">unmanaged</span>';
-    return '<span class="tag warn">' + escHtml(d.complianceState || 'unknown') + '</span>';
+    if (c === 'compliant')    return '<span class="dev-pill ok">compliant</span>';
+    if (c === 'noncompliant') return '<span class="dev-pill bad">noncompliant</span>';
+    if (!d.isManaged)         return '<span class="dev-pill muted">no compliance data</span>';
+    return '<span class="dev-pill warn">' + escHtml(d.complianceState || 'unknown') + '</span>';
   }
 
   function deviceRow(d) {
@@ -1321,31 +1329,40 @@ function loadSecurity() {
     const managed  = !!d.managedDeviceId;
     const hasEntra = !!d.id;
     const meta = [[d.operatingSystem, d.operatingSystemVersion].filter(Boolean).join(' '), d.trustType, d.model].filter(Boolean).join(' · ');
-    const btn = (act, label, cls, on) => on ? `<button class="btn sm ${cls || ''}" data-dev-act="${act}">${label}</button>` : '';
-    let actions = '<span class="dim-label" style="font-size:11px">read-only</span>';
+    const pills = [complianceBadge(d)];
+    pills.push(managed ? '<span class="dev-pill">managed</span>' : '');
+    if (d.isEncrypted === true) pills.push('<span class="dev-pill">encrypted</span>');
+    pills.push('<span class="dev-pill muted">sync ' + fmtSync(d.lastSyncDateTime) + '</span>');
+
+    const btn = (act, label, cls, on, title) => on
+      ? `<button class="btn sm ${cls || ''}" data-dev-act="${act}" title="${title || ''}">${label}</button>` : '';
+    let actions = '<span class="dev-readonly">read-only role</span>';
     if (canWrite) {
-      actions = btn('sync', 'Sync', '', managed)
-        + (enabled ? btn('disable', 'Disable', '', hasEntra) : btn('enable', 'Enable', '', hasEntra))
-        + btn('retire', 'Retire', '', managed)
-        + btn('wipe', 'Wipe', 'danger', managed && isAdmin)
-        + btn('delete', 'Delete', 'danger', hasEntra && isAdmin);
+      actions = btn('sync', 'Sync', '', managed, 'Force an Intune check-in')
+        + (enabled ? btn('disable', 'Disable', '', hasEntra, 'Block device sign-in') : btn('enable', 'Enable', '', hasEntra, 'Allow device sign-in'))
+        + btn('retire', 'Retire', '', managed, 'Remove company data, keep personal data')
+        + btn('wipe', 'Wipe', 'danger', managed && isAdmin, 'Factory reset — irreversible (admin)')
+        + btn('delete', 'Delete', 'danger', hasEntra && isAdmin, 'Remove the Entra device object (admin)');
     }
     const ref = encodeURIComponent(JSON.stringify({ id: d.id, deviceId: d.deviceId, managedDeviceId: d.managedDeviceId, displayName: d.displayName }));
-    return `<div class="dev-row" data-dev='${ref}' style="display:grid;grid-template-columns:1fr 120px 120px 1fr;gap:10px;align-items:center;padding:10px 4px;border-bottom:1px solid var(--border)">
-      <div style="min-width:0">
-        <div style="font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(d.displayName || '—')}</div>
-        <div class="mono" style="font-size:10.5px;color:var(--text-3)">${escHtml(meta || '—')}</div>
+    return `<div class="dev-card" data-dev='${ref}'>
+      <div class="dev-card-main">
+        <div class="dev-ico">${osIcon(d.operatingSystem)}</div>
+        <div class="dev-card-info">
+          <div class="dev-name">${escHtml(d.displayName || '—')}</div>
+          <div class="dev-meta">${escHtml(meta || '—')}</div>
+          <div class="dev-pills">${pills.filter(Boolean).join('')}</div>
+        </div>
+        <div class="dev-state ${enabled ? 'on' : 'off'}">${enabled ? 'enabled' : 'disabled'}</div>
       </div>
-      <div>${complianceBadge(d)}</div>
-      <div class="mono" style="font-size:10.5px;color:var(--text-3)">${enabled ? 'enabled' : '<span style="color:var(--crit)">disabled</span>'}<br>sync ${fmtSync(d.lastSyncDateTime)}</div>
-      <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">${actions}</div>
+      <div class="dev-actions">${actions}</div>
     </div>`;
   }
 
   function render(data, context) {
     const el = listEl(); if (!el) return;
     if (!data || data.error) {
-      el.innerHTML = `<div class="loading-hint" style="color:var(--crit)">${escHtml((data && data.error) || 'Lookup failed')}</div>`;
+      el.innerHTML = `<div class="dev-empty err">${escHtml((data && data.error) || 'Lookup failed')}</div>`;
       if (countEl()) countEl().textContent = '0';
       if (contextEl()) contextEl().textContent = '';
       return;
@@ -1353,7 +1370,7 @@ function loadSecurity() {
     const devices = data.devices || [];
     if (contextEl()) contextEl().textContent = context || '';
     if (countEl()) countEl().textContent = String(devices.length);
-    el.innerHTML = devices.length ? devices.map(deviceRow).join('') : '<div class="loading-hint">No devices found.</div>';
+    el.innerHTML = devices.length ? devices.map(deviceRow).join('') : '<div class="dev-empty">No devices found.</div>';
   }
 
   async function search(q) {
@@ -1403,6 +1420,27 @@ function loadSecurity() {
       showToast((res && res.error) || `Device ${act} failed`, 'warning');
     }
   }
+
+  // AI assist — primary driver. Routes the request into the Approver agent,
+  // which holds the device read + manage_device tools (with risk/approval gating).
+  function askDeviceAgent(text) {
+    if (!text || !text.trim()) { showToast('Type a request for the agent', 'warning'); return; }
+    switchTab('approver');
+    setTimeout(() => {
+      const i = document.getElementById('input-approver');
+      if (i) i.value = text.trim();
+      if (typeof sendMessage === 'function') sendMessage('approver');
+    }, 120);
+  }
+  const askInput = document.getElementById('dev-ask-input');
+  document.getElementById('dev-ask-send')?.addEventListener('click', () => askDeviceAgent(askInput && askInput.value));
+  askInput?.addEventListener('keydown', e => { if (e.key === 'Enter') askDeviceAgent(askInput.value); });
+  document.getElementById('dev-chips')?.addEventListener('click', e => {
+    const chip = e.target.closest('.dev-chip'); if (!chip) return;
+    const q = chip.dataset.devq || '';
+    if (chip.dataset.send === '1') { askDeviceAgent(q); }
+    else if (askInput) { askInput.value = q; askInput.focus(); }
+  });
 
   const sInput = document.getElementById('dev-search-input');
   document.getElementById('btn-dev-search')?.addEventListener('click', () => search(sInput && sInput.value));

@@ -74,6 +74,12 @@ test('Devices tab is wired end to end (UI + preload + main IPC)', () => {
   assert.match(app, /TABS_WITH_MODE = new Set\(\[[^\]]*'devices'/);
   assert.match(app, /function initDevicesTab\(\)/);
   assert.match(app, /window\.api\.deviceAction\(/);
+  // AI assist is the primary driver — composer + chips that route into the agent.
+  assert.match(html, /class="dev-assist"/);
+  assert.match(html, /id="dev-ask-input"/);
+  assert.match(html, /id="dev-chips"/);
+  assert.match(app, /function askDeviceAgent\(text\)/);
+  assert.match(app, /switchTab\('approver'\)[\s\S]*?sendMessage\('approver'\)/);
   // Preload bridges.
   assert.match(preload, /getUserDevices:[\s\S]*?invoke\('get-user-devices'/);
   assert.match(preload, /deviceAction:[\s\S]*?invoke\('device-action'/);
