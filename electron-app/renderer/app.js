@@ -1284,6 +1284,7 @@ document.getElementById('refresh-security').addEventListener('click', () => {
 })();
 
 function loadSecurity() {
+  loadSecurityStatus(); // refresh shared cleared state for every operator
   loadSecurityAssignments(); // refresh durable owners before/while findings load
   window.api.getSecurityReports();
   window.api.getAgentHealth();
@@ -1627,6 +1628,48 @@ function persistSecurityAssignments() {
   try { window.api.saveSecurityAssignments(Object.fromEntries(_secAssignments)); } catch (_) {}
 }
 
+/** Load durable acknowledged/deleted finding state shared by all operators. */
+function loadSecurityStatus() {
+  if (!window.api.getSecurityStatus) return Promise.resolve();
+  return window.api.getSecurityStatus().then(res => {
+    const status = (res && res.status) || {};
+    const acked = Array.isArray(status.acked) ? status.acked : [];
+    const deleted = Array.isArray(status.deleted) ? status.deleted : [];
+    _secAckedFindings = acked.filter(f => f && typeof f === 'object');
+    _secAckedKeys = new Set(acked.map(f => String(f.key || _secKey(f))).filter(Boolean));
+    _secDeletedKeys = new Set(deleted.map(k => String(k)).filter(Boolean));
+    if (_secFindings.length) {
+      _updateSecurityRibbonCounts();
+      _renderSecRows();
+      _renderAckedSection();
+      if (_secFocused !== null && _secFindings[_secFocused]) focusFinding(_secFocused);
+    }
+  }).catch(() => {});
+}
+
+/** Persist acknowledged/deleted finding state for every operator account. */
+function persistSecurityStatus() {
+  if (!window.api.saveSecurityStatus) return;
+  const acked = _secAckedFindings.map(f => ({ ...f, key: _secKey(f) }));
+  const deleted = Array.from(_secDeletedKeys);
+  try { window.api.saveSecurityStatus({ acked, deleted }); } catch (_) {}
+}
+
+function _secActiveFindings() {
+  return _secFindings.filter(f => !_secAckedKeys.has(_secKey(f)) && !_secDeletedKeys.has(_secKey(f)));
+}
+
+function _updateSecurityRibbonCounts() {
+  const critEl = document.getElementById('sec-count-crit');
+  const warnEl = document.getElementById('sec-count-warn');
+  const infoEl = document.getElementById('sec-count-info');
+  const ackedEl = document.getElementById('sec-count-acked');
+  if (critEl) critEl.textContent = _secActiveFindings().filter(f => f.sev === 'crit').length;
+  if (warnEl) warnEl.textContent = _secActiveFindings().filter(f => f.sev === 'warn').length;
+  if (infoEl) infoEl.textContent = _secActiveFindings().filter(f => f.sev === 'info').length;
+  if (ackedEl) ackedEl.textContent = String(_secAckedFindings.length);
+}
+
 /** True when an assignee string resolves to the current operator. */
 function _secIsMine(name) {
   if (!name || name === '—') return false;
@@ -1853,8 +1896,8 @@ function _renderAckedSection() {
         _secAckedFindings.forEach(f => _secDeletedKeys.add(_secKey(f)));
         _secAckedKeys.clear();
         _secAckedFindings = [];
-        const ackedEl = document.getElementById('sec-count-acked');
-        if (ackedEl) ackedEl.textContent = '0';
+        persistSecurityStatus();
+        _updateSecurityRibbonCounts();
         _renderAckedSection();
         _renderSecRows();
         showToast('All acknowledged findings deleted');
@@ -1870,8 +1913,8 @@ function _renderAckedSection() {
         _secDeletedKeys.add(_secKey(f));
         _secAckedKeys.delete(_secKey(f));
         _secAckedFindings.splice(idx, 1);
-        const ackedEl = document.getElementById('sec-count-acked');
-        if (ackedEl) ackedEl.textContent = String(_secAckedFindings.length);
+        persistSecurityStatus();
+        _updateSecurityRibbonCounts();
         _renderAckedSection();
         _renderSecRows();
         showToast('Finding deleted from acknowledged list');
@@ -1974,15 +2017,7 @@ function renderSecurityInbox(data) {
   const sevOrder = { crit: 0, warn: 1, info: 2 };
   _secFindings.sort((a, b) => (sevOrder[a.sev] ?? 3) - (sevOrder[b.sev] ?? 3));
 
-  // Update ribbon counts
-  const critEl = document.getElementById('sec-count-crit');
-  const warnEl = document.getElementById('sec-count-warn');
-  const infoEl = document.getElementById('sec-count-info');
-  const ackedEl = document.getElementById('sec-count-acked');
-  if (critEl) critEl.textContent = _secFindings.filter(f => f.sev === 'crit').length;
-  if (warnEl) warnEl.textContent = _secFindings.filter(f => f.sev === 'warn').length;
-  if (infoEl) infoEl.textContent = _secFindings.filter(f => f.sev === 'info').length;
-  if (ackedEl) ackedEl.textContent = String(_secAckedFindings.length);
+  _updateSecurityRibbonCounts();
 
   // Reset active-inbox filter state (but NOT acked state — it persists across rescans).
   // Default assign filter is '' (all) so assigned findings stay visible rather than
@@ -2335,8 +2370,8 @@ document.getElementById('sec-action-ack')?.addEventListener('click', () => {
     _secAckedKeys.add(key);
     _secAckedFindings.push({ ...f, ackedAt: new Date() });
   }
-  const ackedEl = document.getElementById('sec-count-acked');
-  if (ackedEl) ackedEl.textContent = String(_secAckedFindings.length);
+  persistSecurityStatus();
+  _updateSecurityRibbonCounts();
   showToast('Finding acknowledged');
   _renderSecRows();
   _renderAckedSection();
@@ -2534,8 +2569,8 @@ document.getElementById('sec-btn-ack')?.addEventListener('click', () => {
       _secAckedFindings.push({ ...f, ackedAt: new Date() });
     }
   });
-  const ackedEl = document.getElementById('sec-count-acked');
-  if (ackedEl) ackedEl.textContent = String(_secAckedFindings.length);
+  persistSecurityStatus();
+  _updateSecurityRibbonCounts();
   const n = _secCheckedSet.size;
   showToast(n + ' finding' + (n > 1 ? 's' : '') + ' acknowledged');
   _renderSecRows();

@@ -167,6 +167,8 @@ contextBridge.exposeInMainWorld('api', {
   // Security finding assignments (durable across restarts)
   getSecurityAssignments:  ()                 => ipcRenderer.invoke('get-security-assignments'),
   saveSecurityAssignments: (assignments)      => ipcRenderer.invoke('save-security-assignments', { assignments }),
+  getSecurityStatus:       ()                 => ipcRenderer.invoke('get-security-status'),
+  saveSecurityStatus:      (status)           => ipcRenderer.invoke('save-security-status', { status }),
 
   // Devices — user/stale device reads + lifecycle actions
   getUserDevices:  (upnOrName) => ipcRenderer.invoke('get-user-devices', { upnOrName }),
