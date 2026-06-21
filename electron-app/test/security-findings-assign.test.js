@@ -70,6 +70,41 @@ test('the assignments store (real operator UPNs) is gitignored', () => {
   assert.match(gitignore, /approver\/security-assignments\.json/);
 });
 
+test('active security counts exclude acknowledged and deleted findings', () => {
+  assert.match(app, /function _secActiveFindings\(\)/,
+    'renderer must compute active findings after applying acked/deleted state');
+  assert.match(app, /_secActiveFindings\(\)\.filter\(f => f\.sev === 'crit'\)\.length/);
+  assert.match(app, /_secActiveFindings\(\)\.filter\(f => f\.sev === 'warn'\)\.length/);
+  assert.match(app, /_secActiveFindings\(\)\.filter\(f => f\.sev === 'info'\)\.length/);
+  assert.doesNotMatch(app, /_secFindings\.filter\(f => f\.sev === 'crit'\)\.length/);
+});
+
+test('main process exposes get/save security-status handlers backed by a file', () => {
+  assert.match(main, /SECURITY_STATUS_FILE\s*=\s*path\.join\([^)]*security-status\.json'\)/);
+  assert.match(main, /ipcMain\.handle\('get-security-status'/);
+  assert.match(main, /ipcMain\.handle\('save-security-status'/);
+  assert.match(main, /fs\.writeFileSync\(SECURITY_STATUS_FILE/);
+});
+
+test('preload bridges the security-status channels', () => {
+  assert.match(preload, /getSecurityStatus:[\s\S]*?invoke\('get-security-status'\)/);
+  assert.match(preload, /saveSecurityStatus:[\s\S]*?invoke\('save-security-status'/);
+});
+
+test('renderer loads shared finding status and persists ack/delete actions', () => {
+  assert.match(app, /function loadSecurityStatus\(\)/);
+  assert.match(app, /function persistSecurityStatus\(\)/);
+  assert.match(app, /_secAckedKeys\s*=\s*new Set\(acked\.map/);
+  assert.match(app, /_secDeletedKeys\s*=\s*new Set\(deleted\.map/);
+  const persistCalls = app.match(/persistSecurityStatus\(\)/g) || [];
+  assert.ok(persistCalls.length >= 4, 'ack, bulk ack, delete one, and delete all must persist status');
+  assert.match(app, /loadSecurity\(\)\s*\{[\s\S]*?loadSecurityStatus\(\)/);
+});
+
+test('the shared finding status store is gitignored', () => {
+  assert.match(gitignore, /approver\/security-status\.json/);
+});
+
 // ── Assigning keeps the finding in view + flags ownership ────────────────────
 test('assigning does not hide the finding (default assign filter shows all)', () => {
   assert.match(app, /_secFilter\s*=\s*\{\s*sev:\s*'',\s*source:\s*'',\s*assign:\s*'',\s*maxAge:\s*0\s*\}/g,

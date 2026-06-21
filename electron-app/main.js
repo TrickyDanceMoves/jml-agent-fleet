@@ -4190,6 +4190,7 @@ ipcMain.handle('save-notification-rules', (event, { rules }) => {
 // finding list itself is regenerated from live scans each session; only the
 // human assignment is durable, so we store just the key->owner map.
 const SECURITY_ASSIGNMENTS_FILE = path.join(AGENTS_DIR, 'approver', 'security-assignments.json');
+const SECURITY_STATUS_FILE = path.join(AGENTS_DIR, 'approver', 'security-status.json');
 ipcMain.handle('get-security-assignments', () => {
   if (PRESENTATION_MODE) return { assignments: {} };
   try {
@@ -4216,6 +4217,48 @@ ipcMain.handle('save-security-assignments', (event, { assignments } = {}) => {
   try {
     fs.writeFileSync(SECURITY_ASSIGNMENTS_FILE, JSON.stringify({ assignments: clean }, null, 2) + '\n', 'utf8');
     logOperatorActivity('security.assignments.saved', { count: Object.keys(clean).length });
+    return { ok: true };
+  } catch (e) { return { ok: false, error: e.message }; }
+});
+
+ipcMain.handle('get-security-status', () => {
+  if (PRESENTATION_MODE) return { status: { acked: [], deleted: [] } };
+  try {
+    if (!fs.existsSync(SECURITY_STATUS_FILE)) return { status: { acked: [], deleted: [] } };
+    const data = readJson(SECURITY_STATUS_FILE) || {};
+    const status = (data && typeof data.status === 'object' && !Array.isArray(data.status)) ? data.status : {};
+    const acked = Array.isArray(status.acked) ? status.acked : [];
+    const deleted = Array.isArray(status.deleted) ? status.deleted : [];
+    return { status: { acked, deleted } };
+  } catch (e) { return { status: { acked: [], deleted: [] }, error: e.message }; }
+});
+ipcMain.handle('save-security-status', (event, { status } = {}) => {
+  if (PRESENTATION_MODE) {
+    return demoReceipt('save-security-status', {
+      acked: Array.isArray(status?.acked) ? status.acked.length : 0,
+      deleted: Array.isArray(status?.deleted) ? status.deleted.length : 0
+    });
+  }
+  if (!status || typeof status !== 'object' || Array.isArray(status)) {
+    return { ok: false, error: 'status must be an object' };
+  }
+  const acked = Array.isArray(status.acked) ? status.acked.slice(0, 1000).map(f => ({
+    key: String(f?.key || '').slice(0, 400),
+    rule: String(f?.rule || '').slice(0, 200),
+    title: String(f?.title || '').slice(0, 400),
+    sub: String(f?.sub || '').slice(0, 600),
+    sev: ['crit', 'warn', 'info'].includes(f?.sev) ? f.sev : 'info',
+    age: String(f?.age || '').slice(0, 80),
+    assignee: String(f?.assignee || '').slice(0, 200),
+    source: String(f?.source || '').slice(0, 80),
+    ackedAt: String(f?.ackedAt || '').slice(0, 80)
+  })).filter(f => f.key || f.rule || f.title) : [];
+  const deleted = Array.isArray(status.deleted)
+    ? status.deleted.slice(0, 1000).map(k => String(k).slice(0, 400)).filter(Boolean)
+    : [];
+  try {
+    fs.writeFileSync(SECURITY_STATUS_FILE, JSON.stringify({ status: { acked, deleted } }, null, 2) + '\n', 'utf8');
+    logOperatorActivity('security.status.saved', { acked: acked.length, deleted: deleted.length });
     return { ok: true };
   } catch (e) { return { ok: false, error: e.message }; }
 });
