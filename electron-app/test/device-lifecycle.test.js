@@ -83,8 +83,11 @@ test('Devices tab is wired end to end (UI + preload + main IPC)', () => {
   assert.match(html, /class="dev-bar"/);
   assert.match(html, /id="dev-ask-input"/);
   assert.match(html, /id="btn-dev-stale"/);
-  assert.match(html, /id="dev-whatif"/);
   assert.match(html, /id="dev-summary"/);
+  // AI-assisted search (Graph autocomplete) + per-card Safe mode (not on the bar).
+  assert.match(app, /setupUserAutocomplete\(askInput/);
+  assert.match(app, /dev-card-whatif/);
+  assert.ok(!/id="dev-whatif"/.test(html), 'global Safe toggle moved off the search bar');
   assert.match(html, /id="dev-assist-note"/);
   // Renderer registration + module.
   assert.match(app, /devices: 'Devices'/);

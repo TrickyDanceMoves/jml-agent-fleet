@@ -1357,7 +1357,8 @@ function loadSecurity() {
         + mi('retire', 'Retire', '', managed, 'Remove company data, keep personal data')
         + mi('wipe', 'Wipe (factory reset)', 'danger', managed, 'Irreversible — second admin required')
         + mi('delete', 'Delete device object', 'danger', hasEntra, 'Irreversible — second admin required');
-      actions = primary + (menu
+      const safe = '<label class="dev-safe dev-card-safe" title="Safe mode — simulate this device\'s actions, no tenant change"><input type="checkbox" class="dev-card-whatif" checked> Safe</label>';
+      actions = safe + primary + (menu
         ? `<details class="dev-more"><summary class="btn sm">More ▾</summary><div class="dev-more-menu">${menu}</div></details>` : '');
     }
     const ref = encodeURIComponent(JSON.stringify({ id: d.id, deviceId: d.deviceId, managedDeviceId: d.managedDeviceId, displayName: d.displayName }));
@@ -1458,9 +1459,8 @@ function loadSecurity() {
     });
   }
 
-  async function doAction(act, dev) {
+  async function doAction(act, dev, whatif) {
     const name = dev.displayName || dev.deviceId || dev.id;
-    const whatif = (document.getElementById('dev-whatif') || {}).checked !== false;
     document.querySelectorAll('.dev-more[open]').forEach(m => m.removeAttribute('open'));
     const isAdmin = currentOperatorRole() === 'admin';
     let newName = null;
@@ -1553,9 +1553,12 @@ function loadSecurity() {
     assistNote('I only answer device questions here. For anything else, use the Approver agent.', true, text);
   }
 
-  // Single bar: interprets device questions (handleDeviceAsk routes a plain user
-  // lookup straight to search, refers non-device requests to the Approver).
+  // Single AI-assisted bar: Graph-backed user autocomplete as you type, plus
+  // handleDeviceAsk to interpret a plain lookup or refer non-device requests out.
   const askInput = document.getElementById('dev-ask-input');
+  if (typeof setupUserAutocomplete === 'function') {
+    setupUserAutocomplete(askInput, { onSelect: (upn) => { if (askInput) askInput.value = upn; search(upn); } });
+  }
   document.getElementById('dev-ask-send')?.addEventListener('click', () => handleDeviceAsk(askInput && askInput.value));
   askInput?.addEventListener('keydown', e => { if (e.key === 'Enter') handleDeviceAsk(askInput.value); });
   document.getElementById('btn-dev-stale')?.addEventListener('click', loadStale);
@@ -1563,7 +1566,9 @@ function loadSecurity() {
     const b = e.target.closest('[data-dev-act]'); if (!b) return;
     const card = b.closest('.dev-card'); if (!card) return;
     let dev = {}; try { dev = JSON.parse(decodeURIComponent(card.dataset.dev)); } catch {}
-    doAction(b.dataset.devAct, dev);
+    const cb = card.querySelector('.dev-card-whatif');
+    const whatif = cb ? cb.checked !== false : true;
+    doAction(b.dataset.devAct, dev, whatif);
   });
 
   // Cross-tab entry point (e.g. the "Devices" jump on a user profile): prefill
