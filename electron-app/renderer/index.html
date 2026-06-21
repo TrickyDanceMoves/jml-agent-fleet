@@ -1853,23 +1853,22 @@
           <!-- AI assist — primary driver -->
           <div class="dev-assist">
             <div class="dev-assist-head">
-              <span class="dev-assist-spark" aria-hidden="true">✦</span>
+              <span class="dev-assist-spark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 3v18M3 12h18M6 6l12 12M18 6L6 18"/></svg></span>
               <div>
-                <div class="dev-assist-title">Ask the device agent</div>
-                <div class="dev-assist-sub">Powered by the Approver agent — reads device state and runs lifecycle actions with risk + approval gating.</div>
+                <div class="dev-assist-title">Ask about devices</div>
+                <div class="dev-assist-sub">Device questions are answered here. Lifecycle execution and anything else routes to the Approver agent.</div>
               </div>
             </div>
             <div class="dev-assist-row">
-              <input id="dev-ask-input" type="text" autocomplete="off" placeholder="e.g. Show Sarah Chen's devices, then wipe her lost iPhone">
-              <button class="btn primary" id="dev-ask-send">Ask agent →</button>
+              <input id="dev-ask-input" type="text" autocomplete="off" placeholder="e.g. Show Sarah Chen's devices, or are any non-compliant?">
+              <button class="btn primary" id="dev-ask-send">Ask</button>
             </div>
             <div class="dev-chips" id="dev-chips">
-              <button class="dev-chip" data-devq="List all devices for ">📋 A user's devices</button>
-              <button class="dev-chip" data-devq="Which devices are non-compliant for ">⚠️ Non-compliant</button>
-              <button class="dev-chip" data-devq="Find stale devices with no sign-in in the last 90 days" data-send="1">🕒 Stale devices</button>
-              <button class="dev-chip" data-devq="Retire the company data from device ">🧹 Retire a device</button>
-              <button class="dev-chip" data-devq="Factory-wipe device ">🧨 Wipe a device</button>
+              <button class="dev-chip" data-devq="Show devices for ">A user's devices</button>
+              <button class="dev-chip" data-devq="Which devices are non-compliant for ">Non-compliant</button>
+              <button class="dev-chip" data-devq="Find stale devices with no sign-in in the last 90 days" data-send="1">Stale devices</button>
             </div>
+            <div class="dev-assist-note" id="dev-assist-note" style="display:none"></div>
           </div>
 
           <!-- Manual browse — secondary -->

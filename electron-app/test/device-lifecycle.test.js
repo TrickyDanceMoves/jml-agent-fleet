@@ -74,12 +74,18 @@ test('Devices tab is wired end to end (UI + preload + main IPC)', () => {
   assert.match(app, /TABS_WITH_MODE = new Set\(\[[^\]]*'devices'/);
   assert.match(app, /function initDevicesTab\(\)/);
   assert.match(app, /window\.api\.deviceAction\(/);
-  // AI assist is the primary driver — composer + chips that route into the agent.
+  // Scoped device assistant: composer + chips, answers device questions in place
+  // and refers everything else to the Approver (no auto-send/tab-jump).
   assert.match(html, /class="dev-assist"/);
   assert.match(html, /id="dev-ask-input"/);
   assert.match(html, /id="dev-chips"/);
-  assert.match(app, /function askDeviceAgent\(text\)/);
-  assert.match(app, /switchTab\('approver'\)[\s\S]*?sendMessage\('approver'\)/);
+  assert.match(html, /id="dev-assist-note"/);
+  assert.match(app, /function handleDeviceAsk\(text\)/);
+  assert.match(app, /I only answer device questions here/);
+  assert.match(app, /Open Approver agent/);
+  // No colourful emoji icons left on the tab — OS icons are inline SVGs.
+  assert.match(app, /function osIcon\(os\)[\s\S]*?<svg/);
+  assert.ok(!/['"`]🪟|🧨|🧹|📋/.test(app), 'no emoji glyphs in the devices module');
   // Preload bridges.
   assert.match(preload, /getUserDevices:[\s\S]*?invoke\('get-user-devices'/);
   assert.match(preload, /deviceAction:[\s\S]*?invoke\('device-action'/);

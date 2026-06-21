@@ -1306,12 +1306,10 @@ function loadSecurity() {
     return days <= 0 ? 'today' : days + 'd ago';
   }
   function osIcon(os) {
-    const o = String(os || '').toLowerCase();
-    if (o.includes('windows')) return '🪟';
-    if (o.includes('ios') || o.includes('ipad') || o.includes('mac')) return '';
-    if (o.includes('android')) return '🤖';
-    if (o.includes('linux')) return '🐧';
-    return '🖥️';
+    const mobile = /ios|ipad|iphone|android|phone/.test(String(os || '').toLowerCase());
+    return mobile
+      ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="7" y="2" width="10" height="20" rx="2"/><line x1="11" y1="18" x2="13" y2="18"/></svg>'
+      : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>';
   }
   function complianceBadge(d) {
     const c = String(d.complianceState || '').toLowerCase();
@@ -1421,24 +1419,69 @@ function loadSecurity() {
     }
   }
 
-  // AI assist — primary driver. Routes the request into the Approver agent,
-  // which holds the device read + manage_device tools (with risk/approval gating).
-  function askDeviceAgent(text) {
-    if (!text || !text.trim()) { showToast('Type a request for the agent', 'warning'); return; }
-    switchTab('approver');
-    setTimeout(() => {
-      const i = document.getElementById('input-approver');
-      if (i) i.value = text.trim();
-      if (typeof sendMessage === 'function') sendMessage('approver');
-    }, 120);
+  // ── Scoped device assistant ────────────────────────────────────────────────
+  // Device questions are answered in place (reusing the device reads, no tab
+  // switch). Execution and non-device requests are referred to the Approver,
+  // since that agent owns write authority — the device tab stays read-scoped.
+  const DEVICE_HINT  = /\b(devices?|laptop|desktop|phone|iphone|ipad|android|tablet|surface|macbook|workstation|endpoint|machine|intune|managed|compliance|compliant|non-?compliant|encrypt|encrypted|stale|wipe|retire|sync)\b/i;
+  const OTHER_DOMAIN = /\b(joiner|onboard|new ?hire|mover|move|leaver|offboard|licen[sc]e|group|password|reset|mfa|pim|directory role|department|certificat|scim|hris)\b/i;
+  const ACTION_WORD  = /\b(wipe|retire|disable|enable|delete|rename)\b/i;
+
+  function extractUser(text) {
+    const email = text.match(/[\w.+-]+@[\w.-]+\.\w+/);
+    if (email) return email[0];
+    let m = text.match(/([A-Za-z][\w.'-]*(?:\s+[A-Za-z][\w.'-]*){0,2})['’]s\s+(?:devices?|laptop|phone|ipad|machine|surface)/i);
+    if (m) return m[1].trim();
+    m = text.match(/(?:devices?\s+(?:for|of|belonging to)|\bfor|\bof)\s+([A-Za-z][\w.'-]*(?:\s+[A-Za-z][\w.'-]*){0,2})/i);
+    if (m) return m[1].trim();
+    return null;
   }
+
+  function assistNote(html, refer, prefill) {
+    const note = document.getElementById('dev-assist-note');
+    if (!note) return;
+    note.style.display = '';
+    note.innerHTML = html + (refer ? ' <button class="btn sm" id="dev-refer-approver">Open Approver agent →</button>' : '');
+    if (refer) {
+      document.getElementById('dev-refer-approver')?.addEventListener('click', () => {
+        switchTab('approver');
+        setTimeout(() => { const i = document.getElementById('input-approver'); if (i) { i.value = prefill || ''; i.focus(); } }, 100);
+      });
+    }
+  }
+
+  function handleDeviceAsk(text) {
+    text = (text || '').trim();
+    if (!text) { showToast('Ask a device question', 'warning'); return; }
+    const isDevice = DEVICE_HINT.test(text);
+    // Clearly another domain (and not about devices) → refer out.
+    if (!isDevice && OTHER_DOMAIN.test(text)) {
+      assistNote('That looks like an identity/lifecycle request, not a device one — the Approver agent handles that.', true, text);
+      return;
+    }
+    const user = extractUser(text);
+    if (/\bstale\b/i.test(text) && !user) { assistNote('Listing stale devices — no sign-in in 90 days.'); loadStale(); return; }
+    if (user) {
+      const acting = ACTION_WORD.test(text);
+      assistNote(`Showing devices for <b>${escHtml(user)}</b>.` + (acting ? ' To run an action, use the buttons on the device below, or hand it to the Approver agent for guided, approval-gated execution.' : ''), acting, text);
+      if (sInput) sInput.value = user;
+      search(user);
+      return;
+    }
+    if (isDevice) {
+      assistNote('Tell me whose devices — e.g. “devices for sarah.chen@…” — or click <b>Stale devices</b>. For guided actions, the Approver agent can execute with approval.', false);
+      return;
+    }
+    assistNote('I only answer device questions here. For anything else, use the Approver agent.', true, text);
+  }
+
   const askInput = document.getElementById('dev-ask-input');
-  document.getElementById('dev-ask-send')?.addEventListener('click', () => askDeviceAgent(askInput && askInput.value));
-  askInput?.addEventListener('keydown', e => { if (e.key === 'Enter') askDeviceAgent(askInput.value); });
+  document.getElementById('dev-ask-send')?.addEventListener('click', () => handleDeviceAsk(askInput && askInput.value));
+  askInput?.addEventListener('keydown', e => { if (e.key === 'Enter') handleDeviceAsk(askInput.value); });
   document.getElementById('dev-chips')?.addEventListener('click', e => {
     const chip = e.target.closest('.dev-chip'); if (!chip) return;
     const q = chip.dataset.devq || '';
-    if (chip.dataset.send === '1') { askDeviceAgent(q); }
+    if (chip.dataset.send === '1') { handleDeviceAsk(q); }
     else if (askInput) { askInput.value = q; askInput.focus(); }
   });
 
