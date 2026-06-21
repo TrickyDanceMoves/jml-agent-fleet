@@ -43,7 +43,7 @@ function Get-AllPages {
 function Get-ManagedDeviceMap {
     $map = @{}
     try {
-        $mds = Get-AllPages "https://graph.microsoft.com/v1.0/deviceManagement/managedDevices?`$select=id,azureADDeviceId,deviceName,complianceState,managementAgent,operatingSystem,osVersion,lastSyncDateTime,enrolledDateTime,manufacturer,model,userPrincipalName,isEncrypted"
+        $mds = Get-AllPages "https://graph.microsoft.com/v1.0/deviceManagement/managedDevices?`$select=id,azureADDeviceId,deviceName,complianceState,managementAgent,operatingSystem,osVersion,lastSyncDateTime,enrolledDateTime,manufacturer,model,userPrincipalName,isEncrypted,serialNumber"
         foreach ($m in $mds) { if ($m["azureADDeviceId"]) { $map[$m["azureADDeviceId"]] = $m } }
     } catch {}
     return $map
@@ -68,6 +68,8 @@ function ConvertTo-DeviceRecord {
         managementAgent     = if ($managed) { $managed["managementAgent"] } else { $null }
         manufacturer        = if ($managed) { $managed["manufacturer"] } else { $null }
         model               = if ($managed) { $managed["model"] } else { $null }
+        serialNumber        = if ($managed) { $managed["serialNumber"] } else { $null }
+        primaryUser         = if ($managed) { $managed["userPrincipalName"] } else { $null }
         isEncrypted         = if ($managed) { $managed["isEncrypted"] } else { $null }
         lastSyncDateTime    = if ($managed) { $managed["lastSyncDateTime"] } else { $null }
         enrolledDateTime    = if ($managed) { $managed["enrolledDateTime"] } else { $null }

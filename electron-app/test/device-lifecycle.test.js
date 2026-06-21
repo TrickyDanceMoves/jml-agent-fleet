@@ -79,26 +79,37 @@ test('Devices tab is wired end to end (UI + preload + main IPC)', () => {
   const html = fs.readFileSync(path.join(root, 'renderer', 'index.html'), 'utf8');
   const app = fs.readFileSync(path.join(root, 'renderer', 'app.js'), 'utf8');
   const preload = fs.readFileSync(path.join(root, 'preload.js'), 'utf8');
-  // Nav + view + key controls.
+  // Nav + view + key controls (single search/ask bar).
   assert.match(html, /data-tab="devices"/);
   assert.match(html, /id="view-devices"/);
-  assert.match(html, /id="dev-search-input"/);
+  assert.match(html, /class="dev-bar"/);
+  assert.match(html, /id="dev-ask-input"/);
   assert.match(html, /id="btn-dev-stale"/);
   assert.match(html, /id="dev-whatif"/);
+  assert.match(html, /id="dev-summary"/);
+  assert.match(html, /id="dev-assist-note"/);
   // Renderer registration + module.
   assert.match(app, /devices: 'Devices'/);
   assert.match(app, /TABS_WITH_MODE = new Set\(\[[^\]]*'devices'/);
   assert.match(app, /function initDevicesTab\(\)/);
   assert.match(app, /window\.api\.deviceAction\(/);
-  // Scoped device assistant: composer + chips, answers device questions in place
-  // and refers everything else to the Approver (no auto-send/tab-jump).
-  assert.match(html, /class="dev-assist"/);
-  assert.match(html, /id="dev-ask-input"/);
-  assert.match(html, /id="dev-chips"/);
-  assert.match(html, /id="dev-assist-note"/);
+  // Scoped assistant answers device questions in place and refers out otherwise.
   assert.match(app, /function handleDeviceAsk\(text\)/);
   assert.match(app, /I only answer device questions here/);
   assert.match(app, /Open Approver agent/);
+  // Richer cards: More menu + new lifecycle actions + summary.
+  assert.match(app, /class="dev-more"/);
+  assert.match(app, /mi\('restart'/);
+  assert.match(app, /mi\('lock'/);
+  assert.match(app, /mi\('bitlocker'/);
+  assert.match(app, /mi\('rename'/);
+  assert.match(app, /function renderSummary/);
+  // New actions reach the backend (tool enum + action script).
+  assert.match(main, /'restart', 'lock', 'bitlocker'/);
+  const ps = fs.readFileSync(path.join(agentsRoot, 'enroller', 'Invoke-DeviceAction.ps1'), 'utf8');
+  assert.match(ps, /rebootNow/);
+  assert.match(ps, /remoteLock/);
+  assert.match(ps, /rotateBitLockerKeys/);
   // No colourful emoji icons left on the tab — OS icons are inline SVGs.
   assert.match(app, /function osIcon\(os\)[\s\S]*?<svg/);
   assert.ok(!/['"`]🪟|🧨|🧹|📋/.test(app), 'no emoji glyphs in the devices module');

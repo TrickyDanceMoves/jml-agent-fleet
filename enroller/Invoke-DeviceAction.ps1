@@ -36,7 +36,7 @@ if (-not (Test-Path $PayloadPath)) { Write-Log ("Payload file not found: " + $Pa
 $payload = Get-Content $PayloadPath | ConvertFrom-Json
 
 $action = ([string]$payload.action).ToLower()
-$validActions = @("enable","disable","sync","retire","wipe","delete","rename")
+$validActions = @("enable","disable","sync","retire","wipe","delete","rename","restart","lock","bitlocker")
 if ($validActions -notcontains $action) { Write-Log ("Invalid action: " + $payload.action) "ERROR"; exit 1 }
 if ($action -eq "rename" -and -not $payload.newName) { Write-Log "rename requires newName" "ERROR"; exit 1 }
 if (-not ($payload.deviceId -or $payload.deviceName -or $payload.managedDeviceId)) {
@@ -83,7 +83,7 @@ if (-not $entra -and -not $managedDeviceId) {
 
 $entraId = if ($entra) { $entra["id"] } else { $null }
 $entraActions = @("enable","disable","delete")
-$intuneActions = @("sync","retire","wipe","rename")
+$intuneActions = @("sync","retire","wipe","rename","restart","lock","bitlocker")
 if ($entraActions -contains $action -and -not $entraId) {
     Write-Log ("Action '" + $action + "' needs the Entra device object, which was not found for " + $label) "ERROR"; exit 1
 }
@@ -120,6 +120,9 @@ try {
         "disable" { Invoke-DeviceCall -Method PATCH  -Uri ($base + $entraId) -Body @{ accountEnabled = $false }; Write-Log ("Disabled device: " + $label) "ACTION" }
         "delete"  { Invoke-DeviceCall -Method DELETE -Uri ($base + $entraId); Write-Log ("Deleted device object: " + $label) "ACTION" }
         "sync"    { Invoke-DeviceCall -Method POST -Uri ($mdBase + $managedDeviceId + "/syncDevice"); Write-Log ("Sync requested: " + $label) "ACTION" }
+        "restart" { Invoke-DeviceCall -Method POST -Uri ($mdBase + $managedDeviceId + "/rebootNow"); Write-Log ("Restart requested: " + $label) "ACTION" }
+        "lock"    { Invoke-DeviceCall -Method POST -Uri ($mdBase + $managedDeviceId + "/remoteLock"); Write-Log ("Remote lock requested: " + $label) "ACTION" }
+        "bitlocker" { Invoke-DeviceCall -Method POST -Uri ($mdBase + $managedDeviceId + "/rotateBitLockerKeys"); Write-Log ("BitLocker key rotation requested: " + $label) "ACTION" }
         "retire"  { Invoke-DeviceCall -Method POST -Uri ($mdBase + $managedDeviceId + "/retire");     Write-Log ("Retire (remove company data) requested: " + $label) "ACTION" }
         "wipe"    { Invoke-DeviceCall -Method POST -Uri ($mdBase + $managedDeviceId + "/wipe") -Body @{ keepEnrollmentData = $false; keepUserData = $false }; Write-Log ("Wipe (factory reset) requested: " + $label) "ACTION" }
         "rename"  { Invoke-DeviceCall -Method POST -Uri ($mdBase + $managedDeviceId + "/setDeviceName") -Body @{ deviceName = [string]$payload.newName }; Write-Log ("Rename requested: " + $label + " -> " + $payload.newName) "ACTION" }

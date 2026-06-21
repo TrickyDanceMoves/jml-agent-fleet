@@ -1319,6 +1319,14 @@ function loadSecurity() {
     return '<span class="dev-pill warn">' + escHtml(d.complianceState || 'unknown') + '</span>';
   }
 
+  function infoLine(d) {
+    const parts = [];
+    if (d.primaryUser) parts.push(escHtml(d.primaryUser));
+    if (d.serialNumber) parts.push('SN ' + escHtml(d.serialNumber));
+    if (d.enrolledDateTime) { const e = new Date(d.enrolledDateTime); if (!isNaN(e)) parts.push('enrolled ' + e.toLocaleDateString()); }
+    return parts.join('  ·  ');
+  }
+
   function deviceRow(d) {
     const role = currentOperatorRole();
     const canWrite = role === 'admin' || role === 'helpdesk';
@@ -1326,20 +1334,31 @@ function loadSecurity() {
     const managed  = !!d.managedDeviceId;
     const hasEntra = !!d.id;
     const meta = [[d.operatingSystem, d.operatingSystemVersion].filter(Boolean).join(' '), d.trustType, d.model].filter(Boolean).join(' · ');
+    const info = infoLine(d);
     const pills = [complianceBadge(d)];
-    pills.push(managed ? '<span class="dev-pill">managed</span>' : '');
+    if (managed) pills.push('<span class="dev-pill">managed</span>');
     if (d.isEncrypted === true) pills.push('<span class="dev-pill">encrypted</span>');
     pills.push('<span class="dev-pill muted">sync ' + fmtSync(d.lastSyncDateTime) + '</span>');
 
-    const btn = (act, label, cls, on, title) => on
-      ? `<button class="btn sm ${cls || ''}" data-dev-act="${act}" title="${title || ''}">${label}</button>` : '';
+    const mi = (act, label, cls, on, title) => on
+      ? `<button class="${cls || ''}" data-dev-act="${act}" title="${title || ''}">${label}</button>` : '';
     let actions = '<span class="dev-readonly">read-only role</span>';
     if (canWrite) {
-      actions = btn('sync', 'Sync', '', managed, 'Force an Intune check-in')
-        + (enabled ? btn('disable', 'Disable', '', hasEntra, 'Block device sign-in') : btn('enable', 'Enable', '', hasEntra, 'Allow device sign-in'))
-        + btn('retire', 'Retire', '', managed, 'Remove company data, keep personal data')
-        + btn('wipe', 'Wipe', 'danger', managed, 'Factory reset — needs a second admin (admins can override)')
-        + btn('delete', 'Delete', 'danger', hasEntra, 'Remove the Entra device object — needs a second admin (admins can override)');
+      const primary =
+        (managed ? '<button class="btn sm" data-dev-act="sync" title="Force an Intune check-in">Sync</button>' : '')
+        + (hasEntra ? (enabled
+            ? '<button class="btn sm" data-dev-act="disable" title="Block device sign-in">Disable</button>'
+            : '<button class="btn sm" data-dev-act="enable" title="Allow device sign-in">Enable</button>') : '');
+      const menu =
+        mi('restart', 'Restart', '', managed, 'Reboot the device now')
+        + mi('lock', 'Remote lock', '', managed, 'Remotely lock the device')
+        + mi('bitlocker', 'Rotate BitLocker keys', '', managed, 'Rotate BitLocker recovery keys')
+        + mi('rename', 'Rename…', '', managed, 'Rename the device')
+        + mi('retire', 'Retire', '', managed, 'Remove company data, keep personal data')
+        + mi('wipe', 'Wipe (factory reset)', 'danger', managed, 'Irreversible — second admin required')
+        + mi('delete', 'Delete device object', 'danger', hasEntra, 'Irreversible — second admin required');
+      actions = primary + (menu
+        ? `<details class="dev-more"><summary class="btn sm">More ▾</summary><div class="dev-more-menu">${menu}</div></details>` : '');
     }
     const ref = encodeURIComponent(JSON.stringify({ id: d.id, deviceId: d.deviceId, managedDeviceId: d.managedDeviceId, displayName: d.displayName }));
     return `<div class="dev-card" data-dev='${ref}'>
@@ -1348,7 +1367,8 @@ function loadSecurity() {
         <div class="dev-card-info">
           <div class="dev-name">${escHtml(d.displayName || '—')}</div>
           <div class="dev-meta">${escHtml(meta || '—')}</div>
-          <div class="dev-pills">${pills.filter(Boolean).join('')}</div>
+          ${info ? `<div class="dev-info">${info}</div>` : ''}
+          <div class="dev-pills">${pills.join('')}</div>
         </div>
         <div class="dev-state ${enabled ? 'on' : 'off'}">${enabled ? 'enabled' : 'disabled'}</div>
       </div>
@@ -1356,17 +1376,32 @@ function loadSecurity() {
     </div>`;
   }
 
+  function renderSummary(data) {
+    const el = document.getElementById('dev-summary'); if (!el) return;
+    const devices = data.devices || [];
+    if (!devices.length) { el.style.display = 'none'; return; }
+    const cell = (n, k) => `<div class="dev-sum-cell"><span class="dev-sum-n">${n}</span><span class="dev-sum-k">${k}</span></div>`;
+    const compliant    = data.compliant    != null ? data.compliant    : devices.filter(d => d.complianceState === 'compliant').length;
+    const noncompliant = data.noncompliant != null ? data.noncompliant : devices.filter(d => d.complianceState === 'noncompliant').length;
+    const managed      = data.managed      != null ? data.managed      : devices.filter(d => d.isManaged).length;
+    el.style.display = '';
+    el.innerHTML = cell(devices.length, 'devices') + cell(compliant, 'compliant') + cell(noncompliant, 'noncompliant') + cell(managed, 'managed');
+  }
+
   function render(data, context) {
     const el = listEl(); if (!el) return;
+    const sum = document.getElementById('dev-summary');
     if (!data || data.error) {
       el.innerHTML = `<div class="dev-empty err">${escHtml((data && data.error) || 'Lookup failed')}</div>`;
       if (countEl()) countEl().textContent = '0';
       if (contextEl()) contextEl().textContent = '';
+      if (sum) sum.style.display = 'none';
       return;
     }
     const devices = data.devices || [];
     if (contextEl()) contextEl().textContent = context || '';
     if (countEl()) countEl().textContent = String(devices.length);
+    renderSummary(data);
     el.innerHTML = devices.length ? devices.map(deviceRow).join('') : '<div class="dev-empty">No devices found.</div>';
   }
 
@@ -1376,13 +1411,13 @@ function loadSecurity() {
     listEl().innerHTML = '<div class="loading-hint">Loading devices…</div>';
     const data = await window.api.getUserDevices(q.trim());
     const who = (data && data.user && data.user.userPrincipalName) || q.trim();
-    render(data, (data && !data.error) ? `Devices for ${who} — ${data.compliant || 0} compliant, ${data.noncompliant || 0} noncompliant, ${data.managed || 0} managed` : '');
+    render(data, (data && !data.error) ? `Devices for ${who}` : '');
   }
   async function loadStale() {
     _lastQuery = { type: 'stale' };
     listEl().innerHTML = '<div class="loading-hint">Loading stale devices…</div>';
     const data = await window.api.getStaleDevices(90);
-    render(data, (data && !data.error) ? `Stale devices — no sign-in in ${data.days || 90} days (${data.count || 0})` : '');
+    render(data, (data && !data.error) ? `Stale devices — no sign-in in ${data.days || 90} days` : '');
   }
   function refresh() {
     if (!_lastQuery) return;
@@ -1424,18 +1459,51 @@ function loadSecurity() {
 
   const ACTION_COPY = {
     retire: { verb: 'Retire', body: 'Company data and management policies are removed; personal data is left in place.' },
+    lock:   { verb: 'Remote-lock', body: 'The device is locked immediately. The user must unlock it with their passcode.' },
+    restart:{ verb: 'Restart', body: 'The device reboots now. Unsaved work on it may be lost.' },
   };
+
+  // Minimal single-field prompt (no native prompt() in Electron renderers).
+  function textPrompt(title, value, placeholder) {
+    return new Promise(resolve => {
+      const overlay = document.createElement('div');
+      overlay.className = 'pin-overlay';
+      overlay.innerHTML = `
+        <div class="pin-modal">
+          <div class="pin-header"><div class="pin-title">${escHtml(title || 'Enter value')}</div></div>
+          <div style="padding:2px 4px 6px"><input class="tp-input dev-tp" type="text" value="${escHtml(value || '')}" placeholder="${escHtml(placeholder || '')}"></div>
+          <div class="pin-footer">
+            <button class="btn ghost tp-cancel">Cancel</button>
+            <button class="btn primary tp-ok">Save</button>
+          </div>
+        </div>`;
+      document.body.appendChild(overlay);
+      const input = overlay.querySelector('.tp-input');
+      const done = v => { overlay.remove(); resolve(v); };
+      const ok = () => done((input.value || '').trim() || null);
+      overlay.querySelector('.tp-cancel').addEventListener('click', () => done(null));
+      overlay.querySelector('.tp-ok').addEventListener('click', ok);
+      input.addEventListener('keydown', e => { if (e.key === 'Enter') ok(); else if (e.key === 'Escape') done(null); });
+      overlay.addEventListener('click', e => { if (e.target === overlay) done(null); });
+      setTimeout(() => input.focus(), 50);
+    });
+  }
 
   async function doAction(act, dev) {
     const name = dev.displayName || dev.deviceId || dev.id;
     const whatif = (document.getElementById('dev-whatif') || {}).checked !== false;
-    let override = false;
-    if (IRREVERSIBLE.has(act) && !whatif) {
+    document.querySelectorAll('.dev-more[open]').forEach(m => m.removeAttribute('open'));
+    let override = false, newName = null;
+
+    if (act === 'rename') {
+      newName = await textPrompt(`Rename ${name}`, dev.displayName || '', 'New device name');
+      if (!newName) return;
+    } else if (IRREVERSIBLE.has(act) && !whatif) {
       const choice = await destructiveChoice(act, name, currentOperatorRole() === 'admin');
       if (!choice) return;
       override = choice === 'override';
     } else if (ACTION_COPY[act] && !whatif) {
-      const ok = await confirmModal({ title: `${ACTION_COPY[act].verb} ${name}?`, body: ACTION_COPY[act].body, danger: true, okLabel: ACTION_COPY[act].verb });
+      const ok = await confirmModal({ title: `${ACTION_COPY[act].verb} ${name}?`, body: ACTION_COPY[act].body, danger: act === 'retire', okLabel: ACTION_COPY[act].verb });
       if (!ok) return;
     }
     let writeToken = null;
@@ -1444,7 +1512,7 @@ function loadSecurity() {
       if (!t) return;
       writeToken = typeof t === 'string' ? t : null;
     }
-    const res = await window.api.deviceAction({ action: act, deviceId: dev.id || dev.deviceId, deviceName: dev.displayName, whatif, writeToken, override });
+    const res = await window.api.deviceAction({ action: act, deviceId: dev.id || dev.deviceId, deviceName: dev.displayName, newName, whatif, writeToken, override });
     if (res && res.approvalQueued) {
       showToast(`${name}: ${act} queued for a second admin's approval`, 'info');
     } else if (res && res.ok) {
@@ -1499,8 +1567,8 @@ function loadSecurity() {
     if (/\bstale\b/i.test(text) && !user) { assistNote('Listing stale devices — no sign-in in 90 days.'); loadStale(); return; }
     if (user) {
       const acting = ACTION_WORD.test(text);
-      assistNote(`Showing devices for <b>${escHtml(user)}</b>.` + (acting ? ' To run an action, use the buttons on the device below, or hand it to the Approver agent for guided, approval-gated execution.' : ''), acting, text);
-      if (sInput) sInput.value = user;
+      assistNote(`Showing devices for <b>${escHtml(user)}</b>.` + (acting ? ' Use the action buttons on the device below, or the Approver agent for guided, approval-gated execution.' : ''), acting, text);
+      if (askInput) askInput.value = user;
       search(user);
       return;
     }
@@ -1511,33 +1579,25 @@ function loadSecurity() {
     assistNote('I only answer device questions here. For anything else, use the Approver agent.', true, text);
   }
 
+  // Single bar: interprets device questions (handleDeviceAsk routes a plain user
+  // lookup straight to search, refers non-device requests to the Approver).
   const askInput = document.getElementById('dev-ask-input');
   document.getElementById('dev-ask-send')?.addEventListener('click', () => handleDeviceAsk(askInput && askInput.value));
   askInput?.addEventListener('keydown', e => { if (e.key === 'Enter') handleDeviceAsk(askInput.value); });
-  document.getElementById('dev-chips')?.addEventListener('click', e => {
-    const chip = e.target.closest('.dev-chip'); if (!chip) return;
-    const q = chip.dataset.devq || '';
-    if (chip.dataset.send === '1') { handleDeviceAsk(q); }
-    else if (askInput) { askInput.value = q; askInput.focus(); }
-  });
-
-  const sInput = document.getElementById('dev-search-input');
-  document.getElementById('btn-dev-search')?.addEventListener('click', () => search(sInput && sInput.value));
-  sInput?.addEventListener('keydown', e => { if (e.key === 'Enter') search(sInput.value); });
   document.getElementById('btn-dev-stale')?.addEventListener('click', loadStale);
   listEl()?.addEventListener('click', e => {
     const b = e.target.closest('[data-dev-act]'); if (!b) return;
-    const row = b.closest('.dev-row'); if (!row) return;
-    let dev = {}; try { dev = JSON.parse(decodeURIComponent(row.dataset.dev)); } catch {}
+    const card = b.closest('.dev-card'); if (!card) return;
+    let dev = {}; try { dev = JSON.parse(decodeURIComponent(card.dataset.dev)); } catch {}
     doAction(b.dataset.devAct, dev);
   });
 
   // Cross-tab entry point (e.g. the "Devices" jump on a user profile): prefill
-  // the search box and load that user's devices.
+  // the bar and load that user's devices.
   window.JmlDevices = {
     openForUser(upn) {
       if (!upn) return;
-      if (sInput) sInput.value = upn;
+      if (askInput) askInput.value = upn;
       search(upn);
     },
   };

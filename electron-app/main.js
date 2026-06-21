@@ -549,11 +549,11 @@ const APPROVER_TOOLS = [
   },
   {
     name: 'manage_device',
-    description: "Manage a user's device through its lifecycle. Identify the device by its Entra device id, Azure AD deviceId, or display name (use list_user_devices first to resolve it). Actions: enable / disable (Entra device sign-in), sync (force Intune check-in), rename, retire (remove company data, leave personal data), wipe (factory reset — destructive), delete (remove the Entra device object — destructive). Destructive actions (wipe, delete) require an admin operator; retire requires helpdesk or admin. Always confirm the exact device and action with the operator first.",
+    description: "Manage a user's device through its lifecycle. Identify the device by its Entra device id, Azure AD deviceId, or display name (use list_user_devices first to resolve it). Actions: enable / disable (Entra device sign-in), sync (force Intune check-in), restart, lock (remote lock), bitlocker (rotate BitLocker recovery keys), rename, retire (remove company data, leave personal data), wipe (factory reset — irreversible), delete (remove the Entra device object — irreversible). Irreversible actions (wipe, delete) are NOT executed on request — they queue for a second admin's approval. Always confirm the exact device and action with the operator first.",
     input_schema: {
       type: 'object',
       properties: {
-        action:          { type: 'string', enum: ['enable', 'disable', 'sync', 'retire', 'wipe', 'delete', 'rename'] },
+        action:          { type: 'string', enum: ['enable', 'disable', 'sync', 'restart', 'lock', 'bitlocker', 'rename', 'retire', 'wipe', 'delete'] },
         deviceId:        { type: 'string', description: 'Entra device object id or Azure AD deviceId.' },
         deviceName:      { type: 'string', description: 'Device display name (alternative to deviceId).' },
         newName:         { type: 'string', description: 'Required for the rename action.' },
@@ -1656,7 +1656,7 @@ async function executeTool(agent, toolName, input, whatif) {
       return { error: 'RBAC: device management requires a helpdesk or admin account.' };
     }
     const action = String(input.action || '').toLowerCase();
-    const valid = ['enable', 'disable', 'sync', 'retire', 'wipe', 'delete', 'rename'];
+    const valid = ['enable', 'disable', 'sync', 'restart', 'lock', 'bitlocker', 'rename', 'retire', 'wipe', 'delete'];
     if (!valid.includes(action)) return { error: `manage_device: action must be one of ${valid.join(', ')}.` };
     if (action === 'rename' && !input.newName) return { error: 'manage_device: rename requires newName.' };
     if (!input.deviceId && !input.deviceName) {
@@ -2274,7 +2274,7 @@ ipcMain.handle('get-stale-devices', async (_e, { days } = {}) => {
 ipcMain.handle('device-action', async (_e, payload = {}) => {
   const { action, deviceId, deviceName, newName, whatif, writeToken, ticketRef, override } = payload;
   const act = String(action || '').toLowerCase();
-  const valid = ['enable', 'disable', 'sync', 'retire', 'wipe', 'delete', 'rename'];
+  const valid = ['enable', 'disable', 'sync', 'restart', 'lock', 'bitlocker', 'rename', 'retire', 'wipe', 'delete'];
   if (!valid.includes(act)) return { ok: false, error: 'Invalid device action.' };
   if (PRESENTATION_MODE) {
     return { ok: true, action: act, device: deviceName || deviceId, demo: true, committed: false,

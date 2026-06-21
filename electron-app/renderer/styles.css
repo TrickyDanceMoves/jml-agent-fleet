@@ -2361,6 +2361,45 @@ strong.risk-low      { color: var(--emerald) !important; }
 .dev-readonly { font-size: 11px; color: var(--text-3); font-style: italic; }
 .dev-empty { padding: 22px; text-align: center; color: var(--text-3); font-size: 12.5px; }
 .dev-empty.err { color: var(--crit); }
+.dev-info { font-family: var(--mono); font-size: 10.5px; color: var(--text-3); margin: 0 0 7px; }
+
+/* Single search/ask bar */
+.dev-bar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+.dev-bar > input[type=search] {
+  flex: 1; min-width: 240px; padding: 9px 12px; font-size: 13px; outline: 0;
+  background: var(--bg-2); border: 1px solid var(--border); border-radius: 9px; color: var(--text-1);
+}
+.dev-bar > input[type=search]:focus { border-color: var(--accent); }
+.dev-bar-spacer { display: none; }
+.dev-bar .dev-safe { margin-left: auto; }
+
+/* Summary counts */
+.dev-summary { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
+.dev-sum-cell {
+  display: flex; flex-direction: column; gap: 1px; padding: 8px 14px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 9px; min-width: 86px;
+}
+.dev-sum-n { font-size: 18px; font-weight: 600; color: var(--text-1); line-height: 1.1; }
+.dev-sum-k { font-size: 10.5px; text-transform: uppercase; letter-spacing: .07em; color: var(--text-3); }
+
+/* "More" actions menu */
+.dev-more { position: relative; display: inline-block; }
+.dev-more > summary { list-style: none; cursor: pointer; }
+.dev-more > summary::-webkit-details-marker { display: none; }
+.dev-more-menu {
+  position: absolute; right: 0; top: calc(100% + 4px); z-index: 30;
+  background: var(--surface); border: 1px solid var(--border-strong); border-radius: 9px;
+  padding: 4px; min-width: 190px; display: flex; flex-direction: column;
+  box-shadow: 0 10px 28px oklch(0 0 0 / .5);
+}
+.dev-more-menu button {
+  text-align: left; background: none; border: 0; color: var(--text-1);
+  padding: 8px 10px; border-radius: 6px; cursor: pointer; font-size: 12.5px; font-family: inherit;
+}
+.dev-more-menu button:hover { background: var(--bg-2); }
+.dev-more-menu button.danger { color: var(--crit); }
+.dev-tp { width: 100%; padding: 9px 11px; font-size: 13px; outline: 0; background: var(--bg-2); border: 1px solid var(--border); border-radius: 8px; color: var(--text-1); }
+.dev-tp:focus { border-color: var(--accent); }
 
 /* Side rail */
 .sec-rail { display: flex; flex-direction: column; gap: 12px; }
