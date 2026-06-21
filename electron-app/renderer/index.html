@@ -109,6 +109,10 @@
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
             <span>Users</span>
           </button>
+          <button class="nav-item" data-tab="devices" title="Devices">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+            <span>Devices</span>
+          </button>
           <button class="nav-item" data-tab="graph" title="Graph Runner">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
             <span>Graph Runner</span>
@@ -1830,6 +1834,38 @@
                 <button class="btn danger-outline" id="udp-btn-leaver-soft">Soft Leave</button>
                 <button class="btn danger" id="udp-btn-leaver-hard">Hard Leave</button>
               </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- =====================================================
+             VIEW · DEVICES
+             ===================================================== -->
+        <section class="view" id="view-devices">
+          <div class="head">
+            <div>
+              <h1 class="h1">Devices <span class="sub"><span id="dev-count">0</span> shown</span></h1>
+              <p class="desc">Entra-registered devices joined with their Intune managed records — compliance, encryption, and last check-in. Run the full lifecycle: sync, rename, disable, retire, wipe, or delete. Live actions are audited and gated by role + PIN.</p>
+            </div>
+          </div>
+
+          <div class="toolbar">
+            <input id="dev-search-input" type="search" placeholder="User UPN or display name…" style="min-width:280px" autocomplete="off">
+            <button class="btn primary" id="btn-dev-search">Find devices</button>
+            <button class="btn" id="btn-dev-stale" title="Devices with no sign-in in 90 days">Stale devices</button>
+            <div class="spacer"></div>
+            <label class="mode-inline" style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text-2)">
+              <input type="checkbox" id="dev-whatif" checked> Safe mode (simulate)
+            </label>
+          </div>
+
+          <div id="dev-context" class="dim-label" style="margin:4px 2px 10px"></div>
+          <div class="utable">
+            <div class="utable-h" style="display:grid;grid-template-columns:1fr 120px 120px 1fr;gap:10px">
+              <span>DEVICE</span><span>COMPLIANCE</span><span>STATE</span><span>ACTIONS</span>
+            </div>
+            <div id="dev-list">
+              <div class="loading-hint">Search a user to list their devices, or click <b>Stale devices</b>.</div>
             </div>
           </div>
         </section>

@@ -59,6 +59,31 @@ test('demo mode answers the new device tools', () => {
   assert.match(main, /const MOCK_DEVICES = \[/);
 });
 
+test('Devices tab is wired end to end (UI + preload + main IPC)', () => {
+  const html = fs.readFileSync(path.join(root, 'renderer', 'index.html'), 'utf8');
+  const app = fs.readFileSync(path.join(root, 'renderer', 'app.js'), 'utf8');
+  const preload = fs.readFileSync(path.join(root, 'preload.js'), 'utf8');
+  // Nav + view + key controls.
+  assert.match(html, /data-tab="devices"/);
+  assert.match(html, /id="view-devices"/);
+  assert.match(html, /id="dev-search-input"/);
+  assert.match(html, /id="btn-dev-stale"/);
+  assert.match(html, /id="dev-whatif"/);
+  // Renderer registration + module.
+  assert.match(app, /devices: 'Devices'/);
+  assert.match(app, /TABS_WITH_MODE = new Set\(\[[^\]]*'devices'/);
+  assert.match(app, /function initDevicesTab\(\)/);
+  assert.match(app, /window\.api\.deviceAction\(/);
+  // Preload bridges.
+  assert.match(preload, /getUserDevices:[\s\S]*?invoke\('get-user-devices'/);
+  assert.match(preload, /deviceAction:[\s\S]*?invoke\('device-action'/);
+  // Main IPC handlers + RBAC on the write path.
+  assert.match(main, /ipcMain\.handle\('get-user-devices'/);
+  assert.match(main, /ipcMain\.handle\('device-action'/);
+  assert.match(main, /Device management requires a helpdesk or admin account/);
+  assert.match(main, /PIN verification required for Live device actions/);
+});
+
 test('both prompts describe device capabilities', () => {
   const auditor = main.match(/function buildAuditorSystem\([\s\S]*?\.trim\(\); \}/)[0];
   const approver = main.match(/function buildApproverSystem\([\s\S]*?\.trim\(\); \}/)[0];

@@ -2180,6 +2180,57 @@ ipcMain.on('get-security-reports', (event) => {
   });
 });
 
+// ── Devices tab (read + lifecycle actions) ──────────────────────────────────
+// Direct IPC surface for the Devices UI, reusing the same scripts the chat
+// agents call. Reads are open to any role; writes mirror the manage_device RBAC
+// (read-only blocked, destructive wipe/delete admin-only) and require a fresh
+// PIN write token in Live mode — the same gate as the quick lifecycle ops.
+ipcMain.handle('get-user-devices', async (_e, { upnOrName } = {}) => {
+  if (PRESENTATION_MODE) return executeDemoTool('approver', 'list_user_devices', { upnOrName });
+  if (!upnOrName) return { error: 'upnOrName required' };
+  try {
+    const raw = await runPsAsync(path.join(AGENTS_DIR, 'auditor', 'Invoke-DeviceQuery.ps1'), { QueryType: 'UserDevices', UpnOrName: upnOrName });
+    return _parseMultilineJson(raw, 'No output from device query');
+  } catch (e) { return { error: e.message }; }
+});
+ipcMain.handle('get-stale-devices', async (_e, { days } = {}) => {
+  if (PRESENTATION_MODE) return executeDemoTool('approver', 'query_stale_devices', { days });
+  try {
+    const raw = await runPsAsync(path.join(AGENTS_DIR, 'auditor', 'Invoke-DeviceQuery.ps1'), { QueryType: 'StaleDevices', Days: days || 90 });
+    return _parseMultilineJson(raw, 'No output from device query');
+  } catch (e) { return { error: e.message }; }
+});
+ipcMain.handle('device-action', async (_e, payload = {}) => {
+  const { action, deviceId, deviceName, newName, whatif, writeToken, ticketRef } = payload;
+  const act = String(action || '').toLowerCase();
+  const valid = ['enable', 'disable', 'sync', 'retire', 'wipe', 'delete', 'rename'];
+  if (!valid.includes(act)) return { ok: false, error: 'Invalid device action.' };
+  if (PRESENTATION_MODE) {
+    return { ok: true, action: act, device: deviceName || deviceId, demo: true, committed: false,
+      lines: [`[DEMO] device ${act} simulated for ${deviceName || deviceId}. No tenant change was committed.`] };
+  }
+  const role = (currentRole || 'viewer').toLowerCase();
+  if (role === 'viewer' || role === 'guest') return { ok: false, error: 'Device management requires a helpdesk or admin account.' };
+  if ((act === 'wipe' || act === 'delete') && role !== 'admin') {
+    return { ok: false, error: `'${act}' is destructive and requires an admin operator (current role: ${role}).` };
+  }
+  if (act === 'rename' && !newName) return { ok: false, error: 'rename requires a new name.' };
+  if (!deviceId && !deviceName) return { ok: false, error: 'deviceId or deviceName required.' };
+  // Live writes require a fresh PIN write token — same gate as quick lifecycle ops.
+  if (!whatif) {
+    if (!writeToken) return { ok: false, error: 'PIN verification required for Live device actions.' };
+    const check = consumeWriteToken(writeToken, currentOperator);
+    if (!check.ok) return { ok: false, error: 'PIN verification failed: ' + check.reason };
+  }
+  const _pf = writePayloadFile({ action: act, deviceId, deviceName, newName, ticketRef });
+  try {
+    const result = parsePs1Output(await runPsAsync(path.join(AGENTS_DIR, 'enroller', 'Invoke-DeviceAction.ps1'), { PayloadPath: _pf, WhatIf: !!whatif }));
+    return { ok: true, action: act, lines: result.lines, data: result.data };
+  } catch (e) {
+    return { ok: false, error: extractPsError(e.stdout, e.stderr) || e.message };
+  } finally { try { fs.unlinkSync(_pf); } catch {} }
+});
+
 // ── Exports tab ───────────────────────────────────────────────────────────────
 ipcMain.on('get-exports-status', (event) => {
   if (PRESENTATION_MODE) {

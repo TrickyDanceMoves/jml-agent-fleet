@@ -168,6 +168,11 @@ contextBridge.exposeInMainWorld('api', {
   getSecurityAssignments:  ()                 => ipcRenderer.invoke('get-security-assignments'),
   saveSecurityAssignments: (assignments)      => ipcRenderer.invoke('save-security-assignments', { assignments }),
 
+  // Devices — user/stale device reads + lifecycle actions
+  getUserDevices:  (upnOrName) => ipcRenderer.invoke('get-user-devices', { upnOrName }),
+  getStaleDevices: (days)      => ipcRenderer.invoke('get-stale-devices', { days }),
+  deviceAction:    (payload)   => ipcRenderer.invoke('device-action', payload),
+
   // Tenant onboarding wizard
   startDeviceCodeSignin:        ()              => ipcRenderer.invoke('start-device-code-signin'),
   checkDeviceCodeStatus:        ()              => ipcRenderer.invoke('check-device-code-status'),

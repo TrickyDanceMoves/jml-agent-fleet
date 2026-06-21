@@ -57,6 +57,7 @@ const TAB_TITLES = {
   'audit-log': 'Audit Log',
   exports: 'Exports',
   users: 'Users',
+  devices: 'Devices',
   certs: 'Agent Certificates',
   settings: 'Settings'
 };
@@ -152,7 +153,7 @@ function setupPageBriefs() {
 
 setupPageBriefs();
 
-const TABS_WITH_MODE = new Set(['approver', 'approvals', 'operations', 'users']);
+const TABS_WITH_MODE = new Set(['approver', 'approvals', 'operations', 'users', 'devices']);
 
 function switchTab(tab) {
   document.querySelectorAll('.nav-item').forEach(el => el.classList.toggle('active', el.dataset.tab === tab));
@@ -1287,6 +1288,133 @@ function loadSecurity() {
   window.api.getSecurityReports();
   window.api.getAgentHealth();
 }
+
+// ── Devices tab ────────────────────────────────────────────────────────────
+// User-scoped device list (Entra + Intune) with full lifecycle actions. Reads
+// are open to any role; writes mirror the server RBAC (read-only blocked,
+// wipe/delete admin-only) and require Safe-mode-off + PIN for Live.
+(function initDevicesTab() {
+  const listEl    = () => document.getElementById('dev-list');
+  const countEl   = () => document.getElementById('dev-count');
+  const contextEl = () => document.getElementById('dev-context');
+  let _lastQuery = null;
+
+  function fmtSync(s) {
+    if (!s) return 'never';
+    const d = new Date(s); if (isNaN(d)) return '—';
+    const days = Math.floor((Date.now() - d) / 86400000);
+    return days <= 0 ? 'today' : days + 'd ago';
+  }
+  function complianceBadge(d) {
+    const c = String(d.complianceState || '').toLowerCase();
+    if (c === 'compliant')    return '<span class="tag info" style="color:var(--ok);border-color:var(--ok)">compliant</span>';
+    if (c === 'noncompliant') return '<span class="tag crit">noncompliant</span>';
+    if (!d.isManaged)         return '<span class="tag" style="opacity:.6">unmanaged</span>';
+    return '<span class="tag warn">' + escHtml(d.complianceState || 'unknown') + '</span>';
+  }
+
+  function deviceRow(d) {
+    const role = currentOperatorRole();
+    const canWrite = role === 'admin' || role === 'helpdesk';
+    const isAdmin  = role === 'admin';
+    const enabled  = d.accountEnabled !== false;
+    const managed  = !!d.managedDeviceId;
+    const hasEntra = !!d.id;
+    const meta = [[d.operatingSystem, d.operatingSystemVersion].filter(Boolean).join(' '), d.trustType, d.model].filter(Boolean).join(' · ');
+    const btn = (act, label, cls, on) => on ? `<button class="btn sm ${cls || ''}" data-dev-act="${act}">${label}</button>` : '';
+    let actions = '<span class="dim-label" style="font-size:11px">read-only</span>';
+    if (canWrite) {
+      actions = btn('sync', 'Sync', '', managed)
+        + (enabled ? btn('disable', 'Disable', '', hasEntra) : btn('enable', 'Enable', '', hasEntra))
+        + btn('retire', 'Retire', '', managed)
+        + btn('wipe', 'Wipe', 'danger', managed && isAdmin)
+        + btn('delete', 'Delete', 'danger', hasEntra && isAdmin);
+    }
+    const ref = encodeURIComponent(JSON.stringify({ id: d.id, deviceId: d.deviceId, managedDeviceId: d.managedDeviceId, displayName: d.displayName }));
+    return `<div class="dev-row" data-dev='${ref}' style="display:grid;grid-template-columns:1fr 120px 120px 1fr;gap:10px;align-items:center;padding:10px 4px;border-bottom:1px solid var(--border)">
+      <div style="min-width:0">
+        <div style="font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(d.displayName || '—')}</div>
+        <div class="mono" style="font-size:10.5px;color:var(--text-3)">${escHtml(meta || '—')}</div>
+      </div>
+      <div>${complianceBadge(d)}</div>
+      <div class="mono" style="font-size:10.5px;color:var(--text-3)">${enabled ? 'enabled' : '<span style="color:var(--crit)">disabled</span>'}<br>sync ${fmtSync(d.lastSyncDateTime)}</div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">${actions}</div>
+    </div>`;
+  }
+
+  function render(data, context) {
+    const el = listEl(); if (!el) return;
+    if (!data || data.error) {
+      el.innerHTML = `<div class="loading-hint" style="color:var(--crit)">${escHtml((data && data.error) || 'Lookup failed')}</div>`;
+      if (countEl()) countEl().textContent = '0';
+      if (contextEl()) contextEl().textContent = '';
+      return;
+    }
+    const devices = data.devices || [];
+    if (contextEl()) contextEl().textContent = context || '';
+    if (countEl()) countEl().textContent = String(devices.length);
+    el.innerHTML = devices.length ? devices.map(deviceRow).join('') : '<div class="loading-hint">No devices found.</div>';
+  }
+
+  async function search(q) {
+    if (!q || !q.trim()) { showToast('Enter a user UPN or name', 'warning'); return; }
+    _lastQuery = { type: 'user', value: q.trim() };
+    listEl().innerHTML = '<div class="loading-hint">Loading devices…</div>';
+    const data = await window.api.getUserDevices(q.trim());
+    const who = (data && data.user && data.user.userPrincipalName) || q.trim();
+    render(data, (data && !data.error) ? `Devices for ${who} — ${data.compliant || 0} compliant, ${data.noncompliant || 0} noncompliant, ${data.managed || 0} managed` : '');
+  }
+  async function loadStale() {
+    _lastQuery = { type: 'stale' };
+    listEl().innerHTML = '<div class="loading-hint">Loading stale devices…</div>';
+    const data = await window.api.getStaleDevices(90);
+    render(data, (data && !data.error) ? `Stale devices — no sign-in in ${data.days || 90} days (${data.count || 0})` : '');
+  }
+  function refresh() {
+    if (!_lastQuery) return;
+    if (_lastQuery.type === 'user') search(_lastQuery.value); else loadStale();
+  }
+
+  const ACTION_COPY = {
+    retire: { verb: 'Retire', body: 'Company data and management policies are removed; personal data is left in place.' },
+    wipe:   { verb: 'Factory-wipe', body: 'A factory reset erases ALL data on the device. This is irreversible.' },
+    delete: { verb: 'Delete', body: 'The Entra device object is removed. The device must re-register to return.' },
+  };
+
+  async function doAction(act, dev) {
+    const name = dev.displayName || dev.deviceId || dev.id;
+    const whatif = (document.getElementById('dev-whatif') || {}).checked !== false;
+    const copy = ACTION_COPY[act];
+    if (copy && !whatif) {
+      const ok = await confirmModal({ title: `${copy.verb} ${name}?`, body: copy.body, danger: true, okLabel: copy.verb });
+      if (!ok) return;
+    }
+    let writeToken = null;
+    if (!whatif) {
+      const t = await requirePinIfNeeded(`Confirm Live device ${act}`);
+      if (!t) return;
+      writeToken = typeof t === 'string' ? t : null;
+    }
+    const res = await window.api.deviceAction({ action: act, deviceId: dev.id || dev.deviceId, deviceName: dev.displayName, whatif, writeToken });
+    if (res && res.ok) {
+      showToast(`${name}: ${act} ${whatif ? 'simulated (Safe)' : 'submitted'}`, 'info');
+      if (!whatif) setTimeout(refresh, 900);
+    } else {
+      showToast((res && res.error) || `Device ${act} failed`, 'warning');
+    }
+  }
+
+  const sInput = document.getElementById('dev-search-input');
+  document.getElementById('btn-dev-search')?.addEventListener('click', () => search(sInput && sInput.value));
+  sInput?.addEventListener('keydown', e => { if (e.key === 'Enter') search(sInput.value); });
+  document.getElementById('btn-dev-stale')?.addEventListener('click', loadStale);
+  listEl()?.addEventListener('click', e => {
+    const b = e.target.closest('[data-dev-act]'); if (!b) return;
+    const row = b.closest('.dev-row'); if (!row) return;
+    let dev = {}; try { dev = JSON.parse(decodeURIComponent(row.dataset.dev)); } catch {}
+    doAction(b.dataset.devAct, dev);
+  });
+})();
 
 function buildCountBadges(crit, warn, info) {
   const parts = [];
