@@ -1,6 +1,6 @@
 # yaml-language-server: $schema=https://aka.ms/winget-manifest.defaultLocale.1.6.0.schema.json
 PackageIdentifier: NicholasBohanan.JMLConsole
-PackageVersion: 1.1.11
+PackageVersion: 1.1.12
 PackageLocale: en-US
 Publisher: Nicholas Bohanan
 PublisherUrl: https://github.com/TrickyDanceMoves/jml-agent-fleet
@@ -9,11 +9,11 @@ PackageName: JML Console
 PackageUrl: https://github.com/TrickyDanceMoves/jml-agent-fleet
 License: Proprietary
 LicenseUrl: https://github.com/TrickyDanceMoves/jml-agent-fleet/blob/main/LICENSE
-Copyright: Copyright (c) 2026 Nicholas Bohanan - JML Agent Fleet. All rights reserved.
+Copyright: Copyright (c) 2026 Nicholas Bohanan — JML Agent Fleet. All rights reserved.
 ShortDescription: AI-powered identity lifecycle automation for Microsoft Entra ID.
 Description: >-
-  JML Console is the desktop command center for the JML Agent Fleet: eight agents -
-  two AI-backed (Approver, Auditor) and six PowerShell - that automate the full
+  JML Console is the desktop command center for the JML Agent Fleet: eight agents —
+  two AI-backed (Approver, Auditor) and six PowerShell — that automate the full
   Joiner/Mover/Leaver identity lifecycle on Microsoft Entra ID. Reasoning agents run
   as first-class Entra Agent IDs and only propose changes; execution runs behind a
   policy-gated control plane (dual approval, separation of duties, risk scoring) on
@@ -30,6 +30,6 @@ Tags:
   - microsoft-graph
   - ai-agents
   - governance
-ReleaseNotesUrl: https://github.com/TrickyDanceMoves/jml-agent-fleet/releases/tag/v1.1.11
+ReleaseNotesUrl: https://github.com/TrickyDanceMoves/jml-agent-fleet/releases/tag/v1.1.12
 ManifestType: defaultLocale
 ManifestVersion: 1.6.0
