@@ -36,6 +36,28 @@ test('global web-contents guard: deny popups, webviews, and remote navigation', 
   assert.match(main, /login\.microsoftonline\.com/);
 });
 
+test('IPC is gated by a trusted-sender check on every channel', () => {
+  assert.match(main, /function _isTrustedSender\(event\)/);
+  assert.match(main, /new URL\(u\)\.protocol === 'file:'/, 'only file:// renderer frames are trusted');
+  // ipcMain.handle and ipcMain.on are wrapped so the gate applies uniformly.
+  assert.match(main, /ipcMain\.handle = \(channel, listener\) =>/);
+  assert.match(main, /ipcMain\.on = \(channel, listener\) =>/);
+  assert.match(main, /_isTrustedSender\(event\)/);
+});
+
+test('high-privilege IPC channels validate their payload schema', () => {
+  assert.match(main, /function _validatePayload\(schema, payload\)/);
+  assert.match(main, /const IPC_SCHEMAS = \{/);
+  for (const ch of ['run-quick-leaver', 'run-quick-joiner', 'run-quick-mover', 'device-action',
+                    'quarantine-agent', 'activate-pim-role', 'create-agent-app-registrations',
+                    'save-operators', 'save-policy', 'save-tenant-config']) {
+    assert.match(main, new RegExp("'" + ch + "':\\s*\\{"), `schema missing for ${ch}`);
+  }
+  // The validator is wired into the IPC wrappers.
+  assert.match(main, /const schema = IPC_SCHEMAS\[channel\]/);
+  assert.match(main, /_validatePayload\(schema, args\[0\]\)/);
+});
+
 test('permissions are denied by default', () => {
   assert.match(main, /setPermissionRequestHandler\(\(_wc, _perm, cb\)\s*=>\s*cb\(false\)\)/);
   assert.match(main, /setPermissionCheckHandler\(\(\)\s*=>\s*false\)/);
