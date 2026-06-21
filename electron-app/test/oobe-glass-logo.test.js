@@ -51,10 +51,13 @@ for (const file of Object.keys(SURFACES)) {
   test(`${file}: persisted theme applies before first paint`, () => {
     const html = read(file);
     const headBeforeStyle = html.slice(0, html.indexOf('<style>'));
-    assert.match(headBeforeStyle, /localStorage\.getItem\('jmlTheme'\)/,
-      'theme bootstrap script must run before the stylesheet');
-    assert.match(headBeforeStyle, /documentElement\.dataset\.theme/,
-      'bootstrap sets data-theme on the document element');
+    // The bootstrap is an external script (so the page CSP can drop 'unsafe-inline')
+    // but must still load before the stylesheet to set the theme pre-paint.
+    assert.match(headBeforeStyle, /<script src="theme-bootstrap\.js"><\/script>/,
+      'external theme bootstrap must load before the stylesheet');
+    const boot = fs.readFileSync(path.join(__dirname, '..', 'renderer', 'theme-bootstrap.js'), 'utf8');
+    assert.match(boot, /localStorage\.getItem\('jmlTheme'\)/, 'bootstrap reads the persisted theme');
+    assert.match(boot, /documentElement\.dataset\.theme/, 'bootstrap sets data-theme on the document element');
   });
 }
 

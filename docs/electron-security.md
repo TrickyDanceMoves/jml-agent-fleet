@@ -38,11 +38,19 @@ context-isolated with Node integration disabled.
 
 ## Recommended next steps
 
-- [x] Strict Content-Security-Policy on the main renderer (`index.html`):
-      `default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'`.
-      (No inline `<script>` or inline event handlers, so `script-src 'self'` holds.)
-- [ ] Extend the same CSP to the secondary renderer HTML (operator-select, setup, overlay, docked, palette).
+- [x] Strict Content-Security-Policy on **every** renderer page (index, operator-select,
+      setup, overlay, docked, palette): `script-src 'self'` (no inline `<script>` or
+      inline event handlers — all page logic is in external `.js` files), plus
+      `object-src 'none'`, `base-uri 'self'`, `frame-ancestors 'none'`, `form-action 'self'`.
+      The OOBE theme bootstrap was externalized to `theme-bootstrap.js` so the OOBE
+      pages could drop `'unsafe-inline'` from `script-src`.
 - [x] Set `sandbox: true` after moving Node-dependent preload logic into main-process IPC.
+- [x] Lock down the renderer at the process level: a global `web-contents-created` guard
+      blocks remote navigation (`will-navigate`/`will-redirect` — only `file://` and
+      Microsoft sign-in hosts), denies `window.open`/`target=_blank` (`setWindowOpenHandler`),
+      and refuses `<webview>` (`will-attach-webview`). All web permission requests/checks
+      are denied. External links go through the https host-allowlisted `open-external` IPC.
+      Regression-locked by `test/electron-hardening.test.js`.
 - [ ] Validate `event.senderFrame` origin in each IPC handler (defence in depth).
 - [ ] Add a JSON-schema validator for IPC payloads on the highest-privilege channels
       (`run-quick-leaver`, `activate-pim-role`, `create-agent-app-registrations`,
