@@ -7,7 +7,8 @@ const test = require('node:test');
 
 const root = path.join(__dirname, '..');
 const main = fs.readFileSync(path.join(root, 'main.js'), 'utf8');
-const setup = fs.readFileSync(path.join(root, 'renderer', 'setup.html'), 'utf8');
+// The OOBE setup logic is now an external script (CSP: no inline scripts).
+const setup = fs.readFileSync(path.join(root, 'renderer', 'setup.js'), 'utf8');
 const html = fs.readFileSync(path.join(root, 'renderer', 'index.html'), 'utf8');
 const app = fs.readFileSync(path.join(root, 'renderer', 'app.js'), 'utf8');
 

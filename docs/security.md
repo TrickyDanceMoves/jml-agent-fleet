@@ -20,6 +20,7 @@
 | Credential expiry alerts | Active | 60-day warning through `Test-CredentialExpiry` |
 | Purview integration path | Implemented | Termination records can flow to the configured HR connector |
 | Workload Identity Conditional Access | Partial | Service-principal enforcement requires Entra Workload Identities Premium (not held by the demo tenant), so no SP policy is deployed. The Agent ID-scoped policy (`AgentGeneralCAPol`, target `AllAgentIdResources`, grant `block`) is enabled and verified via Graph — pre-staged with an empty principal scope on the tenant's existing P1/P2 licensing. |
+| Electron app hardening | Active | Every window runs `sandbox:true` + `contextIsolation:true` + `nodeIntegration:false`. A global `web-contents-created` guard blocks renderer-initiated navigation (only `file://` app pages and Microsoft sign-in hosts allowed), denies `window.open`/`target=_blank`, and refuses `<webview>` attachment. All web permission requests/checks are denied. Each page ships a CSP with `script-src 'self'` (no inline scripts — all logic is external), `object-src 'none'`, `base-uri 'self'`, `frame-ancestors 'none'`, `form-action 'self'`. External links route through an https host-allowlist (`open-external`). Locked by `electron-hardening.test.js`. |
 
 ## Audit Log Format
 
@@ -57,5 +58,4 @@ and Teams notifications when configured.
 |---|---|---|
 | Service-principal Workload Identity CA not verified | Medium | Certificate auth, isolated identities, least privilege, and quarantine controls; policy script requires the premium SKU |
 | Agent ID Conditional Access pre-staged (empty scope) | Low | Policy enabled and verified via Graph but not yet scoped to principals; plus native owner/sponsor governance, read-only Agent ID scopes, and separate write execution identities |
-| Electron sandbox disabled | Medium | CSP, context isolation, bounded preload APIs, and documented migration path |
 | Tenant-specific public artifacts | Medium | Sanitize screenshots and move tenant-bound identifiers to ignored runtime config before submission |

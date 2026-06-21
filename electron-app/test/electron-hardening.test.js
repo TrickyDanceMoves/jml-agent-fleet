@@ -57,12 +57,14 @@ test('every renderer page ships a CSP with the key restrictive directives', () =
     assert.match(csp, /base-uri 'self'/, `${name}: base-uri self`);
     assert.match(csp, /frame-ancestors 'none'/, `${name}: frame-ancestors none`);
     assert.ok(!/script-src[^;]*\bhttp/.test(csp), `${name}: no remote script-src`);
+    // No page allows inline scripts — all logic is in external files.
+    assert.match(csp, /script-src 'self'/, `${name}: script-src self`);
+    assert.ok(!/script-src[^;]*'unsafe-inline'/.test(csp), `${name}: no unsafe-inline scripts`);
   }
 });
 
-test('the main window CSP does not allow inline scripts', () => {
-  const idx = HTML.find(([n]) => n === 'index')[1];
-  const csp = idx.match(/Content-Security-Policy"\s+content="([^"]+)"/)[1];
-  assert.match(csp, /script-src 'self'/);
-  assert.ok(!/script-src[^;]*'unsafe-inline'/.test(csp), 'index must not allow unsafe-inline scripts');
+test('no renderer page carries an inline <script> body (all logic is external)', () => {
+  for (const [name, html] of HTML) {
+    assert.ok(!/<script>[\s\S]*?<\/script>/.test(html), `${name}: inline <script> body found`);
+  }
 });
