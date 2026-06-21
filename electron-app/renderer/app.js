@@ -1322,7 +1322,6 @@ function loadSecurity() {
   function deviceRow(d) {
     const role = currentOperatorRole();
     const canWrite = role === 'admin' || role === 'helpdesk';
-    const isAdmin  = role === 'admin';
     const enabled  = d.accountEnabled !== false;
     const managed  = !!d.managedDeviceId;
     const hasEntra = !!d.id;
@@ -1339,8 +1338,8 @@ function loadSecurity() {
       actions = btn('sync', 'Sync', '', managed, 'Force an Intune check-in')
         + (enabled ? btn('disable', 'Disable', '', hasEntra, 'Block device sign-in') : btn('enable', 'Enable', '', hasEntra, 'Allow device sign-in'))
         + btn('retire', 'Retire', '', managed, 'Remove company data, keep personal data')
-        + btn('wipe', 'Wipe', 'danger', managed && isAdmin, 'Factory reset — irreversible (admin)')
-        + btn('delete', 'Delete', 'danger', hasEntra && isAdmin, 'Remove the Entra device object (admin)');
+        + btn('wipe', 'Wipe', 'danger', managed, 'Factory reset — needs a second admin (admins can override)')
+        + btn('delete', 'Delete', 'danger', hasEntra, 'Remove the Entra device object — needs a second admin (admins can override)');
     }
     const ref = encodeURIComponent(JSON.stringify({ id: d.id, deviceId: d.deviceId, managedDeviceId: d.managedDeviceId, displayName: d.displayName }));
     return `<div class="dev-card" data-dev='${ref}'>
@@ -1390,29 +1389,66 @@ function loadSecurity() {
     if (_lastQuery.type === 'user') search(_lastQuery.value); else loadStale();
   }
 
+  const IRREVERSIBLE = new Set(['wipe', 'delete']);
+
+  // Three-way choice for irreversible device actions: cancel / request a second
+  // admin's approval (default) / break-glass override (admins only, audited).
+  function destructiveChoice(act, name, isAdmin) {
+    const verb = act === 'wipe' ? 'Factory-wipe' : 'Delete';
+    const body = act === 'wipe'
+      ? `A factory reset erases ALL data on ${name} and is irreversible.`
+      : `This removes the Entra device object for ${name}; it must re-register to return.`;
+    return new Promise(resolve => {
+      const overlay = document.createElement('div');
+      overlay.className = 'pin-overlay';
+      overlay.innerHTML = `
+        <div class="pin-modal">
+          <div class="pin-header">
+            <div class="pin-title">${verb} ${escHtml(name)}?</div>
+            <div class="pin-sub">${escHtml(body)} By default this is sent to a second admin to approve (two-person rule).${isAdmin ? ' As an admin you can break-glass and run it now — this is audited.' : ''}</div>
+          </div>
+          <div class="pin-footer" style="flex-wrap:wrap;gap:8px">
+            <button class="btn ghost dd-cancel">Cancel</button>
+            <button class="btn primary dd-request">Request approval</button>
+            ${isAdmin ? '<button class="btn danger dd-override">Override &amp; run now</button>' : ''}
+          </div>
+        </div>`;
+      document.body.appendChild(overlay);
+      const done = v => { overlay.remove(); resolve(v); };
+      overlay.querySelector('.dd-cancel').addEventListener('click', () => done(null));
+      overlay.querySelector('.dd-request').addEventListener('click', () => done('request'));
+      overlay.querySelector('.dd-override')?.addEventListener('click', () => done('override'));
+      overlay.addEventListener('click', e => { if (e.target === overlay) done(null); });
+    });
+  }
+
   const ACTION_COPY = {
     retire: { verb: 'Retire', body: 'Company data and management policies are removed; personal data is left in place.' },
-    wipe:   { verb: 'Factory-wipe', body: 'A factory reset erases ALL data on the device. This is irreversible.' },
-    delete: { verb: 'Delete', body: 'The Entra device object is removed. The device must re-register to return.' },
   };
 
   async function doAction(act, dev) {
     const name = dev.displayName || dev.deviceId || dev.id;
     const whatif = (document.getElementById('dev-whatif') || {}).checked !== false;
-    const copy = ACTION_COPY[act];
-    if (copy && !whatif) {
-      const ok = await confirmModal({ title: `${copy.verb} ${name}?`, body: copy.body, danger: true, okLabel: copy.verb });
+    let override = false;
+    if (IRREVERSIBLE.has(act) && !whatif) {
+      const choice = await destructiveChoice(act, name, currentOperatorRole() === 'admin');
+      if (!choice) return;
+      override = choice === 'override';
+    } else if (ACTION_COPY[act] && !whatif) {
+      const ok = await confirmModal({ title: `${ACTION_COPY[act].verb} ${name}?`, body: ACTION_COPY[act].body, danger: true, okLabel: ACTION_COPY[act].verb });
       if (!ok) return;
     }
     let writeToken = null;
     if (!whatif) {
-      const t = await requirePinIfNeeded(`Confirm Live device ${act}`);
+      const t = await requirePinIfNeeded(`Confirm Live device ${act}${override ? ' — break-glass override' : ''}`);
       if (!t) return;
       writeToken = typeof t === 'string' ? t : null;
     }
-    const res = await window.api.deviceAction({ action: act, deviceId: dev.id || dev.deviceId, deviceName: dev.displayName, whatif, writeToken });
-    if (res && res.ok) {
-      showToast(`${name}: ${act} ${whatif ? 'simulated (Safe)' : 'submitted'}`, 'info');
+    const res = await window.api.deviceAction({ action: act, deviceId: dev.id || dev.deviceId, deviceName: dev.displayName, whatif, writeToken, override });
+    if (res && res.approvalQueued) {
+      showToast(`${name}: ${act} queued for a second admin's approval`, 'info');
+    } else if (res && res.ok) {
+      showToast(`${name}: ${act} ${whatif ? 'simulated (Safe)' : override ? 'overridden & run' : 'done'}`, 'info');
       if (!whatif) setTimeout(refresh, 900);
     } else {
       showToast((res && res.error) || `Device ${act} failed`, 'warning');

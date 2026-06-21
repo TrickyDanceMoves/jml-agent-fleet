@@ -321,11 +321,13 @@ that context.
 DEVICE LIFECYCLE: you manage user devices. Use list_user_devices / query_device_detail
 to find a device and its ids, then manage_device to act: enable, disable, sync,
 rename, retire (remove company data), wipe (factory reset), or delete (remove the
-Entra device object). Always confirm the exact device and action first. wipe and
-delete are destructive and irreversible — state that plainly and get explicit
-confirmation; they require an admin operator (helpdesk is refused in code). When
-offboarding, offboarding a user's company data from their devices is a natural
-follow-up: after a leaver, offer to retire or wipe their managed devices.
+Entra device object). Always confirm the exact device and action first.
+SEPARATION OF DUTIES: wipe and delete are irreversible. When you request them they
+are NOT executed immediately — they queue for a SECOND admin to approve (you can
+never self-authorize). Tell the operator the request was queued and a different
+admin must approve it from the Approvals tab; a human admin can also break-glass
+override from the Devices tab. The same applies to Hard and Delete leavers. When
+offboarding, offer to retire or wipe the user's managed devices as a follow-up.
 
 RESPONSE STYLE (always follow):
 - Be brief. Routine confirmations and acknowledgements: 1-3 short sentences.
@@ -1217,6 +1219,57 @@ function routeBlockedLeaverToApproval(input, stage, reason, requiredApproverRole
   return token;
 }
 
+// Operations that ALWAYS require a separate admin's approval before execution —
+// even when an admin initiates them (mandatory two-person rule for irreversible
+// actions). The approvalGate then enforces approver != requester. Reversible
+// ops (soft leaver, joiner/mover/enroller, device sync/enable/disable/retire)
+// stay single-operator with the usual RBAC + PIN gate.
+const IRREVERSIBLE_DEVICE_ACTIONS = new Set(['wipe', 'delete']);
+function leaverNeedsTwoPerson(stage) {
+  const s = String(stage || '').toLowerCase();
+  return s === 'hard' || s === 'delete' || s === 'both';
+}
+
+// Queue a device lifecycle action for a second admin's approval. Mirrors
+// routeBlockedLeaverToApproval but for the manage_device path.
+function routeDeviceActionToApproval(input, reason, requestedBy, requestedByRole) {
+  const reqBy    = requestedBy   || currentOperator;
+  const reqRole2 = requestedByRole || currentRole;
+  const action   = String(input.action || '').toLowerCase();
+  const subject  = input.deviceName || input.deviceId || 'device';
+  const note     = reason || `Device ${action} requires a second admin's approval (two-person rule).`;
+  if (PRESENTATION_MODE) {
+    const token = `demo-${Date.now().toString(36)}`;
+    MOCK_APPROVALS.unshift({
+      id: token, token, tool: 'manage_device', severity: 'crit',
+      requestedBy: reqBy || DEMO_ADMIN, requestedByRole: reqRole2, requiredApproverRole: 'admin',
+      requestedAt: new Date().toISOString(),
+      input: { action, deviceId: input.deviceId, deviceName: input.deviceName, newName: input.newName },
+      subject, note, status: 'pending', demo: true,
+    });
+    return token;
+  }
+  if (!fs.existsSync(PENDING_DIR)) fs.mkdirSync(PENDING_DIR, { recursive: true });
+  const token = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  const record = {
+    id: token, token, tool: 'manage_device', severity: 'crit',
+    requestedBy: reqBy || 'helpdesk', requestedByRole: reqRole2, requiredApproverRole: 'admin',
+    requestedAt: new Date().toISOString(), expiresAt: null,
+    input: { action, deviceId: input.deviceId, deviceName: input.deviceName, newName: input.newName, ticketRef: input.ticketRef || '' },
+    subject, note, status: 'pending',
+  };
+  fs.writeFileSync(path.join(PENDING_DIR, token + '.json'), JSON.stringify(record, null, 2), 'utf8');
+  sendToast('Admin Approval Required', `${subject}: ${action} queued for a second admin's sign-off.`);
+  const op = {
+    id: token, agent: 'enroller', toolName: 'manage_device', subject,
+    operator: reqBy || currentOperator, whatif: false, status: 'awaiting-approval',
+    requestedByRole: reqRole2, startedAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
+  };
+  activeOperations.set(token, op);
+  if (win && !win.isDestroyed()) win.webContents.send('operation-status', op);
+  return token;
+}
+
 // Surface a queued approval on the Glass Screen as an awaiting-approval run.
 function emitApprovalQueued(input, stage, token, requestedBy, requestedByRole) {
   const op = {
@@ -1605,12 +1658,19 @@ async function executeTool(agent, toolName, input, whatif) {
     const action = String(input.action || '').toLowerCase();
     const valid = ['enable', 'disable', 'sync', 'retire', 'wipe', 'delete', 'rename'];
     if (!valid.includes(action)) return { error: `manage_device: action must be one of ${valid.join(', ')}.` };
-    if ((action === 'wipe' || action === 'delete') && role !== 'admin') {
-      return { error: `RBAC: '${action}' is destructive and requires an admin operator (current role: ${role}).` };
-    }
     if (action === 'rename' && !input.newName) return { error: 'manage_device: rename requires newName.' };
     if (!input.deviceId && !input.deviceName) {
       return { error: 'manage_device: provide deviceId or deviceName — call list_user_devices first to resolve it.' };
+    }
+    // Irreversible actions (wipe/delete) always route to a second admin's approval
+    // when run Live. The agent can never self-authorize a break-glass override —
+    // that is a human-only action taken from the Devices tab.
+    if (!w && IRREVERSIBLE_DEVICE_ACTIONS.has(action)) {
+      const tok = routeDeviceActionToApproval(
+        { action, deviceId: input.deviceId, deviceName: input.deviceName, newName: input.newName, ticketRef: input.ticketRef },
+        `Device ${action} requested via the Approver agent — a second admin must approve before execution (two-person rule).`);
+      return { approvalQueued: true, token: tok,
+        message: `Device ${action} queued — a different admin must approve before it runs (separation of duties). An admin can break-glass override from the Devices tab.` };
     }
     const _pf = writePayloadFile({
       action,
@@ -1638,6 +1698,17 @@ async function executeTool(agent, toolName, input, whatif) {
       return { error: 'RISK_GATE: Risk level is critical — operation refused. Reasons: ' + (risk.reasons || []).join('; ') };
     }
     state.approver.lastRisk = null; // consumed — next submit needs a fresh score
+  }
+
+  // Irreversible offboarding (Hard / Delete leaver) always routes to a second
+  // admin's approval when initiated by the agent — agents never self-authorize.
+  // A human admin can break-glass override from the Operations/Devices UI.
+  if (!w && (toolName === 'submit_leaver_hard' || toolName === 'submit_leaver_delete')) {
+    const stage = toolName.endsWith('delete') ? 'Delete' : 'Hard';
+    const tok = routeBlockedLeaverToApproval(input, stage,
+      `${stage} leaver requested via the Approver agent — a second admin must approve before execution (two-person rule).`, 'admin');
+    return { approvalQueued: true, token: tok,
+      message: `${stage} offboard queued — a different admin must approve before it runs (separation of duties).` };
   }
 
   switch (toolName) {
@@ -2201,7 +2272,7 @@ ipcMain.handle('get-stale-devices', async (_e, { days } = {}) => {
   } catch (e) { return { error: e.message }; }
 });
 ipcMain.handle('device-action', async (_e, payload = {}) => {
-  const { action, deviceId, deviceName, newName, whatif, writeToken, ticketRef } = payload;
+  const { action, deviceId, deviceName, newName, whatif, writeToken, ticketRef, override } = payload;
   const act = String(action || '').toLowerCase();
   const valid = ['enable', 'disable', 'sync', 'retire', 'wipe', 'delete', 'rename'];
   if (!valid.includes(act)) return { ok: false, error: 'Invalid device action.' };
@@ -2211,9 +2282,6 @@ ipcMain.handle('device-action', async (_e, payload = {}) => {
   }
   const role = (currentRole || 'viewer').toLowerCase();
   if (role === 'viewer' || role === 'guest') return { ok: false, error: 'Device management requires a helpdesk or admin account.' };
-  if ((act === 'wipe' || act === 'delete') && role !== 'admin') {
-    return { ok: false, error: `'${act}' is destructive and requires an admin operator (current role: ${role}).` };
-  }
   if (act === 'rename' && !newName) return { ok: false, error: 'rename requires a new name.' };
   if (!deviceId && !deviceName) return { ok: false, error: 'deviceId or deviceName required.' };
   // Live writes require a fresh PIN write token — same gate as quick lifecycle ops.
@@ -2221,6 +2289,18 @@ ipcMain.handle('device-action', async (_e, payload = {}) => {
     if (!writeToken) return { ok: false, error: 'PIN verification required for Live device actions.' };
     const check = consumeWriteToken(writeToken, currentOperator);
     if (!check.ok) return { ok: false, error: 'PIN verification failed: ' + check.reason };
+  }
+  // Irreversible actions (wipe/delete) need a second admin — UNLESS a human admin
+  // takes a deliberate break-glass override. The override is admin-only and audited.
+  if (!whatif && IRREVERSIBLE_DEVICE_ACTIONS.has(act)) {
+    if (override && role === 'admin') {
+      logOperatorActivity('security.override', { operator: currentOperator, tool: 'manage_device', action: act, subject: deviceName || deviceId, ticketRef: ticketRef || '' });
+    } else {
+      const tok = routeDeviceActionToApproval({ action: act, deviceId, deviceName, newName, ticketRef },
+        `Device ${act} requested by ${currentOperator || 'operator'} — a second admin must approve (two-person rule).`);
+      return { ok: true, approvalQueued: true, token: tok,
+        message: `Device ${act} queued — a different admin must approve before it runs.` };
+    }
   }
   const _pf = writePayloadFile({ action: act, deviceId, deviceName, newName, ticketRef });
   try {
@@ -2604,21 +2684,29 @@ ipcMain.on('approve-pending', async (event, payload) => {
 
     const inp  = op.input || op;
     const tool = (op.tool || '').toLowerCase();
-    let raw;
-    if (tool === 'submit_joiner') {
+    let raw, subjectLabel;
+    if (tool === 'manage_device') {
+      const pf = writePayloadFile({ action: inp.action, deviceId: inp.deviceId, deviceName: inp.deviceName, newName: inp.newName, ticketRef: inp.ticketRef });
+      try { raw = await runPsAsync(path.join(AGENTS_DIR, 'enroller', 'Invoke-DeviceAction.ps1'), { PayloadPath: pf }); }
+      finally { try { fs.unlinkSync(pf); } catch {} }
+      subjectLabel = `${op.subject || inp.deviceName || inp.deviceId || 'Device'} ${inp.action} completed`;
+    } else if (tool === 'submit_joiner') {
       const pf = writePayloadFile({ givenName: inp.givenName, surname: inp.surname, userPrincipalName: inp.userPrincipalName, department: inp.department, jobTitle: inp.jobTitle, usageLocation: inp.usageLocation });
       try { raw = await runPsAsync(path.join(AGENTS_DIR, 'joiner', 'Invoke-JoinerProcess.ps1'), { PayloadPath: pf }); }
       finally { try { fs.unlinkSync(pf); } catch {} }
+      subjectLabel = `${inp.userPrincipalName || 'Joiner'} created`;
     } else {
       const stage = inp.stage || (tool.includes('delete') ? 'Delete' : tool.includes('hard') ? 'Hard' : 'Soft');
       const params = { UserPrincipalName: inp.userPrincipalName, Stage: stage, OperatorRole: 'admin' };
       if (inp.ticketRef) params.TicketRef = inp.ticketRef;
       raw = await runPsAsync(path.join(AGENTS_DIR, 'leaver', 'Invoke-LeaverProcess.ps1'), params);
+      subjectLabel = `${inp.userPrincipalName || 'Operation'} ${stage} leaver completed`;
     }
     const result = parsePs1Output(raw);
     fs.unlinkSync(file);
     resolveApprovalOperation(id, 'success');
-    sendToast('Approval Executed', (inp.userPrincipalName || 'Operation') + ' leaver completed successfully.');
+    logOperatorActivity('approval.executed', { approver: currentOperator, requestedBy: op.requestedBy, tool, subject: op.subject || inp.userPrincipalName || inp.deviceName || null });
+    sendToast('Approval Executed', subjectLabel + ' successfully.');
     event.sender.send('approve-result', { ok: true, result });
   } catch (err) {
     resolveApprovalOperation(id, 'failed', err.message);
@@ -6016,18 +6104,24 @@ ipcMain.on('run-quick-leaver', async (event, payload) => {
     return;
   }
   if (!requireWriteToken(event, payload, 'quick-op-result')) return;
-  const { upn, stage, reason, whatif } = payload || {};
+  const { upn, stage, reason, whatif, override } = payload || {};
   const _stg = stage || 'Soft';
-  // Destructive offboards (Hard / Both) require an admin's final say. A non-admin
-  // running one in Live mode queues it for admin approval instead of executing.
-  if (!whatif && (_stg === 'Hard' || _stg === 'Both' || _stg === 'Delete') && (currentRole || 'viewer').toLowerCase() !== 'admin') {
-    const tok = routeBlockedLeaverToApproval(
-      { userPrincipalName: upn, ticketRef: reason }, _stg,
-      `${_stg}-stage leaver submitted by ${currentRole || 'operator'} — admin approval required before execution.`,
-      'admin');
-    event.sender.send('quick-op-result', { type: 'leaver', approvalQueued: true, token: tok,
-      lines: [`[APPROVAL] ${_stg} offboard requires an admin's final approval — request queued for an admin operator.`] });
-    return;
+  const _role = (currentRole || 'viewer').toLowerCase();
+  // Irreversible offboards (Hard / Delete / Both) require a second admin's
+  // approval — UNLESS a human admin takes a deliberate, audited break-glass
+  // override. A non-admin can never override; their request always queues.
+  if (!whatif && leaverNeedsTwoPerson(_stg)) {
+    if (override && _role === 'admin') {
+      logOperatorActivity('security.override', { operator: currentOperator, tool: `submit_leaver_${_stg.toLowerCase()}`, subject: upn, ticketRef: reason || '' });
+    } else {
+      const tok = routeBlockedLeaverToApproval(
+        { userPrincipalName: upn, ticketRef: reason }, _stg,
+        `${_stg}-stage leaver requested by ${currentOperator || 'operator'} — a second admin must approve before execution (two-person rule).`,
+        'admin');
+      event.sender.send('quick-op-result', { type: 'leaver', approvalQueued: true, token: tok,
+        lines: [`[APPROVAL] ${_stg} offboard queued — a different admin must approve before it runs (separation of duties).`] });
+      return;
+    }
   }
   try {
     const raw    = await runPsAsync(path.join(AGENTS_DIR, 'leaver', 'Invoke-LeaverProcess.ps1'), {

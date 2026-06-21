@@ -34,11 +34,27 @@ test('manage_device is an approver-only write tool with RBAC-gated destructive a
   // Auditor must NOT have the write tool.
   const auditor = main.match(/const AUDITOR_TOOLS = \[[\s\S]*?\n\];/)[0];
   assert.ok(!/manage_device/.test(auditor), 'auditor stays read-only');
-  // Code-enforced RBAC: read-only roles blocked, wipe/delete require admin.
+  // Code-enforced RBAC + two-person rule: read-only roles blocked; irreversible
+  // wipe/delete from the agent always queue for a second admin (no self-auth).
   assert.match(main, /toolName === 'manage_device'/);
   assert.match(main, /device management requires a helpdesk or admin account/);
-  assert.match(main, /action === 'wipe' \|\| action === 'delete'\) && role !== 'admin'/);
+  assert.match(main, /const IRREVERSIBLE_DEVICE_ACTIONS = new Set\(\['wipe', 'delete'\]\)/);
+  assert.match(main, /IRREVERSIBLE_DEVICE_ACTIONS\.has\(action\)[\s\S]*?routeDeviceActionToApproval/);
   assert.match(main, /Invoke-DeviceAction\.ps1/);
+});
+
+test('irreversible actions are two-person with an admin break-glass override', () => {
+  // Approve path can execute approved device actions.
+  assert.match(main, /tool === 'manage_device'[\s\S]*?Invoke-DeviceAction\.ps1/);
+  // Device IPC: queue by default, admin override executes + audits.
+  assert.match(main, /IRREVERSIBLE_DEVICE_ACTIONS\.has\(act\)/);
+  assert.match(main, /override && role === 'admin'/);
+  assert.match(main, /logOperatorActivity\('security\.override'/);
+  // UI offers cancel / request approval / override.
+  const app = fs.readFileSync(path.join(root, 'renderer', 'app.js'), 'utf8');
+  assert.match(app, /function destructiveChoice/);
+  assert.match(app, /dd-override/);
+  assert.match(app, /approvalQueued/);
 });
 
 test('live Identity Protection path exists and the posture tools expose live', () => {
@@ -110,5 +126,5 @@ test('both prompts describe device capabilities', () => {
   const approver = main.match(/function buildApproverSystem\([\s\S]*?\.trim\(\); \}/)[0];
   assert.match(auditor, /list_user_devices/);
   assert.match(approver, /manage_device/);
-  assert.match(approver, /destructive and irreversible/i);
+  assert.match(approver, /second admin/i);
 });
