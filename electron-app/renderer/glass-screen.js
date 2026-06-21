@@ -752,7 +752,7 @@
     const iso = ms => new Date(now - ms).toISOString();
     const base = {
       agent: 'joiner', toolName: 'submit_joiner', stage: 'provision',
-      subject: 'amelia.chen@contoso.com', operator: 'Nick', whatif: false,
+      subject: 'amelia.chen@contoso.com', operator: 'Jordan Avery', whatif: false,
     };
     const history = [
       { ...base, id: 'fx-h1', agent: 'leaver', toolName: 'submit_leaver_soft', stage: 'soft', subject: 'robert.martinez@contoso.com', operator: 'Helpdesk', whatif: true, status: 'succeeded', outcome: 'success', startedAt: iso(54e5), updatedAt: iso(54e5 - 42000), completedAt: iso(54e5 - 42000) },

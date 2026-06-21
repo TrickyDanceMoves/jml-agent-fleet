@@ -4576,22 +4576,22 @@ const MOCK_DEVICES = [
   { id: 'dev-obj-003', deviceId: 'aad-dev-003', managedDeviceId: null,      displayName: 'ROBERT-SURFACE', operatingSystem: 'Windows', operatingSystemVersion: '10.0.19045', trustType: 'AzureAd', accountEnabled: false, isManaged: false, isCompliant: null,  complianceState: null,           managementAgent: null,  manufacturer: 'Microsoft', model: 'Surface Pro 9', isEncrypted: null, lastSyncDateTime: null,      enrolledDateTime: null,        approximateLastSignIn: _iso(1620), owner: 'robert.martinez@contoso.onmicrosoft.com' },
 ];
 const MOCK_AUDIT = [
-  { timestamp: _iso(3),   agent: 'leaver',   action: 'graph.user.disable',           subject: 'robert.martinez@contoso.onmicrosoft.com', operator: 'Nick', outcome: 'success', ticketRef: 'INC-1042', whatif: false, details: { stage: 'Hard' } },
-  { timestamp: _iso(3),   agent: 'leaver',   action: 'graph.user.revokeSessions',    subject: 'robert.martinez@contoso.onmicrosoft.com', operator: 'Nick', outcome: 'success', ticketRef: 'INC-1042', whatif: false, details: { sessions: 3 } },
-  { timestamp: _iso(4),   agent: 'approver', action: 'approval.granted',             subject: 'robert.martinez@contoso.onmicrosoft.com', operator: 'Nick', outcome: 'success', ticketRef: 'INC-1042', whatif: false, details: { rule: 'dual-approval' } },
-  { timestamp: _iso(4),   agent: 'approver', action: 'risk.scored',                  subject: 'robert.martinez@contoso.onmicrosoft.com', operator: 'Nick', outcome: 'success', ticketRef: 'INC-1042', whatif: false, details: { score: 68, grounded: true } },
+  { timestamp: _iso(3),   agent: 'leaver',   action: 'graph.user.disable',           subject: 'robert.martinez@contoso.onmicrosoft.com', operator: 'Jordan Avery', outcome: 'success', ticketRef: 'INC-1042', whatif: false, details: { stage: 'Hard' } },
+  { timestamp: _iso(3),   agent: 'leaver',   action: 'graph.user.revokeSessions',    subject: 'robert.martinez@contoso.onmicrosoft.com', operator: 'Jordan Avery', outcome: 'success', ticketRef: 'INC-1042', whatif: false, details: { sessions: 3 } },
+  { timestamp: _iso(4),   agent: 'approver', action: 'approval.granted',             subject: 'robert.martinez@contoso.onmicrosoft.com', operator: 'Jordan Avery', outcome: 'success', ticketRef: 'INC-1042', whatif: false, details: { rule: 'dual-approval' } },
+  { timestamp: _iso(4),   agent: 'approver', action: 'risk.scored',                  subject: 'robert.martinez@contoso.onmicrosoft.com', operator: 'Jordan Avery', outcome: 'success', ticketRef: 'INC-1042', whatif: false, details: { score: 68, grounded: true } },
   { timestamp: _iso(46),  agent: 'joiner',   action: 'graph.user.create',            subject: 'alex.nguyen@contoso.onmicrosoft.com',     operator: 'helpdesk1', outcome: 'success', ticketRef: 'INC-1025', whatif: false, details: {} },
   { timestamp: _iso(46),  agent: 'joiner',   action: 'license.assign',               subject: 'alex.nguyen@contoso.onmicrosoft.com',     operator: 'helpdesk1', outcome: 'success', ticketRef: 'INC-1025', whatif: false, details: { sku: 'Microsoft 365 E3' } },
   { timestamp: _iso(47),  agent: 'joiner',   action: 'graph.group.add',              subject: 'alex.nguyen@contoso.onmicrosoft.com',     operator: 'helpdesk1', outcome: 'success', ticketRef: 'INC-1025', whatif: false, details: { groups: 2 } },
   { timestamp: _iso(92),  agent: 'enroller', action: 'device.enroll',                subject: 'priya.shah@contoso.onmicrosoft.com',      operator: 'helpdesk2', outcome: 'success', ticketRef: 'INC-1009', whatif: false, details: {} },
-  { timestamp: _iso(140), agent: 'mover',    action: 'graph.group.update',           subject: 'lena.fischer@contoso.onmicrosoft.com',    operator: 'Nick', outcome: 'partial', ticketRef: 'INC-1018', whatif: false, details: { pending: 2 } },
-  { timestamp: _iso(168), agent: 'approver', action: 'risk.scored',                  subject: 'lena.fischer@contoso.onmicrosoft.com',    operator: 'Nick', outcome: 'success', ticketRef: 'INC-1018', whatif: false, details: { score: 41, grounded: true } },
+  { timestamp: _iso(140), agent: 'mover',    action: 'graph.group.update',           subject: 'lena.fischer@contoso.onmicrosoft.com',    operator: 'Jordan Avery', outcome: 'partial', ticketRef: 'INC-1018', whatif: false, details: { pending: 2 } },
+  { timestamp: _iso(168), agent: 'approver', action: 'risk.scored',                  subject: 'lena.fischer@contoso.onmicrosoft.com',    operator: 'Jordan Avery', outcome: 'success', ticketRef: 'INC-1018', whatif: false, details: { score: 41, grounded: true } },
   { timestamp: _iso(205), agent: 'leaver',   action: 'graph.user.disable',           subject: 'tom.becker@contoso.onmicrosoft.com',      operator: 'helpdesk1', outcome: 'success', ticketRef: 'INC-1002', whatif: false, details: { stage: 'Soft' } },
   { timestamp: _iso(206), agent: 'leaver',   action: 'license.remove',               subject: 'tom.becker@contoso.onmicrosoft.com',      operator: 'helpdesk1', outcome: 'success', ticketRef: 'INC-1002', whatif: false, details: { reclaimed: 1 } },
-  { timestamp: _iso(280), agent: 'mover',    action: 'graph.user.update',            subject: 'omar.haddad@contoso.onmicrosoft.com',     operator: 'Nick', outcome: 'success', ticketRef: 'INC-0994', whatif: false, details: { field: 'department' } },
+  { timestamp: _iso(280), agent: 'mover',    action: 'graph.user.update',            subject: 'omar.haddad@contoso.onmicrosoft.com',     operator: 'Jordan Avery', outcome: 'success', ticketRef: 'INC-0994', whatif: false, details: { field: 'department' } },
   { timestamp: _iso(355), agent: 'enroller', action: 'license.assign',               subject: 'grace.okafor@contoso.onmicrosoft.com',    operator: 'helpdesk2', outcome: 'success', ticketRef: 'INC-0988', whatif: false, details: { sku: 'Microsoft 365 E3' } },
   { timestamp: _iso(410), agent: 'auditor',  action: 'audit.write',                  subject: 'fleet integrity check',                   operator: 'system', outcome: 'success', ticketRef: '', whatif: false, details: {} },
-  { timestamp: _iso(520), agent: 'certifier',action: 'review.campaign.start',        subject: 'Q2 access review · Finance',               operator: 'Nick', outcome: 'success', ticketRef: '', whatif: false, details: { scope: 'Finance-Admins' } },
+  { timestamp: _iso(520), agent: 'certifier',action: 'review.campaign.start',        subject: 'Q2 access review · Finance',               operator: 'Jordan Avery', outcome: 'success', ticketRef: '', whatif: false, details: { scope: 'Finance-Admins' } },
   { timestamp: _iso(640), agent: 'provisioner', action: 'cert.rotate',               subject: 'jml-fleet-mover',                         operator: 'system', outcome: 'success', ticketRef: '', whatif: false, details: {} },
 ];
 // Give the demo entries a coherent hash chain so the Chain Integrity panel shows
@@ -5414,8 +5414,8 @@ async function runDemoDrive() {
   const { desktopCapturer } = require('electron');
   const OUT = path.join(__dirname, '..', '.superpowers', 'jml-demo-video', 'public', 'clips');
   fs.mkdirSync(OUT, { recursive: true });
-  currentOperator = 'Nick';
-  process.env.JML_CONSOLE_OPERATOR = 'Nick';
+  currentOperator = 'Jordan Avery';
+  process.env.JML_CONSOLE_OPERATOR = 'Jordan Avery';
 
   // Fill the primary display so a full-SCREEN capture == the app, full-bleed.
   // (Screen capture uses DXGI duplication, which is far more reliable than the
@@ -5620,8 +5620,8 @@ async function runDemoDrive() {
 async function runGlassScreenQc() {
   const OUT = path.join(__dirname, '..', '.superpowers', 'glass-screen-qc');
   fs.mkdirSync(OUT, { recursive: true });
-  currentOperator = 'Nick';
-  process.env.JML_CONSOLE_OPERATOR = 'Nick';
+  currentOperator = 'Jordan Avery';
+  process.env.JML_CONSOLE_OPERATOR = 'Jordan Avery';
 
   win = new BrowserWindow({
     width: 1440, height: 1000,
@@ -5880,7 +5880,7 @@ app.whenReady().then(() => {
   }
   createTray();
   ensureDataDirs();
-  // QC bypass: `electron . --operator=Nick` skips the selector window so
+  // QC bypass: `electron . --operator="Jordan Avery"` skips the selector window so
   // automated visual checks can reach the main window directly.
   const opArg = process.argv.find(a => a.startsWith('--operator='));
   if (opArg) {

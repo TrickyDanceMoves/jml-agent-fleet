@@ -25,7 +25,7 @@ function op(overrides = {}) {
     toolName: 'submit_joiner',
     stage: 'provision',
     subject: 'Tapiwa Ngungu',
-    operator: 'Nick',
+    operator: 'Jordan Avery',
     whatif: false,
     status: 'running',
     outcome: null,

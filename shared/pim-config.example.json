@@ -1,0 +1,27 @@
+{
+    "_comment":  "PIM for Groups config TEMPLATE. Copy to pim-config.json (gitignored — it holds real tenant group & object IDs). groupId values are populated by New-PIMGroups.ps1; agent objectId values are the service-principal object IDs for each agent. activationDurationHours controls how long role elevation lasts per operation.",
+    "activationDurationHours":  1,
+    "groups":  {
+                   "JML-UserAdmin":  {
+                                         "groupId":  "00000000-0000-0000-0000-000000000000",
+                                         "roleDisplayName":  "User Administrator",
+                                         "assignedAgents":  [ "joiner", "mover", "leaver" ]
+                                     },
+                   "JML-LicenseAdmin":  {
+                                            "groupId":  "00000000-0000-0000-0000-000000000000",
+                                            "roleDisplayName":  "License Administrator",
+                                            "assignedAgents":  [ "joiner", "mover", "leaver", "enroller" ]
+                                        },
+                   "JML-CloudDeviceAdmin":  {
+                                                "groupId":  "00000000-0000-0000-0000-000000000000",
+                                                "roleDisplayName":  "Cloud Device Administrator",
+                                                "assignedAgents":  [ "enroller" ]
+                                            }
+               },
+    "agents":  {
+                   "joiner":    { "objectId": "00000000-0000-0000-0000-000000000000", "requiredGroups": [ "JML-UserAdmin", "JML-LicenseAdmin" ] },
+                   "mover":     { "objectId": "00000000-0000-0000-0000-000000000000", "requiredGroups": [ "JML-UserAdmin", "JML-LicenseAdmin" ] },
+                   "leaver":    { "objectId": "00000000-0000-0000-0000-000000000000", "requiredGroups": [ "JML-UserAdmin", "JML-LicenseAdmin" ] },
+                   "enroller":  { "objectId": "00000000-0000-0000-0000-000000000000", "requiredGroups": [ "JML-LicenseAdmin", "JML-CloudDeviceAdmin" ] }
+               }
+}
