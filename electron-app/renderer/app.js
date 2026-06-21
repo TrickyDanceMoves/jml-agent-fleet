@@ -475,6 +475,8 @@ function updateTopbarModePill() {
 // work without waiting for the Settings tab to be opened.
 loadOperatorAuth();
 try { window.api.getOperators(); } catch (_) {}
+// Restore durable security-finding assignments so ownership survives restarts.
+try { loadSecurityAssignments(); } catch (_) {}
 
 // Global approvals poll — keeps the sidebar badge accurate from any tab.
 // Tab-local poll (in switchTab) stays at 30s for the active Approvals view;
@@ -1281,6 +1283,7 @@ document.getElementById('refresh-security').addEventListener('click', () => {
 })();
 
 function loadSecurity() {
+  loadSecurityAssignments(); // refresh durable owners before/while findings load
   window.api.getSecurityReports();
   window.api.getAgentHealth();
 }
@@ -1306,6 +1309,28 @@ let _secFilter = { sev: '', source: '', assign: 'unassigned', maxAge: 0 }; // ac
 
 /** Stable identity key for a finding — survives index changes across rescans */
 function _secKey(f) { return (f.rule || '') + '|' + (f.title || ''); }
+
+/** Load durable finding assignments from the backend store into _secAssignments.
+ *  Called at startup and on each security load so ownership survives restarts. */
+function loadSecurityAssignments() {
+  if (!window.api.getSecurityAssignments) return Promise.resolve();
+  return window.api.getSecurityAssignments().then(res => {
+    const map = (res && res.assignments) || {};
+    _secAssignments = new Map(Object.entries(map));
+    // If findings are already on screen, reflect restored owners immediately.
+    if (_secFindings.length) {
+      _secFindings.forEach(f => { const a = _secAssignments.get(_secKey(f)); if (a) f.assignee = a; });
+      _renderSecRows();
+      if (_secFocused !== null && _secFindings[_secFocused]) focusFinding(_secFocused);
+    }
+  }).catch(() => {});
+}
+
+/** Persist the full assignment map to the backend (fire-and-forget). */
+function persistSecurityAssignments() {
+  if (!window.api.saveSecurityAssignments) return;
+  try { window.api.saveSecurityAssignments(Object.fromEntries(_secAssignments)); } catch (_) {}
+}
 
 /** Extract the primary subject UPN/name from a finding for cross-tab navigation */
 function _secFindingSubject(f) {
@@ -2221,6 +2246,7 @@ document.getElementById('sec-btn-assign')?.addEventListener('click', function ()
       f.assignee = name;
       _secAssignments.set(_secKey(f), name); // survive rescans
     });
+    persistSecurityAssignments(); // survive restarts
     showToast(n + ' finding' + (n > 1 ? 's' : '') + ' assigned to ' + name);
     _renderSecRows();
   });
@@ -2233,6 +2259,7 @@ document.getElementById('sec-action-assign')?.addEventListener('click', () => {
     const f = _secFindings[_secFocused];
     f.assignee = name;
     _secAssignments.set(_secKey(f), name); // survive rescans
+    persistSecurityAssignments(); // survive restarts
     showToast('Finding assigned to ' + name);
     _renderSecRows();
     focusFinding(_secFocused); // refresh right-rail assignee display

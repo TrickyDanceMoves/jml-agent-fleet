@@ -14,6 +14,9 @@ const test = require('node:test');
 const root = path.join(__dirname, '..');
 const app = fs.readFileSync(path.join(root, 'renderer', 'app.js'), 'utf8');
 const html = fs.readFileSync(path.join(root, 'renderer', 'index.html'), 'utf8');
+const main = fs.readFileSync(path.join(root, 'main.js'), 'utf8');
+const preload = fs.readFileSync(path.join(root, 'preload.js'), 'utf8');
+const gitignore = fs.readFileSync(path.join(root, '..', '.gitignore'), 'utf8');
 
 test('assignments are stored in a session map keyed by the stable finding key', () => {
   assert.match(app, /let _secAssignments\s*=\s*new Map\(\)/, 'a _secAssignments map must exist');
@@ -36,4 +39,32 @@ test('both the bulk and single assign handlers persist into the map', () => {
 test('the focused-finding rail shows the assignee', () => {
   assert.match(html, /id="sec-focused-assignee"/, 'focused card needs an assignee slot');
   assert.match(app, /getElementById\('sec-focused-assignee'\)/, 'focusFinding must populate the assignee slot');
+});
+
+// ── Durable backend store: assignments survive an app restart ────────────────
+test('main process exposes get/save security-assignments handlers backed by a file', () => {
+  assert.match(main, /SECURITY_ASSIGNMENTS_FILE\s*=\s*path\.join\([^)]*security-assignments\.json'\)/);
+  assert.match(main, /ipcMain\.handle\('get-security-assignments'/);
+  assert.match(main, /ipcMain\.handle\('save-security-assignments'/);
+  assert.match(main, /fs\.writeFileSync\(SECURITY_ASSIGNMENTS_FILE/);
+});
+
+test('preload bridges the security-assignments channels', () => {
+  assert.match(preload, /getSecurityAssignments:[\s\S]*?invoke\('get-security-assignments'\)/);
+  assert.match(preload, /saveSecurityAssignments:[\s\S]*?invoke\('save-security-assignments'/);
+});
+
+test('renderer loads on startup and persists on every assign', () => {
+  assert.match(app, /function loadSecurityAssignments\(\)/);
+  assert.match(app, /function persistSecurityAssignments\(\)/);
+  assert.match(app, /_secAssignments\s*=\s*new Map\(Object\.entries\(map\)\)/,
+    'load must hydrate the map from the stored object');
+  // Both assign handlers must flush to the backend.
+  const persistCalls = app.match(/persistSecurityAssignments\(\)/g) || [];
+  assert.ok(persistCalls.length >= 3, 'persist must be called in load + both assign handlers (>=3 refs)');
+  assert.match(app, /loadSecurity\(\)\s*\{[\s\S]*?loadSecurityAssignments\(\)/);
+});
+
+test('the assignments store (real operator UPNs) is gitignored', () => {
+  assert.match(gitignore, /approver\/security-assignments\.json/);
 });

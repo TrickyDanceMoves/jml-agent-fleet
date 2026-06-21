@@ -44,6 +44,8 @@ approver/scheduled.json
 approver/notification-rules.json
 # Durable tenant binding written by the setup wizard (contains the live tenant ID/domain)
 approver/tenant.json
+# Security finding ownership — maps finding -> real operator UPN
+approver/security-assignments.json
 
 # Auditor report outputs (contain tenant UPNs / security findings)
 auditor/reports/

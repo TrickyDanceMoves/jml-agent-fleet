@@ -164,6 +164,10 @@ contextBridge.exposeInMainWorld('api', {
   getNotificationRules:   ()                  => ipcRenderer.invoke('get-notification-rules'),
   saveNotificationRules:  (rules)             => ipcRenderer.invoke('save-notification-rules', { rules }),
 
+  // Security finding assignments (durable across restarts)
+  getSecurityAssignments:  ()                 => ipcRenderer.invoke('get-security-assignments'),
+  saveSecurityAssignments: (assignments)      => ipcRenderer.invoke('save-security-assignments', { assignments }),
+
   // Tenant onboarding wizard
   startDeviceCodeSignin:        ()              => ipcRenderer.invoke('start-device-code-signin'),
   checkDeviceCodeStatus:        ()              => ipcRenderer.invoke('check-device-code-status'),

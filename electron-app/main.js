@@ -3856,6 +3856,41 @@ ipcMain.handle('save-notification-rules', (event, { rules }) => {
   } catch (e) { return { ok: false, error: e.message }; }
 });
 
+// ── Security finding assignments (persist finding ownership across restarts) ──
+// Keyed by the renderer's stable finding key (rule|title) -> operator name. The
+// finding list itself is regenerated from live scans each session; only the
+// human assignment is durable, so we store just the key->owner map.
+const SECURITY_ASSIGNMENTS_FILE = path.join(AGENTS_DIR, 'approver', 'security-assignments.json');
+ipcMain.handle('get-security-assignments', () => {
+  if (PRESENTATION_MODE) return { assignments: {} };
+  try {
+    if (!fs.existsSync(SECURITY_ASSIGNMENTS_FILE)) return { assignments: {} };
+    const data = readJson(SECURITY_ASSIGNMENTS_FILE) || {};
+    const a = (data && typeof data.assignments === 'object' && !Array.isArray(data.assignments)) ? data.assignments : {};
+    return { assignments: a };
+  } catch (e) { return { assignments: {}, error: e.message }; }
+});
+ipcMain.handle('save-security-assignments', (event, { assignments } = {}) => {
+  if (PRESENTATION_MODE) {
+    return demoReceipt('save-security-assignments', { count: assignments ? Object.keys(assignments).length : 0 });
+  }
+  if (!assignments || typeof assignments !== 'object' || Array.isArray(assignments)) {
+    return { ok: false, error: 'assignments must be an object map' };
+  }
+  // Sanitize: string keys -> non-empty string owners, bounded length.
+  const clean = {};
+  for (const [k, v] of Object.entries(assignments)) {
+    if (typeof k !== 'string' || !k) continue;
+    if (typeof v !== 'string' || !v) continue;
+    clean[k.slice(0, 400)] = v.slice(0, 200);
+  }
+  try {
+    fs.writeFileSync(SECURITY_ASSIGNMENTS_FILE, JSON.stringify({ assignments: clean }, null, 2) + '\n', 'utf8');
+    logOperatorActivity('security.assignments.saved', { count: Object.keys(clean).length });
+    return { ok: true };
+  } catch (e) { return { ok: false, error: e.message }; }
+});
+
 // Append a JSONL entry to operator-activity.jsonl. Best-effort, non-blocking.
 function logOperatorActivity(event, details) {
   if (PRESENTATION_MODE) return;
