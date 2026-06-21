@@ -1304,8 +1304,9 @@ let _secAckedKeys     = new Set();  // stable keys (rule|title) of acknowledged 
 let _secAckedFindings = [];         // ordered list of acked finding objects for the acked section
 let _secDeletedKeys   = new Set();  // stable keys of admin-deleted findings — permanently hidden from inbox
 let _secAssignments   = new Map();  // stable key (rule|title) -> assignee name — survives rescans
+let _secMineSummaryShown = false;   // session guard: surface "you have N assigned" heads-up once
 let _secCheckedSet    = new Set();  // original indices of checkbox-selected findings
-let _secFilter = { sev: '', source: '', assign: 'unassigned', maxAge: 0 }; // active inbox filter state
+let _secFilter = { sev: '', source: '', assign: '', maxAge: 0 }; // active inbox filter state (assign '' = show all, assigned stay visible)
 
 /** Stable identity key for a finding — survives index changes across rescans */
 function _secKey(f) { return (f.rule || '') + '|' + (f.title || ''); }
@@ -1330,6 +1331,36 @@ function loadSecurityAssignments() {
 function persistSecurityAssignments() {
   if (!window.api.saveSecurityAssignments) return;
   try { window.api.saveSecurityAssignments(Object.fromEntries(_secAssignments)); } catch (_) {}
+}
+
+/** True when an assignee string resolves to the current operator. */
+function _secIsMine(name) {
+  if (!name || name === '—') return false;
+  const me = currentOperatorName || window.api.currentUser || '';
+  if (!me) return false;
+  return name === me || name.split('@')[0] === me.split('@')[0];
+}
+
+/** Two-letter initials from an operator name/UPN, for the assignee avatar. */
+function _secInitials(name) {
+  const local = String(name || '').split('@')[0];
+  const parts = local.split(/[.\s_-]+/).filter(Boolean);
+  const ini = parts.map(s => s[0]).join('').slice(0, 2) || local.slice(0, 2);
+  return ini.toUpperCase() || '?';
+}
+
+/** Assignee cell markup: avatar chip + name when assigned, muted hint otherwise. */
+function _secAssigneeCell(f) {
+  if (!f.assignee || f.assignee === '—') {
+    return '<div class="sec-finding-assignee"><span class="sec-assignee-none">unassigned</span></div>';
+  }
+  const mine  = _secIsMine(f.assignee);
+  const local = String(f.assignee).split('@')[0];
+  return '<div class="sec-finding-assignee assigned">'
+    + '<span class="sec-assignee-chip' + (mine ? ' mine' : '') + '" title="' + escHtml(f.assignee) + '">'
+    +   '<span class="sec-assignee-av">' + escHtml(_secInitials(f.assignee)) + '</span>'
+    +   '<span class="sec-assignee-name">' + escHtml(mine ? 'You' : local) + '</span>'
+    + '</span></div>';
 }
 
 /** Extract the primary subject UPN/name from a finding for cross-tab navigation */
@@ -1425,7 +1456,10 @@ function _renderSecRows() {
 
   visible.forEach(({ f, origIdx }, rowPos) => {
     const row = document.createElement('div');
-    row.className = 'sec-finding-row' + (rowPos === 0 ? (f.sev === 'crit' ? ' focused' : ' focused-warn') : '');
+    const mine = _secIsMine(f.assignee);
+    row.className = 'sec-finding-row'
+      + (mine ? ' mine' : '')
+      + (rowPos === 0 ? (f.sev === 'crit' ? ' focused' : ' focused-warn') : '');
     row.dataset.idx = origIdx;
     row.innerHTML =
         '<input type="checkbox" style="accent-color:var(--violet)">'
@@ -1438,7 +1472,7 @@ function _renderSecRows() {
         + '<div class="sec-finding-title">' + escHtml(f.title) + '</div>'
         + '<div class="sec-finding-sub">' + escHtml(f.sub) + '</div>'
       + '</div>'
-      + '<div class="sec-finding-assignee">' + (f.assignee === '—' ? 'unassigned' : escHtml(f.assignee)) + '</div>'
+      + _secAssigneeCell(f)
       + '<div class="sec-finding-age">' + f.age + '</div>'
       + (rowPos === 0 ? '<span style="color:var(--text-3)">›</span>' : '<span></span>');
 
@@ -1632,6 +1666,16 @@ function renderSecurityInbox(data) {
     if (a) f.assignee = a;
   });
 
+  // One-time heads-up if findings are already assigned to the current operator
+  // (restored from a previous session, or assigned by another operator).
+  if (!_secMineSummaryShown) {
+    const mineCount = _secFindings.filter(f => _secIsMine(f.assignee)).length;
+    if (mineCount > 0) {
+      _secMineSummaryShown = true;
+      addNotification('🎯', 'You have ' + mineCount + ' security finding' + (mineCount > 1 ? 's' : '') + ' assigned to you', { tab: 'security' });
+    }
+  }
+
   // Sort: crit first, then warn, then info
   const sevOrder = { crit: 0, warn: 1, info: 2 };
   _secFindings.sort((a, b) => (sevOrder[a.sev] ?? 3) - (sevOrder[b.sev] ?? 3));
@@ -1646,15 +1690,17 @@ function renderSecurityInbox(data) {
   if (infoEl) infoEl.textContent = _secFindings.filter(f => f.sev === 'info').length;
   if (ackedEl) ackedEl.textContent = String(_secAckedFindings.length);
 
-  // Reset active-inbox filter state (but NOT acked state — it persists across rescans)
-  _secFilter = { sev: '', source: '', assign: 'unassigned', maxAge: 0 };
+  // Reset active-inbox filter state (but NOT acked state — it persists across rescans).
+  // Default assign filter is '' (all) so assigned findings stay visible rather than
+  // vanishing from the inbox the moment they're assigned.
+  _secFilter = { sev: '', source: '', assign: '', maxAge: 0 };
   const sevBtn    = document.getElementById('sec-filter-sev');
   const srcBtn    = document.getElementById('sec-filter-source');
   const assignBtn = document.getElementById('sec-filter-assign');
   const timeBtn   = document.getElementById('sec-filter-time');
   if (sevBtn)    { sevBtn.textContent = 'All severities ▾'; sevBtn.classList.remove('active'); }
   if (srcBtn)    { srcBtn.textContent = 'All sources ▾';    srcBtn.classList.remove('active'); }
-  if (assignBtn) { assignBtn.textContent = 'Unassigned ▾';  assignBtn.classList.remove('active'); }
+  if (assignBtn) { assignBtn.textContent = 'All assignees ▾'; assignBtn.classList.remove('active'); }
   if (timeBtn)   { timeBtn.textContent = 'All time ▾';      timeBtn.classList.remove('active'); }
 
   if (_secFindings.length === 0) {
@@ -2247,7 +2293,11 @@ document.getElementById('sec-btn-assign')?.addEventListener('click', function ()
       _secAssignments.set(_secKey(f), name); // survive rescans
     });
     persistSecurityAssignments(); // survive restarts
-    showToast(n + ' finding' + (n > 1 ? 's' : '') + ' assigned to ' + name);
+    if (_secIsMine(name)) {
+      addNotification('🎯', 'You were assigned ' + n + ' security finding' + (n > 1 ? 's' : ''), { tab: 'security' });
+    } else {
+      showToast(n + ' finding' + (n > 1 ? 's' : '') + ' assigned to ' + name);
+    }
     _renderSecRows();
   });
 });
@@ -2260,7 +2310,11 @@ document.getElementById('sec-action-assign')?.addEventListener('click', () => {
     f.assignee = name;
     _secAssignments.set(_secKey(f), name); // survive rescans
     persistSecurityAssignments(); // survive restarts
-    showToast('Finding assigned to ' + name);
+    if (_secIsMine(name)) {
+      addNotification('🎯', 'You were assigned a security finding: ' + (f.title || 'finding'), { tab: 'security' });
+    } else {
+      showToast('Finding assigned to ' + name);
+    }
     _renderSecRows();
     focusFinding(_secFocused); // refresh right-rail assignee display
   });

@@ -17,6 +17,7 @@ const html = fs.readFileSync(path.join(root, 'renderer', 'index.html'), 'utf8');
 const main = fs.readFileSync(path.join(root, 'main.js'), 'utf8');
 const preload = fs.readFileSync(path.join(root, 'preload.js'), 'utf8');
 const gitignore = fs.readFileSync(path.join(root, '..', '.gitignore'), 'utf8');
+const css = fs.readFileSync(path.join(root, 'renderer', 'styles.css'), 'utf8');
 
 test('assignments are stored in a session map keyed by the stable finding key', () => {
   assert.match(app, /let _secAssignments\s*=\s*new Map\(\)/, 'a _secAssignments map must exist');
@@ -67,4 +68,30 @@ test('renderer loads on startup and persists on every assign', () => {
 
 test('the assignments store (real operator UPNs) is gitignored', () => {
   assert.match(gitignore, /approver\/security-assignments\.json/);
+});
+
+// ── Assigning keeps the finding in view + flags ownership ────────────────────
+test('assigning does not hide the finding (default assign filter shows all)', () => {
+  assert.match(app, /_secFilter\s*=\s*\{\s*sev:\s*'',\s*source:\s*'',\s*assign:\s*'',\s*maxAge:\s*0\s*\}/g,
+    "default assign filter must be '' so assigned findings stay visible");
+});
+
+test('rows render an assignee chip and flag findings assigned to the current operator', () => {
+  assert.match(app, /function _secIsMine\(name\)/);
+  assert.match(app, /function _secAssigneeCell\(f\)/);
+  assert.match(app, /sec-assignee-chip/);
+  // Row gets a 'mine' class when assigned to the current operator.
+  assert.match(app, /_secIsMine\(f\.assignee\)[\s\S]*?\?\s*' mine'/);
+  // Styling for the chip + the "assigned to me" accent exists.
+  assert.match(css, /\.sec-assignee-chip/);
+  assert.match(css, /\.sec-finding-row\.mine/);
+});
+
+test('being assigned a finding raises a notification routed to the security tab', () => {
+  // Both assign handlers notify when the new owner is the current operator.
+  const notifies = app.match(/_secIsMine\(name\)\)\s*\{\s*\n\s*addNotification\('🎯'/g) || [];
+  assert.ok(notifies.length >= 2, 'bulk + single assign must notify when assigned to me');
+  assert.match(app, /addNotification\('🎯'[\s\S]*?\{ tab: 'security' \}\)/);
+  // Re-opening surfaces a one-time heads-up for findings already assigned to me.
+  assert.match(app, /You have ' \+ mineCount \+ ' security finding/);
 });
