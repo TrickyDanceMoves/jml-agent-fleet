@@ -310,6 +310,13 @@ soft vs hard leavers, admin roles, groups, JML activity, stale accounts, guests)
 questions or verify state — they are read-only and safe in any mode. Use lookup_user
 for a single-user deep dive.
 
+SECURITY POSTURE: you can also read the latest security scan — query_risky_users
+(Identity Protection), query_signin_anomalies (UEBA), query_config_drift, and
+query_security_posture (combined). Use these to answer security questions, and to
+sanity-check a target before a sensitive operation: if a leaver/mover target is a
+flagged risky user or appears in a sign-in anomaly, call it out in your risk
+summary so the operator decides with that context.
+
 RESPONSE STYLE (always follow):
 - Be brief. Routine confirmations and acknowledgements: 1-3 short sentences.
 - Lead with the outcome. One line of what happened, then only essential details.
@@ -335,6 +342,7 @@ You have two roles:
 
 1. TENANT INTELLIGENCE: Answer questions about the live tenant state using your query tools.
    Available: user counts, license utilization, member/regular user lists, recent joins, soft leavers (accounts disabled) vs hard leavers (license + group removal), admin roles, group summary, JML activity, stale accounts, guest users, single-user deep dive (query_user_detail).
+   SECURITY POSTURE: you CAN report on security risk. For Identity Protection risky/compromised users call query_risky_users; for anomalous sign-in or suspicious behavior patterns call query_signin_anomalies (UEBA); for configuration/access drift call query_config_drift; for a broad "any risks/concerns flagged?" question call query_security_posture. These read the latest security scan — never claim you lack access to risky users or sign-in anomalies. If a tool returns available:false, say a security scan needs to be run (from the Security tab) rather than that the data doesn't exist.
    Present numbers prominently. Offer follow-up queries when results are interesting.
    Never provide tenant counts, UPNs, names, or lists unless they appear in the latest tool result. For standard/regular users, call query_member_users. To answer how many or which users have NO license, call query_unlicensed_users -- it returns the exact count and full UPN list; never estimate the unlicensed total by subtracting license aggregates. Do not combine overlapping categories as if they add up to a total.
 
@@ -549,6 +557,14 @@ const AUDITOR_TOOLS = [
     input_schema: { type: 'object', properties: { topN: { type: 'integer' }, enabledOnly: { type: 'boolean' } }, required: [] } },
   { name: 'query_unlicensed_users', description: 'Definitive per-user list of member users with NO license assigned (assignedLicenses empty). Use this to answer "how many / which users have no license" — returns the exact count and full UPN list, not an aggregate estimate.',
     input_schema: { type: 'object', properties: { enabledOnly: { type: 'boolean' } }, required: [] } },
+  { name: 'query_risky_users',    description: 'Identity Protection risky users from the latest security scan: flagged accounts with risk level (high/medium/low). Use for "risky users / compromised / flagged accounts" questions.',
+    input_schema: { type: 'object', properties: {}, required: [] } },
+  { name: 'query_signin_anomalies', description: 'Anomalous sign-in / behavior patterns (UEBA) from the latest security scan: after-hours privileged actions, impossible-travel, unusual bursts. Use for "anomalous sign-ins / suspicious activity" questions.',
+    input_schema: { type: 'object', properties: {}, required: [] } },
+  { name: 'query_config_drift',   description: 'Configuration / access drift vs. baseline from the latest security scan (group-membership drift, license reallocation).',
+    input_schema: { type: 'object', properties: {}, required: [] } },
+  { name: 'query_security_posture', description: 'Combined security posture from the latest scan: counts + top findings for risky users, sign-in anomalies (UEBA), and config drift. Use for broad "any security concerns / risks flagged?" questions.',
+    input_schema: { type: 'object', properties: {}, required: [] } },
   { name: 'query_user_detail',    description: 'Deep-dive a single user by UPN or display name: profile, status, manager, licenses, groups, last sign-in.',
     input_schema: { type: 'object', properties: { upnOrName: { type: 'string' } }, required: ['upnOrName'] } }
 ];
@@ -1321,9 +1337,62 @@ function auditorQueryUnavailable() {
   return null;
 }
 
+// Latest security-scan report by filename prefix (same files the Security tab reads).
+function latestSecurityReport(prefix) {
+  try {
+    if (!fs.existsSync(REPORTS_DIR)) return null;
+    const files = fs.readdirSync(REPORTS_DIR)
+      .filter(f => f.startsWith(prefix) && f.endsWith('.json')).sort().reverse();
+    if (!files.length) return null;
+    return readJson(path.join(REPORTS_DIR, files[0]));
+  } catch { return null; }
+}
+
+// Read-only security posture queries (Identity Protection risky users, UEBA
+// sign-in anomalies, config drift) shared by the auditor and approver. They read
+// the latest cached security-scan report so the chat agents can answer
+// "any risky users / anomalous sign-ins?" instead of claiming no such data exists.
+const SECURITY_POSTURE_TOOLS = new Set([
+  'query_risky_users', 'query_signin_anomalies', 'query_config_drift', 'query_security_posture',
+]);
+function securityPostureQuery(toolName) {
+  const noScan = 'No security-scan report found yet. Run a scan from the Security tab (or the scheduled Auditor scan) to populate this data.';
+  if (toolName === 'query_risky_users') {
+    const r = latestSecurityReport('risky-users-');
+    if (!r) return { available: false, note: noScan };
+    return { source: 'Identity Protection (latest scan)', summary: r.summary || null, count: (r.users || []).length, users: r.users || [] };
+  }
+  if (toolName === 'query_signin_anomalies') {
+    const r = latestSecurityReport('ueba-');
+    if (!r) return { available: false, note: noScan };
+    return { source: 'UEBA behavior analytics (latest scan)', summary: r.summary || null, count: (r.findings || []).length, findings: r.findings || [] };
+  }
+  if (toolName === 'query_config_drift') {
+    const r = latestSecurityReport('drift-');
+    if (!r) return { available: false, note: noScan };
+    return { source: 'Config/access drift (latest scan)', summary: r.summary || null, count: (r.findings || []).length, findings: r.findings || [] };
+  }
+  // query_security_posture — combined summary
+  const risky = latestSecurityReport('risky-users-');
+  const ueba  = latestSecurityReport('ueba-');
+  const drift = latestSecurityReport('drift-');
+  if (!risky && !ueba && !drift) return { available: false, note: noScan };
+  return {
+    source: 'Latest security scan',
+    riskyUsers:      risky ? { summary: risky.summary || null, count: (risky.users || []).length, top: (risky.users || []).slice(0, 5) } : null,
+    signinAnomalies: ueba  ? { summary: ueba.summary  || null, count: (ueba.findings || []).length, top: (ueba.findings || []).slice(0, 5) } : null,
+    configDrift:     drift ? { summary: drift.summary || null, count: (drift.findings || []).length, top: (drift.findings || []).slice(0, 5) } : null,
+  };
+}
+
 async function executeTool(agent, toolName, input, whatif) {
   if (PRESENTATION_MODE) {
     return executeDemoTool(agent, toolName, input || {}, !!whatif);
+  }
+
+  // Security posture reads — available to both auditor and approver (pure reads).
+  if (SECURITY_POSTURE_TOOLS.has(toolName)) {
+    return securityPostureQuery(toolName);
   }
 
   if (agent === 'auditor') {
@@ -4291,6 +4360,20 @@ function executeDemoTool(agent, toolName, input = {}, whatif = true) {
     case 'list_available_licenses':
     case 'query_license_report':
       return { ...MOCK_DASHBOARD.licenses, demo: true };
+    case 'query_risky_users':
+      return { source: 'Identity Protection (demo)', summary: MOCK_SECURITY.riskyUsers.summary, count: MOCK_SECURITY.riskyUsers.users.length, users: MOCK_SECURITY.riskyUsers.users, demo: true };
+    case 'query_signin_anomalies':
+      return { source: 'UEBA behavior analytics (demo)', summary: MOCK_SECURITY.ueba.summary, count: MOCK_SECURITY.ueba.findings.length, findings: MOCK_SECURITY.ueba.findings, demo: true };
+    case 'query_config_drift':
+      return { source: 'Config/access drift (demo)', summary: MOCK_SECURITY.drift.summary, count: MOCK_SECURITY.drift.findings.length, findings: MOCK_SECURITY.drift.findings, demo: true };
+    case 'query_security_posture':
+      return {
+        source: 'Latest security scan (demo)',
+        riskyUsers:      { summary: MOCK_SECURITY.riskyUsers.summary, count: MOCK_SECURITY.riskyUsers.users.length,  top: MOCK_SECURITY.riskyUsers.users },
+        signinAnomalies: { summary: MOCK_SECURITY.ueba.summary,       count: MOCK_SECURITY.ueba.findings.length,     top: MOCK_SECURITY.ueba.findings },
+        configDrift:     { summary: MOCK_SECURITY.drift.summary,      count: MOCK_SECURITY.drift.findings.length,    top: MOCK_SECURITY.drift.findings },
+        demo: true,
+      };
     case 'list_groups':
       return {
         groups: [
