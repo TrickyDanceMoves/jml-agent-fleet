@@ -2346,12 +2346,38 @@ document.getElementById('sec-action-page')?.addEventListener('click', () => {
   showToast('On-call paged via Teams (#identity-ops)');
 });
 
+function _secRouteToApprover(msg) {
+  switchTab('approver');
+  // Schedule a security re-scan after the approver finishes.
+  window._secRefreshAfterOp = (window._secRefreshAfterOp || 0) + 1;
+  setTimeout(() => {
+    const inp = document.getElementById('input-approver');
+    if (inp) { inp.value = msg; inp.focus(); }
+  }, 350);
+}
+
+function _secBuildDriftRestorePrompt(f) {
+  const subject = _secFindingSubject(f) || 'the affected identity or agent';
+  const items = Array.isArray(f?.driftItems) ? f.driftItems : [];
+  const diff = items.slice(0, 4).map(item => {
+    const name = item.displayName || item.userPrincipalName || item.agent || item.group || subject;
+    if (item.expected || item.actual) {
+      return `${name}: expected ${item.expected || 'baseline value'}, actual ${item.actual || 'current value'}`;
+    }
+    return `${name}: ${item.note || f?.title || 'configuration drift'}`;
+  }).join('; ');
+  return `Restore security baseline for ${subject}. Queue this as a dual-approval remediation from the Security Findings page. Finding: ${f?.title || 'configuration drift'}.${diff ? ' Diff: ' + diff + '.' : ''}`;
+}
+
 document.getElementById('sec-drift-restore-v2')?.addEventListener('click', () => {
-  if (typeof window.api?.runDriftRemediation === 'function') {
-    window.api.runDriftRemediation();
-  } else {
-    showToast('Restore baseline: submitting for dual approval…');
+  const f = _secFindings[_secFocused];
+  if (!f || !f.isDrift) {
+    showToast('Select a drift finding before restoring baseline', 'warning');
+    return;
   }
+  const msg = _secBuildDriftRestorePrompt(f);
+  _secRouteToApprover(msg);
+  showToast('Restore baseline request opened in Approver');
 });
 
 // ── Security inline remediation buttons ──────────────────────────────────────
@@ -2376,13 +2402,7 @@ function _secRemRoute(promptTemplate) {
   const msg     = subject
     ? promptTemplate.replace('{subject}', subject)
     : promptTemplate.replace(' {subject}', '').replace('{subject}', 'this user');
-  switchTab('approver');
-  // Schedule a security re-scan after the approver finishes — finding should resolve
-  window._secRefreshAfterOp = (window._secRefreshAfterOp || 0) + 1;
-  setTimeout(() => {
-    const inp = document.getElementById('chat-input-approver');
-    if (inp) { inp.value = msg; inp.focus(); }
-  }, 350);
+  _secRouteToApprover(msg);
 }
 document.getElementById('sec-rem-disable')?.addEventListener('click', () =>
   _secRemRoute('Disable account for {subject} immediately — security finding requires urgent action'));
