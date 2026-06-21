@@ -68,3 +68,6 @@ electron-app/dist/
 .DS_Store
 Thumbs.db
 .superpowers/jml-demo-video/scripts/azure-speech.json
+# PIM / access-cert configs hold real tenant group & object IDs
+shared/pim-config.json
+shared/access-cert-config.json

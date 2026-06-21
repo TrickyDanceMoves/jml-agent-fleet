@@ -124,7 +124,7 @@ follow-ups remaining.
 Required behavior:
 
 - Each replay frame updates a short stage narration:
-  - Request: `Request captured from Nick`
+  - Request: `Request captured from Jordan Avery`
   - Risk: `Risk evaluated; no blocking policy`
   - Execute: `Creating the Entra identity`
   - Verify: `Checking account and group membership`

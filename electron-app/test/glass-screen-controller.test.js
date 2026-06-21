@@ -21,7 +21,7 @@ function op(overrides = {}) {
     toolName: 'submit_joiner',
     stage: 'provision',
     subject: 'amelia.chen@contoso.com',
-    operator: 'Nick',
+    operator: 'Jordan Avery',
     whatif: false,
     status: 'running',
     outcome: null,

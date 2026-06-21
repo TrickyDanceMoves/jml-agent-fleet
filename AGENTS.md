@@ -1,6 +1,6 @@
 # Working in this repo (humans and AI agents)
 
-This folder lives in OneDrive on Nick's PC and is also edited by cloud
+This folder lives in OneDrive on the maintainer's PC and is also edited by cloud
 sessions (Claude Code on the web) that push straight to GitHub `main`.
 GitHub is the single source of truth — the local folder is just a clone.
 
@@ -41,7 +41,6 @@ then push again.
 - Close the JML Console app before `sync.cmd` — OneDrive file locks on
   `electron-app/providers/` and `approver/pending/` can block resets.
 - The Electron app is at `electron-app/` (repo root), and this repo's
-  root is the `agents` folder on Nick's PC
-  (`C:\Users\user\OneDrive\JML AI Agent Fleet Lab\agents`).
+  root is the `agents` folder of your local clone.
 - Run `npm test` from `electron-app/` before pushing UI changes — it
   locks the glass-theme material contract and lifecycle status logic.
