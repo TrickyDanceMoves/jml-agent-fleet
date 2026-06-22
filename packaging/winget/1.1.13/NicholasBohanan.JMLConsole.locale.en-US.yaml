@@ -1,6 +1,6 @@
 # yaml-language-server: $schema=https://aka.ms/winget-manifest.defaultLocale.1.6.0.schema.json
 PackageIdentifier: NicholasBohanan.JMLConsole
-PackageVersion: 1.1.12
+PackageVersion: 1.1.13
 PackageLocale: en-US
 Publisher: Nicholas Bohanan
 PublisherUrl: https://github.com/TrickyDanceMoves/jml-agent-fleet
@@ -30,6 +30,6 @@ Tags:
   - microsoft-graph
   - ai-agents
   - governance
-ReleaseNotesUrl: https://github.com/TrickyDanceMoves/jml-agent-fleet/releases/tag/v1.1.12
+ReleaseNotesUrl: https://github.com/TrickyDanceMoves/jml-agent-fleet/releases/tag/v1.1.13
 ManifestType: defaultLocale
 ManifestVersion: 1.6.0
