@@ -22,7 +22,7 @@ met by **Foundry IQ** (live; grounds risk/approval decisions on the JML policy c
 | Microsoft IQ requirement | Ready | Foundry IQ grounds risk/approval decisions on the JML policy corpus with citations and fail-closed behavior (`lib/foundry-iq.js`, 8 tests) |
 | Automated quality | Ready | 165 Electron tests pass; PowerShell parse checks pass; CI runs the suite |
 | Dependency security | Ready | Production dependency audits report zero known vulnerabilities |
-| Public release | Ready | Installer and portable ZIP are attached to GitHub Release v1.1.12 |
+| Public release | Ready | Installer and portable ZIP are attached to GitHub Release v1.1.13 |
 | Documentation accuracy | Improved | Case study, README, hackathon guide, and QA language aligned to current state |
 | Public data hygiene | Needs work | Tenant-specific identifiers and tenant-bearing screenshots remain tracked |
 | Open-source governance | Partial | Security and contribution guides are present; repository license still needs an owner decision |
@@ -84,7 +84,7 @@ Electron tests. The quality gate now runs `npm ci` and `npm test` in `electron-a
 ### P1 - Judge install path was stale
 
 Documentation referenced a local `dist` path that is intentionally gitignored. Judge
-instructions now point to the actual v1.1.12 GitHub Release assets.
+instructions now point to the actual v1.1.13 GitHub Release assets.
 
 ## Medium-Priority Findings
 
@@ -123,7 +123,7 @@ On June 12, 2026:
 - Production `npm audit` in `electron-app`, `api`, `worker`, `approver`, and `auditor`:
   zero known vulnerabilities.
 - GitHub Actions: latest quality and Pages deployments succeeded.
-- GitHub Release v1.1.12 contains installer and portable ZIP assets.
+- GitHub Release v1.1.13 contains installer and portable ZIP assets.
 - GitHub Pages serves the interactive case study over HTTPS.
 - GitHub private vulnerability reporting, dependency alerts, automated security
   updates, secret scanning, and push protection are enabled.

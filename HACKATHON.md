@@ -74,7 +74,7 @@ flow through Azure Storage Queue and Table Storage to the lifecycle agents.
 
 The current build includes a tamper-evident SHA-256 audit chain, UEBA and drift
 detection, Microsoft Sentinel and Blob export paths, operator RBAC, Safe and Live
-session modes, and 130 automated console tests.
+session modes, and 173 automated console tests.
 
 ## Microsoft Technologies
 
@@ -142,14 +142,14 @@ of implementation.
 | **Concept** | Hybrid Agent ID architecture separates reasoning from privileged execution |
 | **Impact** | Reduces manual JML work while preserving approval, traceability, and failure truth |
 | **Use of Microsoft Platform** | Entra ID, Entra Agent ID, Microsoft Graph, Azure Functions, Storage, Sentinel, Purview, and the Foundry IQ layer |
-| **Quality of Implementation** | Live console, replayable lifecycle state, fail-closed controls, 165 tests, CI, threat model, and downloadable release |
+| **Quality of Implementation** | Live console, replayable lifecycle state, fail-closed controls, 173 tests, CI, threat model, and downloadable release |
 
 ## Judge Setup
 
 ### Fastest path
 
-1. Download `JML.Console.Setup.1.1.12.exe` from the
-   [v1.1.12 GitHub Release](https://github.com/TrickyDanceMoves/jml-agent-fleet/releases/tag/v1.1.12).
+1. Download `JML.Console.Setup.1.1.13.exe` from the
+   [v1.1.13 GitHub Release](https://github.com/TrickyDanceMoves/jml-agent-fleet/releases/tag/v1.1.13).
 2. Install per-user.
 3. Open Settings and configure an AI provider.
 4. Run the Tenant Binding wizard with an authorized lab tenant.
