@@ -4669,6 +4669,8 @@ const MOCK_SECURITY = {
 const MOCK_DEVICES = [
   { id: 'dev-obj-001', deviceId: 'aad-dev-001', managedDeviceId: 'mdm-001', displayName: 'SARAH-LAPTOP', operatingSystem: 'Windows', operatingSystemVersion: '10.0.22631', trustType: 'AzureAd', accountEnabled: true,  isManaged: true,  isCompliant: true,  complianceState: 'compliant',    managementAgent: 'mdm', manufacturer: 'Dell',    model: 'Latitude 7440', isEncrypted: true,  lastSyncDateTime: _iso(2),   enrolledDateTime: _iso(900),  approximateLastSignIn: _iso(2),   owner: 'sarah.chen@contoso.onmicrosoft.com' },
   { id: 'dev-obj-002', deviceId: 'aad-dev-002', managedDeviceId: 'mdm-002', displayName: 'SARAH-IPHONE', operatingSystem: 'iOS',     operatingSystemVersion: '17.5',       trustType: 'Workplace', accountEnabled: true, isManaged: true,  isCompliant: false, complianceState: 'noncompliant', managementAgent: 'mdm', manufacturer: 'Apple',   model: 'iPhone 15',     isEncrypted: true,  lastSyncDateTime: _iso(53),  enrolledDateTime: _iso(700),  approximateLastSignIn: _iso(50),  owner: 'sarah.chen@contoso.onmicrosoft.com' },
+  { id: 'dev-obj-004', deviceId: 'aad-dev-004', managedDeviceId: 'mdm-004', displayName: 'SARAH-MACBOOK', operatingSystem: 'macOS',  operatingSystemVersion: '14.4',       trustType: 'AzureAd',   accountEnabled: true,  isManaged: true,  isCompliant: true,  complianceState: 'compliant',    managementAgent: 'mdm', manufacturer: 'Apple',   model: 'MacBook Pro M3', isEncrypted: true,  lastSyncDateTime: _iso(6),   enrolledDateTime: _iso(420),  approximateLastSignIn: _iso(5),   owner: 'sarah.chen@contoso.onmicrosoft.com' },
+  { id: 'dev-obj-005', deviceId: 'aad-dev-005', managedDeviceId: null,      displayName: 'SARAH-WKS-OLD',  operatingSystem: 'Windows', operatingSystemVersion: '10.0.18363', trustType: 'Workplace', accountEnabled: true,  isManaged: false, isCompliant: null,  complianceState: null,           managementAgent: null,  manufacturer: 'HP',      model: 'EliteBook 840', isEncrypted: null,  lastSyncDateTime: null,      enrolledDateTime: null,        approximateLastSignIn: _iso(2256), owner: 'sarah.chen@contoso.onmicrosoft.com' },
   { id: 'dev-obj-003', deviceId: 'aad-dev-003', managedDeviceId: null,      displayName: 'ROBERT-SURFACE', operatingSystem: 'Windows', operatingSystemVersion: '10.0.19045', trustType: 'AzureAd', accountEnabled: false, isManaged: false, isCompliant: null,  complianceState: null,           managementAgent: null,  manufacturer: 'Microsoft', model: 'Surface Pro 9', isEncrypted: null, lastSyncDateTime: null,      enrolledDateTime: null,        approximateLastSignIn: _iso(1620), owner: 'robert.martinez@contoso.onmicrosoft.com' },
 ];
 const MOCK_AUDIT = [
@@ -4928,6 +4930,11 @@ function installDemoHandlers() {
   // Invoke handlers (must remove the old handler before re-registering).
   ipcMain.removeHandler('get-operators-for-login');
   ipcMain.handle('get-operators-for-login', () => ({ operators: MOCK_OPERATORS.operators }));
+  // Devices tab reads (capture mode isn't PRESENTATION_MODE, so seed mock devices).
+  ipcMain.removeHandler('get-user-devices');
+  ipcMain.handle('get-user-devices', (_e, { upnOrName } = {}) => executeDemoTool('approver', 'list_user_devices', { upnOrName }));
+  ipcMain.removeHandler('get-stale-devices');
+  ipcMain.handle('get-stale-devices', (_e, { days } = {}) => executeDemoTool('approver', 'query_stale_devices', { days }));
   // Auto-pass the demo PIN gate without minting a production-capable token.
   // Mutating demo handlers recognize this marker and return simulated receipts.
   ipcMain.removeHandler('verify-operator-pin');
@@ -5304,6 +5311,9 @@ async function runCapture() {
     // the view renders its static structure without data
     ['audit-log',      null, 1200],
     ['users',          null, 1000],
+    // Devices renders empty until a user is searched; in demo/capture mode the
+    // search returns MOCK_DEVICES, so drive a lookup to populate the cards.
+    ['devices',        `window.JmlDevices && window.JmlDevices.openForUser('sarah.chen@contoso.onmicrosoft.com');`, 1800],
     ['certs',          `window.api.getCertExpiry();`, 1500],
     ['graph',          null, 1000],
     ['integrations',   null, 1500],

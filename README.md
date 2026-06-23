@@ -77,13 +77,9 @@ Then walk this path:
 |---|---|
 | ![Users](docs/images/users.png) | ![Certs](docs/images/certs.png) |
 
-| Devices | |
+| Devices | Settings |
 |---|---|
-| ![Devices](docs/images/devices.png) | |
-
-| Settings | |
-|---|---|
-| ![Settings](docs/images/settings.png) | |
+| ![Devices](docs/images/devices.png) | ![Settings](docs/images/settings.png) |
 
 | Docked Panel | Docked (Sections Collapsed) |
 |---|---|
