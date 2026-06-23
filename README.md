@@ -316,7 +316,7 @@ risk-scored, policy-checked, and approval-gated before least-privilege execution
 
 ## Limitations & Roadmap
 
-Honest current state, so reviewers know what's proven vs. planned:
+What's live today and what comes next:
 
 | Area | Now | Roadmap |
 |---|---|---|
@@ -325,7 +325,7 @@ Honest current state, so reviewers know what's proven vs. planned:
 | JIT privilege | ✅ **PIM-eligible, zero standing write**: agents elevate just-in-time via PIM group eligibility (`New-PIMGroups.ps1`, `Grant-PIMPermissions.ps1`); drift detection + access certification flag any permanent/direct assignment. Plus Provisioner at-rest disable + approval gates | Agent-scoped governance as Entra expands native support |
 | Operator RBAC | Local Windows username / PIN, or **Entra device-code sign-in** for a real directory identity | Group-derived operator role from Entra |
 | Conditional Access | Agent ID-scoped CA policy enabled in tenant (pre-staged, empty principal scope); SP CA script present but unenforceable without Workload Identities Premium | Scope the Agent ID policy to the live agent identities after soak |
-| Hackathon IQ layer | ✅ **Foundry IQ live**: risk/approval decisions grounded on the JML policy corpus with citations and fail-closed behavior (`lib/foundry-iq.js`) | Expand the grounded policy corpus and surface citations in the operator UI |
+| IQ / Grounding | ✅ **Foundry IQ live**: risk/approval decisions grounded on the JML policy corpus with citations and fail-closed behavior (`lib/foundry-iq.js`) | Expand the grounded policy corpus and surface citations in the operator UI |
 | AI observability | ✅ Per-turn run telemetry (provider, model, latency, tokens) in Settings → AI Provider | Foundry-native trace correlation IDs |
 | Copilot integration | ✅ OpenAPI action surface + Power Platform connector (`api/apiProperties.json`, `docs/copilot-studio-setup.md`) | Live Copilot Studio agent in tenant |
 | Electron sandbox | ✅ `sandbox: true` on every window; preloads carry no Node deps (operator username resolved via main-process IPC); CSP enforced on main renderer | — |
