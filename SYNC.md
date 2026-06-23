@@ -1,6 +1,6 @@
-# JML Shared Build Handoff
+﻿# JML Shared Build Handoff
 
-Updated: June 11, 2026
+Updated: June 23, 2026
 
 ## Working Agreement
 
@@ -11,17 +11,17 @@ Updated: June 11, 2026
   and will erase uncommitted work.
 - Before changing files, run `git status -sb` and preserve work from other sessions.
 
-## Current State (hackathon submission prep, 2026-06-11)
+## Current State (post-submission, v1.1.13, 2026-06-23)
 
-- Glass Screen Command Center implemented; crisp transparent floating shell final
-  (`b014d3c` — acrylic explicitly rejected by the user; do not reintroduce OS blur).
-- Async PowerShell everywhere + warm Graph session (`e35fe07`): no UI freezes,
-  repeat queries ~360ms.
-- Hybrid Entra Agent ID migration COMPLETE (`d7d5796`): Auditor + Approver validated
-  live over FMI; write agents stay on SPs (platform constraint).
-- Approver rail infrastructure errors sanitized (`c14072b`).
-- All 82 automated tests pass; full 17-view capture refreshed in docs/images with
-  the rail fix included; README aligned with current state + hackathon CTA.
+- Hackathon submitted June 14, 2026 - **DONE**
+- v1.1.13 shipping (Electron hardening release: trusted-sender IPC, payload-schema validation, unsafe-inline removed, renderer nav/popup/webview/permission/CSP lockdown)
+- All 173 automated tests pass (electron-app: 173, api: 8, worker: 10)
+- Devices tab fully implemented: AI-assisted search, Intune + Entra state, full device lifecycle (sync, disable, lock, retire, wipe, delete) with per-device Safe mode
+- Entra operator identity fully implemented (all three auth paths: PIN, Windows session, Entra device-code sign-in)
+- Glass Screen Command Center live; acrylic explicitly rejected (crisp transparent shell final)
+- Hybrid Entra Agent ID migration COMPLETE: Auditor + Approver as Agent IDs; write agents on SPs by design
+- Foundry IQ grounding live with fail-closed behavior
+- ORCHESTRATION.md removed (was wrong-repo content, reverted June 23)
 
 ## Build Priority
 

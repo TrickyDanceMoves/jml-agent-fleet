@@ -201,6 +201,7 @@ Desktop app (`agents/electron-app/`) with a frameless operator selector at start
 | Settings | Tenant setup wizard, operator RBAC, freeze windows, SoD rules, notification routing, theme |
 | Audit Log | Searchable 7-column audit log (Timestamp · Agent · Subject · Operator · Ticket · Outcome · Mode) |
 | Users | User search with UPN autocomplete (cache-first) |
+| Devices | AI-assisted device search and lifecycle management: sync, lock, retire, wipe with per-device Safe mode and Intune + Entra read |
 | Graph | Graph Query Runner with AI-suggested queries, 8 quick-pick chips, and AI digest |
 
 ### Zero-Trust Architecture

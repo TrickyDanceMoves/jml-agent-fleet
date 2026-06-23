@@ -1,4 +1,4 @@
-# Agents League Hackathon Submission Guide
+﻿# Agents League Hackathon Submission Guide
 
 **Track:** Enterprise Agents
 
@@ -130,7 +130,7 @@ session modes, and 173 automated console tests.
 
 - Show UEBA, drift, audit-chain verification, and Sentinel or Blob export controls.
 - Show the Microsoft IQ result or grounding evidence.
-- Close on the public repository, case study, release, and 130-test quality gate.
+- Close on the public repository, case study, release, and 173-test quality gate.
 
 ## Judging Alignment
 

@@ -1,4 +1,4 @@
-# Hackathon Readiness Review
+﻿# Hackathon Readiness Review
 
 Reviewed: June 12, 2026  
 Target: Microsoft Agents League Hackathon, Enterprise Agents track
@@ -20,14 +20,14 @@ met by **Foundry IQ** (live; grounds risk/approval decisions on the JML policy c
 | Live demo | Ready | Electron console, Glass Screen lifecycle replay, approval and audit surfaces |
 | Microsoft identity platform | Ready | Entra ID, Microsoft Graph, and live Entra Agent ID authentication |
 | Microsoft IQ requirement | Ready | Foundry IQ grounds risk/approval decisions on the JML policy corpus with citations and fail-closed behavior (`lib/foundry-iq.js`, 8 tests) |
-| Automated quality | Ready | 165 Electron tests pass; PowerShell parse checks pass; CI runs the suite |
+| Automated quality | Ready | 173 Electron tests pass (electron-app: 173, api: 8, worker: 10; 191 total); PowerShell parse checks pass; CI runs the suite |
 | Dependency security | Ready | Production dependency audits report zero known vulnerabilities |
 | Public release | Ready | Installer and portable ZIP are attached to GitHub Release v1.1.13 |
 | Documentation accuracy | Improved | Case study, README, hackathon guide, and QA language aligned to current state |
 | Public data hygiene | Needs work | Tenant-specific identifiers and tenant-bearing screenshots remain tracked |
 | Open-source governance | Partial | Security and contribution guides are present; repository license still needs an owner decision |
-| API and worker tests | Needs work | Validation exists, but API and queue worker do not have automated test scripts |
-| Electron hardening | Accepted gap | Main renderer CSP is present; sandbox remains disabled and is documented |
+| API and worker tests | Ready | pi/test/ 8 tests (canonical schema, BambooHR adapter, api-key gate); worker/test/ 10 tests (dispatch routing, retry, dead-letter) |
+| Electron hardening | Ready — sandbox accepted gap | v1.1.13: trusted-sender IPC validation, IPC payload schema checks, unsafe-inline removed, renderer nav/popup/webview/permission/CSP hardened; sandbox remains disabled (documented in electron-security.md) |
 
 ## Blocking Finding — RESOLVED 2026-06-12
 
@@ -118,7 +118,7 @@ is active unless the policy is visible in the demo tenant.
 
 On June 12, 2026:
 
-- `npm test` in `electron-app`: 82 passed, 0 failed.
+- `npm test` in `electron-app`: 173 passed, 0 failed.
 - PowerShell parser check: all repository `.ps1` files parsed cleanly.
 - Production `npm audit` in `electron-app`, `api`, `worker`, `approver`, and `auditor`:
   zero known vulnerabilities.
