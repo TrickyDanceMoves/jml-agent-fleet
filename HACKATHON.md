@@ -84,7 +84,9 @@ session modes, and 173 automated console tests.
 |---|---|
 | **Microsoft Entra ID** | Source of truth for users, groups, licenses, app identities, and governance |
 | **Microsoft Entra Agent ID** | First-class identities for the Approver and Auditor reasoning agents |
-| **Microsoft Graph API** | User lifecycle, group, license, session, risk, and identity operations |
+| **Microsoft Graph API** | User lifecycle, group, license, session, risk, device, and identity operations |
+| **Microsoft Intune** | Device lifecycle + compliance via managed-device Graph endpoints — sync, remote lock, retire, wipe, BitLocker key rotation, and compliance/encryption state |
+| **Microsoft Entra ID Protection** | Risky users and sign-in risk detections feed the security posture and the Approver's risk context |
 | **Azure AI Foundry** | Supported model inference provider for the reasoning agents |
 | **Azure Functions v4** | HRIS webhook and canonical JML event API |
 | **Azure Storage Queue** | Durable event delivery, retry, and dead-letter handling |
@@ -143,7 +145,7 @@ of implementation.
 |---|---|
 | **Concept** | Hybrid Agent ID architecture separates reasoning from privileged execution |
 | **Impact** | Reduces manual JML work while preserving approval, traceability, and failure truth |
-| **Use of Microsoft Platform** | Entra ID, Entra Agent ID, Microsoft Graph, Azure Functions, Storage, Sentinel, Purview, and the Foundry IQ layer |
+| **Use of Microsoft Platform** | Entra ID, Entra Agent ID, Microsoft Graph, Intune (device lifecycle), Entra ID Protection, Azure Functions, Storage, Sentinel, Purview, and the Foundry IQ layer |
 | **Quality of Implementation** | Live console, replayable lifecycle state, fail-closed controls, 173 tests, CI, threat model, and downloadable release |
 
 ## Judge Setup

@@ -135,6 +135,11 @@ Agents reason and act; services move data and host the control plane.
 - Ticket reference (`ticketRef`) flows through every operation and is required for leavers
 - Staged leaver: Soft (disable + revoke) → confirmation → Hard (licenses + groups)
 
+### Device Lifecycle (Microsoft Intune + Entra)
+- AI-assisted device search joins **Entra device objects with Intune managed-device records** (compliance, encryption, last sync, primary user) for any user
+- Full lifecycle over managed-device Graph endpoints: **sync, enable/disable, remote lock, rotate BitLocker keys, rename, retire, wipe, delete** — with per-device Safe mode
+- Irreversible actions (wipe/delete) require an admin; a non-admin's request queues for a single admin's approval
+
 ### AI-Assisted Provisioning
 - **Peer-group recommendations**: `Invoke-ProvisioningRecommendation.ps1` queries users in the same department and surfaces licenses/groups held by >50% of peers, with confidence ratings
 - **Risk scoring**: `Invoke-RiskScore.ps1` produces a 0–100 risk score across: baseline operation risk, active freeze windows, sensitive licenses/groups, SoD conflicts, and dual-approval requirements
