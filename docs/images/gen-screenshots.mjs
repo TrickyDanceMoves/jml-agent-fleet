@@ -1,4 +1,4 @@
-import puppeteer from '/opt/node22/lib/node_modules/puppeteer/lib/puppeteer/puppeteer.js';
+﻿import puppeteer from '/opt/node22/lib/node_modules/puppeteer/lib/puppeteer/puppeteer.js';
 import { writeFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
@@ -49,6 +49,7 @@ function shell(activeTab, content) {
     { tab: 'audit-log',      label: 'Audit Log',      section: null,        icon: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>' },
     { tab: 'exports',        label: 'Exports',        section: null,        icon: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>' },
     { tab: 'users',          label: 'Users',          section: 'Data',      icon: '<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>' },
+    { tab: 'devices',        label: 'Devices',        section: null,        icon: '<rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/>' },
     { tab: 'certs',          label: 'Certs',          section: null,        icon: '<circle cx="12" cy="8" r="6"/><path d="M9 14l-2 8 5-3 5 3-2-8"/>' },
     { tab: 'settings',       label: 'Settings',       section: null,        icon: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>' },
   ];
@@ -726,6 +727,175 @@ const authSelectHtml = `<!DOCTYPE html>
 </body>
 </html>`;
 
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 3b.  DEVICES page
+// ═══════════════════════════════════════════════════════════════════════════
+const devicesContent = `
+<style>
+  .dev-bar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+  .dev-bar input[type=search] {
+    flex: 1; min-width: 240px; padding: 9px 12px; font-size: 13px; outline: 0;
+    background: var(--bg-2); border: 1px solid var(--border); border-radius: 9px; color: var(--text);
+  }
+  .dev-assist-note { margin-bottom: 10px; font-size: 12.5px; color: var(--text-2); line-height: 1.5; }
+  .dev-summary { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
+  .dev-sum-cell { display: flex; flex-direction: column; gap: 1px; padding: 8px 14px; background: var(--surface); border: 1px solid var(--border); border-radius: 9px; min-width: 86px; }
+  .dev-sum-n { font-size: 18px; font-weight: 600; line-height: 1.1; }
+  .dev-sum-k { font-size: 10.5px; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); }
+  .dev-context { font-size: 12px; color: var(--muted); margin: 0 2px 10px; }
+  .dev-list { display: flex; flex-direction: column; gap: 8px; }
+  .dev-card { border: 1px solid var(--border); border-radius: 10px; background: var(--surface); padding: 12px 14px; }
+  .dev-card-main { display: flex; align-items: flex-start; gap: 12px; }
+  .dev-ico { width: 38px; height: 38px; border-radius: 9px; flex-shrink: 0; display: grid; place-items: center; color: var(--text-2); background: var(--bg-2); border: 1px solid var(--border); }
+  .dev-ico svg { width: 18px; height: 18px; }
+  .dev-card-info { flex: 1; min-width: 0; }
+  .dev-name { font-weight: 600; font-size: 13.5px; }
+  .dev-meta { font-family: var(--mono); font-size: 11px; color: var(--muted); margin: 2px 0 7px; }
+  .dev-pills { display: flex; flex-wrap: wrap; gap: 5px; }
+  .dev-pill { font-size: 10.5px; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--border-strong); color: var(--text-2); background: var(--bg-2); }
+  .dev-pill.ok   { color: var(--emerald); border-color: color-mix(in oklch, var(--emerald) 45%, transparent); background: color-mix(in oklch, var(--emerald) 10%, transparent); }
+  .dev-pill.bad  { color: var(--coral);   border-color: color-mix(in oklch, var(--coral) 45%, transparent);   background: color-mix(in oklch, var(--coral) 10%, transparent); }
+  .dev-pill.warn { color: var(--amber);   border-color: color-mix(in oklch, var(--amber) 45%, transparent);   background: color-mix(in oklch, var(--amber) 10%, transparent); }
+  .dev-state { font-size: 10.5px; font-family: var(--mono); padding: 3px 9px; border-radius: 6px; text-transform: uppercase; letter-spacing: .06em; flex-shrink: 0; align-self: flex-start; }
+  .dev-state.on  { color: var(--emerald); background: color-mix(in oklch, var(--emerald) 12%, transparent); }
+  .dev-state.off { color: var(--coral);   background: color-mix(in oklch, var(--coral) 12%, transparent); }
+  .dev-actions { display: flex; gap: 7px; flex-wrap: wrap; align-items: center; margin-top: 11px; padding-top: 11px; border-top: 1px solid var(--border); }
+  .dev-safe { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-2); margin-right: auto; }
+</style>
+
+<div class="head">
+  <div>
+    <h1 class="h1">Devices <span class="sub">4 shown</span></h1>
+    <p class="desc">Manage the device lifecycle conversationally. Ask the agent to inspect or act — it reads Entra + Intune state and runs sync, disable, retire, wipe, or delete with policy, risk, and approval gating.</p>
+  </div>
+</div>
+
+<div class="dev-bar">
+  <input type="search" value="jessica.park" autocomplete="off" placeholder="AI-assisted search — type a name/UPN or ask about devices…">
+  <button class="btn">Search</button>
+  <button class="btn">Stale</button>
+</div>
+
+<div class="dev-assist-note">
+  <span style="color:var(--emerald)">✓ Found 4 devices for jessica.park@contoso.com</span>
+  <span style="color:var(--muted)"> · 3 Intune-managed · last sign-in 2 days ago on JPARKLT01</span>
+</div>
+
+<div class="dev-summary">
+  <div class="dev-sum-cell"><span class="dev-sum-n">4</span><span class="dev-sum-k">Total</span></div>
+  <div class="dev-sum-cell"><span class="dev-sum-n" style="color:var(--emerald)">3</span><span class="dev-sum-k">Managed</span></div>
+  <div class="dev-sum-cell"><span class="dev-sum-n" style="color:var(--emerald)">2</span><span class="dev-sum-k">Compliant</span></div>
+  <div class="dev-sum-cell"><span class="dev-sum-n" style="color:var(--amber)">1</span><span class="dev-sum-k">Stale</span></div>
+</div>
+
+<div class="dev-context" style="color:var(--muted);font-size:12px;margin-bottom:10px">Showing devices registered to jessica.park@contoso.com</div>
+
+<div class="dev-list">
+
+  <!-- Card 1: Windows laptop, compliant -->
+  <div class="dev-card">
+    <div class="dev-card-main">
+      <div class="dev-ico">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+      </div>
+      <div class="dev-card-info">
+        <div class="dev-name">JPARKLT01</div>
+        <div class="dev-meta">Windows 11 22H2 · AzureAD · Surface Laptop 5</div>
+        <div class="dev-pills">
+          <span class="dev-pill ok">Compliant</span>
+          <span class="dev-pill ok">Intune-managed</span>
+          <span class="dev-pill ok">Entra-joined</span>
+          <span class="dev-pill">Last seen 2d ago</span>
+        </div>
+      </div>
+      <span class="dev-state on">Enabled</span>
+    </div>
+    <div class="dev-actions">
+      <label class="dev-safe"><input type="checkbox" checked style="accent-color:var(--cyan)"> Safe</label>
+      <button class="btn sm">Sync</button>
+      <button class="btn sm">Disable</button>
+      <button class="btn sm">More ▾</button>
+    </div>
+  </div>
+
+  <!-- Card 2: Windows laptop, non-compliant -->
+  <div class="dev-card">
+    <div class="dev-card-main">
+      <div class="dev-ico">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+      </div>
+      <div class="dev-card-info">
+        <div class="dev-name">JPARKLT02</div>
+        <div class="dev-meta">Windows 10 21H2 · AzureAD · Dell XPS 13</div>
+        <div class="dev-pills">
+          <span class="dev-pill bad">Non-compliant</span>
+          <span class="dev-pill ok">Intune-managed</span>
+          <span class="dev-pill warn">Encryption pending</span>
+          <span class="dev-pill">Last seen 8d ago</span>
+        </div>
+      </div>
+      <span class="dev-state on">Enabled</span>
+    </div>
+    <div class="dev-actions">
+      <label class="dev-safe"><input type="checkbox" checked style="accent-color:var(--cyan)"> Safe</label>
+      <button class="btn sm">Sync</button>
+      <button class="btn sm">Disable</button>
+      <button class="btn sm">More ▾</button>
+    </div>
+  </div>
+
+  <!-- Card 3: macOS, compliant -->
+  <div class="dev-card">
+    <div class="dev-card-main">
+      <div class="dev-ico">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+      </div>
+      <div class="dev-card-info">
+        <div class="dev-name">JPark-MacBook-Pro</div>
+        <div class="dev-meta">macOS 14.4 · AzureAD · MacBook Pro M3</div>
+        <div class="dev-pills">
+          <span class="dev-pill ok">Compliant</span>
+          <span class="dev-pill ok">Intune-managed</span>
+          <span class="dev-pill">Last seen 2d ago</span>
+        </div>
+      </div>
+      <span class="dev-state on">Enabled</span>
+    </div>
+    <div class="dev-actions">
+      <label class="dev-safe"><input type="checkbox" checked style="accent-color:var(--cyan)"> Safe</label>
+      <button class="btn sm">Sync</button>
+      <button class="btn sm">Disable</button>
+      <button class="btn sm">More ▾</button>
+    </div>
+  </div>
+
+  <!-- Card 4: stale Windows device, Entra-only -->
+  <div class="dev-card">
+    <div class="dev-card-main">
+      <div class="dev-ico" style="color:var(--muted)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+      </div>
+      <div class="dev-card-info">
+        <div class="dev-name">JPARKWKS-OLD</div>
+        <div class="dev-meta">Windows 10 1909 · Workplace-joined · HP EliteBook</div>
+        <div class="dev-pills">
+          <span class="dev-pill warn">Stale (94d)</span>
+          <span class="dev-pill">Entra-only</span>
+          <span class="dev-pill bad">Unmanaged</span>
+        </div>
+      </div>
+      <span class="dev-state on">Enabled</span>
+    </div>
+    <div class="dev-actions">
+      <label class="dev-safe"><input type="checkbox" checked style="accent-color:var(--cyan)"> Safe</label>
+      <button class="btn sm">Disable</button>
+      <button class="btn sm">More ▾</button>
+    </div>
+  </div>
+
+</div>
+`;
 // ═══════════════════════════════════════════════════════════════════════════
 // Screenshot runner
 // ═══════════════════════════════════════════════════════════════════════════
@@ -750,6 +920,7 @@ console.log('Generating screenshots…');
 await snap('access-reviews', shell('certifications', accessReviewsContent));
 await snap('integrations',   shell('integrations',   integrationsContent));
 await snap('auth-select',    authSelectHtml, { width: 1280, height: 800 });
+await snap('devices',      shell('devices',       devicesContent));
 
 await browser.close();
 console.log('Done.');

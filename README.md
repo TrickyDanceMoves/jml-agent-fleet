@@ -1,4 +1,4 @@
-# JML Agent Fleet
+﻿# JML Agent Fleet
 
 AI-powered identity lifecycle automation for Microsoft Entra ID. Eight agents — two AI-backed (Approver, Auditor) and six PowerShell — handle the full Joiner/Mover/Leaver (JML) workflow with zero-trust architecture, UEBA, drift detection, AI-assisted provisioning, and end-to-end HRIS integration. It borrows the patterns enterprise IGA platforms are built on — lifecycle workflow, approvals, least privilege, access review, risk scoring, and tamper-evident audit evidence — and applies them to a focused, governed Microsoft Entra JML console.
 
@@ -76,6 +76,10 @@ Then walk this path:
 | Users | Certs |
 |---|---|
 | ![Users](docs/images/users.png) | ![Certs](docs/images/certs.png) |
+
+| Devices | |
+|---|---|
+| ![Devices](docs/images/devices.png) | |
 
 | Settings | |
 |---|---|

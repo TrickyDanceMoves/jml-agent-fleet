@@ -1,4 +1,4 @@
-# JML Agent Fleet — Threat Model
+﻿# JML Agent Fleet — Threat Model
 
 A STRIDE-informed threat model for an AI-governed identity lifecycle control plane
 operating against Microsoft Entra ID. Scope: the agent fleet, the Electron operations
@@ -60,5 +60,5 @@ actions fail closed when:
 ## Residual risks (documented, not yet mitigated)
 
 - Electron windows run with `sandbox: true` (preloads carry no Node deps; operator username resolved via main-process IPC). See electron-security.md.
-- Operator RBAC is local (Windows username / PIN) in dev; Entra-backed operator identity is roadmap.
+- Operator RBAC supports local PIN, Windows session trust, and Entra device-code sign-in (all three implemented).
 - Conditional Access for the agent workload identities requires Entra Workload Identities Premium (P2) — script present, not enabled.
