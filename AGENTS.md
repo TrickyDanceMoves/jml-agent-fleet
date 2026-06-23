@@ -36,6 +36,21 @@ then push again.
   anything, never after.
 - `handoff.cmd` — end of session: stage, commit, and push everything.
 
+## Commit identity & attribution (every clone / machine)
+
+The repo history was scrubbed of personal data — keep it that way. These are
+**per-clone** git settings, so set them on each machine (or globally):
+
+- **Commit as a GitHub no-reply email, never a personal address:**
+  `git config user.email "TrickyDanceMoves@users.noreply.github.com"`
+  and `git config user.name "TrickyDanceMoves"`.
+- **Keep Claude/AI tools off the contributor list:** do NOT add
+  `Co-Authored-By: Claude …` or "Generated with Claude Code" trailers, and never
+  let a commit be authored/committed as Claude/Anthropic.
+- Do not reintroduce real tenant identifiers, personal names, local paths, or the
+  `nicholasdbohanan@gmail.com` address into tracked files (runtime configs that
+  hold them are gitignored — see `shared/*-config.json`, `approver/*.json`).
+
 ## Gotchas
 
 - Close the JML Console app before `sync.cmd` — OneDrive file locks on
