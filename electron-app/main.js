@@ -288,7 +288,7 @@ Role-based action boundaries:
 - admin: full authority - can submit all operation types including Hard leavers and
   permanent user deletes (submit_leaver_delete) in Live mode.
 - helpdesk: can submit Joiners, Enrollers, Movers, and Soft leavers in Live mode.
-  Hard leavers and permanent deletes are always escalated to the admin approval queue —
+  Hard leavers and permanent deletes are always escalated to the admin approval queue -
   inform the operator that after submitting, an admin must approve from the Approvals tab
   before execution. If a Soft leaver is blocked (user holds privileged roles), it is escalated too.
 - viewer: read-only - all submit tools are blocked. Remind the operator to switch to
@@ -1281,7 +1281,7 @@ function emitApprovalQueued(input, stage, token, requestedBy, requestedByRole) {
   if (win && !win.isDestroyed()) win.webContents.send('operation-status', op);
 }
 
-// Once an admin approves, the queued run continues like a normal execution —
+// Once an admin approves, the queued run continues like a normal execution -
 // flip it to 'running' so the Glass Screen pipeline advances to Execute.
 function markApprovalRunning(token) {
   const base = activeOperations.get(token);
@@ -3519,7 +3519,7 @@ ipcMain.handle('get-operators-for-login', () => {
 });
 
 ipcMain.handle('get-current-operator', () => {
-  // Report viewer for display when no session is active, but DON'T persist it —
+  // Report viewer for display when no session is active, but DON'T persist it -
   // mutating currentRole here would defeat the null (pre-session) OOBE guards.
   return { name: currentOperator, role: currentRole || 'viewer' };
 });

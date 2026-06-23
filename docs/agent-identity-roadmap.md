@@ -39,7 +39,7 @@ is born, plus a governance wrap. Concretely:
 ### 2. Re-register each agent as a platform agent
 For each operational agent (Joiner, Mover, Leaver, Enroller, Approver, Provisioner,
 Auditor), recreate it as an agent in the chosen platform so it receives an Agent ID,
-rather than hand-rolling an app registration. The JML PowerShell execution layer stays —
+rather than hand-rolling an app registration. The JML PowerShell execution layer stays -
 only the *identity it authenticates as* changes.
 
 ### 3. Re-grant least-privilege permissions to the new identities
@@ -81,15 +81,15 @@ The full live creation contract, reverse-engineered against the tenant:
 
 1. **Consent** (admin device-code): `AgentIdentity.Create.All`, `AgentIdentityBlueprint.Create`,
    `Application.ReadWrite.All`, `User.Read.All`. Signed-in admin needs the **Agent ID Administrator** role.
-2. **Create the Agent Application blueprint** —
+2. **Create the Agent Application blueprint** -
    `POST /v1.0/applications/microsoft.graph.agentIdentityBlueprint`
    ```json
    { "displayName": "...", "sponsors@odata.bind": ["…/users/{id}"], "owners@odata.bind": ["…/users/{id}"] }
    ```
    Use the response **`appId`** (not `id`) as the blueprint id.
-3. **Instantiate the blueprint's service principal** (the "Agent Blueprint Principal") —
+3. **Instantiate the blueprint's service principal** (the "Agent Blueprint Principal") -
    `POST /v1.0/servicePrincipals` with `{ "appId": "<blueprintAppId>" }`, then allow ~15s replication.
-4. **Create each agent identity** —
+4. **Create each agent identity** -
    `POST /v1.0/servicePrincipals/microsoft.graph.agentIdentity`
    ```json
    { "displayName": "...", "agentIdentityBlueprintId": "<blueprintAppId>", "sponsors@odata.bind": ["…/users/{id}"] }
@@ -110,7 +110,7 @@ so delete orphan "JML Agent Fleet Blueprint" registrations from failed runs.
 ## Switching the agents to Agent IDs - migration mechanics (verified June 2026)
 
 The Agent ID auth model is **not** the SP cert/client-credentials flow. Confirmed structure:
-- **Credentials live on the blueprint** (the Agent Application), not on each agent identity —
+- **Credentials live on the blueprint** (the Agent Application), not on each agent identity -
   `POST /applications/{blueprintObjId}/microsoft.graph.agentIdentityBlueprint/addPassword`
   (or `addKey` for a cert, or a federated identity credential).
 - **Permissions live on the agent identity** - Graph app roles are assigned to the agent
@@ -162,7 +162,7 @@ story than "convert everything to Agent ID."
    `Connect-AgentGraph` mode selected by `"AuthMode": "agentid"`. The legacy certificate
    path remains available in parallel.
 5. ✅ **Read agents cut over** (2026-06-11): `auditor/config.json` and
-   `approver/config.json` now carry `"AuthMode": "agentid"` and both validated live —
+   `approver/config.json` now carry `"AuthMode": "agentid"` and both validated live -
    Auditor ran `Invoke-AuditorQuery -QueryType UserSummary` over FMI; Approver minted a
    Graph token as its agent identity (clientId `32019f19-…`) and queried users.
    Legacy cert/secret fields are retained as fallback; **SP retirement is the only

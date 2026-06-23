@@ -51,7 +51,7 @@ Acceptance evidence - all met:
 
 1. ✅ Module calls the IQ layer - `electron-app/lib/foundry-iq.js`, invoked from the
    Approver `score_risk` path in `main.js`.
-2. ✅ Tests verify grounded output and fail-closed behavior —
+2. ✅ Tests verify grounded output and fail-closed behavior -
    `electron-app/test/foundry-iq.test.js` (8 tests incl. three fail-closed paths).
 3. ✅ A grounded policy match escalates risk and is cited in the UI; fail-closed
    blocks Live submits when grounding is configured-but-unavailable.

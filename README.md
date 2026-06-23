@@ -120,7 +120,7 @@ The design response: AI works inside guardrails rather than replacing the admin.
 | **Provisioner** | Manages app registrations (disabled at rest, enabled only during provisioning sessions) |
 | **Auditor** | UEBA, drift detection, Identity Protection scans, access certification campaigns |
 
-**Taxonomy (so the counts are unambiguous):** there are **eight operational agents** —
+**Taxonomy (so the counts are unambiguous):** there are **eight operational agents** -
 the seven in the table above plus the **Certifier** (access review campaigns), which
 holds its own least-privilege app registration (AccessReview.ReadWrite.All +
 directory reads). They are supported by non-agent services - the **API** (Azure

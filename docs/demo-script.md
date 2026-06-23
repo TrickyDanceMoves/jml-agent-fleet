@@ -5,7 +5,7 @@
 **Thesis in one line:** *The model proposes; policy and approval decide what executes.*
 
 > Run with synthetic identities only. The console's screenshots/captures already
-> sanitize the tenant domain to `contoso.onmicrosoft.com`; do the same on camera —
+> sanitize the tenant domain to `contoso.onmicrosoft.com`; do the same on camera -
 > sign in as a demo operator, act on demo users (Sarah Chen, Robert Martinez).
 
 ---

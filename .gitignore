@@ -24,9 +24,9 @@ approver/dist/
 # Audit log (sensitive operational data)
 audit.jsonl
 
-# Operator PIN/Windows-auth hashes — must never be committed
+# Operator PIN/Windows-auth hashes - must never be committed
 approver/operator-auth.json
-# Operator RBAC — names real operators / tenant UPNs (commit operators.example.json)
+# Operator RBAC - names real operators / tenant UPNs (commit operators.example.json)
 approver/operators.json
 # Per-operator activity log (contains operator names + event types)
 approver/operator-activity.jsonl
@@ -40,13 +40,13 @@ approver/foundry-iq.json
 approver/operations.jsonl
 # Scheduled operations queue (runtime state)
 approver/scheduled.json
-# Notification routing rules — operator-specific, optional to commit
+# Notification routing rules - operator-specific, optional to commit
 approver/notification-rules.json
 # Durable tenant binding written by the setup wizard (contains the live tenant ID/domain)
 approver/tenant.json
-# Security finding ownership — maps finding -> real operator UPN
+# Security finding ownership - maps finding -> real operator UPN
 approver/security-assignments.json
-# Shared finding status (acknowledged/deleted findings) — references real findings
+# Shared finding status (acknowledged/deleted findings) - references real findings
 approver/security-status.json
 
 # Auditor report outputs (contain tenant UPNs / security findings)
@@ -56,7 +56,7 @@ auditor/reports/
 electron-app/out/
 electron-app/dist/
 
-# Local state backups — may contain tenant UPNs, PIN hashes, or tenant IDs.
+# Local state backups - may contain tenant UPNs, PIN hashes, or tenant IDs.
 # Never commit; these are runtime/recovery copies, not source.
 *.bak
 *.fresh-bak
@@ -72,7 +72,7 @@ Thumbs.db
 shared/pim-config.json
 shared/access-cert-config.json
 
-# AI-assistant tooling — keep local, never on the public repo
+# AI-assistant tooling - keep local, never on the public repo
 .claude/
 CLAUDE.md
 docs/superpowers/
