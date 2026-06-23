@@ -71,3 +71,9 @@ Thumbs.db
 # PIM / access-cert configs hold real tenant group & object IDs
 shared/pim-config.json
 shared/access-cert-config.json
+
+# AI-assistant tooling — keep local, never on the public repo
+.claude/
+CLAUDE.md
+docs/superpowers/
+electron-app/docs/superpowers/
