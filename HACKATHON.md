@@ -8,6 +8,8 @@
 
 **Submission deadline:** June 14, 2026 at 11:59 PM Pacific Time — **submitted ✅**
 
+**Judging period:** June 14 through June 30, 2026 — results expected after June 30
+
 **Format:** Virtual, global, public code repository, and public demo video up to five minutes
 
 Official references:
