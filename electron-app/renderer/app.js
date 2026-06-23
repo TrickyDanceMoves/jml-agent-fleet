@@ -62,7 +62,7 @@ const TAB_TITLES = {
   settings: 'Settings'
 };
 
-// Tabs where the Safe/Live mode pill is meaningful — anywhere you can issue
+// Tabs where the Safe/Live mode pill is meaningful - anywhere you can issue
 // or approve a write operation. Read-only views hide the pill to reduce noise.
 const PAGE_BRIEFS = {
   approver: [
@@ -227,7 +227,7 @@ function applyIntegrationsConfig(cfg) {
   const isAdmin = currentOperatorRole() === 'admin';
   document.querySelectorAll('.int-admin-only').forEach(btn => { btn.style.display = isAdmin ? '' : 'none'; });
 
-  // Sync the dashboard Integrations widget with the real config — dots and
+  // Sync the dashboard Integrations widget with the real config - dots and
   // count reflect what is actually enabled, never a hardcoded "connected".
   const dashSync = [['bamboo', bb], ['teams', tm], ['sentinel', st], ['splunk', sp], ['servicenow', sn], ['jira', ji]];
   let connected = 0;
@@ -363,7 +363,7 @@ if (typeof window.api?.onHrQueue === 'function') {
   window.api.onHrQueue(hr => {
     const meta = document.getElementById('int-queue-meta');
     const rows = document.getElementById('int-queue-rows');
-    // Error path — Azurite not running or queue not configured
+    // Error path - Azurite not running or queue not configured
     if (hr && hr.error) {
       if (meta) meta.innerHTML = '<span style="color:var(--coral)">offline</span>';
       if (rows) rows.innerHTML = `<div class="q-row"><span style="grid-column:1 / -1;padding:18px 14px;color:var(--muted);text-align:center;line-height:1.55">
@@ -405,7 +405,7 @@ if (typeof window.api?.onHrQueue === 'function') {
       </span></div>`;
     }
 
-    // Dashboard HRIS lane — inbound identity events that originate fleet work.
+    // Dashboard HRIS lane - inbound identity events that originate fleet work.
     const hrisGrid = document.getElementById('hris-events-grid');
     const hrisMeta = document.getElementById('hris-lane-meta');
     if (hrisGrid && hr && !hr.error && Array.isArray(hr.events)) {
@@ -464,7 +464,7 @@ function updateTopbarModePill() {
       pill.style.display = 'none';
     }
   }
-  // Sidebar mode tag (always visible — reflects global state)
+  // Sidebar mode tag (always visible - reflects global state)
   const sideMode = document.getElementById('sidebar-mode-tag');
   if (sideMode) {
     sideMode.textContent = '· ' + (isWhatif ? 'Safe' : 'LIVE');
@@ -479,7 +479,7 @@ try { window.api.getOperators(); } catch (_) {}
 // Restore durable security-finding assignments so ownership survives restarts.
 try { loadSecurityAssignments(); } catch (_) {}
 
-// Global approvals poll — keeps the sidebar badge accurate from any tab.
+// Global approvals poll - keeps the sidebar badge accurate from any tab.
 // Tab-local poll (in switchTab) stays at 30s for the active Approvals view;
 // this background poll runs at 60s so the global state never goes stale.
 setInterval(() => { try { window.api.getPendingApprovals(); } catch (_) {} }, 60000);
@@ -506,7 +506,7 @@ isWhatif = _hardMode === 'whatif';
 window.api.setMode(isWhatif);
 window.JmlModeUi.syncModeUi(document, isWhatif);
 
-// Confirmation modal — returns true if user clicks OK, false otherwise
+// Confirmation modal - returns true if user clicks OK, false otherwise
 function confirmModal({ title, body, danger, okLabel, cancelLabel }) {
   return new Promise(resolve => {
     const overlay = document.createElement('div');
@@ -533,7 +533,7 @@ function confirmModal({ title, body, danger, okLabel, cancelLabel }) {
 }
 
 // Returns the current operator's role. Prefer the authoritative value set by
-// applyRoleUI (which comes from main.js get-current-operator IPC) — that's
+// applyRoleUI (which comes from main.js get-current-operator IPC) - that's
 // available immediately after sign-in. The _operators map is a secondary check
 // keyed by operator NAME (not Windows username).
 function currentOperatorRole() {
@@ -545,7 +545,7 @@ function currentOperatorRole() {
 function isViewer() { return currentOperatorRole() === 'viewer'; }
 
 // Visually hint that Live is restricted when the operator is a viewer, but
-// NEVER hard-disable the button — the click handler will show a helpful
+// NEVER hard-disable the button - the click handler will show a helpful
 // toast/modal instead of silently swallowing the click. Disabling buttons led
 // to "I can't click Live" when role data was momentarily stale at boot.
 function applyViewerLock() {
@@ -554,7 +554,7 @@ function applyViewerLock() {
     b.disabled = false;
     b.style.opacity = viewer ? .6 : '';
     b.style.cursor = '';
-    b.title = viewer ? 'Read-only role — clicking will explain why Live is restricted' : '';
+    b.title = viewer ? 'Read-only role - clicking will explain why Live is restricted' : '';
   });
 }
 
@@ -565,12 +565,12 @@ document.querySelectorAll('.hard-mode-btn').forEach(btn => {
   btn.addEventListener('click', async () => {
     const target = btn.dataset.hard;
     if (target === _hardMode) return;
-    // Mode toggle is INTENT only — flip freely. PIN gate fires at actual write
+    // Mode toggle is INTENT only - flip freely. PIN gate fires at actual write
     // time (approval submit, Live mover/leaver). The one exception is viewers,
     // who can't enter Live mode at all by policy.
     if (target === 'live' && isViewer()) {
       const switchNow = await confirmModal({
-        title: 'Viewer role — Live mode is disabled',
+        title: 'Viewer role - Live mode is disabled',
         body: `"${currentOperatorName || window.api.currentUser}" is signed in as a read-only viewer. Switch to an admin or helpdesk operator to enable Live mode.`,
         okLabel: 'Switch operator',
         cancelLabel: 'Stay'
@@ -595,7 +595,7 @@ document.querySelectorAll('.mode-btn').forEach(btn => {
     // Viewer can never enter Live mode
     if (target === 'live' && isViewer()) {
       const switchNow = await confirmModal({
-        title: 'Viewer role — Live mode is disabled',
+        title: 'Viewer role - Live mode is disabled',
         body: `"${currentOperatorName || window.api.currentUser}" is signed in as a read-only viewer. Switch operators to enable Live mode.`,
         okLabel: 'Switch operator',
         cancelLabel: 'Stay'
@@ -603,7 +603,7 @@ document.querySelectorAll('.mode-btn').forEach(btn => {
       if (switchNow) document.getElementById('btn-switch-operator')?.click();
       return;
     }
-    // Soft-mode is intent only. No PIN at toggle time — PIN gates the actual
+    // Soft-mode is intent only. No PIN at toggle time - PIN gates the actual
     // approval submit / Live mover / Live leaver. If toggling away from the
     // hard session default, give a one-tap confirmation so accidental Live
     // engagement still surfaces.
@@ -649,7 +649,7 @@ window.api.onHistoryCleared(({ agent }) => {
   if (agent === 'auditor')  audClearState();
 });
 
-// Operator changed — clear both agent transcripts so no previous operator's
+// Operator changed - clear both agent transcripts so no previous operator's
 // chat persists into the new session.
 if (window.api.onConversationReset) {
   window.api.onConversationReset(() => {
@@ -818,7 +818,7 @@ function renderLifecycleMap() {
     const isPartial = isCurr && _lcTerminalState === 'partial';
     // The 'request' stage has an extra "capturing" sub-state: started but the agent
     // is still gathering required details (e.g. user only gave a name). It is neither
-    // done nor a normal in-flight step — show it distinctly so operators know more
+    // done nor a normal in-flight step - show it distinctly so operators know more
     // input is needed before the request is considered captured.
     const capturing = key === 'request' && isCurr && _lcCapturing && !isDone;
     const cls     = 'lc-state' + (isDone ? ' done' : isFailed ? ' current failed' : isPartial ? ' current partial' : capturing ? ' current capturing' : isCurr ? ' current' : '');
@@ -875,7 +875,7 @@ function lcAdvanceTo(stageKey) {
 
 function lcMarkComplete() {
   // If the turn ended without any tool firing and we're still at 'request', the
-  // agent only asked a follow-up — the request is NOT captured/complete yet.
+  // agent only asked a follow-up - the request is NOT captured/complete yet.
   if (!_lcToolRan && _lcCurrent === 'request') {
     _lcCapturing = true;
     const tag = document.getElementById('lifecycle-status-tag');
@@ -888,7 +888,7 @@ function lcMarkComplete() {
 }
 
 // One-line, human-readable failure summary for the lifecycle rail. The raw
-// infrastructure error stays on the operation record — Glass Screen's details
+// infrastructure error stays on the operation record - Glass Screen's details
 // drawer and the audit trail carry the full text; the rail never does.
 function lcSummarizeError(error) {
   if (!error) return null;
@@ -913,7 +913,7 @@ function lcApplyOperation(operation) {
     _lcDoneSet.add(operation.stage);
     _lcCurrent = null;
     if (tag) { tag.textContent = 'Succeeded'; tag.className = 'tag ok'; }
-    // Don't let the rail sit at "Succeeded" forever — relax back to Idle so the
+    // Don't let the rail sit at "Succeeded" forever - relax back to Idle so the
     // next visit shows a clean lifecycle, not a stale completed one.
     clearTimeout(_lcIdleTimer);
     _lcIdleTimer = setTimeout(lcSetIdle, 9000);
@@ -943,7 +943,7 @@ function lcSetIdle() {
 
 window.__jmlSetApproverInputLifecycle = lcSetIdle;
 
-// Legacy shim — kept so any future callers don't break
+// Legacy shim - kept so any future callers don't break
 function updateLifecycleState(stepLabel, state) {
   // Replaced by the new state machine above; no-op for legacy calls
 }
@@ -1029,7 +1029,7 @@ function getOrCreateCurrentMsg(agent) {
 
 // ── Streaming chunk handler ───────────────────────────────────────────────────
 window.api.onChunk(({ agent: chunkAgent, type, text, toolName, success, result }) => {
-  // Route by the agent tag on the chunk itself — a response streaming in for a
+  // Route by the agent tag on the chunk itself - a response streaming in for a
   // background agent must not land in whichever chat tab is currently open.
   const agent = chunkAgent || (currentTab === 'auditor' ? 'auditor' : 'approver');
   const msgEl = getOrCreateCurrentMsg(agent);
@@ -1060,7 +1060,7 @@ window.api.onChunk(({ agent: chunkAgent, type, text, toolName, success, result }
       lcAdvanceTo(_TOOL_TO_LC_STAGE[toolName]);
     }
     if (agent === 'auditor') audTrackTool(toolName, 'running');
-    // No per-tool chips in the reply — keep the gray thinking line as the only
+    // No per-tool chips in the reply - keep the gray thinking line as the only
     // in-message activity cue. The approver lifecycle rail and the auditor
     // query card already show which tools ran.
   }
@@ -1168,7 +1168,7 @@ window.api.onComplete(({ agent }) => {
           });
           cancel.addEventListener('click', () => {
             div.remove();
-            window.api.sendMessage('approver', 'Cancel — do not proceed.');
+            window.api.sendMessage('approver', 'Cancel - do not proceed.');
           });
           div.appendChild(proceed);
           div.appendChild(cancel);
@@ -1255,7 +1255,7 @@ if (typeof window.api.onMsgMirror === 'function') {
 }
 
 // ── Security dashboard ────────────────────────────────────────────────────────
-// Visual cue while a security re-scan is in flight — every scan tile pulses
+// Visual cue while a security re-scan is in flight - every scan tile pulses
 // until onSecurityReports fires; the Re-scan button shows "Scanning…".
 function setSecurityScanning(on) {
   ['sec-ueba', 'sec-drift', 'sec-risky'].forEach(id => {
@@ -1279,7 +1279,7 @@ document.getElementById('refresh-security').addEventListener('click', () => {
   const btnRest = document.getElementById('btn-drift-restore');
   if (btnIgn)  btnIgn.addEventListener('click',  () => { if (card) card.style.display = 'none'; });
   if (btnRest) btnRest.addEventListener('click', () => {
-    addNotification('🔒', 'Restore baseline queued — awaiting dual approval from a second operator');
+    addNotification('🔒', 'Restore baseline queued - awaiting dual approval from a second operator');
   });
 })();
 
@@ -1356,9 +1356,9 @@ function loadSecurity() {
         + mi('bitlocker', 'Rotate BitLocker keys', '', managed, 'Rotate BitLocker recovery keys')
         + mi('rename', 'Rename…', '', managed, 'Rename the device')
         + mi('retire', 'Retire', '', managed, 'Remove company data, keep personal data')
-        + mi('wipe', 'Wipe (factory reset)', 'danger', managed, 'Irreversible — second admin required')
-        + mi('delete', 'Delete device object', 'danger', hasEntra, 'Irreversible — second admin required');
-      const safe = '<label class="dev-safe dev-card-safe" title="Safe mode — simulate this device\'s actions, no tenant change"><input type="checkbox" class="dev-card-whatif" checked> Safe</label>';
+        + mi('wipe', 'Wipe (factory reset)', 'danger', managed, 'Irreversible - second admin required')
+        + mi('delete', 'Delete device object', 'danger', hasEntra, 'Irreversible - second admin required');
+      const safe = '<label class="dev-safe dev-card-safe" title="Safe mode - simulate this device\'s actions, no tenant change"><input type="checkbox" class="dev-card-whatif" checked> Safe</label>';
       actions = safe + primary + (menu
         ? `<details class="dev-more"><summary class="btn sm">More ▾</summary><div class="dev-more-menu">${menu}</div></details>` : '');
     }
@@ -1419,7 +1419,7 @@ function loadSecurity() {
     _lastQuery = { type: 'stale' };
     listEl().innerHTML = '<div class="loading-hint">Loading stale devices…</div>';
     const data = await window.api.getStaleDevices(90);
-    render(data, (data && !data.error) ? `Stale devices — no sign-in in ${data.days || 90} days` : '');
+    render(data, (data && !data.error) ? `Stale devices - no sign-in in ${data.days || 90} days` : '');
   }
   function refresh() {
     if (!_lastQuery) return;
@@ -1474,7 +1474,7 @@ function loadSecurity() {
       const body = (act === 'wipe'
         ? `A factory reset erases ALL data on ${name} and is irreversible.`
         : `This removes the Entra device object for ${name}; it must re-register to return.`)
-        + (isAdmin ? '' : ' This requires an admin — your request will be queued for an admin to approve.');
+        + (isAdmin ? '' : ' This requires an admin - your request will be queued for an admin to approve.');
       const ok = await confirmModal({ title: `${verb} ${name}?`, body, danger: true, okLabel: isAdmin ? verb : 'Request approval' });
       if (!ok) return;
     } else if (ACTION_COPY[act] && !whatif) {
@@ -1501,7 +1501,7 @@ function loadSecurity() {
   // ── Scoped device assistant ────────────────────────────────────────────────
   // Device questions are answered in place (reusing the device reads, no tab
   // switch). Execution and non-device requests are referred to the Approver,
-  // since that agent owns write authority — the device tab stays read-scoped.
+  // since that agent owns write authority - the device tab stays read-scoped.
   const DEVICE_HINT  = /\b(devices?|laptop|desktop|phone|iphone|ipad|android|tablet|surface|macbook|workstation|endpoint|machine|intune|managed|compliance|compliant|non-?compliant|encrypt|encrypted|stale|wipe|retire|sync)\b/i;
   const OTHER_DOMAIN = /\b(joiner|onboard|new ?hire|mover|move|leaver|offboard|licen[sc]e|group|password|reset|mfa|pim|directory role|department|certificat|scim|hris)\b/i;
   const ACTION_WORD  = /\b(wipe|retire|disable|enable|delete|rename)\b/i;
@@ -1535,11 +1535,11 @@ function loadSecurity() {
     const isDevice = DEVICE_HINT.test(text);
     // Clearly another domain (and not about devices) → refer out.
     if (!isDevice && OTHER_DOMAIN.test(text)) {
-      assistNote('That looks like an identity/lifecycle request, not a device one — the Approver agent handles that.', true, text);
+      assistNote('That looks like an identity/lifecycle request, not a device one - the Approver agent handles that.', true, text);
       return;
     }
     const user = extractUser(text);
-    if (/\bstale\b/i.test(text) && !user) { assistNote('Listing stale devices — no sign-in in 90 days.'); loadStale(); return; }
+    if (/\bstale\b/i.test(text) && !user) { assistNote('Listing stale devices - no sign-in in 90 days.'); loadStale(); return; }
     if (user) {
       const acting = ACTION_WORD.test(text);
       assistNote(`Showing devices for <b>${escHtml(user)}</b>.` + (acting ? ' Use the action buttons on the device below, or the Approver agent for guided, approval-gated execution.' : ''), acting, text);
@@ -1548,7 +1548,7 @@ function loadSecurity() {
       return;
     }
     if (isDevice) {
-      assistNote('Tell me whose devices — e.g. “devices for sarah.chen@…” — or click <b>Stale devices</b>. For guided actions, the Approver agent can execute with approval.', false);
+      assistNote('Tell me whose devices - e.g. “devices for sarah.chen@…” - or click <b>Stale devices</b>. For guided actions, the Approver agent can execute with approval.', false);
       return;
     }
     assistNote('I only answer device questions here. For anything else, use the Approver agent.', true, text);
@@ -1595,15 +1595,15 @@ function buildCountBadges(crit, warn, info) {
 // ── V2 Security Inbox ──────────────────────────────────────────────────────
 let _secFindings = []; // flat array of all findings
 let _secFocused = null; // currently focused finding index
-let _secAckedKeys     = new Set();  // stable keys (rule|title) of acknowledged findings — survives rescans
+let _secAckedKeys     = new Set();  // stable keys (rule|title) of acknowledged findings - survives rescans
 let _secAckedFindings = [];         // ordered list of acked finding objects for the acked section
-let _secDeletedKeys   = new Set();  // stable keys of admin-deleted findings — permanently hidden from inbox
-let _secAssignments   = new Map();  // stable key (rule|title) -> assignee name — survives rescans
+let _secDeletedKeys   = new Set();  // stable keys of admin-deleted findings - permanently hidden from inbox
+let _secAssignments   = new Map();  // stable key (rule|title) -> assignee name - survives rescans
 let _secMineSummaryShown = false;   // session guard: surface "you have N assigned" heads-up once
 let _secCheckedSet    = new Set();  // original indices of checkbox-selected findings
 let _secFilter = { sev: '', source: '', assign: '', maxAge: 0 }; // active inbox filter state (assign '' = show all, assigned stay visible)
 
-/** Stable identity key for a finding — survives index changes across rescans */
+/** Stable identity key for a finding - survives index changes across rescans */
 function _secKey(f) { return (f.rule || '') + '|' + (f.title || ''); }
 
 /** Load durable finding assignments from the backend store into _secAssignments.
@@ -2019,7 +2019,7 @@ function renderSecurityInbox(data) {
 
   _updateSecurityRibbonCounts();
 
-  // Reset active-inbox filter state (but NOT acked state — it persists across rescans).
+  // Reset active-inbox filter state (but NOT acked state - it persists across rescans).
   // Default assign filter is '' (all) so assigned findings stay visible rather than
   // vanishing from the inbox the moment they're assigned.
   _secFilter = { sev: '', source: '', assign: '', maxAge: 0 };
@@ -2068,7 +2068,7 @@ function focusFinding(idx) {
   }
   if (descEl) descEl.textContent = '';
 
-  // Update pivot button hash label — show a compact rule/check identifier
+  // Update pivot button hash label - show a compact rule/check identifier
   const pivotHashEl = document.getElementById('sec-pivot-audit-hash');
   if (pivotHashEl) {
     const parts = (f.rule || '').split(' · ');
@@ -2082,7 +2082,7 @@ function focusFinding(idx) {
   }
 
   _updateRemButtonAccess();
-  // Inline remediation — show per-finding-type quick actions that route to Approver
+  // Inline remediation - show per-finding-type quick actions that route to Approver
   const remLabel   = document.getElementById('sec-rem-label');
   const remBtns    = document.getElementById('sec-rem-btns');
   const remDisable = document.getElementById('sec-rem-disable');
@@ -2160,7 +2160,7 @@ window.api.onSecurityReports((data) => {
     if (labelEl) labelEl.textContent = critCount > 0
       ? `Security · ${critCount} critical`
       : warnCount > 0 ? `Security · ${warnCount} warning` : 'Security · all clear';
-    // Keep title and label consistent — never leave a stale "findings" title when
+    // Keep title and label consistent - never leave a stale "findings" title when
     // counts are zero, nor a "no findings" title when there are real findings.
     if (titleEl) titleEl.textContent =
       critCount > 0 ? `${critCount} critical finding${critCount !== 1 ? 's' : ''} need review`
@@ -2169,7 +2169,7 @@ window.api.onSecurityReports((data) => {
     if (metaEl) metaEl.textContent = '';
   }
 
-  // Sections stay collapsed by default — user clicks a scan card to open one
+  // Sections stay collapsed by default - user clicks a scan card to open one
   // Update summary strip tiles (scan-trio)
   function updateTile(id, report) {
     const countsEl = document.getElementById('sec-' + id + '-counts');
@@ -2203,7 +2203,7 @@ window.api.onSecurityReports((data) => {
       badgeEl.className = 'sec-section-badge ' + (cr ? 'badge-critical' : wn ? 'badge-warning' : 'badge-clear');
     }
   }
-  // Sidebar security badge — sum of all critical findings
+  // Sidebar security badge - sum of all critical findings
   const totalCrit = ((data.ueba?.summary?.critical) || 0) +
                     ((data.drift?.summary?.critical) || 0) +
                     ((data.riskyUsers?.summary?.critical) || 0);
@@ -2440,13 +2440,13 @@ function _secRemRoute(promptTemplate) {
   _secRouteToApprover(msg);
 }
 document.getElementById('sec-rem-disable')?.addEventListener('click', () =>
-  _secRemRoute('Disable account for {subject} immediately — security finding requires urgent action'));
+  _secRemRoute('Disable account for {subject} immediately - security finding requires urgent action'));
 document.getElementById('sec-rem-revoke')?.addEventListener('click', () =>
-  _secRemRoute('Revoke all active sessions for {subject} — security finding'));
+  _secRemRoute('Revoke all active sessions for {subject} - security finding'));
 document.getElementById('sec-rem-mfa')?.addEventListener('click', () =>
-  _secRemRoute('Force MFA re-registration for {subject} — identity protection alert'));
+  _secRemRoute('Force MFA re-registration for {subject} - identity protection alert'));
 document.getElementById('sec-rem-groups')?.addEventListener('click', () =>
-  _secRemRoute('Remove {subject} from all active group memberships — account is disabled and should not retain access'));
+  _secRemRoute('Remove {subject} from all active group memberships - account is disabled and should not retain access'));
 
 // ── Security pivot buttons ────────────────────────────────────────────────────
 // "Open audit entry" → jump to Audit Log and pre-filter by subject
@@ -2458,7 +2458,7 @@ document.getElementById('sec-pivot-audit')?.addEventListener('click', () => {
   if (subject) {
     setTimeout(() => {
       const sel = document.getElementById('log-filter-agent');
-      // Audit log filters by agent name — try to set the UPN as a text search
+      // Audit log filters by agent name - try to set the UPN as a text search
       const searchInput = document.getElementById('log-search-input') || document.getElementById('log-filter-upn');
       if (searchInput) { searchInput.value = subject; }
       // Trigger filter apply
@@ -2691,7 +2691,7 @@ document.getElementById('sec-drift-full')?.addEventListener('click', () => {
   overlay.className = 'pin-overlay';
   overlay.innerHTML =
     '<div class="pin-modal" style="width:540px;max-width:94vw">'
-    + '<div class="pin-header"><div class="pin-title">' + escHtml('Full drift diff — ' + f.title) + '</div></div>'
+    + '<div class="pin-header"><div class="pin-title">' + escHtml('Full drift diff - ' + f.title) + '</div></div>'
     + '<div class="pin-body" style="max-height:60vh;overflow-y:auto;padding:16px">'
     + '<div style="font-family:var(--mono,monospace);font-size:12px;line-height:1.7">'
     + rowsHtml
@@ -2845,7 +2845,7 @@ window.api.onExportRunResult((result) => {
     window.api.getExportsStatus();
     const label = result.type === 'blob' ? 'Blob export' : 'Sentinel ingest';
     if (result.status && result.status.configured === false) {
-      showToast(label + ' skipped — configure in Integrations settings', 'warning');
+      showToast(label + ' skipped - configure in Integrations settings', 'warning');
     } else {
       showToast(label + ' complete', 'success');
     }
@@ -2970,7 +2970,7 @@ function renderAuditPage() {
 
 // Chain Integrity panel (Audit Log). The cryptographic verification runs in the
 // main process (canonical sha256-of-raw-line check, matching Verify-AuditLog.ps1)
-// and arrives via onAuditChainStatus — the renderer only displays the verdict.
+// and arrives via onAuditChainStatus - the renderer only displays the verdict.
 // Entries (newest-first) drive the recent-links visualization.
 let _chainEntries = [];
 let _chainStatus = null;
@@ -3121,13 +3121,13 @@ function buildDashSummary() {
 
   // Compose prose
   if (urgent.length === 0 && notes.length === 0) {
-    el.textContent = 'Fleet operating normally — no pending actions, all agents ready.';
+    el.textContent = 'Fleet operating normally - no pending actions, all agents ready.';
     return;
   }
   let text = '';
   if (urgent.length > 0) {
     text = urgent.join(' · ');
-    if (notes.length > 0) text += ' — ' + notes.join(', ') + '.';
+    if (notes.length > 0) text += ' - ' + notes.join(', ') + '.';
     else text += '.';
   } else {
     text = notes.join(' · ') + '.';
@@ -3151,7 +3151,7 @@ function loadDashboard() {
     if (_dashConnected) return;
     document.querySelectorAll('#view-dashboard .loading').forEach(el => el.classList.remove('loading'));
     const sub = document.getElementById('dash-page-sub');
-    if (sub) sub.textContent = 'Fleet offline — no Entra connection. Configure tenant binding in Settings → Tenant Binding to enable live data.';
+    if (sub) sub.textContent = 'Fleet offline - no Entra connection. Configure tenant binding in Settings → Tenant Binding to enable live data.';
     const statEls = ['stat-users-total','stat-licenses-total','stat-activity-total'];
     statEls.forEach(id => { const el = document.getElementById(id); if (el && el.textContent === '') el.textContent = '—'; });
   }, 8000);
@@ -3166,7 +3166,7 @@ window.api.onDashboardStats((data) => {
     document.getElementById('stat-users-detail').textContent = data.error;
     document.getElementById('stat-activity-detail').textContent = '';
     // Don't leave the heading stuck on "loading…" when the tenant isn't
-    // connected yet — state it plainly.
+    // connected yet - state it plainly.
     const sub = document.getElementById('dash-headline-sub');
     if (sub && sub.textContent.includes('loading')) sub.textContent = 'tenant not connected';
     const pageSub = document.getElementById('dash-page-sub');
@@ -3198,7 +3198,7 @@ window.api.onDashboardStats((data) => {
           + '</div>';
       }).join('');
     }
-    // 7-Day Telemetry card — License Headroom (previously static placeholder rows).
+    // 7-Day Telemetry card - License Headroom (previously static placeholder rows).
     const headEl = document.getElementById('v2-lic-headroom');
     if (headEl) headEl.textContent = total > 0 ? assigned + ' / ' + total + ' used' : 'no assignable SKUs';
     const v2BarsEl = document.getElementById('v2-lic-bars');
@@ -3325,15 +3325,15 @@ function buildActivityItem(e) {
   if (subjFull) {
     const at = subjFull.indexOf('@');
     if (at > 0) {
-      // UPN — split user from domain
+      // UPN - split user from domain
       subjMain = subjFull.slice(0, at);
       subjEm = subjFull.slice(at);
     } else if (subjFull.includes('.') && /\.(jsonl?|csv|ps1)$/i.test(subjFull)) {
-      // File path — show as-is, italic
+      // File path - show as-is, italic
       subjMain = subjFull;
       subjEm = ' · file';
     } else {
-      // Group name, tenant, scan id, etc. — show as-is, optional context tag
+      // Group name, tenant, scan id, etc. - show as-is, optional context tag
       subjMain = subjFull;
       const detail = (e.details && (e.details.stage || e.details.ticketRef || e.details.action)) || '';
       if (detail) subjEm = ' · ' + detail;
@@ -3429,7 +3429,7 @@ function setupUserAutocomplete(inputEl, opts) {
       drop.style.display = 'block';
     }
 
-    // Fresh search (debounced) — updates cache and refreshes dropdown if still focused
+    // Fresh search (debounced) - updates cache and refreshes dropdown if still focused
     _timer = setTimeout(() => {
       // Show "Searching…" while PS call is in flight (only if nothing cached yet)
       if (!_userCache.filter(u =>
@@ -3459,7 +3459,7 @@ function setupUserAutocomplete(inputEl, opts) {
         } else if (data.error) {
           const r = inputEl.getBoundingClientRect();
           drop.style.left = r.left + 'px'; drop.style.top = (r.bottom + 2) + 'px'; drop.style.width = r.width + 'px';
-          drop.innerHTML = '<div class="ac-loading" style="color:var(--clr-danger,#f87171)">Search error — check Graph connection</div>';
+          drop.innerHTML = '<div class="ac-loading" style="color:var(--clr-danger,#f87171)">Search error - check Graph connection</div>';
           drop.style.display = 'block';
         } else {
           drop.innerHTML = '<div class="ac-loading">No results</div>';
@@ -3499,7 +3499,7 @@ function renderMarkdown(text) {
     const raw  = lines[i];
     const line = raw.trimEnd();
 
-    // Blank line — skip
+    // Blank line - skip
     if (!line.trim()) { i++; continue; }
 
     // Heading
@@ -3512,7 +3512,7 @@ function renderMarkdown(text) {
     // Horizontal rule
     if (/^[-*]{3,}$/.test(line.trim())) { out.push('<div class="md-hr"></div>'); i++; continue; }
 
-    // Blockquote — collect only lines that start with `>`; stop at anything else
+    // Blockquote - collect only lines that start with `>`; stop at anything else
     if (isBlockq(line)) {
       const bqLines = [];
       while (i < lines.length && isBlockq(lines[i])) {
@@ -3557,7 +3557,7 @@ function renderMarkdown(text) {
       continue;
     }
 
-    // Bullet list — `-`, `*`, or `•` prefixes all treated as list items
+    // Bullet list - `-`, `*`, or `•` prefixes all treated as list items
     if (isBullet(line)) {
       out.push('<ul class="md-list">');
       while (i < lines.length && isBullet(lines[i])) {
@@ -3605,7 +3605,7 @@ function renderMarkdown(text) {
 // Color-codes risk levels and makes delete operations visually distinct in
 // rendered agent replies. Risk levels are coloured in "high risk" phrases,
 // "risk: high" forms, and bolded levels (**Critical**); delete verbs get a
-// coral chip. Only text segments are touched — never tag interiors.
+// coral chip. Only text segments are touched - never tag interiors.
 function _riskClass(level) {
   const l = String(level).toLowerCase();
   if (l === 'critical') return 'risk-critical';
@@ -3643,7 +3643,7 @@ function inlineMarkdown(text) {
     .replace(/~~([^~]+)~~/g, '<del>$1</del>')
     // Inline code (do before links so backticks aren't processed inside links)
     .replace(/`([^`]+)`/g, '<code>$1</code>')
-    // Links [text](url) — only http/https to avoid XSS
+    // Links [text](url) - only http/https to avoid XSS
     .replace(/\[([^\]]+)\]\((https?:\/\/[^)]+)\)/g, '<a class="md-link" href="$2" target="_blank" rel="noopener">$1</a>')
     // Emoji status markers
     .replace(/✅/g, '<span class="md-check">✅</span>')
@@ -3674,14 +3674,14 @@ function renderV2ChatEnhancements(text) {
   // Synthetic chat-enhancement cards (a fabricated "plan preview" execution trace
   // and a text-pattern-matched risk gauge with a fallback fake score) were appended
   // to every agent reply. They showed made-up tool calls, timings, and data, which
-  // is misleading — disabled. Real risk data is stated in the agent's own text and
+  // is misleading - disabled. Real risk data is stated in the agent's own text and
   // surfaced via the actual score_risk tool result; the deterministic Policy
   // Simulation tool (Operations tab) covers genuine policy previews.
   return '';
 }
 
 // renderRiskScoreCard(data)
-// data — either a plain number (legacy fallback) or the full score_risk tool result:
+// data - either a plain number (legacy fallback) or the full score_risk tool result:
 //   { score, riskLevel, operation, subject, blocked, dualApproval, reasons: string[] }
 // Reasons from Invoke-RiskScore.ps1 use "PREFIX: message" format, e.g.:
 //   "FREEZE: Change-freeze is active on Sundays"
@@ -3695,7 +3695,7 @@ function renderRiskScoreCard(data) {
   // Derive tone from riskLevel field if present (more accurate than threshold buckets)
   const tone    = d.riskLevel || (clamped >= 80 ? 'critical' : clamped >= 60 ? 'high' : clamped >= 35 ? 'medium' : 'low');
   const toneVar = tone === 'critical' ? 'var(--crit)' : tone === 'high' ? 'var(--warn)' : tone === 'medium' ? 'var(--info)' : 'var(--ok)';
-  // SVG circular gauge — r=22 → circumference ≈ 138.2
+  // SVG circular gauge - r=22 → circumference ≈ 138.2
   const r = 22, circ = 2 * Math.PI * r;
   const dash = (clamped / 100) * circ;
   const gap  = circ - dash;
@@ -3737,20 +3737,20 @@ function renderRiskScoreCard(data) {
         '</div>';
     }).join('');
   } else {
-    // No reasons from the script — render score-relative baseline copy
+    // No reasons from the script - render score-relative baseline copy
     const op = d.operation || '';
     const opNames = { joiner: 'Joiner', enroller: 'Enroller', mover: 'Mover', leaver_soft: 'Soft leaver', leaver_hard: 'Hard leaver' };
     const opLabel = opNames[op] || 'Lifecycle';
     const impact  = clamped < 30 ? 'low-impact' : clamped < 60 ? 'moderate-impact' : 'high-impact';
     reasonsHtml = '<div class="it ' + (clamped >= 60 ? 'bad' : 'warn') + '">' +
-      escHtml(opLabel + ' baseline — ' + impact + ' on account state.') + '</div>';
+      escHtml(opLabel + ' baseline - ' + impact + ' on account state.') + '</div>';
     if (d.dualApproval) reasonsHtml += '<div class="it warn">Dual approval required before execution.</div>';
     reasonsHtml += '<div class="it ok">Audit chain and rollback window active.</div>';
   }
 
   // Blocked banner appended to reasons
   if (d.blocked) {
-    reasonsHtml += '<div class="it bad risk-blocked-banner">⊘ Operation is blocked by policy — cannot proceed without override.</div>';
+    reasonsHtml += '<div class="it bad risk-blocked-banner">⊘ Operation is blocked by policy - cannot proceed without override.</div>';
   }
 
   // ── Badge strip (riskLevel + optional dual-approval + blocked flags) ─────────
@@ -3766,7 +3766,7 @@ function renderRiskScoreCard(data) {
     : '';
 
   // ── Foundry IQ grounding: cited policy block ─────────────────────────────────
-  // The Microsoft IQ layer makes the decision auditable — every risk call can
+  // The Microsoft IQ layer makes the decision auditable - every risk call can
   // show which policy documents grounded it, or that it failed closed.
   let groundingHtml = '';
   const g = d.grounding;
@@ -3774,7 +3774,7 @@ function renderRiskScoreCard(data) {
     if (g.unavailable) {
       groundingHtml =
         '<div class="risk-grounding unavailable">' +
-          '<div class="risk-grounding-head">⚠ Foundry IQ — policy grounding unavailable (failed closed)</div>' +
+          '<div class="risk-grounding-head">⚠ Foundry IQ - policy grounding unavailable (failed closed)</div>' +
           '<div class="risk-grounding-note">' + escHtml(g.error || 'Grounding service unreachable') + '</div>' +
         '</div>';
     } else {
@@ -3825,7 +3825,7 @@ function loadApprovals() {
 
 // ── Approval-card access-impact diff ─────────────────────────────────────────
 // Shows the admin exactly what access a queued leaver strips BEFORE they sign
-// off — the same green/red/grey delta as the Quick-Leaver preview, fetched live
+// off - the same green/red/grey delta as the Quick-Leaver preview, fetched live
 // per card. Read-only; makes no tenant change.
 function _apprDiffList(before, after) {
   const b = new Set(before || []), a = new Set(after || []);
@@ -3856,7 +3856,7 @@ function _renderApprovalDiff(snap, stage) {
     ? '<div style="margin-top:4px;color:var(--coral);font-size:12px">Account will be PERMANENTLY DELETED + sessions revoked</div>'
     : '<div style="margin-top:4px;color:var(--coral);font-size:12px">Account will be DISABLED + sessions revoked</div>';
   return `<div style="font-family:var(--mono);font-size:12px;line-height:1.6;margin-top:8px;padding-top:8px;border-top:1px solid var(--border)">
-    <div style="color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.04em">Access impact — ${escHtml(snap.displayName || '')}</div>
+    <div style="color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.04em">Access impact - ${escHtml(snap.displayName || '')}</div>
     ${fate}
     ${section('Groups', snap.groups, after.groups)}
     ${section('Licenses', snap.licenses, after.licenses)}
@@ -4004,7 +4004,7 @@ window.api.onPendingApprovals((data) => {
     // Risk note based on operation type
     let noteHtml = '';
     if (severity === 'crit') {
-      noteHtml = `<div class="note crit"><div class="ttl">Risk Note</div><div class="reason">Hard-stage leaver — license + group removal requires dual approval. UEBA may flag this as a high-impact change.</div></div>`;
+      noteHtml = `<div class="note crit"><div class="ttl">Risk Note</div><div class="reason">Hard-stage leaver - license + group removal requires dual approval. UEBA may flag this as a high-impact change.</div></div>`;
     } else if (badgeClass === 'joiner') {
       noteHtml = `<div class="note info"><div class="ttl">Provisioner Note</div><div class="reason">New hire provisioning. Groups and licenses pre-assigned. SoD precheck completed.</div></div>`;
     } else if (badgeClass === 'mover') {
@@ -4043,11 +4043,11 @@ window.api.onPendingApprovals((data) => {
       ? canApproveThis
         ? `<button class="btn primary btn-approve" data-id="${escHtml(token)}">Approve${isDual ? ' (1 of 2)' : ''}</button>`
         : `<button class="btn primary btn-approve" data-id="${escHtml(token)}" disabled
-              title="Requires admin role — contact an admin operator to approve this action"
+              title="Requires admin role - contact an admin operator to approve this action"
               style="opacity:.45;cursor:not-allowed">Admin sign-off needed</button>`
       : '';
 
-    // Access-impact preview slot for leaver approvals — hydrated live after
+    // Access-impact preview slot for leaver approvals - hydrated live after
     // render so the admin sees what access is stripped before signing off.
     const isLeaverAppr = tool.startsWith('submit_leaver');
     const leaverStage  = tool === 'submit_leaver_hard' ? 'Hard'
@@ -4115,7 +4115,7 @@ window.api.onPendingApprovals((data) => {
 
 window.api.onApproveResult((data) => {
   loadApprovals();
-  // Approval granted — refresh security findings after brief delay so any newly
+  // Approval granted - refresh security findings after brief delay so any newly
   // cleared findings (e.g. leaver-then-group-add) can resolve
   setTimeout(() => window.api.getSecurityReports(), 3500);
 });
@@ -4145,7 +4145,7 @@ function loadOperations() {
   }
 }
 
-// Render Operations kanban — derives Queued from scheduled-ops, Completed from audit log,
+// Render Operations kanban - derives Queued from scheduled-ops, Completed from audit log,
 // In Flight from the dynamic _inflightOps registry below.
 const _inflightOps = new Map();
 const _operationRecords = new Map();
@@ -4292,7 +4292,7 @@ function updateDashboardOperationStatus() {
   sub.classList.toggle('operation-failed', current.status === 'failed');
 }
 
-// Completion toasts — fired once per operation when it reaches a terminal
+// Completion toasts - fired once per operation when it reaches a terminal
 // state, and silenceable via the bell dropdown (persisted in localStorage).
 const _toastedOps = new Set();
 function opToastsMuted() {
@@ -4314,7 +4314,7 @@ function maybeToastCompletion(op, fromBulk) {
   const agent = String(op.agent || 'operation');
   const subj  = (op.subject || '').split('@')[0] || op.subject || '';
   const verb  = ok ? 'completed' : partial ? 'completed with follow-ups' : 'failed';
-  showToast(`${agent.charAt(0).toUpperCase() + agent.slice(1)} ${verb}${subj ? ' — ' + subj : ''}`,
+  showToast(`${agent.charAt(0).toUpperCase() + agent.slice(1)} ${verb}${subj ? ' - ' + subj : ''}`,
     ok ? 'success' : partial ? 'warning' : 'error');
 }
 
@@ -4410,7 +4410,7 @@ function renderTelemetryChart(operations) {
   const daySpans = document.querySelectorAll('.v2-bar-days span');
   buckets.forEach((b, i) => { if (daySpans[i]) daySpans[i].textContent = WK[b.date.getDay()][0]; });
 
-  // Dashboard KPI "JML Operations · 7d" sparkline — driven by the SAME real
+  // Dashboard KPI "JML Operations · 7d" sparkline - driven by the SAME real
   // 7-day buckets (was a hardcoded decorative drawing). viewBox is 0 0 100 40.
   const opsSpark = document.getElementById('stat-ops-spark');
   if (opsSpark) {
@@ -4537,7 +4537,7 @@ document.getElementById('btn-schedule').addEventListener('click', async () => {
       if (!whatif && (stage === 'Hard' || stage === 'Delete')) {
         const ok = await confirmModal({
           title: `Schedule a ${stage.toLowerCase()} leaver?`,
-          body: `This will ${stage === 'Delete' ? 'permanently delete' : 'remove all access for'} ${upn} when it fires — destructive leavers run automatically at the scheduled time.`,
+          body: `This will ${stage === 'Delete' ? 'permanently delete' : 'remove all access for'} ${upn} when it fires - destructive leavers run automatically at the scheduled time.`,
           danger: true, okLabel: 'Schedule it',
         });
         if (!ok) return;
@@ -4547,7 +4547,7 @@ document.getElementById('btn-schedule').addEventListener('click', async () => {
   }
 
   window.api.saveScheduledOp({
-    operation: cat,            // 'joiner' | 'mover' | 'leaver' — matches the firing logic
+    operation: cat,            // 'joiner' | 'mover' | 'leaver' - matches the firing logic
     payload, label,
     scheduledFor: new Date(when).toISOString(),
     createdBy: window.api.currentUser,
@@ -4841,7 +4841,7 @@ function showPinModal(opts) {
 async function requirePinIfNeeded(reason) {
   // operator-auth.json is keyed by OPERATOR NAME (chosen at sign-in), not the
   // Windows username. Use currentOperatorName which was set by setSidebarOperator
-  // — falls back to Windows username only if no operator is selected.
+  // - falls back to Windows username only if no operator is selected.
   const opName = currentOperatorName || window.api.currentUser;
   const role = currentOperatorRole();
   const writeAccess = role === 'admin' || role === 'helpdesk';
@@ -4849,7 +4849,7 @@ async function requirePinIfNeeded(reason) {
   await loadOperatorAuth();
   let a = _operatorAuth[opName];
   if (!a || a.mode === 'none' || !a.set) {
-    // No PIN configured — offer to set one up RIGHT NOW so the user isn't dead-ended.
+    // No PIN configured - offer to set one up RIGHT NOW so the user isn't dead-ended.
     const want = await confirmModal({
       title: `Set up authentication for "${opName}"`,
       body: 'Your operator account has write access but no PIN is configured. Set a PIN now to continue.',
@@ -4868,14 +4868,14 @@ async function requirePinIfNeeded(reason) {
       showToast('Failed to set PIN: ' + (resp && resp.error || 'unknown'), 'error');
       return null;
     }
-    showToast('PIN set — verify to continue', 'success');
+    showToast('PIN set - verify to continue', 'success');
     await loadOperatorAuth();
     a = _operatorAuth[opName];
     if (!a) return null;
   }
   const result = await showPinModal({
     title: reason || 'Confirm with PIN',
-    body: a.mode === 'windows' ? 'Windows-authenticated session — confirm with your PIN to proceed.' : `Enter PIN for ${opName} to proceed.`
+    body: a.mode === 'windows' ? 'Windows-authenticated session - confirm with your PIN to proceed.' : `Enter PIN for ${opName} to proceed.`
   });
   if (!result) return null;
   const resp = await window.api.verifyOperatorPin(opName, result.pin);
@@ -5215,7 +5215,7 @@ document.getElementById('btn-notif-add')?.addEventListener('click', () => {
   document.getElementById('btn-tenant-wizard').addEventListener('click', openWizard);
   document.getElementById('wizard-cancel').addEventListener('click', closeWizard);
 
-  // Step 1 — start device-code sign-in
+  // Step 1 - start device-code sign-in
   document.getElementById('wizard-start-signin').addEventListener('click', async () => {
     const errEl = document.getElementById('wizard-signin-error');
     errEl.style.display = 'none';
@@ -5256,7 +5256,7 @@ document.getElementById('btn-notif-add')?.addEventListener('click', () => {
     }, 2000);
   });
 
-  // Wizard step 1 — Copy code button
+  // Wizard step 1 - Copy code button
   document.getElementById('wizard-copy-code')?.addEventListener('click', () => {
     const code = document.getElementById('wizard-device-code').textContent.trim();
     if (code && code !== '—') {
@@ -5264,7 +5264,7 @@ document.getElementById('btn-notif-add')?.addEventListener('click', () => {
     }
   });
 
-  // Wizard step 1 — Open URL button
+  // Wizard step 1 - Open URL button
   document.getElementById('wizard-open-url')?.addEventListener('click', () => {
     const url = document.getElementById('wizard-verify-url').textContent.trim();
     if (url && url !== '—' && typeof window.api?.openExternal === 'function') {
@@ -5272,7 +5272,7 @@ document.getElementById('btn-notif-add')?.addEventListener('click', () => {
     }
   });
 
-  // Step 2 — create app regs
+  // Step 2 - create app regs
   document.getElementById('wizard-create-appregs').addEventListener('click', async () => {
     const list = document.getElementById('wizard-appreg-list');
     const agents = ['joiner', 'mover', 'leaver', 'enroller', 'certifier', 'approver', 'provisioner', 'auditor'];
@@ -5313,8 +5313,8 @@ document.getElementById('btn-notif-add')?.addEventListener('click', () => {
   });
   document.getElementById('wizard-grant-all-consent')?.addEventListener('click', openWizardConsentUrls);
 
-  // Finish — push tenant id + client ids into the existing tenant config form, save
-  // Step 3 finish — save tenant config then proceed to cert deployment
+  // Finish - push tenant id + client ids into the existing tenant config form, save
+  // Step 3 finish - save tenant config then proceed to cert deployment
   document.getElementById('wizard-finish').addEventListener('click', async () => {
     document.getElementById('set-tenant-id-input').value = _wizState.tenantId;
     _wizState.createdApps.forEach(c => {
@@ -5338,7 +5338,7 @@ document.getElementById('btn-notif-add')?.addEventListener('click', () => {
     showStep(4);
   });
 
-  // Step 4 — deploy certs
+  // Step 4 - deploy certs
   document.getElementById('wizard-deploy-certs').addEventListener('click', async () => {
     const btn = document.getElementById('wizard-deploy-certs');
     btn.disabled = true; btn.textContent = 'Deploying…';
@@ -5386,11 +5386,11 @@ document.getElementById('btn-notif-add')?.addEventListener('click', () => {
     btn.textContent = ok === total ? '✓ Done' : 'Retry failed';
     if (ok === total) {
       document.getElementById('wizard-skip-certs').textContent = 'Close';
-      showToast('Agent certificates deployed — fleet ready on this PC', 'success');
+      showToast('Agent certificates deployed - fleet ready on this PC', 'success');
     }
   });
 
-  // Step 4 — skip / close
+  // Step 4 - skip / close
   document.getElementById('wizard-skip-certs').addEventListener('click', () => {
     closeWizard();
     loadTenantConfig();
@@ -5409,7 +5409,7 @@ document.getElementById('btn-notif-add')?.addEventListener('click', () => {
     const state = await window.api.checkDeviceCodeStatus();
     if (state.status !== 'success') {
       statusEl.style.cssText = 'display:block;color:var(--text-2)';
-      statusEl.textContent = 'Starting device-code sign-in — a browser window will open…';
+      statusEl.textContent = 'Starting device-code sign-in - a browser window will open…';
       const r = await window.api.startDeviceCodeSignin();
       if (!r?.ok) {
         statusEl.style.color = 'var(--coral)';
@@ -5448,7 +5448,7 @@ document.getElementById('btn-notif-add')?.addEventListener('click', () => {
       : 'color:var(--amber);background:oklch(0.30 0.10 60 / .15);border:1px solid oklch(0.55 0.14 60 / .35)'}`;
     statusEl.textContent = `${ok}/${total} succeeded:\n${lines}`;
     btn.disabled = false;
-    btn.textContent = ok === total ? '✓ Done — deployed' : '⬇ Retry';
+    btn.textContent = ok === total ? '✓ Done - deployed' : '⬇ Retry';
     if (ok === total) showToast('All agent certificates deployed on this PC', 'success');
     loadTenantConfig();
   });
@@ -5943,10 +5943,10 @@ function applyRoleUI(role) {
   if (banner) {
     if (r === 'viewer') {
       banner.classList.remove('hidden');
-      if (bannerText) bannerText.textContent = 'Read-only viewer — all write operations are disabled.';
+      if (bannerText) bannerText.textContent = 'Read-only viewer - all write operations are disabled.';
     } else if (r === 'helpdesk') {
       banner.classList.remove('hidden');
-      if (bannerText) bannerText.textContent = 'Helpdesk role — integrations config and admin account management are restricted. Leavers on privileged users require admin approval.';
+      if (bannerText) bannerText.textContent = 'Helpdesk role - integrations config and admin account management are restricted. Leavers on privileged users require admin approval.';
     } else {
       banner.classList.add('hidden');
     }
@@ -5987,7 +5987,7 @@ function setSidebarOperator(name) {
     const base = name || '?';
     const initials = base.split(/[.\s_@-]+/).filter(Boolean).map(s => s[0]).join('').slice(0, 2).toUpperCase() || base.slice(0, 2).toUpperCase();
     av.textContent = initials;
-    av.title = base + ' — click to change avatar';
+    av.title = base + ' - click to change avatar';
     av.dataset.user = base;
     // Render saved image if any
     const saved = (function() {
@@ -6026,7 +6026,7 @@ function setSidebarOperator(name) {
     const user = av.dataset.user;
     if (!user) { showToast('No operator signed in', 'warning'); return; }
     try { localStorage.setItem('jml-avatar-' + user, dataUrl); }
-    catch { showToast('Image too large to store — try a smaller file', 'error'); return; }
+    catch { showToast('Image too large to store - try a smaller file', 'error'); return; }
     setSidebarOperator(user);
     showToast('Avatar updated', 'success');
   });
@@ -6144,7 +6144,7 @@ if (_viewAllBtn) _viewAllBtn.addEventListener('click', () => switchTab('audit-lo
 const _viewFleetBtn = document.getElementById('dash-open-fleet');
 if (_viewFleetBtn) _viewFleetBtn.addEventListener('click', () => switchTab('certs'));
 
-// Universal "OPEN →" links on dashboard widgets — any [data-jump-tab] navigates
+// Universal "OPEN →" links on dashboard widgets - any [data-jump-tab] navigates
 document.querySelectorAll('[data-jump-tab]').forEach(el => {
   el.addEventListener('click', () => switchTab(el.dataset.jumpTab));
   el.style.cursor = 'pointer';
@@ -6153,15 +6153,15 @@ document.querySelectorAll('[data-jump-tab]').forEach(el => {
 // Lightweight populators for dashboard mini-widgets. Hook into existing IPC
 // streams + fetched data so the widgets stay alive when shown.
 function refreshDashWidgets() {
-  // Integrations — pull HR queue stats
+  // Integrations - pull HR queue stats
   if (typeof window.api?.getHrQueue === 'function') { try { window.api.getHrQueue(); } catch (_) {} }
-  // Audit Log — use existing audit data
+  // Audit Log - use existing audit data
   if (typeof window.api?.getAuditLog === 'function') { try { window.api.getAuditLog(); } catch (_) {} }
-  // Exports — exports status
+  // Exports - exports status
   if (typeof window.api?.getExportsStatus === 'function') { try { window.api.getExportsStatus(); } catch (_) {} }
-  // Agent Certs — cert expiry dashboard widget
+  // Agent Certs - cert expiry dashboard widget
   if (typeof window.api?.getCertExpiry === 'function') { try { window.api.getCertExpiry(); } catch (_) {} }
-  // Graph runner — recent queries from localStorage
+  // Graph runner - recent queries from localStorage
   try {
     const recent = JSON.parse(localStorage.getItem('jml-graph-recent') || '[]');
     const el = document.getElementById('dash-graph-recent');
@@ -6233,7 +6233,7 @@ Object.entries(KPI_NAV).forEach(([id, tab]) => {
     });
     execBtn.disabled = false;
     if (r && r.ok) {
-      show(`✓ ${agent} quarantined — SP ${r.spObjectId} disabled${r.revoked ? ', credentials revoked' : ''}. Audit entry written.`, 'ok');
+      show(`✓ ${agent} quarantined - SP ${r.spObjectId} disabled${r.revoked ? ', credentials revoked' : ''}. Audit entry written.`, 'ok');
       showToast(`${agent} agent quarantined`, 'success');
       if (typeof window.api?.getAgentHealth === 'function') window.api.getAgentHealth();
     } else {
@@ -6438,7 +6438,7 @@ document.getElementById('btn-tenant-save')?.addEventListener('click', async () =
 
   // Build a readable diff in a modal. Each agent shows which fields change with from/to.
   const diffHtml = changes.map(c => {
-    if (!c.exists) return `<div class="diff-row"><span class="diff-agent">${escHtml(c.agent)}</span><span class="diff-skip">config missing — skipped</span></div>`;
+    if (!c.exists) return `<div class="diff-row"><span class="diff-agent">${escHtml(c.agent)}</span><span class="diff-skip">config missing - skipped</span></div>`;
     if (c.error)  return `<div class="diff-row"><span class="diff-agent">${escHtml(c.agent)}</span><span class="diff-err">error: ${escHtml(c.error)}</span></div>`;
     const keys = Object.keys(c.diff || {});
     if (!keys.length) return `<div class="diff-row diff-nochg"><span class="diff-agent">${escHtml(c.agent)}</span><span class="diff-skip">no change</span></div>`;
@@ -6496,7 +6496,7 @@ function richConfirmModal({ title, body, html, danger, okLabel, cancelLabel }) {
   });
 }
 
-// One-line purpose for each fleet agent — shown in the hover popover (module scope so static seed + health update both use it).
+// One-line purpose for each fleet agent - shown in the hover popover (module scope so static seed + health update both use it).
 const AGENT_PURPOSE = {
   joiner:      'Creates new identities · assigns initial groups + licenses',
   mover:       'Applies dept/title/manager changes · reconciles group membership',
@@ -6782,11 +6782,11 @@ const AGENT_PURPOSE = {
 const SLASH_COMMANDS = [
   { cmd: '/joiner',      label: 'New Joiner',    desc: 'Onboard a new hire to the tenant',                          prompt: 'Onboard a new hire' },
   { cmd: '/mover',       label: 'Move User',     desc: 'Transfer a user to a new department or role',               prompt: 'Move a user to a new department' },
-  { cmd: '/soft-leaver', label: 'Soft Offboard', desc: 'Disable account and revoke active sessions',                prompt: 'Soft offboard a user — disable their account and revoke sessions' },
-  { cmd: '/hard-leaver', label: 'Hard Offboard', desc: 'Remove all licenses, groups, and delete the account',       prompt: 'Hard offboard a user — remove all access, licenses, and memberships' },
+  { cmd: '/soft-leaver', label: 'Soft Offboard', desc: 'Disable account and revoke active sessions',                prompt: 'Soft offboard a user - disable their account and revoke sessions' },
+  { cmd: '/hard-leaver', label: 'Hard Offboard', desc: 'Remove all licenses, groups, and delete the account',       prompt: 'Hard offboard a user - remove all access, licenses, and memberships' },
   { cmd: '/enroll',      label: 'Enroll MFA',    desc: 'Register a user for multi-factor authentication',           prompt: 'Enroll a user in MFA' },
   { cmd: '/check',       label: 'Check User',    desc: 'Retrieve current status and attributes for a user',         prompt: 'What is the current status of user ' },
-  { cmd: '/whatif',      label: 'Safe',        desc: 'Simulate an operation without committing any changes',      prompt: 'Safe — what would happen if I ' },
+  { cmd: '/whatif',      label: 'Safe',        desc: 'Simulate an operation without committing any changes',      prompt: 'Safe - what would happen if I ' },
   { cmd: '/bulk',        label: 'Bulk Import',   desc: 'Import multiple identities from a CSV payload',             prompt: 'I need to bulk onboard a group of new hires' },
 ];
 
@@ -6865,7 +6865,7 @@ document.addEventListener('click', e => {
   }
 });
 
-// Assist bar chips — approver
+// Assist bar chips - approver
 document.querySelectorAll('#approver-assist-bar .assist-chip').forEach(chip => {
   chip.addEventListener('click', () => {
     if (!_approverIn) return;
@@ -6874,7 +6874,7 @@ document.querySelectorAll('#approver-assist-bar .assist-chip').forEach(chip => {
   });
 });
 
-// Assist bar chips — auditor (pre-fill input, let user send)
+// Assist bar chips - auditor (pre-fill input, let user send)
 document.querySelectorAll('#auditor-assist-bar .assist-chip').forEach(chip => {
   chip.addEventListener('click', () => {
     const inp = document.getElementById('input-auditor');
@@ -6893,7 +6893,7 @@ function audSetActiveQuery(text) {
   const bodyEl   = document.getElementById('aud-query-body');
   if (statusEl) { statusEl.textContent = 'running'; statusEl.style.color = 'var(--cyan)'; }
   if (bodyEl) {
-    // Don't echo the query text here — it's already the operator's chat message
+    // Don't echo the query text here - it's already the operator's chat message
     // and a suggestion chip on the tab. Show just the tool activity rows.
     bodyEl.innerHTML = `<div id="aud-tool-rows"></div>`;
   }
@@ -7017,17 +7017,17 @@ document.getElementById('dash-action-audit').addEventListener('click',  () => { 
 document.getElementById('dash-open-security').addEventListener('click', () => switchTab('security'));
 document.getElementById('dash-open-ops')?.addEventListener('click', () => switchTab('operations'));
 
-// Dashboard fleet tiles — click an agent to see a brief description, its last
+// Dashboard fleet tiles - click an agent to see a brief description, its last
 // activity, and a route to its respective page.
 const AGENT_INFO = {
-  joiner:      { name: 'Joiner',      type: 'PowerShell execution agent', tab: 'operations',     tabLabel: 'Operations', desc: 'Provisions new identities — creates the Entra account, sets the manager, assigns licenses, and adds baseline group memberships.' },
-  mover:       { name: 'Mover',       type: 'PowerShell execution agent', tab: 'operations',     tabLabel: 'Operations', desc: 'Applies role changes — updates department, title, and manager, then reconciles license and group membership (idempotent add/remove).' },
-  leaver:      { name: 'Leaver',      type: 'PowerShell execution agent', tab: 'operations',     tabLabel: 'Operations', desc: 'Offboards identities — disables the account and revokes sessions; hard/delete stages strip licenses and group memberships behind admin approval.' },
-  enroller:    { name: 'Enroller',    type: 'PowerShell execution agent', tab: 'operations',     tabLabel: 'Operations', desc: 'Handles enrollment — assigns enrollment-phase licenses, adds compliance groups, and inventories the new hire’s registered devices.' },
-  approver:    { name: 'Approver',    type: 'AI reasoning agent · Entra Agent ID', tab: 'approver', tabLabel: 'Approver', desc: 'The conversational front door. Gathers context, scores risk, checks policy, and gates JML operations — it proposes; policy and approval decide.' },
-  provisioner: { name: 'Provisioner', type: 'Privilege / PIM control plane', tab: 'security',     tabLabel: 'Security', desc: 'Manages just-in-time privilege — agents hold zero standing write access and elevate through PIM-eligible group membership per approved operation.' },
-  auditor:     { name: 'Auditor',     type: 'AI reasoning agent · Entra Agent ID', tab: 'auditor', tabLabel: 'Auditor', desc: 'Tenant intelligence — answers questions about users, licenses, unlicensed accounts, admin roles, stale accounts, drift, and JML activity.' },
-  certifier:   { name: 'Certifier',   type: 'PowerShell execution agent', tab: 'certifications', tabLabel: 'Access Reviews', desc: 'Runs access-certification campaigns — reviews group and PIM memberships for stale, unexpected, or lingering privileged access.' },
+  joiner:      { name: 'Joiner',      type: 'PowerShell execution agent', tab: 'operations',     tabLabel: 'Operations', desc: 'Provisions new identities - creates the Entra account, sets the manager, assigns licenses, and adds baseline group memberships.' },
+  mover:       { name: 'Mover',       type: 'PowerShell execution agent', tab: 'operations',     tabLabel: 'Operations', desc: 'Applies role changes - updates department, title, and manager, then reconciles license and group membership (idempotent add/remove).' },
+  leaver:      { name: 'Leaver',      type: 'PowerShell execution agent', tab: 'operations',     tabLabel: 'Operations', desc: 'Offboards identities - disables the account and revokes sessions; hard/delete stages strip licenses and group memberships behind admin approval.' },
+  enroller:    { name: 'Enroller',    type: 'PowerShell execution agent', tab: 'operations',     tabLabel: 'Operations', desc: 'Handles enrollment - assigns enrollment-phase licenses, adds compliance groups, and inventories the new hire’s registered devices.' },
+  approver:    { name: 'Approver',    type: 'AI reasoning agent · Entra Agent ID', tab: 'approver', tabLabel: 'Approver', desc: 'The conversational front door. Gathers context, scores risk, checks policy, and gates JML operations - it proposes; policy and approval decide.' },
+  provisioner: { name: 'Provisioner', type: 'Privilege / PIM control plane', tab: 'security',     tabLabel: 'Security', desc: 'Manages just-in-time privilege - agents hold zero standing write access and elevate through PIM-eligible group membership per approved operation.' },
+  auditor:     { name: 'Auditor',     type: 'AI reasoning agent · Entra Agent ID', tab: 'auditor', tabLabel: 'Auditor', desc: 'Tenant intelligence - answers questions about users, licenses, unlicensed accounts, admin roles, stale accounts, drift, and JML activity.' },
+  certifier:   { name: 'Certifier',   type: 'PowerShell execution agent', tab: 'certifications', tabLabel: 'Access Reviews', desc: 'Runs access-certification campaigns - reviews group and PIM memberships for stale, unexpected, or lingering privileged access.' },
 };
 
 function agentLastActivity(agent) {
@@ -7087,7 +7087,7 @@ function showAgentCard(agent) {
   });
 })();
 
-// Live Operations widget — collapse/expand, persisted.
+// Live Operations widget - collapse/expand, persisted.
 (function initLiveOpsCollapse() {
   const card = document.getElementById('dash-liveops-card');
   const btn  = document.getElementById('dash-liveops-collapse');
@@ -7117,7 +7117,7 @@ function openSecSection(key) {
   }));
 }
 
-// Security page — top stat cards open+scroll their section
+// Security page - top stat cards open+scroll their section
 [['sec-ueba', 'ueba'], ['sec-drift', 'drift'], ['sec-risky', 'risky']].forEach(([cardId, key]) => {
   const card = document.getElementById(cardId);
   if (card) { card.style.cursor = 'pointer'; card.addEventListener('click', () => openSecSection(key)); }
@@ -7147,7 +7147,7 @@ function addNotification(icon, title, action) {
   showToast(title, 'info');
 }
 
-// Notifications belong to the signed-in operator — drop them on operator change
+// Notifications belong to the signed-in operator - drop them on operator change
 // so a new operator never inherits the previous operator's notifications.
 function clearNotifications() {
   _notifications = [];
@@ -7189,7 +7189,7 @@ function renderNotifications() {
       renderNotifications();
     });
   });
-  // Every notification is clickable — navigate to its related tab (explicit
+  // Every notification is clickable - navigate to its related tab (explicit
   // action.tab, else inferred from the title) and run any attached action.
   list.querySelectorAll('.notif-item').forEach(item => {
     item.addEventListener('click', () => {
@@ -7204,7 +7204,7 @@ function renderNotifications() {
   });
 }
 
-// Resolve the console tab a notification relates to — explicit action.tab wins,
+// Resolve the console tab a notification relates to - explicit action.tab wins,
 // otherwise infer from keywords in the title.
 function tabForNotification(n) {
   if (n.action && n.action.tab) return n.action.tab;
@@ -7284,12 +7284,12 @@ if (typeof window.api.onUpdateStatus === 'function') {
   window.api.onUpdateStatus((s) => {
     if (!s || !s.state) return;
     if (s.state === 'available') {
-      addNotification('⬆️', `Update v${s.version} available — downloading…`);
+      addNotification('⬆️', `Update v${s.version} available - downloading…`);
     } else if (s.state === 'downloaded') {
-      addNotification('⬆️', `Update v${s.version} ready — click to restart & install`, {
+      addNotification('⬆️', `Update v${s.version} ready - click to restart & install`, {
         run: () => { try { window.api.applyUpdate(); } catch (_) {} },
       });
-      showToast(`Update v${s.version} ready — restart to install`, 'success');
+      showToast(`Update v${s.version} ready - restart to install`, 'success');
     }
   });
 }
@@ -7373,7 +7373,7 @@ async function runEvidenceExport() {
   const r = await window.api.exportEvidencePacket({ hashes });
   if (btn) { btn.disabled = false; btn.textContent = orig; }
   if (r && r.ok) {
-    showToast(`Evidence packet exported (${r.count} entries) — integrity: ${/PASS/i.test(r.integrity) ? 'verified' : 'see packet'}`, 'success');
+    showToast(`Evidence packet exported (${r.count} entries) - integrity: ${/PASS/i.test(r.integrity) ? 'verified' : 'see packet'}`, 'success');
   } else if (r && r.canceled) {
     /* user cancelled save dialog */
   } else {
@@ -7553,7 +7553,7 @@ function renderTimeline(entries) {
       document.getElementById('attest-dialog-cancel').addEventListener('click', close);
       document.getElementById('attest-dialog-build').addEventListener('click', () => {
         close();
-        addNotification('✓', 'Attestation pack queued for export — download will begin shortly', { tab: 'audit-log' });
+        addNotification('✓', 'Attestation pack queued for export - download will begin shortly', { tab: 'audit-log' });
         runEvidenceExport();
       });
     });
@@ -7567,7 +7567,7 @@ function loadRecentUsers() {
   const listEl  = document.getElementById('user-results-list');
   const countEl = document.getElementById('user-search-count');
   if (!listEl) return;
-  // Never auto-search with empty string — Graph API returns 400 for empty $search
+  // Never auto-search with empty string - Graph API returns 400 for empty $search
   const searchInput = document.getElementById('user-search-input');
   if (searchInput && searchInput.value.trim()) return;
   const cached = typeof _userCache !== 'undefined' ? _userCache.slice(0, 10) : [];
@@ -7894,7 +7894,7 @@ function loadRecentUsers() {
         '<div>risk score: <b>' + escHtml(String(r.score ?? '—')) + '</b> · level: <b>' + escHtml(String(lvl)) + '</b>' +
         (r.dualApproval ? ' · <span style="color:var(--amber)">dual approval required</span>' : '') + '</div>' +
         (reasons.length ? '<div style="margin-top:6px;color:var(--text-2)">matched policies:</div><ul style="margin:2px 0 0 16px">' +
-          reasons.map(x => '<li>' + escHtml(String(x)) + '</li>').join('') + '</ul>' : '<div style="color:var(--text-3);margin-top:4px">No policy flags — clean.</div>') +
+          reasons.map(x => '<li>' + escHtml(String(x)) + '</li>').join('') + '</ul>' : '<div style="color:var(--text-3);margin-top:4px">No policy flags - clean.</div>') +
         '</div>';
     });
   }
@@ -7924,7 +7924,7 @@ function loadRecentUsers() {
     const enabledLine = (after.accountEnabled === false && snap.accountEnabled !== false)
       ? '<div style="margin-top:4px;color:var(--coral);font-size:12px">Account will be DISABLED + sessions revoked</div>' : '';
     return `<div style="font-family:var(--mono);font-size:12px;line-height:1.6">
-      <div><b>${escHtml(headline)}</b> — ${escHtml(snap.displayName || '')}</div>
+      <div><b>${escHtml(headline)}</b> - ${escHtml(snap.displayName || '')}</div>
       ${enabledLine}
       ${section('Groups', gd)}
       ${section('Licenses', ld)}
@@ -7972,7 +7972,7 @@ function loadRecentUsers() {
           (changed ? ` <span style="color:var(--text-4)">→</span> <span style="color:var(--emerald)">${escHtml(after)}</span>` : ' <span class="dim">(unchanged)</span>') + '</div>';
       };
       resultEl.innerHTML = `<div style="font-family:var(--mono);font-size:12px;line-height:1.7">
-        <div><b>Mover impact</b> — ${escHtml(snap.displayName || '')}</div>
+        <div><b>Mover impact</b> - ${escHtml(snap.displayName || '')}</div>
         ${row('Department', snap.department, newDept)}
         ${row('Job title', snap.jobTitle, newTitle)}
         ${row('Manager', '(current)', newMgr)}
@@ -8040,7 +8040,7 @@ function loadRecentUsers() {
       if (!whatif && stage === 'Delete') {
         const ok = await confirmModal({
           title: 'Permanently delete this user?',
-          body: `This permanently deletes ${upn} from Entra ID — separate from a hard leave. It is recoverable from the recycle bin for 30 days, then gone for good.`,
+          body: `This permanently deletes ${upn} from Entra ID - separate from a hard leave. It is recoverable from the recycle bin for 30 days, then gone for good.`,
           danger: true, okLabel: 'Delete user',
         });
         if (!ok) return;
@@ -8074,8 +8074,8 @@ function loadRecentUsers() {
     resultEl.style.display = 'block';
 
     if (data.approvalQueued) {
-      resultEl.innerHTML = '<div class="qop-warn" style="color:var(--amber)">[APPROVAL QUEUED] Approval request submitted — go to the <strong>Approvals</strong> tab for admin sign-off. Token: ' + escHtml(String(data.token || '').toUpperCase()) + '</div>';
-      showToast('Approval request queued — admin sign-off required in Approvals tab', 'warning');
+      resultEl.innerHTML = '<div class="qop-warn" style="color:var(--amber)">[APPROVAL QUEUED] Approval request submitted - go to the <strong>Approvals</strong> tab for admin sign-off. Token: ' + escHtml(String(data.token || '').toUpperCase()) + '</div>';
+      showToast('Approval request queued - admin sign-off required in Approvals tab', 'warning');
       return;
     }
 
@@ -8767,7 +8767,7 @@ function loadRecentUsers() {
 
   // Hook into Graph Query Runner results to record those calls
   window.api.onGraphQueryResult((data) => {
-    // The URL was already saved to recent — read it from the input
+    // The URL was already saved to recent - read it from the input
     const url    = (document.getElementById('graph-url')    || {}).value || '';
     const method = (document.getElementById('graph-method') || {}).value || 'GET';
     if (url) recordCall(method, url, 'graph-runner');
@@ -9065,7 +9065,7 @@ setupUserAutocomplete(document.getElementById('log-filter-upn'));
   window.api.onOverlayState(visible => { btns.forEach(btn => btn.classList.toggle('active', !!visible)); });
 })();
 
-// Maximize/restore — toggle rounded corners
+// Maximize/restore - toggle rounded corners
 window.api.onMaximized(isMax => { document.body.classList.toggle('maximized', isMax); });
 
 // Azure Portal button
@@ -9093,7 +9093,7 @@ window.api.onModeChanged(({ whatif }) => {
   updateTopbarModePill();
 });
 
-// ── Glass Screen — live Command Center ──────────────────────────────────────
+// ── Glass Screen - live Command Center ──────────────────────────────────────
 // All state, rendering, and motion live in glass-screen.js (window.JmlGlassScreen),
 // backed by the pure view-model in glass-screen-model.js. app.js only forwards
 // operation-status IPC events, audit entries, and tab activation to it.

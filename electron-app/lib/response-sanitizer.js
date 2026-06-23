@@ -1,7 +1,7 @@
 'use strict';
 
 // Removes query-echo preambles from an agent reply so the answer leads. The
-// only "what you asked" cue should be the gray thinking line in the UI — the
+// only "what you asked" cue should be the gray thinking line in the UI - the
 // reply itself must not restate the operator's question. Handles both lead-in
 // phrases ("You asked…", "Sure, here's…") and topic-restatement headers
 // ("Recent joins:", "**License utilization:**") that echo the query.

@@ -13,7 +13,7 @@ proposes; policy and approval decide what executes.**
 | `api/openapi.yaml` | OpenAPI 3.0 definition of the JML API (the action surface) |
 | `api/apiProperties.json` | Power Platform custom-connector properties: API-key connection + header-injection policy |
 
-## Option A — Custom connector (Power Platform / Copilot Studio)
+## Option A - Custom connector (Power Platform / Copilot Studio)
 
 1. Deploy the JML API to Azure Functions and note its base URL
    (`https://<app>.azurewebsites.net/api`).
@@ -26,7 +26,7 @@ proposes; policy and approval decide what executes.**
    select the JML custom connector → expose `submitLifecycleEvent` and
    `getEventStatus`.
 
-## Option B — Direct action from OpenAPI (Copilot Studio)
+## Option B - Direct action from OpenAPI (Copilot Studio)
 
 In Copilot Studio → agent → **Actions** → **New action** → **Connector** /
 **REST API**, point at the deployed base URL and import `openapi.yaml`. Configure
@@ -37,7 +37,7 @@ API-key auth with header `x-api-key`.
 > You help IT operators run identity lifecycle requests. When the user describes a
 > hire, transfer, or termination, call `submitLifecycleEvent` with the canonical
 > fields. Always echo the returned `eventId` and tell the user the request was
-> submitted to the JML control plane for risk scoring and approval — you do not
+> submitted to the JML control plane for risk scoring and approval - you do not
 > execute changes directly. Use `getEventStatus` to report progress when asked.
 > Terminations require a ticket reference; ask for one before submitting.
 
@@ -50,7 +50,7 @@ returned `eventId`, then the Approvals tab and the audit entry in the JML Consol
 ## Security notes
 
 - The API key is the coarse gate; per-operation authority still flows through JML's
-  risk scoring, SoD engine, freeze windows, and human approval — Copilot cannot
+  risk scoring, SoD engine, freeze windows, and human approval - Copilot cannot
   bypass those.
 - For production, prefer Entra ID (OAuth) auth on the connector over a static API
   key; the OpenAPI `securitySchemes` can be extended accordingly.

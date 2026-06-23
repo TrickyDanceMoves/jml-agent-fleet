@@ -1,5 +1,5 @@
 {
-    "_comment": "Access certification campaign config TEMPLATE. Copy to access-cert-config.json (gitignored — it holds real tenant group & object IDs). Add JML-provisioned group IDs to userGroupCampaign.groups. Set agentPimCampaign.reviewerObjectId to your admin user's Entra object ID (get via: Get-MgUser -Filter \"userPrincipalName eq 'you@domain.com'\" | Select-Object Id).",
+    "_comment": "Access certification campaign config TEMPLATE. Copy to access-cert-config.json (gitignored - it holds real tenant group & object IDs). Add JML-provisioned group IDs to userGroupCampaign.groups. Set agentPimCampaign.reviewerObjectId to your admin user's Entra object ID (get via: Get-MgUser -Filter \"userPrincipalName eq 'you@domain.com'\" | Select-Object Id).",
     "userGroupCampaign": {
         "displayNamePrefix": "JML User Access Review",
         "durationDays": 14,

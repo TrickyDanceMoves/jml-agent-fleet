@@ -10,7 +10,7 @@
  * { "campaignType": "all" | "user-groups" | "agent-pim" }
  *
  * Returns 200 with the list of created review definitions, or 500 on failure.
- * Returns immediately — review definitions are created synchronously but the
+ * Returns immediately - review definitions are created synchronously but the
  * reviews themselves run for the configured durationDays in Entra.
  */
 

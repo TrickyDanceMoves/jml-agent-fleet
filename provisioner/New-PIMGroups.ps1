@@ -45,7 +45,7 @@ $roleTemplateIds = @{
     "Cloud Device Administrator" = "7698a772-787b-4ac8-901f-60d6b08affd2"
 }
 
-# Eligible assignment expiry — 2 years (policy requires a finite date; renew as needed)
+# Eligible assignment expiry - 2 years (policy requires a finite date; renew as needed)
 $eligibilityExpiry = @{
     type     = "afterDuration"
     duration = "P180D"

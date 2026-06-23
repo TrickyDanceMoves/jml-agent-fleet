@@ -63,12 +63,12 @@ Remove-Item $stagingDir -Recurse -Force
 # --- Check Graph module ---
 Write-Host "`nChecking Microsoft.Graph.Users module..." -ForegroundColor Yellow
 if (-not (Get-Module -ListAvailable -Name Microsoft.Graph.Users)) {
-    Write-Host "  Not found — installing..." -ForegroundColor Yellow
+    Write-Host "  Not found - installing..." -ForegroundColor Yellow
     Install-Module Microsoft.Graph.Users -Scope CurrentUser -Force
     Write-Host "  Installed." -ForegroundColor Green
 } else {
     $ver = (Get-Module -ListAvailable -Name Microsoft.Graph.Users | Select-Object -First 1).Version
-    Write-Host "  Found v$ver — OK" -ForegroundColor Green
+    Write-Host "  Found v$ver - OK" -ForegroundColor Green
 }
 
 # --- Set execution policy if needed ---

@@ -63,7 +63,7 @@ At least one change must be specified: newDepartment, newJobTitle, newManager, l
 Required: userPrincipalName, ticketRef (incident/change ticket number, e.g. INC-1234 or CHG-5678)
 This is a two-stage process. Stage 1 (Soft) disables the account and revokes sessions. Stage 2 (Hard) removes licenses and group memberships. Always confirm the UPN carefully before submitting - offboarding cannot be undone automatically.
 Notes:
-- ticketRef is MANDATORY for all leavers — always ask for it before submitting
+- ticketRef is MANDATORY for all leavers - always ask for it before submitting
 - Never submit a leaver without a ticket reference
 
 Rules:
@@ -147,8 +147,8 @@ const tools = [
 // ── UI helpers ────────────────────────────────────────────────────────────────
 function printBanner() {
   const modeLabel = WHATIF
-    ? chalk.black.bgYellow(' WHATIF — No changes will be made ')
-    : chalk.black.bgRed(' LIVE — Actions execute against the directory ');
+    ? chalk.black.bgYellow(' WHATIF - No changes will be made ')
+    : chalk.black.bgRed(' LIVE - Actions execute against the directory ');
   console.log(boxen(
     chalk.bold.cyan('JML Approver Agent') + '\n' +
     chalk.dim('Tenant: ' + TENANT_DOMAIN) + '\n\n' +
@@ -210,7 +210,7 @@ function printInfo(msg)    { console.log(chalk.dim('  ' + msg)); }
 function dispatchModeWarning() {
   if (WHATIF) {
     console.log('\n' + boxen(
-      chalk.yellow('WHATIF MODE — no tenant changes will occur'),
+      chalk.yellow('WHATIF MODE - no tenant changes will occur'),
       { padding: { left: 2, right: 2, top: 0, bottom: 0 }, borderColor: 'yellow', borderStyle: 'classic' }
     ));
   }
@@ -277,7 +277,7 @@ function checkFreezeWindow() {
       const days = w.days || [];
       if (!days.includes(dayName)) continue;
       if (w.allDay) {
-        throw new Error(`Freeze window active: "${w.name}" — ${w.message}`);
+        throw new Error(`Freeze window active: "${w.name}" - ${w.message}`);
       }
       if (w.start && w.end) {
         const [sh, sm] = w.start.split(':').map(Number);
@@ -285,7 +285,7 @@ function checkFreezeWindow() {
         const start = sh * 100 + sm;
         const end   = eh * 100 + em;
         const inWindow = start <= end ? (hhmm >= start && hhmm < end) : (hhmm >= start || hhmm < end);
-        if (inWindow) throw new Error(`Freeze window active: "${w.name}" — ${w.message}`);
+        if (inWindow) throw new Error(`Freeze window active: "${w.name}" - ${w.message}`);
       }
     }
   } catch (err) {
@@ -504,7 +504,7 @@ async function runApproveMode(token) {
 
     // Risk-04: Leaver gets staged even in approval mode
     if (pending.tool === 'submit_leaver') {
-      spinner.text = chalk.dim('Stage 1 — disabling account...');
+      spinner.text = chalk.dim('Stage 1 - disabling account...');
       spinner.start();
       const s1 = dispatchTool('submit_leaver', pending.input, ['-Stage', 'Soft']);
       spinner.stop();
@@ -515,7 +515,7 @@ async function runApproveMode(token) {
       console.log(chalk.red('  ⚠ This step is irreversible.'));
       const s2confirm = await ask(chalk.yellow('  Type YES for full offboard or anything else to stop: '));
       if (s2confirm.trim().toUpperCase() === 'YES') {
-        spinner.text = chalk.dim('Stage 2 — removing licenses and groups...');
+        spinner.text = chalk.dim('Stage 2 - removing licenses and groups...');
         spinner.start();
         const s2 = dispatchTool('submit_leaver', pending.input, ['-Stage', 'Hard']);
         spinner.stop();
@@ -694,7 +694,7 @@ async function main() {
               }
 
               // Stage 1
-              console.log(chalk.dim('\n  Stage 1/2 — disabling account and revoking sessions...'));
+              console.log(chalk.dim('\n  Stage 1/2 - disabling account and revoking sessions...'));
               spinner.text = chalk.dim('Running stage 1...');
               spinner.start();
               const s1out = dispatchTool('submit_leaver', tu.input, ['-Stage', 'Soft']);
@@ -703,13 +703,13 @@ async function main() {
               dispatchModeWarning();
 
               // Prompt for stage 2
-              console.log('\n' + chalk.yellow('  Stage 1 complete — account disabled, sessions revoked.'));
+              console.log('\n' + chalk.yellow('  Stage 1 complete - account disabled, sessions revoked.'));
               console.log(chalk.red('  ⚠ Stage 2 will remove all licenses and group memberships. This cannot be auto-reversed.'));
               const s2ans = await ask(chalk.yellow('  Proceed with full offboard? Type YES or NO: '));
 
               let s2out = '';
               if (s2ans.trim().toUpperCase() === 'YES') {
-                console.log(chalk.dim('\n  Stage 2/2 — removing licenses and groups...'));
+                console.log(chalk.dim('\n  Stage 2/2 - removing licenses and groups...'));
                 spinner.text = chalk.dim('Running stage 2...');
                 spinner.start();
                 s2out = dispatchTool('submit_leaver', tu.input, ['-Stage', 'Hard']);
@@ -727,7 +727,7 @@ async function main() {
               continue;
             }
 
-            // Standard operations — live confirmation
+            // Standard operations - live confirmation
             if (!WHATIF) {
               const confirm = await ask(chalk.yellow('  Type YES to confirm or anything else to cancel: '));
               if (confirm.trim().toUpperCase() !== 'YES') {

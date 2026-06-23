@@ -75,7 +75,7 @@ function Write-AuditEntry {
 function Connect-AgentGraph {
     param([Parameter(Mandatory = $true)]$Config)
 
-    # ── Entra Agent ID (FMI) auth — opt-in, parallel path ────────────────────────
+    # ── Entra Agent ID (FMI) auth - opt-in, parallel path ────────────────────────
     # Selected only when config.json sets "AuthMode":"agentid". Credentials live on the
     # blueprint; the agent identity holds the Graph permissions. Two-step FMI exchange:
     #   1) blueprint authenticates (client_secret) for an exchange token scoped to the

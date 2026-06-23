@@ -18,7 +18,7 @@ $targetApps = @(
 
 $permissionsNeeded = @("Group.Read.All", "GroupMember.ReadWrite.All")
 
-# ── Step 1: Enable Provisioner user account (via Leaver — has User Admin role) ──
+# ── Step 1: Enable Provisioner user account (via Leaver - has User Admin role) ──
 Import-Module Microsoft.Graph.Users
 Write-Log "Connecting as Leaver agent to enable Provisioner account"
 $leaverConfig = Get-Content (Join-Path $agentsRoot "leaver\config.json") | ConvertFrom-Json

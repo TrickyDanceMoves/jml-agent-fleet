@@ -1,5 +1,5 @@
 {
-  "_comment": "Foundry IQ knowledge grounding for risk/approval decisions. Copy to foundry-iq.json (gitignored — it holds the key) and fill in. Set enabled:true to activate. When enabled, grounding fails CLOSED: a configured-but-unreachable service blocks Live submits rather than acting on ungrounded policy.",
+  "_comment": "Foundry IQ knowledge grounding for risk/approval decisions. Copy to foundry-iq.json (gitignored - it holds the key) and fill in. Set enabled:true to activate. When enabled, grounding fails CLOSED: a configured-but-unreachable service blocks Live submits rather than acting on ungrounded policy.",
   "enabled": false,
   "mode": "retrieve",
   "endpoint": "https://<your-foundry-project>.services.ai.azure.com",

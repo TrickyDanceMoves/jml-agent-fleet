@@ -1,7 +1,7 @@
 'use strict';
 
 /**
- * Monthly certification cron — fires at midnight UTC on the 1st of every month.
+ * Monthly certification cron - fires at midnight UTC on the 1st of every month.
  *
  * Invokes certifier/Invoke-CertificationCampaign.ps1 with -CampaignType all,
  * launching both user group and agent PIM access review campaigns in Entra.

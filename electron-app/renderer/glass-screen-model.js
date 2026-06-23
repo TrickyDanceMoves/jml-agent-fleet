@@ -5,7 +5,7 @@
  *
  * Pure, side-effect-free mapping from operation-status records onto the
  * five-stage Command Center pipeline and the live/replay/idle presentation
- * contract. No DOM, no timers — this module is the single source of truth
+ * contract. No DOM, no timers - this module is the single source of truth
  * for "what does this operation mean", and it is exercised directly by the
  * Node test runner. The renderer and motion controller consume its output;
  * they never re-derive lifecycle truth themselves.
@@ -71,7 +71,7 @@
   // The backend does not emit granular per-stage events, so the pipeline is
   // derived conservatively from the operation's lifecycle status. An operation
   // record is only created once the Approver has scored risk and submitted the
-  // tool — so Request and Risk are already satisfied for anything that reached
+  // tool - so Request and Risk are already satisfied for anything that reached
   // Execute. Failure stops at the failing stage and is never promoted to a
   // completion checkmark.
   function stageMapFor(status) {
@@ -101,7 +101,7 @@
 
   // ── Per-stage detail ───────────────────────────────────────────────────────
   // The pipeline shows WHAT advanced; this fills in WHAT each stage actually
-  // does for a given operation — the concrete Graph calls, risk checks,
+  // does for a given operation - the concrete Graph calls, risk checks,
   // verification read-backs, and audit seal. These activities are deterministic
   // from the agent + tool (they ARE the calls each agent makes), so the detail
   // is accurate without the backend emitting granular per-stage events.
@@ -285,7 +285,7 @@
       case 'request':
         activities = [
           { name: 'Operator intent', note: titleFor(operation), status: 'done' },
-          { name: 'Mode', note: meta.mode === 'SAFE' ? 'Safe (WhatIf) — no tenant writes' : 'Live', status: 'done' },
+          { name: 'Mode', note: meta.mode === 'SAFE' ? 'Safe (WhatIf) - no tenant writes' : 'Live', status: 'done' },
           { name: 'Ticket', note: meta.ticket || 'none', status: meta.ticket ? 'done' : 'pending' },
         ];
         break;
@@ -299,7 +299,7 @@
         if (g && !g.unavailable) {
           activities.push({ name: 'Foundry IQ grounding', note: (g.citations || []).map(c => c.title).filter(Boolean).join(', ') || 'policy corpus', status: 'done' });
         } else if (g && g.unavailable) {
-          activities.push({ name: 'Foundry IQ grounding', note: 'unavailable — failed closed', status: 'failed' });
+          activities.push({ name: 'Foundry IQ grounding', note: 'unavailable - failed closed', status: 'failed' });
         }
         if (st === 'awaiting-approval') {
           activities.push({ name: 'Dual approval', note: 'awaiting a second approver', status: 'awaiting' });
@@ -362,7 +362,7 @@
     if (!operation) return 'No active operation';
     const agent = String(operation.agent || '').toLowerCase();
     const stage = String(operation.stage || '').toLowerCase();
-    // Certifier subjects are often raw group GUIDs — keep the title readable.
+    // Certifier subjects are often raw group GUIDs - keep the title readable.
     if (agent === 'certifier') {
       const subj = subjectName(operation);
       const isGuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(subj);
@@ -565,7 +565,7 @@
   const RECENT_HOLD_MS = 10 * 60 * 1000;
 
   // Recent-runs filter: by write mode (live/safe) and/or outcome. Applies only
-  // to the recent list — the live hero always reflects the active operation.
+  // to the recent list - the live hero always reflects the active operation.
   function matchesRecentFilter(op, f) {
     if (!f) return true;
     if (f.mode === 'live' && op.whatif) return false;
@@ -577,7 +577,7 @@
 
   function buildGlassScreenViewModel({ operations = [], selectedId = null, now = Date.now(), recentLimit = 3, recentFilter = null, recentSort = 'recent' } = {}) {
     // Only a RUNNING operation owns the live hero. A pending approval is not a
-    // "run that's going" — it never dominates the default state; it appears in
+    // "run that's going" - it never dominates the default state; it appears in
     // the recent-runs list (⏸ held) instead, keeping tab entry clean.
     const running = operations
       .filter(o => o && normalizeStatus(o) === 'running')
@@ -605,7 +605,7 @@
     const selectedOp = selectedId ? (operations.find(o => o && o.id === selectedId) || null) : null;
     if (selectedOp) {
       // An explicit selection (the operator clicked a run to inspect it) is
-      // always honored — otherwise selecting a completed joiner while a leaver
+      // always honored - otherwise selecting a completed joiner while a leaver
       // is running would render the leaver's stages on the joiner's entry,
       // misattributing the run. A NEWLY-arrived live op still interrupts the
       // replay: the controller (onOperationStatus / liveOperationInterruptsReplay)
@@ -635,10 +635,10 @@
         ? 'Live actions will appear here automatically'
         : formatCurrentDecision(operation),
       // A failed or partial last-completed run keeps its follow-up visible even
-      // while the fleet is idle — recoveryFor returns null for clean successes.
+      // while the fleet is idle - recoveryFor returns null for clean successes.
       recovery: recoveryFor(operation),
       // In idle, `operation` is the last completed run (or null when there is
-      // no history at all) — either way mapPipeline tells the truth.
+      // no history at all) - either way mapPipeline tells the truth.
       stages: mapPipeline(operation),
       recent: recentOps.map(o => recentRowFor(o, now)),
       recentTotal: nonRunning.length,

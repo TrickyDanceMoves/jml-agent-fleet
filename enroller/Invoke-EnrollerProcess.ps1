@@ -147,7 +147,7 @@ if ($payload.groups -and $payload.groups.Count -gt 0) {
                 $group = $groupResp.value[0]
                 if (-not $WhatIf) {
                     try {
-                        # Idempotent add — a re-run of enrollment converges
+                        # Idempotent add - a re-run of enrollment converges
                         # instead of failing on an existing membership.
                         $st = Add-AgentGroupMember -GroupId $group["id"] -UserId $user.Id
                         if ($st -eq 'already') { Write-Log ("Already a member, skipping: " + $groupName) "SKIP" }

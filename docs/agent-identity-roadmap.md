@@ -1,11 +1,11 @@
-# Agent Identity Roadmap — App Registrations → Microsoft Entra Agent ID
+# Agent Identity Roadmap - App Registrations → Microsoft Entra Agent ID
 
 ## Why this matters
 
 The JML agents are **non-human identities** that authenticate app-only (certificate /
 client-credentials) and act autonomously against Microsoft Graph. Today each agent is
 a dedicated **app registration + service principal**. Microsoft's direction for AI agents
-is **Microsoft Entra Agent ID** — a first-class identity type purpose-built to
+is **Microsoft Entra Agent ID** - a first-class identity type purpose-built to
 authenticate, authorize, govern, and protect non-human AI agents. Microsoft's own
 guidance is that for most AI agents, an agent identity is the right choice and that
 plain service principals / user accounts are not recommended long-term.
@@ -31,9 +31,9 @@ platform. So "turning the SPs into agent identities" is a re-homing of where the
 is born, plus a governance wrap. Concretely:
 
 ### 1. Pick the issuing platform
-- **Azure AI Foundry / Foundry Agent Service** — agents built here are auto-assigned an
+- **Azure AI Foundry / Foundry Agent Service** - agents built here are auto-assigned an
   Entra Agent ID. Best fit for JML's Approver/Auditor reasoning agents.
-- **Copilot Studio** — agents here also get Agent ID; best if you expose JML through a
+- **Copilot Studio** - agents here also get Agent ID; best if you expose JML through a
   Microsoft 365 Copilot experience (see `../api/openapi.yaml` for the action surface).
 
 ### 2. Re-register each agent as a platform agent
@@ -48,7 +48,7 @@ the manifest) to the Agent ID principals, and admin-consent them.
 
 ### 4. Move credentials to federated / managed
 Replace the NonExportable certs with **federated identity credentials** (no stored secret)
-where the platform supports it — eliminating long-lived credential theft (threat T11).
+where the platform supports it - eliminating long-lived credential theft (threat T11).
 
 ### 5. Wrap with governance
 - Assign each Agent ID a **human owner + business purpose + review date**.
@@ -70,11 +70,11 @@ end-to-end, then disable and delete the legacy app registrations via the Provisi
 - **No in-place conversion**: agent identities are a distinct service-principal subtype;
   you create new ones and decommission the old app registrations.
 - **This tenant**: licensed for the governance add-ons (Entra P1/P2, ID Governance, Entra
-  Suite). A read-scope probe of the Agent ID endpoints returned BadRequest — i.e. the
+  Suite). A read-scope probe of the Agent ID endpoints returned BadRequest - i.e. the
   `AgentIdentity` permission + admin consent are needed to exercise the surface; creation
   must be done by an admin.
 
-## Create them — CONFIRMED working in this tenant (2026-06-08)
+## Create them - CONFIRMED working in this tenant (2026-06-08)
 
 `provisioner/New-AgentIdentities.ps1` created all six JML Agent IDs successfully.
 The full live creation contract, reverse-engineered against the tenant:
@@ -102,18 +102,18 @@ The full live creation contract, reverse-engineered against the tenant:
 .\provisioner\New-AgentIdentities.ps1 -SponsorUpn admin@contoso.onmicrosoft.com
 ```
 
-Gotchas learned the hard way: PIM-for-Groups can't gate these (SP limitation — see
+Gotchas learned the hard way: PIM-for-Groups can't gate these (SP limitation - see
 [[jml-pim-limitation]]); em-dashes break PS 5.1 parsing; PS 5.1 collapses single-element
 JSON arrays (build the `@odata.bind` body by hand); each run mints a **new** blueprint app,
 so delete orphan "JML Agent Fleet Blueprint" registrations from failed runs.
 
-## Switching the agents to Agent IDs — migration mechanics (verified June 2026)
+## Switching the agents to Agent IDs - migration mechanics (verified June 2026)
 
 The Agent ID auth model is **not** the SP cert/client-credentials flow. Confirmed structure:
 - **Credentials live on the blueprint** (the Agent Application), not on each agent identity —
   `POST /applications/{blueprintObjId}/microsoft.graph.agentIdentityBlueprint/addPassword`
   (or `addKey` for a cert, or a federated identity credential).
-- **Permissions live on the agent identity** — Graph app roles are assigned to the agent
+- **Permissions live on the agent identity** - Graph app roles are assigned to the agent
   identity's SP via `appRoleAssignments`.
 - **Token flow is a two-step FMI exchange** (not direct SP auth):
   1. Blueprint authenticates and gets an exchange token:
@@ -126,35 +126,35 @@ The Agent ID auth model is **not** the SP cert/client-credentials flow. Confirme
 
 ### KEY CONSTRAINT (verified 2026-06-08): Entra blocks write scopes on agent identities
 Granting permissions surfaced a decisive platform guardrail. These scopes are **rejected**
-for agent identities — *"The specified app role cannot be granted to agent identities"*:
+for agent identities - *"The specified app role cannot be granted to agent identities"*:
 - `User.ReadWrite.All`  ❌
 - `GroupMember.ReadWrite.All`  ❌
 
 These granted fine: `User.Read.All`, `Group.Read.All`, `Directory.Read.All`,
 `AuditLog.Read.All`, `Reports.Read.All`, `LicenseAssignment.ReadWrite.All`.
 
-**Implication — which agents can switch:**
+**Implication - which agents can switch:**
 | Agent | Needs blocked write scope? | Migrate to Agent ID? |
 |---|---|---|
-| Auditor | No (read-only) | ✅ Yes — all scopes granted |
-| Approver | No (read-only) | ✅ Yes — all scopes granted |
-| Joiner / Mover / Enroller | Yes (User.ReadWrite.All, GroupMember.ReadWrite.All) | ❌ No — stays SP / executes behind control plane |
-| Leaver | Yes (User.ReadWrite.All, GroupMember.ReadWrite.All) | ❌ No — stays SP / executes behind control plane |
+| Auditor | No (read-only) | ✅ Yes - all scopes granted |
+| Approver | No (read-only) | ✅ Yes - all scopes granted |
+| Joiner / Mover / Enroller | Yes (User.ReadWrite.All, GroupMember.ReadWrite.All) | ❌ No - stays SP / executes behind control plane |
+| Leaver | Yes (User.ReadWrite.All, GroupMember.ReadWrite.All) | ❌ No - stays SP / executes behind control plane |
 
 **Why this is the right answer, not a limitation:** Microsoft deliberately prevents
 autonomous agent identities from holding blanket directory-write. That is *exactly* JML's
-thesis — agents propose, score, and route; privileged execution lives behind approval +
+thesis - agents propose, score, and route; privileged execution lives behind approval +
 policy on a separate identity. So the target architecture is a **hybrid**: reasoning/read
 agents (Auditor, Approver) become first-class Entra Agent IDs; directory mutations stay on
 least-privilege execution SPs gated by the control plane. This is a stronger, platform-aligned
 story than "convert everything to Agent ID."
 
-### Migration sequence (parallel, non-destructive — never breaks the working SP fleet)
-1. ✅ **Create agent identities** — `New-AgentIdentities.ps1` (done; 6 created).
-2. ✅ **Grant permissions** — `Grant-AgentIdentityPermissions.ps1` (done; 14 granted, write
+### Migration sequence (parallel, non-destructive - never breaks the working SP fleet)
+1. ✅ **Create agent identities** - `New-AgentIdentities.ps1` (done; 6 created).
+2. ✅ **Grant permissions** - `Grant-AgentIdentityPermissions.ps1` (done; 14 granted, write
    scopes blocked as above). Auditor + Approver fully permissioned as Agent IDs.
 3. ✅ **Add and validate a credential on the live blueprint** (2026-06-11).
-   `Enable-AgentIdAuth.ps1` added the FMI secret — note it required consenting
+   `Enable-AgentIdAuth.ps1` added the FMI secret - note it required consenting
    `AgentIdentityBlueprint.ReadWrite.All`; `Application.ReadWrite.All` alone is
    denied on the blueprint `addPassword` endpoint. Follow-up: replace the secret
    with `addKey` or a federated credential for the durable state.
@@ -167,7 +167,7 @@ story than "convert everything to Agent ID."
    Graph token as its agent identity (clientId `32019f19-…`) and queried users.
    Legacy cert/secret fields are retained as fallback; **SP retirement is the only
    remaining step** and is deliberately deferred until the Agent ID path has soaked.
-   **Write agents (Joiner/Mover/Leaver/Enroller) stay on SPs** — the write scopes they need are
+   **Write agents (Joiner/Mover/Leaver/Enroller) stay on SPs** - the write scopes they need are
    blocked for agent identities (see KEY CONSTRAINT). Final state = hybrid by design. ✅ ACHIEVED.
 
 `Remove-OrphanBlueprints.ps1` cleans up duplicate "JML Agent Fleet Blueprint" apps from
@@ -177,7 +177,7 @@ failed creation runs (keeps the one backing the live identities).
 
 | Dimension | App registration + SP (today) | Entra Agent ID |
 |---|---|---|
-| First-class agent semantics | No — generic app identity | Yes — purpose-built non-human AI identity |
+| First-class agent semantics | No - generic app identity | Yes - purpose-built non-human AI identity |
 | Ownership / sponsor / review | Manual (cert expiry tracking only) | Native owner + sponsor + lifecycle |
 | Conditional Access / risk | Needs **Workload Identities Premium** (tenant lacks it) | Governed via Entra ID P1/P2 (tenant HAS it) |
 | Access reviews | Possible but not agent-aware | Agent-aware reviews |
@@ -186,7 +186,7 @@ failed creation runs (keeps the one backing the live identities).
 | Maturity / risk | Battle-tested, fully working today | GA but new; rollout/schema still settling |
 | Effort to adopt | None (in place) | Create new + re-grant scopes + re-point code + retire old |
 
-**Recommendation:** Agent ID is the strategically correct target — it gives agent-aware
+**Recommendation:** Agent ID is the strategically correct target - it gives agent-aware
 governance using licenses this tenant already owns, and (notably) lets Conditional Access
 apply *without* the Workload Identities Premium SKU the SP model would require. But it is a
 net-new build with a settling rollout. The pragmatic plan for the submission: keep the

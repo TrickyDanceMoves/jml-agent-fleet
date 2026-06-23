@@ -1,7 +1,7 @@
 'use strict';
 
 /**
- * Identity Protection risky user scan cron — fires every 6 hours.
+ * Identity Protection risky user scan cron - fires every 6 hours.
  *
  * Polls Entra ID Identity Protection for at-risk and confirmed-compromised
  * accounts. Critical findings trigger a Teams notification if configured.

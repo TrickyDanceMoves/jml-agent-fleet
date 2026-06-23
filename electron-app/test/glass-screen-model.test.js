@@ -72,7 +72,7 @@ test('awaiting approval pauses at Risk with an amber decision', () => {
   assert.equal(stageState(stages, 'risk'), 'awaiting-approval');
   assert.equal(stageState(stages, 'execute'), 'pending');
   // A pending approval owns the hero only when explicitly selected (replay),
-  // not by default — so select it here to assert its presentation.
+  // not by default - so select it here to assert its presentation.
   const vm = buildGlassScreenViewModel({ operations: [operation], selectedId: operation.id, now: T0 });
   assert.equal(vm.eyebrow, 'AWAITING APPROVAL');
   assert.match(vm.currentDecision.toLowerCase(), /approv/);
@@ -132,7 +132,7 @@ test('awaiting-approval does not block replaying a selected historical run', () 
 test('a pending approval never owns the idle hero but is listed in recent runs', () => {
   const awaiting = op({ id: 'app-1', status: 'awaiting-approval' });
   const vm = buildGlassScreenViewModel({ operations: [awaiting], now: T0 });
-  // Default tab state stays clean — the pending approval is not the hero.
+  // Default tab state stays clean - the pending approval is not the hero.
   assert.equal(vm.mode, 'idle');
   assert.equal(vm.eyebrow, 'FLEET READY');
   assert.equal(vm.operation, null);
@@ -269,7 +269,7 @@ test('stageDetail execute falls back to generic calls without details (Safe prev
 
 test('stageDetail execute reports the honest truth when a recorded run changed nothing', () => {
   // A hard leaver whose results recorded empty arrays must NOT imply "remove all
-  // licenses" — it shows the concrete (empty) outcome instead of generic calls.
+  // licenses" - it shows the concrete (empty) outcome instead of generic calls.
   const noop = op({
     agent: 'leaver', stage: 'hard', status: 'succeeded', outcome: 'success',
     details: { accountDisabled: false, sessionsRevoked: false, licensesRemoved: [], groupsRemoved: [] },

@@ -1,5 +1,5 @@
 {
-    "_comment":  "PIM for Groups config TEMPLATE. Copy to pim-config.json (gitignored — it holds real tenant group & object IDs). groupId values are populated by New-PIMGroups.ps1; agent objectId values are the service-principal object IDs for each agent. activationDurationHours controls how long role elevation lasts per operation.",
+    "_comment":  "PIM for Groups config TEMPLATE. Copy to pim-config.json (gitignored - it holds real tenant group & object IDs). groupId values are populated by New-PIMGroups.ps1; agent objectId values are the service-principal object IDs for each agent. activationDurationHours controls how long role elevation lasts per operation.",
     "activationDurationHours":  1,
     "groups":  {
                    "JML-UserAdmin":  {

@@ -49,7 +49,7 @@
       finish(false);
     });
 
-    // Step 3 — Entra sign-in fast path. Reuses the operator device-code flow,
+    // Step 3 - Entra sign-in fast path. Reuses the operator device-code flow,
     // which signs in against the `organizations` authority when nothing is
     // configured yet, then auto-connects + persists the tenant read from the
     // sign-in token. We mirror that tenant into the manual fields so the
@@ -86,10 +86,10 @@
       entraBtn.disabled = false;
       if (!r || !r.ok) {
         entraBtnLbl.textContent = 'Sign in with Microsoft Entra';
-        entraBtnDesc.textContent = 'Opens a Microsoft sign-in window — auto-detects your tenant';
+        entraBtnDesc.textContent = 'Opens a Microsoft sign-in window - auto-detects your tenant';
         entraStatus.textContent = '';
         document.getElementById('err-tenant').textContent =
-          (r && r.error) ? r.error : 'Sign-in failed — try again or enter the Tenant ID manually.';
+          (r && r.error) ? r.error : 'Sign-in failed - try again or enter the Tenant ID manually.';
         return;
       }
       // Resolve the tenant: prefer the id_token `tid` the flow just connected;
@@ -111,8 +111,8 @@
       entraConnRow.style.display = '';
       entraStatus.textContent = '';
       entraBtn.classList.add('connected');
-      entraBtnLbl.textContent = tid ? 'Signed in — tenant connected' : 'Signed in';
-      entraBtnDesc.textContent = tid ? ('Tenant ' + tid.slice(0, 8) + '…') : 'Tenant not detected — enter it below';
+      entraBtnLbl.textContent = tid ? 'Signed in - tenant connected' : 'Signed in';
+      entraBtnDesc.textContent = tid ? ('Tenant ' + tid.slice(0, 8) + '…') : 'Tenant not detected - enter it below';
     });
 
     document.getElementById('btn-done').addEventListener('click', () => {

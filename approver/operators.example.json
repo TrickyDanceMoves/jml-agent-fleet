@@ -1,5 +1,5 @@
 {
-  "_comment": "Operator RBAC. Copy to operators.json (gitignored — it names real operators). Keys are Windows usernames OR Entra UPNs/display names; the value is the role. Roles below map to the tools each operator may invoke.",
+  "_comment": "Operator RBAC. Copy to operators.json (gitignored - it names real operators). Keys are Windows usernames OR Entra UPNs/display names; the value is the role. Roles below map to the tools each operator may invoke.",
   "operators": {
     "viewer": "viewer",
     "Helpdesk I/II": "helpdesk",

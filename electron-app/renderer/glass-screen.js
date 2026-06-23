@@ -41,7 +41,7 @@
   // replay the user had selected; terminal updates never steal the page.
   function liveOperationInterruptsReplay(selectedId, operation) {
     // Only a genuinely running operation interrupts a replay. A new pending
-    // approval is not "live" — it shouldn't yank the operator out of a replay.
+    // approval is not "live" - it shouldn't yank the operator out of a replay.
     return Boolean(selectedId) && model.normalizeStatus(operation) === 'running';
   }
 
@@ -61,7 +61,7 @@
 
   // Attach audit evidence (hash, ticket, action) to an operation record
   // without ever letting an audit row overwrite the operation's own
-  // status/outcome/error — operation-status IPC is always fresher.
+  // status/outcome/error - operation-status IPC is always fresher.
   function enrichOperation(operation, auditEntries) {
     if (!operation || !Array.isArray(auditEntries) || !auditEntries.length) return operation;
     const opTime = Date.parse(operation.startedAt || operation.updatedAt || 0) || 0;
@@ -106,13 +106,13 @@
     push('Mode', op.whatif === undefined ? null : (op.whatif ? 'Safe (WhatIf)' : 'Live'));
     push('Ticket', op.details?.ticketRef || op.ticketRef || null);
     push('Outcome', op.outcome || model.normalizeStatus(op));
-    // Foundry IQ policy grounding — names the Microsoft IQ layer and its citations
+    // Foundry IQ policy grounding - names the Microsoft IQ layer and its citations
     if (op.grounding) {
       if (op.grounding.unavailable) {
-        push('Policy grounding', 'Foundry IQ unavailable — failed closed');
+        push('Policy grounding', 'Foundry IQ unavailable - failed closed');
       } else {
         const cites = (op.grounding.citations || []).map(c => c.title).filter(Boolean).join(', ');
-        push('Policy grounding', 'Foundry IQ' + (cites ? ' — ' + cites : ''));
+        push('Policy grounding', 'Foundry IQ' + (cites ? ' - ' + cites : ''));
         if (op.grounding.summary) push('Policy finding', sanitizeRaw(op.grounding.summary, 300));
       }
     }
@@ -220,7 +220,7 @@
 
     // The stage click/hover handlers are bound once (on a full rebuild) and reused
     // across the in-place fast-path. They must read the CURRENT operation, not the
-    // one captured when they were bound — otherwise selecting a joiner after a
+    // one captured when they were bound - otherwise selecting a joiner after a
     // leaver was rendered would show the leaver's Execute detail (stale closure).
     stagesCache.operation = operation;
 
@@ -368,7 +368,7 @@
     const box = el('gs-recovery');
     if (!box) return;
     const r = vm.recovery;
-    // Clear the tone too — otherwise a stale data-tone="failed" leaves a coral
+    // Clear the tone too - otherwise a stale data-tone="failed" leaves a coral
     // border on the (now empty) box.
     if (!r) { box.hidden = true; box.innerHTML = ''; box.removeAttribute('data-tone'); return; }
     box.hidden = false;
@@ -396,7 +396,7 @@
       const filtered = f && (f.mode !== 'all' || f.outcome !== 'all' || f.agent !== 'all');
       list.innerHTML = filtered
         ? '<div class="gs-recent-empty">No runs match this filter.</div>'
-        : '<div class="gs-recent-empty">No completed runs yet — live actions will appear here automatically.</div>';
+        : '<div class="gs-recent-empty">No completed runs yet - live actions will appear here automatically.</div>';
       return;
     }
     list.innerHTML = vm.recent.map(r => `
@@ -427,7 +427,7 @@
       });
     });
 
-    // Center expand/collapse arrow — reveals all runs when there are more than
+    // Center expand/collapse arrow - reveals all runs when there are more than
     // the default few. Hidden when everything already fits.
     const toggle = el('gs-recent-expand');
     if (toggle) {
@@ -609,7 +609,7 @@
     const btn = el('gs-replay');
     if (btn) btn.disabled = true;
 
-    // Start from the run's default state — all stages pending — so the
+    // Start from the run's default state - all stages pending - so the
     // replay visibly travels the pipeline instead of jumping in fully lit.
     renderPipeline(finalStages.map(s => ({ ...s, state: 'pending' })), null, vm.operation);
 
@@ -635,7 +635,7 @@
   // ── Event entry points (wired from app.js) ─────────────────────────────────
 
   // The lifecycle agent is the base agent (leaver), not the tool variant
-  // (leaver_delete) — normalise so stage owners / icons / titles attribute the
+  // (leaver_delete) - normalise so stage owners / icons / titles attribute the
   // step to the real agent, including historical records.
   function normalizeOpAgent(op) {
     if (!op || !op.agent) return op;
@@ -647,7 +647,7 @@
     if (!operation || !operation.id) return;
     operation = normalizeOpAgent(operation);
     if (liveOperationInterruptsReplay(glassScreenState.selectedId, operation)) {
-      // A fresh live operation owns the page — drop replay selection.
+      // A fresh live operation owns the page - drop replay selection.
       clearReplayTimers();
       glassScreenState.selectedId = null;
       glassScreenState.replayDone = false;
@@ -683,11 +683,11 @@
   function onAuditEntries(entries) {
     glassScreenState.auditEntries = Array.isArray(entries) ? entries.slice(0, 100) : [];
     // Audit-only history backfills recent runs when operation history is
-    // sparse — synthesize ids so rows are selectable for replay.
+    // sparse - synthesize ids so rows are selectable for replay.
     const known = new Set(glassScreenState.operations.map(o => o.id));
     // Build signatures of REAL operations (agent + subject + ~10-min bucket) so
     // an agent's own audit entry doesn't surface as a second, duplicate run
-    // beside its operation — e.g. an approved leaver and its IRM audit line.
+    // beside its operation - e.g. an approved leaver and its IRM audit line.
     const bucketOf = (o) => {
       const t = Date.parse(o.completedAt || o.updatedAt || o.timestamp || o.startedAt || '') || 0;
       return Math.round(t / 600000);

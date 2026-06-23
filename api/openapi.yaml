@@ -1,6 +1,6 @@
 openapi: 3.0.3
 info:
-  title: JML Agent Fleet — Identity Lifecycle API
+  title: JML Agent Fleet - Identity Lifecycle API
   version: "1.0.0"
   description: >
     Governed control-plane API for Joiner/Mover/Leaver identity operations in
@@ -8,7 +8,7 @@ info:
     Microsoft 365 Copilot / Copilot Studio action. The caller submits a request;
     the JML control plane performs validation, risk scoring, policy checks, human
     approval, and audited execution through Microsoft Graph. The model never holds
-    direct authority — it proposes; policy and approval decide what executes.
+    direct authority - it proposes; policy and approval decide what executes.
 servers:
   - url: http://localhost:7071/api
     description: Local dev (Azure Functions Core Tools)
@@ -41,7 +41,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AcceptedResponse'
-        '401': { description: Unauthorized — missing or invalid x-api-key }
+        '401': { description: Unauthorized - missing or invalid x-api-key }
         '400': { description: Invalid JSON body or unroutable event }
         '422': { description: Schema validation failed }
   /jml/status/{eventId}:

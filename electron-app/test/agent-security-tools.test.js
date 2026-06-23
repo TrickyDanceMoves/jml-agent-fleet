@@ -2,7 +2,7 @@
 
 // Locks the chat agents' security-posture toolset. The auditor/approver must be
 // able to answer "any risky users or anomalous sign-ins?" from the same security
-// scan the Security tab uses — not decline for lack of tools.
+// scan the Security tab uses - not decline for lack of tools.
 
 const assert = require('node:assert/strict');
 const fs = require('node:fs');

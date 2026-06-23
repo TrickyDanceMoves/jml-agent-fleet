@@ -26,7 +26,7 @@ test('classifies partial, approval, and successful results', () => {
 test('a completed run with non-fatal sub-errors is partial, not failed', () => {
   // The agent scripts exit 2 and print a results object (PascalCase Errors)
   // alongside [ERROR] log lines for incidental sub-steps. The run completed,
-  // so it must classify as partial — not failed (regression: Execute showed
+  // so it must classify as partial - not failed (regression: Execute showed
   // "failed" inconsistently for runs that actually completed).
   const partialRun = classifyToolResult({
     lines: ['[ACTION] User created', '[ERROR] Group not found: Marketing'],

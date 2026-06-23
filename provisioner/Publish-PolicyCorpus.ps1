@@ -4,7 +4,7 @@
     Foundry IQ knowledge agent used to ground risk/approval decisions.
 
 .DESCRIPTION
-    Microsoft Agents League — Enterprise Agents track requires a Microsoft IQ
+    Microsoft Agents League - Enterprise Agents track requires a Microsoft IQ
     layer. JML uses Foundry IQ (Azure AI Foundry knowledge retrieval) grounded on
     this repo's shared/policy-corpus/*.md files: SoD rules, offboarding playbook,
     approved access patterns, and freeze windows.

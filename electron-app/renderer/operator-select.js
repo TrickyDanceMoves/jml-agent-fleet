@@ -17,7 +17,7 @@
       return at === -1 ? { local: name, domain: '' } : { local: name.slice(0, at), domain: name.slice(at) };
     };
 
-    // Exit button — lets the operator quit from the (frameless) launch screen.
+    // Exit button - lets the operator quit from the (frameless) launch screen.
     document.getElementById('op-exit').addEventListener('click', () => window.api.appQuit());
 
     window.api.getOperatorsForLogin().then(data => {
@@ -26,7 +26,7 @@
       const entries = Object.entries(ops);
 
       if (!entries.length) {
-        list.innerHTML = '<div class="no-ops">No operators configured — see Settings.</div>';
+        list.innerHTML = '<div class="no-ops">No operators configured - see Settings.</div>';
         return;
       }
 
@@ -62,7 +62,7 @@
     // Interactive directory authentication replaces local-username trust; the
     // signed-in UPN becomes the audited operator identity. Role comes from
     // operators.json (UPN, display name, or UPN local part). The Entra sign-in
-    // itself is the auth — no PIN gate on this path.
+    // itself is the auth - no PIN gate on this path.
     const entraBtn    = document.getElementById('btn-entra');
     const entraStatus = document.getElementById('entra-status');
     entraBtn.addEventListener('click', () => {
@@ -74,11 +74,11 @@
     });
     window.api.onEntraDeviceCode(d => {
       entraStatus.innerHTML =
-        `Code <b class="entra-code">${d.userCode}</b> is pre-filled in the sign-in window — confirm it and sign in. Waiting…`;
+        `Code <b class="entra-code">${d.userCode}</b> is pre-filled in the sign-in window - confirm it and sign in. Waiting…`;
     });
     window.api.onEntraSigninResult(r => {
       if (r.ok) {
-        entraStatus.innerHTML = `Signed in as <b>${r.displayName}</b> · role <b>${r.role}</b> — opening console…`;
+        entraStatus.innerHTML = `Signed in as <b>${r.displayName}</b> · role <b>${r.role}</b> - opening console…`;
         window.api.selectOperator(r.name, r.role);
       } else {
         entraStatus.className = 'entra-status err';
@@ -98,7 +98,7 @@
       }
       const allAuth = await window.api.getOperatorAuth();
       const a = allAuth && allAuth[name];
-      // Windows authentication means "trust the current OS session" — exactly as
+      // Windows authentication means "trust the current OS session" - exactly as
       // promised when it was set up ("no PIN needed"). Don't re-prompt for the
       // Windows password here; the logged-in session is the proof of identity.
       if (a && a.set && a.mode === 'windows') {
@@ -106,7 +106,7 @@
         return;
       }
       if (!a || !a.set) {
-        // No auth configured yet — offer PIN setup or Windows-auth path
+        // No auth configured yet - offer PIN setup or Windows-auth path
         const choice = await showAuthChoice(name);
         if (!choice) return; // cancelled, stay on sign-in
         if (choice === 'windows') {
@@ -122,13 +122,13 @@
         window.api.selectOperator(name, role);
         return;
       }
-      // Auth exists — verify
+      // Auth exists - verify
       const pin = await showPinPrompt({ title: a.mode === 'windows' ? 'Confirm Windows session' : 'Enter your PIN', body: 'Required to sign in with write access.', confirm: false });
       if (!pin) return;
       const verify = await window.api.verifyOperatorPin(name, pin);
       if (!(verify && verify.ok)) {
         // Show inline error and retry by re-calling
-        showError('PIN incorrect — try again or cancel.');
+        showError('PIN incorrect - try again or cancel.');
         return gateOperator(name, role);
       }
       window.api.selectOperator(name, role);

@@ -10,7 +10,7 @@ param(
 #   1. Go to https://compliance.microsoft.com
 #   2. Data connectors → HR → Set up connector
 #   3. Enter the ClientId and TenantId printed by this script
-#   4. Complete the wizard — it shows a Job ID at the end
+#   4. Complete the wizard - it shows a Job ID at the end
 #   5. Paste the Job ID into agents/purview/config.json (JobId field)
 #
 # Reference: https://learn.microsoft.com/en-us/purview/import-hr-data

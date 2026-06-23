@@ -2,7 +2,7 @@
   "name": "jml-worker",
   "version": "1.0.0",
   "type": "commonjs",
-  "description": "JML queue worker — polls Azure Storage Queue and invokes PS1 agents",
+  "description": "JML queue worker - polls Azure Storage Queue and invokes PS1 agents",
   "main": "src/worker.js",
   "scripts": {
     "test": "node --test test/*.test.js",

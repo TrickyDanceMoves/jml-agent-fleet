@@ -80,7 +80,7 @@ function adaptWebhook(payload) {
     const email = field(f, 'workEmail');
 
     if (!email) {
-      throw new Error(`BambooHR employee ID ${emp.id}: missing workEmail — ensure workEmail is included in webhook fields`);
+      throw new Error(`BambooHR employee ID ${emp.id}: missing workEmail - ensure workEmail is included in webhook fields`);
     }
 
     const event = {

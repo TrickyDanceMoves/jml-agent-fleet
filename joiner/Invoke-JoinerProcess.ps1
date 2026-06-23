@@ -56,7 +56,7 @@ Connect-AgentGraph -Config $config
 Write-Log "Connected to Microsoft Graph (AppOnly)"
 Test-CredentialExpiry
 
-# SoD check — validate incoming groups don't conflict with each other
+# SoD check - validate incoming groups don't conflict with each other
 $incomingGroups = @($payload.groups | Where-Object { $_ })
 Write-Log "Running SoD check for incoming groups: $(if ($incomingGroups.Count) { $incomingGroups -join ', ' } else { '(none)' })"
 $sodResult = & (Join-Path $agentsRoot "shared\Invoke-SoDCheck.ps1") `
@@ -210,7 +210,7 @@ if ($payload.groups -and $payload.groups.Count -gt 0) {
                     $results.Errors += ("Group not found: " + $groupName)
                 } else {
                     $group = $groupResp.value[0]
-                    # Idempotent add — a resumed joiner won't fail on a group the
+                    # Idempotent add - a resumed joiner won't fail on a group the
                     # user is already in.
                     $st = Add-AgentGroupMember -GroupId $group["id"] -UserId $results.ObjectId
                     if ($st -eq 'already') { Write-Log ("Already a member, skipping: " + $groupName) "SKIP" }

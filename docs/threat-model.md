@@ -1,4 +1,4 @@
-﻿# JML Agent Fleet — Threat Model
+﻿# JML Agent Fleet - Threat Model
 
 A STRIDE-informed threat model for an AI-governed identity lifecycle control plane
 operating against Microsoft Entra ID. Scope: the agent fleet, the Electron operations
@@ -18,11 +18,11 @@ console, the Azure Functions API + queue worker, and the Microsoft Graph executi
 
 ## Trust boundaries
 
-1. **Electron renderer ↔ main process** — renderer is untrusted UI; all privilege lives in main via IPC.
-2. **Local machine ↔ Azure** — console and worker run locally; Graph/Functions/Storage are remote.
-3. **HRIS ↔ webhook receiver** — external system; payloads are untrusted until validated + signature-checked.
-4. **Operator ↔ control plane** — operator identity and role gate what may execute.
-5. **AI model ↔ control plane** — the model proposes; it never holds direct authority.
+1. **Electron renderer ↔ main process** - renderer is untrusted UI; all privilege lives in main via IPC.
+2. **Local machine ↔ Azure** - console and worker run locally; Graph/Functions/Storage are remote.
+3. **HRIS ↔ webhook receiver** - external system; payloads are untrusted until validated + signature-checked.
+4. **Operator ↔ control plane** - operator identity and role gate what may execute.
+5. **AI model ↔ control plane** - the model proposes; it never holds direct authority.
 
 ## Threats and mitigations
 
@@ -35,7 +35,7 @@ console, the Azure Functions API + queue worker, and the Microsoft Graph executi
 | T5 | Elevation of privilege | Helpdesk executes a hard leaver directly | Hard leavers from helpdesk route to admin approval queue; server-side role gate on approve | ✅ |
 | T6 | Elevation of privilege | Renderer becomes a privileged Graph shell | contextIsolation + nodeIntegration:false; IPC sender + payload validation; see electron-security.md | ⚠️ partial (sandbox) |
 | T7 | Denial of service / blast radius | Bulk termination wipes the directory | WhatIf default; risk scoring gates Live; circuit breaker halts after 3 consecutive Graph failures | ✅ |
-| T8 | Prompt injection | Malicious input steers the agent to over-provision | Model has no direct authority — every write goes through risk score + policy + approval; SoD engine blocks conflicts | ✅ |
+| T8 | Prompt injection | Malicious input steers the agent to over-provision | Model has no direct authority - every write goes through risk score + policy + approval; SoD engine blocks conflicts | ✅ |
 | T9 | Over-permissioning | An agent holds more Graph scope than its job needs | Per-agent least-privilege app permissions; `Test-AgentPermissions.ps1` detects drift | ✅ |
 | T10 | Rogue / compromised agent | Agent identity is abused | **Quarantine Agent** kill switch: disable app reg + revoke creds + high-severity audit; Provisioner disabled at rest | ✅ |
 | T11 | Credential theft | Long-lived secret exfiltrated | Cert-first auth; secret is DPAPI-encrypted fallback; expiry warnings 60 days out | ✅ (→ federated creds roadmap) |
@@ -61,4 +61,4 @@ actions fail closed when:
 
 - Electron windows run with `sandbox: true` (preloads carry no Node deps; operator username resolved via main-process IPC). See electron-security.md.
 - Operator RBAC supports local PIN, Windows session trust, and Entra device-code sign-in (all three implemented).
-- Conditional Access for the agent workload identities requires Entra Workload Identities Premium (P2) — script present, not enabled.
+- Conditional Access for the agent workload identities requires Entra Workload Identities Premium (P2) - script present, not enabled.

@@ -5,7 +5,7 @@ import { dirname, join } from 'path';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
-// ── Shared design tokens (inlined — no font file deps for screenshot) ──────
+// ── Shared design tokens (inlined - no font file deps for screenshot) ──────
 const TOKENS = `
   :root {
     --bg: oklch(0.16 0.012 252);
@@ -331,7 +331,7 @@ const accessReviewsContent = `
         <div class="cert-campaign-type-icon">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
         </div>
-        <div class="cert-campaign-name">Agent PIM Eligibility Attestation — May</div>
+        <div class="cert-campaign-name">Agent PIM Eligibility Attestation - May</div>
         <span class="cert-status-badge cert-status-active">Active</span>
       </div>
       <div class="cert-campaign-meta">
@@ -382,7 +382,7 @@ const accessReviewsContent = `
   <div class="panel-h"><div class="ttl">Campaign History</div></div>
   <div class="cert-history-row head"><span>Campaign</span><span>Run</span><span>Type</span><span>Outcome</span></div>
   <div class="cert-history-row">
-    <span style="color:var(--text)">Agent PIM Eligibility Attestation — May</span>
+    <span style="color:var(--text)">Agent PIM Eligibility Attestation - May</span>
     <span style="color:var(--muted)">May 1, 2025 09:14</span>
     <span style="color:var(--text-2)">agent-pim</span>
     <span class="ok-icon">✓ success</span>
@@ -587,7 +587,7 @@ const integrationsContent = `
 `;
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 3.  AUTH SELECT screen (PIN vs Windows — modal on operator-select)
+// 3.  AUTH SELECT screen (PIN vs Windows - modal on operator-select)
 // ═══════════════════════════════════════════════════════════════════════════
 const authSelectHtml = `<!DOCTYPE html>
 <html lang="en">
@@ -767,12 +767,12 @@ const devicesContent = `
 <div class="head">
   <div>
     <h1 class="h1">Devices <span class="sub">4 shown</span></h1>
-    <p class="desc">Manage the device lifecycle conversationally. Ask the agent to inspect or act — it reads Entra + Intune state and runs sync, disable, retire, wipe, or delete with policy, risk, and approval gating.</p>
+    <p class="desc">Manage the device lifecycle conversationally. Ask the agent to inspect or act - it reads Entra + Intune state and runs sync, disable, retire, wipe, or delete with policy, risk, and approval gating.</p>
   </div>
 </div>
 
 <div class="dev-bar">
-  <input type="search" value="jessica.park" autocomplete="off" placeholder="AI-assisted search — type a name/UPN or ask about devices…">
+  <input type="search" value="jessica.park" autocomplete="off" placeholder="AI-assisted search - type a name/UPN or ask about devices…">
   <button class="btn">Search</button>
   <button class="btn">Stale</button>
 </div>

@@ -8,7 +8,7 @@
 .DESCRIPTION
     Agent ID auth = credentials on the blueprint, permissions on the agent identity,
     two-step FMI token exchange (implemented in shared/Helpers.ps1 Connect-AgentGraph).
-    Only the READ agents (Auditor, Approver) can run as agent identities — the write
+    Only the READ agents (Auditor, Approver) can run as agent identities - the write
     agents need scopes Entra blocks for agent identities (see agent-identity-roadmap.md).
 
     Admin device-code sign-in (Application.ReadWrite.All / Agent ID Administrator).
@@ -43,7 +43,7 @@ function Get-RestError {
 $tenantId = (Get-Content (Join-Path $agentsRoot "joiner\config.json") -Raw | ConvertFrom-Json).TenantId
 $clientId = "14d82eec-204b-4c2f-b7e8-296a70dab67e"
 # Blueprint credential writes are governed by the agent-identity scope, not the
-# generic application scope — Application.ReadWrite.All alone gets
+# generic application scope - Application.ReadWrite.All alone gets
 # Authorization_RequestDenied on .../agentIdentityBlueprint/addPassword.
 $scope    = "https://graph.microsoft.com/AgentIdentityBlueprint.ReadWrite.All https://graph.microsoft.com/Application.ReadWrite.All offline_access openid profile"
 

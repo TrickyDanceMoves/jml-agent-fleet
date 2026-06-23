@@ -76,7 +76,7 @@ Expected result: console launches, operator selector appears, each tab renders, 
 5. Add a no-secrets release check that fails if `config.json`, `local.settings.json`, `worker.config.json`, audit logs, report outputs, or operator auth files are staged.
 6. For demos, seed a non-production tenant with synthetic users, synthetic groups, synthetic licenses, and sanitized audit events only.
 7. Keep Workload Identity CA as an accepted/licensed control, not a missing engineering task.
-8. Enterprise Agents Microsoft IQ requirement is met — Foundry IQ grounds risk/approval decisions on the JML policy corpus and is visible in the demo (`electron-app/lib/foundry-iq.js`).
+8. Enterprise Agents Microsoft IQ requirement is met - Foundry IQ grounds risk/approval decisions on the JML policy corpus and is visible in the demo (`electron-app/lib/foundry-iq.js`).
 
 ## Final Demo Script
 

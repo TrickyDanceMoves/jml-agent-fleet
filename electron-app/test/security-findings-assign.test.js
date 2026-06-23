@@ -3,7 +3,7 @@
 // Locks the Security findings "Assign…" plumbing. Findings are rebuilt from
 // scratch on every scan/poll (assignee defaults to '—'), so assignment only
 // works if it is recorded in a session map keyed by the stable finding key and
-// reapplied on each rebuild — otherwise the assignee resets on the next poll
+// reapplied on each rebuild - otherwise the assignee resets on the next poll
 // and assignment appears broken.
 
 const assert = require('node:assert/strict');

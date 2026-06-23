@@ -75,13 +75,13 @@ contextBridge.exposeInMainWorld('api', {
   getAgentHealth:  ()   => ipcRenderer.send('get-agent-health'),
   onAgentHealth:   (cb) => ipcRenderer.on('agent-health', (_, d) => cb(d)),
 
-  // Agent quarantine (kill switch) — invoke, returns { ok, ... }
+  // Agent quarantine (kill switch) - invoke, returns { ok, ... }
   quarantineAgent: (payload) => ipcRenderer.invoke('quarantine-agent', payload),
 
-  // Policy simulation — read-only decision preview
+  // Policy simulation - read-only decision preview
   simulatePolicy: (payload) => ipcRenderer.invoke('simulate-policy', payload),
 
-  // Access snapshot — read-only current state for before/after diff
+  // Access snapshot - read-only current state for before/after diff
   getAccessSnapshot: (upn) => ipcRenderer.invoke('get-access-snapshot', { upn }),
 
   getHrQueue:      ()   => ipcRenderer.send('get-hr-queue'),
@@ -132,7 +132,7 @@ contextBridge.exposeInMainWorld('api', {
   onPimRoles:          (cb)      => ipcRenderer.on('pim-roles',           (_, d) => cb(d)),
   onPimActivateResult: (cb)      => ipcRenderer.on('pim-activate-result', (_, d) => cb(d)),
 
-  // Entra operator sign-in (device code) — real directory identity instead of
+  // Entra operator sign-in (device code) - real directory identity instead of
   // trusting the local Windows username
   startEntraOperatorSignin: ()   => ipcRenderer.send('entra-signin-start'),
   onEntraDeviceCode:        (cb) => ipcRenderer.on('entra-device-code',   (_, d) => cb(d)),
@@ -146,7 +146,7 @@ contextBridge.exposeInMainWorld('api', {
   onOperatorSwitched:   (cb)           => ipcRenderer.on('operator-switched',  (_, d) => cb(d)),
   onConversationReset:  (cb)           => ipcRenderer.on('conversation-reset', () => cb()),
 
-  // Operator authentication (PIN / Windows) — for write-access gating
+  // Operator authentication (PIN / Windows) - for write-access gating
   getOperatorAuth:        ()                  => ipcRenderer.invoke('get-operator-auth'),
   setOperatorAuthPin:     (user, pin)         => ipcRenderer.invoke('set-operator-auth-pin', { user, pin }),
   setOperatorAuthWindows: (user)              => ipcRenderer.invoke('set-operator-auth-windows', { user }),
@@ -170,7 +170,7 @@ contextBridge.exposeInMainWorld('api', {
   getSecurityStatus:       ()                 => ipcRenderer.invoke('get-security-status'),
   saveSecurityStatus:      (status)           => ipcRenderer.invoke('save-security-status', { status }),
 
-  // Devices — user/stale device reads + lifecycle actions
+  // Devices - user/stale device reads + lifecycle actions
   getUserDevices:  (upnOrName) => ipcRenderer.invoke('get-user-devices', { upnOrName }),
   getStaleDevices: (days)      => ipcRenderer.invoke('get-stale-devices', { days }),
   deviceAction:    (payload)   => ipcRenderer.invoke('device-action', payload),
@@ -198,13 +198,13 @@ contextBridge.exposeInMainWorld('api', {
   // Open external URL in default browser
   openExternal: (url) => ipcRenderer.invoke('open-external', url),
 
-  // Sign out — closes main window, returns to operator select
+  // Sign out - closes main window, returns to operator select
   signOut: () => ipcRenderer.send('sign-out'),
 
-  // Hard quit — terminates the entire application process
+  // Hard quit - terminates the entire application process
   appQuit: () => ipcRenderer.send('app-quit'),
 
-  // Avatar file picker — uses Electron native dialog (reliable vs hidden input)
+  // Avatar file picker - uses Electron native dialog (reliable vs hidden input)
   pickImageFile: () => ipcRenderer.invoke('pick-image-file'),
 
   // Docked panel toggle

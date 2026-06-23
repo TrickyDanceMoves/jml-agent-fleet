@@ -58,7 +58,7 @@ function Grant-AppPermission {
     Write-Host "[Permissions] Granted $Permission to $AppName" -ForegroundColor Green
 }
 
-# Provisioner — PIM + access certification permissions
+# Provisioner - PIM + access certification permissions
 $provisionerSpId = "00000000-0000-0000-0000-000000000000"
 Write-Host "`n[Permissions] Provisioner..."
 Grant-AppPermission -SpObjectId $provisionerSpId -AppName "Provisioner" -Permission "RoleManagement.ReadWrite.Directory"

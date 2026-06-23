@@ -12,7 +12,7 @@
 
     <!-- =========================================================
          SHELL: Sidebar + Main
-         (no separate title bar — controls live in the topbar)
+         (no separate title bar - controls live in the topbar)
          ========================================================= -->
     <div class="layout">
 
@@ -144,7 +144,7 @@
           </button>
         </nav>
 
-        <!-- Hard mode toggle — sticky session default. Soft toggle in chat shells must confirm to deviate. -->
+        <!-- Hard mode toggle - sticky session default. Soft toggle in chat shells must confirm to deviate. -->
         <div class="hard-mode">
           <div class="hard-mode-lbl">Session Mode</div>
           <div class="hard-mode-toggle" id="hard-mode-toggle" role="tablist" aria-label="Session mode">
@@ -265,7 +265,7 @@
               Customize
             </button>
           </div>
-          <p class="v2-page-sub" id="dash-page-sub">Fleet loading — gathering agent telemetry and pending actions…</p>
+          <p class="v2-page-sub" id="dash-page-sub">Fleet loading - gathering agent telemetry and pending actions…</p>
 
           <div class="v2-triage-strip" aria-label="Priority triage">
             <button class="v2-triage-card crit" data-jump-tab="security" id="triage-security">
@@ -413,7 +413,7 @@
               <div class="v2-lic-divider"></div>
               <div class="tc-section-lbl" style="margin-bottom:10px">
                 <span>LICENSE HEADROOM</span>
-                <span id="v2-lic-headroom">— / — used</span>
+                <span id="v2-lic-headroom">— / - used</span>
               </div>
               <div id="v2-lic-bars">
                 <div class="v2-lic-row">
@@ -584,7 +584,7 @@
             </div>
           </div>
 
-          <!-- Integrations (half-width) — HRIS / notifications / SIEM at-a-glance -->
+          <!-- Integrations (half-width) - HRIS / notifications / SIEM at-a-glance -->
           <div class="dash-section span-1 dash-hidden" data-section="integrations">
             <div class="panel">
               <div class="panel-h">
@@ -602,7 +602,7 @@
             </div>
           </div>
 
-          <!-- Access Reviews (half-width) — campaign summary -->
+          <!-- Access Reviews (half-width) - campaign summary -->
           <div class="dash-section span-1 dash-hidden" data-section="reviews">
             <div class="panel">
               <div class="panel-h">
@@ -615,7 +615,7 @@
             </div>
           </div>
 
-          <!-- Audit Log (half-width) — chain head -->
+          <!-- Audit Log (half-width) - chain head -->
           <div class="dash-section span-1 dash-hidden" data-section="audit">
             <div class="panel">
               <div class="panel-h">
@@ -630,7 +630,7 @@
             </div>
           </div>
 
-          <!-- Exports (half-width) — Sentinel + Blob health -->
+          <!-- Exports (half-width) - Sentinel + Blob health -->
           <div class="dash-section span-1 dash-hidden" data-section="exports">
             <div class="panel">
               <div class="panel-h">
@@ -644,7 +644,7 @@
             </div>
           </div>
 
-          <!-- Certs (half-width) — cert health -->
+          <!-- Certs (half-width) - cert health -->
           <div class="dash-section span-1 dash-hidden" data-section="certs">
             <div class="panel">
               <div class="panel-h">
@@ -659,7 +659,7 @@
             </div>
           </div>
 
-          <!-- Graph Runner (half-width) — recent queries shortcut -->
+          <!-- Graph Runner (half-width) - recent queries shortcut -->
           <div class="dash-section span-1 dash-hidden" data-section="graph">
             <div class="panel">
               <div class="panel-h">
@@ -749,7 +749,7 @@
                   <button class="btn-text-link" id="gs-view-audit">View all in Audit Log</button>
                 </div>
               </div>
-              <div class="gs-recent-hint">Click a run to view its outcome — then <b>Replay</b> to watch it animate.</div>
+              <div class="gs-recent-hint">Click a run to view its outcome - then <b>Replay</b> to watch it animate.</div>
               <div class="gs-recent-filters" id="gs-recent-filters">
                 <div class="gs-filter-group" data-filter="mode" role="group" aria-label="Filter by write mode">
                   <button class="gs-filter-chip active" data-val="all">All</button>
@@ -825,8 +825,8 @@
             <div class="assist-bar" id="approver-assist-bar">
               <button class="assist-chip" data-prompt="Onboard a new hire">+ New Joiner</button>
               <button class="assist-chip" data-prompt="Move a user to a new department">↦ Move User</button>
-              <button class="assist-chip" data-prompt="Soft offboard a user — disable their account and revoke sessions">◐ Soft Leave</button>
-              <button class="assist-chip" data-prompt="Hard offboard a user — remove all licenses, group memberships, and delete the account">⨯ Hard Leave</button>
+              <button class="assist-chip" data-prompt="Soft offboard a user - disable their account and revoke sessions">◐ Soft Leave</button>
+              <button class="assist-chip" data-prompt="Hard offboard a user - remove all licenses, group memberships, and delete the account">⨯ Hard Leave</button>
               <button class="assist-chip" data-prompt="Enroll a user in MFA">⊞ Enroll MFA</button>
               <button class="assist-chip" data-prompt="What is the current status of user ">⌕ Check User</button>
             </div>
@@ -858,7 +858,7 @@
                 <span class="tag warn" id="lifecycle-status-tag">Leaver / staged</span>
               </div>
               <div class="v2-lifecycle-v2" id="lifecycle-map">
-                <!-- Populated by JS — renderLifecycleMap() -->
+                <!-- Populated by JS - renderLifecycleMap() -->
               </div>
             </div>
 
@@ -934,7 +934,7 @@
           <div class="head">
             <div>
               <h1 class="h1">Audit Agent <span class="sub">read-only · natural language audit queries</span></h1>
-              <p class="desc">Ask questions of the hash-chained audit log and tenant directory in plain English. Read-only — no directory mutations are possible from this surface.</p>
+              <p class="desc">Ask questions of the hash-chained audit log and tenant directory in plain English. Read-only - no directory mutations are possible from this surface.</p>
             </div>
             <div class="row-flex">
               <button class="btn ghost" id="clear-auditor">Clear</button>
@@ -1509,7 +1509,7 @@
                   <button class="btn sm" id="sec-pivot-users" style="justify-content:space-between">Subject in Users <span>→</span></button>
                   <button class="btn sm" id="sec-pivot-audit-agent" style="justify-content:space-between">Ask Audit Agent <span>✦</span></button>
                 </div>
-                <!-- Inline remediation — shown per finding type, routes to Approver -->
+                <!-- Inline remediation - shown per finding type, routes to Approver -->
                 <div class="section-label" id="sec-rem-label" style="margin-top:14px;margin-bottom:6px;display:none">REMEDIATE</div>
                 <div id="sec-rem-btns" style="display:none;flex-direction:column;gap:6px">
                   <button class="btn sm danger" id="sec-rem-disable" style="justify-content:space-between;display:none">Disable account <span style="opacity:.55;font-size:10px">→ Approver</span></button>
@@ -1708,7 +1708,7 @@
             <div class="exp blob">
               <div class="top">
                 <div class="logo">AZ</div>
-                <div class="name">Azure Blob — Cold Archive<span class="sub">audit chain · 7yr retention</span></div>
+                <div class="name">Azure Blob - Cold Archive<span class="sub">audit chain · 7yr retention</span></div>
                 <span class="export-status-chip chip-unknown" id="blob-status-chip">unknown</span>
               </div>
               <div class="stats">
@@ -1846,12 +1846,12 @@
           <div class="head">
             <div>
               <h1 class="h1">Devices <span class="sub"><span id="dev-count">0</span> shown</span></h1>
-              <p class="desc">Manage the device lifecycle conversationally. Ask the agent to inspect or act — it reads Entra + Intune state and runs sync, disable, retire, wipe, or delete with policy, risk, and approval gating. Browse and act manually below.</p>
+              <p class="desc">Manage the device lifecycle conversationally. Ask the agent to inspect or act - it reads Entra + Intune state and runs sync, disable, retire, wipe, or delete with policy, risk, and approval gating. Browse and act manually below.</p>
             </div>
           </div>
 
           <div class="dev-bar">
-            <input id="dev-ask-input" type="search" autocomplete="off" placeholder="AI-assisted search — type a name/UPN or ask about devices…">
+            <input id="dev-ask-input" type="search" autocomplete="off" placeholder="AI-assisted search - type a name/UPN or ask about devices…">
             <button class="btn primary" id="dev-ask-send">Search</button>
             <button class="btn" id="btn-dev-stale" title="Devices with no sign-in in 90 days">Stale</button>
           </div>
@@ -2057,7 +2057,7 @@
 
             <div class="settings-main">
 
-              <!-- Tenant Binding (editable — connects the fleet to an Entra tenant) -->
+              <!-- Tenant Binding (editable - connects the fleet to an Entra tenant) -->
               <div class="set-card set-sub" data-sub="tenant">
                 <div class="h">
                   <div><div class="ttl">Tenant Binding</div><div class="sub">Configure the Entra tenant the fleet operates against. Saving rewrites the <code>TenantId</code> in every agent's <code>config.json</code>.</div></div>
@@ -2120,12 +2120,12 @@
                   </div>
                 </div>
                 <details class="settings-help-details">
-                  <summary class="settings-help-summary">Setup guide — hooking up a new tenant</summary>
+                  <summary class="settings-help-summary">Setup guide - hooking up a new tenant</summary>
                   <div class="settings-help-body">
                     <div class="settings-help-step"><span class="settings-help-num">1</span><div>Create app registrations in the target Entra tenant (one per agent). Use the <code>⚡ Setup Wizard</code> above to automate this step.</div></div>
                     <div class="settings-help-step"><span class="settings-help-num">2</span><div>Grant Graph API permissions and admin-consent them (see Certs tab for the permissions matrix).</div></div>
                     <div class="settings-help-step"><span class="settings-help-num">3</span><div>Upload certificates (or store secrets) and update each agent's <code>config.json</code> with <code>CertThumbprint</code> or <code>EncryptedSecret</code>.</div></div>
-                    <div class="settings-help-step"><span class="settings-help-num">4</span><div>Save Tenant ID + Client IDs above — the values will be written to all <b>8</b> agent configs on save.</div></div>
+                    <div class="settings-help-step"><span class="settings-help-num">4</span><div>Save Tenant ID + Client IDs above - the values will be written to all <b>8</b> agent configs on save.</div></div>
                   </div>
                 </details>
               </div>
@@ -2138,7 +2138,7 @@
                 </div>
                 <div style="padding:12px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:12px">
                   <div style="font-size:12.5px;color:var(--text-2);line-height:1.5">
-                    <b style="color:var(--text)">New PC?</b> Certificates live in <code>Cert:\CurrentUser\My</code> — they're machine-specific. Sign in below to create and upload certs for this machine without re-running the full wizard.
+                    <b style="color:var(--text)">New PC?</b> Certificates live in <code>Cert:\CurrentUser\My</code> - they're machine-specific. Sign in below to create and upload certs for this machine without re-running the full wizard.
                   </div>
                   <button class="btn" id="btn-deploy-certs-here" style="white-space:nowrap;flex-shrink:0">⬇ Deploy on this PC</button>
                 </div>
@@ -2310,7 +2310,7 @@
                 <div class="h">
                   <div>
                     <div class="ttl">AI Provider</div>
-                    <div class="sub">Select the language model powering Approver and Auditor agents. All providers use the same tool-calling interface — switch without losing conversation history.</div>
+                    <div class="sub">Select the language model powering Approver and Auditor agents. All providers use the same tool-calling interface - switch without losing conversation history.</div>
                   </div>
                   <span class="cert-pip" id="ai-provider-status-pip"><span class="d"></span>—</span>
                 </div>
@@ -2426,7 +2426,7 @@
                 <!-- LM Studio (local) fields -->
                 <div class="ai-prov-section" id="ai-prov-lmstudio" style="display:none">
                   <div class="set-row">
-                    <div><div class="lbl">Base URL</div><div class="desc">LM Studio local server (Developer tab → Start Server). Default: <code>http://localhost:1234</code>. Free — no API key.</div></div>
+                    <div><div class="lbl">Base URL</div><div class="desc">LM Studio local server (Developer tab → Start Server). Default: <code>http://localhost:1234</code>. Free - no API key.</div></div>
                     <div class="val right-ctrl"><input id="ai-lmstudio-url" type="text" placeholder="http://localhost:1234" style="font-family:var(--mono);font-size:12px;width:260px"></div>
                   </div>
                   <div class="set-row">
@@ -2461,7 +2461,7 @@
                   <span id="ai-provider-feedback" style="font-family:var(--mono);font-size:11.5px;color:var(--muted);margin-left:4px"></span>
                 </div>
 
-                <!-- AI observability — model run telemetry across all providers -->
+                <!-- AI observability - model run telemetry across all providers -->
                 <div style="border-top:1px solid var(--border);padding:14px 18px">
                   <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
                     <div class="section-label" style="margin:0">AI Activity · run telemetry</div>
@@ -2480,12 +2480,12 @@
 
               <div class="set-card set-sub" data-sub="appearance" style="display:none">
                 <div class="h">
-                  <div><div class="ttl">Theme</div><div class="sub">Switch the console palette. Both themes use the same layout — only color tokens differ. Survives reload.</div></div>
+                  <div><div class="ttl">Theme</div><div class="sub">Switch the console palette. Both themes use the same layout - only color tokens differ. Survives reload.</div></div>
                 </div>
                 <div class="set-row">
                   <div>
                     <div class="lbl">Color Palette</div>
-                    <div class="desc">Warm (oklch) is the validated production aesthetic. Preview (purple/blue) is the latest design iteration. Glass turns the whole shell frosted and translucent — also applies to the slim hub and docked panel.</div>
+                    <div class="desc">Warm (oklch) is the validated production aesthetic. Preview (purple/blue) is the latest design iteration. Glass turns the whole shell frosted and translucent - also applies to the slim hub and docked panel.</div>
                   </div>
                   <div class="val right-ctrl" style="display:flex;gap:8px;flex-wrap:wrap">
                     <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px">
@@ -2501,7 +2501,7 @@
                 </div>
                 <div style="padding:12px 18px;border-top:1px solid var(--border);background:var(--bg-2);font-family:var(--mono);font-size:11px;color:var(--text-2);line-height:1.7">
                   <div style="color:var(--muted);text-transform:uppercase;letter-spacing:.1em;font-size:9.5px;margin-bottom:6px">Live preview</div>
-                  <div>Switching is instant — no reload required. The choice is stored in <code>localStorage.jmlTheme</code> and applied on next launch.</div>
+                  <div>Switching is instant - no reload required. The choice is stored in <code>localStorage.jmlTheme</code> and applied on next launch.</div>
                 </div>
               </div>
 
@@ -2577,7 +2577,7 @@
         </p>
 
         <h3>Modes</h3>
-        <p><span class="mode-pill" style="vertical-align:middle"><span class="dot"></span> Safe Mode</span> previews — no changes commit. <span class="mode-pill live" style="vertical-align:middle"><span class="dot"></span> LIVE · Committing</span> actions modify the tenant. The pill in the topbar always reflects current state.</p>
+        <p><span class="mode-pill" style="vertical-align:middle"><span class="dot"></span> Safe Mode</span> previews - no changes commit. <span class="mode-pill live" style="vertical-align:middle"><span class="dot"></span> LIVE · Committing</span> actions modify the tenant. The pill in the topbar always reflects current state.</p>
 
         <h3>Approver Agent</h3>
         <p>Describe the change in natural language. Type <code>/</code> in the input to see slash commands. The agent runs risk scoring before any Live submit and gates on dual-approval where required.</p>
@@ -2639,7 +2639,7 @@
         <!-- Step 1: device-code sign-in -->
         <div class="wiz-step" data-step="1">
           <div style="font-size:13px;color:var(--text-2);line-height:1.55;margin-bottom:12px">
-            Sign in to the <b>target Entra tenant</b> as an admin who can create app registrations. We'll launch a device-code flow — copy the code and open the URL in any browser.
+            Sign in to the <b>target Entra tenant</b> as an admin who can create app registrations. We'll launch a device-code flow - copy the code and open the URL in any browser.
           </div>
           <div id="wizard-signin-pending" style="display:none">
             <div style="padding:16px;background:var(--bg-2);border:1px solid var(--border);border-radius:8px;display:flex;flex-direction:column;gap:8px">
@@ -2668,7 +2668,7 @@
         <!-- Step 2: app registration creation -->
         <div class="wiz-step" data-step="2" style="display:none">
           <div style="font-size:13px;color:var(--text-2);line-height:1.55;margin-bottom:12px">
-            Creating <b>8 app registrations</b> in the signed-in tenant — one per agent (joiner, mover, leaver, enroller, certifier, approver, provisioner, auditor). Each gets a service principal. Graph permissions are <b>not</b> granted yet — that's step 3.
+            Creating <b>8 app registrations</b> in the signed-in tenant - one per agent (joiner, mover, leaver, enroller, certifier, approver, provisioner, auditor). Each gets a service principal. Graph permissions are <b>not</b> granted yet - that's step 3.
           </div>
           <div id="wizard-appreg-list" style="display:flex;flex-direction:column;gap:6px;font-family:var(--mono);font-size:12px"></div>
           <div style="margin-top:14px;display:flex;justify-content:flex-end">
@@ -2694,7 +2694,7 @@
         <!-- Step 4: deploy agent certificates on this PC -->
         <div class="wiz-step" data-step="4" style="display:none">
           <div style="font-size:13px;color:var(--text-2);line-height:1.55;margin-bottom:12px">
-            <b style="color:var(--text)">Deploy certificates on this PC.</b> Each agent gets a self-signed cert in <code>Cert:\CurrentUser\My</code>. The public key is uploaded to the Entra app registration automatically. This must be done on <b>every PC</b> that runs the console — certs are machine-specific.
+            <b style="color:var(--text)">Deploy certificates on this PC.</b> Each agent gets a self-signed cert in <code>Cert:\CurrentUser\My</code>. The public key is uploaded to the Entra app registration automatically. This must be done on <b>every PC</b> that runs the console - certs are machine-specific.
           </div>
           <div id="wizard-cert-list" style="display:flex;flex-direction:column;gap:6px;font-family:var(--mono);font-size:12px;margin-bottom:12px"></div>
           <div id="wizard-cert-status" style="display:none;padding:12px;border-radius:8px;font-size:12px;font-family:var(--mono)"></div>

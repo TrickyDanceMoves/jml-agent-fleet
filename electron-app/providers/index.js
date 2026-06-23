@@ -21,7 +21,7 @@ const DEFAULT_CONFIG = {
     fastDeployment:  'gpt-4o-mini',
     apiVersion:      '2025-01-01-preview'
   },
-  // Azure AI Foundry — keyless (Entra / az login) against a deployed model on an
+  // Azure AI Foundry - keyless (Entra / az login) against a deployed model on an
   // Azure AI Foundry / AIServices resource. endpoint is the resource's Azure
   // OpenAI endpoint (https://<resource>.openai.azure.com); agentModel is the
   // deployment name. Leave apiKey empty for keyless; set keyless:false + apiKey
@@ -41,14 +41,14 @@ const DEFAULT_CONFIG = {
     agentModel: 'llama3.1',
     fastModel:  'llama3.1'
   },
-  // Local Qwen — served by any OpenAI-compatible local runtime (Ollama's /v1
+  // Local Qwen - served by any OpenAI-compatible local runtime (Ollama's /v1
   // endpoint by default; LM Studio / vLLM work by changing the base URL).
   qwen: {
     baseUrl:    'http://localhost:11434',
     agentModel: 'qwen3:14b',
     fastModel:  'qwen3:4b'
   },
-  // LM Studio — local OpenAI-compatible server (Developer tab → Start Server).
+  // LM Studio - local OpenAI-compatible server (Developer tab → Start Server).
   // Free; pick models with tool-calling support for the agent chats.
   lmstudio: {
     baseUrl:    'http://localhost:1234',
@@ -87,7 +87,7 @@ function loadConfig(configFile) {
 }
 
 function saveConfig(configFile, config) {
-  // Never persist raw API keys to disk — only save non-secret fields + masked presence.
+  // Never persist raw API keys to disk - only save non-secret fields + masked presence.
   // Actually for a local desktop app, persisting is the right UX. We save everything.
   fs.writeFileSync(configFile, JSON.stringify(config, null, 2), 'utf8');
 }
@@ -116,7 +116,7 @@ function buildProvider(config) {
       const c = config['azure-openai'] || {};
       if (!c.apiKey || !c.endpoint) return null;
       // Azure client builds the /openai/deployments/... path itself, so the
-      // endpoint must be the resource base — strip any /openai/v1 suffix a user
+      // endpoint must be the resource base - strip any /openai/v1 suffix a user
       // may have pasted. tokenParam lets gpt-5/o-series deployments use
       // max_completion_tokens instead of the rejected max_tokens.
       const endpoint = c.endpoint.replace(/\/openai(\/v1)?\/?$/i, '').replace(/\/$/, '');
@@ -133,7 +133,7 @@ function buildProvider(config) {
     case 'azure-foundry': {
       const c = config['azure-foundry'] || {};
       if (!c.endpoint) return null;
-      // Keyless (Entra / az login) by default — matches Foundry's Entra agent
+      // Keyless (Entra / az login) by default - matches Foundry's Entra agent
       // identity. Falls back to an api-key only if one is provided and keyless
       // is not explicitly requested.
       const wantsKeyless = c.keyless === true || (c.keyless !== false && !c.apiKey);

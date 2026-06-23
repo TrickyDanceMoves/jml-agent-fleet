@@ -3,11 +3,11 @@
 /*
  * Foundry IQ knowledge grounding for the JML control plane.
  *
- * Microsoft Agents League — Enterprise Agents track requires at least one
+ * Microsoft Agents League - Enterprise Agents track requires at least one
  * Microsoft IQ layer. JML uses Foundry IQ (Azure AI Foundry knowledge
  * retrieval) to ground risk and approval decisions in the organisation's own
- * identity-governance policy corpus — SoD rules, approved access patterns,
- * offboarding playbooks, freeze-window policy — instead of relying on the
+ * identity-governance policy corpus - SoD rules, approved access patterns,
+ * offboarding playbooks, freeze-window policy - instead of relying on the
  * model's parametric memory.
  *
  * Retrieval contract (Azure AI Foundry knowledge / Agent retrieval API):
@@ -23,7 +23,7 @@
  *
  * FAIL-CLOSED: when grounding is enabled but the service is unreachable or
  * errors, retrieve() throws a GroundingUnavailableError. Callers translate
- * that into a blocked decision in Live mode — the control plane refuses to act
+ * that into a blocked decision in Live mode - the control plane refuses to act
  * on ungrounded policy rather than guessing. This is the whole point: an
  * identity system must not approve access it cannot cite a policy for.
  */

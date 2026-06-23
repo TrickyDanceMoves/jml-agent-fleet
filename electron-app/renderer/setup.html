@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'unsafe-inline'; script-src 'self'; font-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'">
-  <title>JML Fleet — Setup</title>
+  <title>JML Fleet - Setup</title>
   <script src="theme-bootstrap.js"></script>
   <style>
     @font-face { font-family: 'Geist'; src: url('fonts/geist-400.woff2') format('woff2'); font-weight: 400; font-display: swap; }
@@ -78,7 +78,7 @@
     }
     @keyframes pulse { 50% { transform: scale(.88); } }
     /* Glass-theme brand mark: SVG with a genuinely transparent ring between
-       frame and core (fill="none") — the page background shows through.
+       frame and core (fill="none") - the page background shows through.
        Warm/Preview keep the .seal treatment untouched. No animation in Glass. */
     .seal-glass { display: none; width: 34px; height: 34px; flex-shrink: 0; }
     [data-theme="glass"] .seal { display: none; }
@@ -239,7 +239,7 @@
           <div class="choice-icon">🪟</div>
           <div class="choice-meta">
             <div class="choice-label">Use Windows Authentication</div>
-            <div class="choice-desc">Trust the current Windows session — no PIN needed</div>
+            <div class="choice-desc">Trust the current Windows session - no PIN needed</div>
           </div>
         </button>
         <button class="choice-btn" id="choice-skip-account">
@@ -266,14 +266,14 @@
     <!-- Panel 3: Tenant -->
     <div class="panel" id="panel-3">
       <div class="panel-title">Connect your tenant</div>
-      <div class="panel-desc">Sign in with Microsoft Entra and we'll read your Tenant ID straight from the sign-in — nothing to copy. You can also enter it manually, or skip and configure it later in Settings → Tenant.</div>
+      <div class="panel-desc">Sign in with Microsoft Entra and we'll read your Tenant ID straight from the sign-in - nothing to copy. You can also enter it manually, or skip and configure it later in Settings → Tenant.</div>
 
       <!-- Fast path: Entra device-code sign-in (auto-detects the tenant) -->
       <button class="choice-btn" id="choice-entra-signin">
         <div class="choice-icon">🔐</div>
         <div class="choice-meta">
           <div class="choice-label" id="entra-btn-label">Sign in with Microsoft Entra</div>
-          <div class="choice-desc" id="entra-btn-desc">Opens a Microsoft sign-in window — auto-detects your tenant</div>
+          <div class="choice-desc" id="entra-btn-desc">Opens a Microsoft sign-in window - auto-detects your tenant</div>
         </div>
       </button>
       <div class="win-row" id="entra-connected-row" style="display:none">

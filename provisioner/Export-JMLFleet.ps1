@@ -68,7 +68,7 @@ Copy-Item "$memoryDir\*" -Destination "$stagingDir\memory\" -Recurse -Force
 # --- Write transfer notes ---
 $notesPath = Join-Path $stagingDir "TRANSFER_NOTES.txt"
 @"
-JML Agent Fleet — Transfer Package
+JML Agent Fleet - Transfer Package
 Generated: $(Get-Date -Format "yyyy-MM-dd HH:mm:ss")
 Source machine: $env:COMPUTERNAME  ($env:USERNAME)
 ======================================================
@@ -88,7 +88,7 @@ POST-INSTALL STEPS (run on new PC after Import-JMLFleet.ps1)
   2. CREDENTIAL MIGRATION REQUIRED
      The EncryptedSecret values in each config.json are DPAPI-encrypted and
      tied to THIS machine. They will NOT work on the new PC. You must either:
-       a) Run New-AgentCertificates.ps1 on the new PC (recommended — cert auth)
+       a) Run New-AgentCertificates.ps1 on the new PC (recommended - cert auth)
        b) Manually re-encrypt secrets: copy raw client secret from Entra app
           registration, then run the credential setup script for each agent.
 

@@ -79,7 +79,7 @@ test('every renderer page ships a CSP with the key restrictive directives', () =
     assert.match(csp, /base-uri 'self'/, `${name}: base-uri self`);
     assert.match(csp, /frame-ancestors 'none'/, `${name}: frame-ancestors none`);
     assert.ok(!/script-src[^;]*\bhttp/.test(csp), `${name}: no remote script-src`);
-    // No page allows inline scripts — all logic is in external files.
+    // No page allows inline scripts - all logic is in external files.
     assert.match(csp, /script-src 'self'/, `${name}: script-src self`);
     assert.ok(!/script-src[^;]*'unsafe-inline'/.test(csp), `${name}: no unsafe-inline scripts`);
   }

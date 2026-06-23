@@ -14,7 +14,7 @@ $provisionerConfig = Get-Content (Join-Path $PSScriptRoot "config.json") | Conve
 Write-Host "`n[Setup] Requesting device code..." -ForegroundColor Cyan
 
 $tenantId  = $provisionerConfig.TenantId
-$clientId  = "14d82eec-204b-4c2f-b7e8-296a70dab67e"   # Microsoft Graph PowerShell — pre-consented in tenant
+$clientId  = "14d82eec-204b-4c2f-b7e8-296a70dab67e"   # Microsoft Graph PowerShell - pre-consented in tenant
 $scope     = "https://graph.microsoft.com/Application.ReadWrite.All " +
              "https://graph.microsoft.com/AppRoleAssignment.ReadWrite.All " +
              "https://graph.microsoft.com/RoleManagement.ReadWrite.Directory"
@@ -38,7 +38,7 @@ Write-Host "[Setup] Waiting for you to authenticate in the browser..." -Foregrou
 while ((Get-Date) -lt $expires) {
     Start-Sleep -Seconds $pollSeconds
     try {
-        # Use HttpWebRequest directly — Invoke-RestMethod eats the response body on 400 in PS 5.1
+        # Use HttpWebRequest directly - Invoke-RestMethod eats the response body on 400 in PS 5.1
         $req = [System.Net.HttpWebRequest]::Create($tokenUri)
         $req.Method = "POST"
         $req.ContentType = "application/x-www-form-urlencoded"

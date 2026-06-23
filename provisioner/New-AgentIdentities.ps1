@@ -6,7 +6,7 @@
 .DESCRIPTION
     Entra Agent ID is GA (2026) and available to all Entra customers. Per Microsoft
     Learn, agent identities are a distinct service-principal subtype created NEW via
-    Microsoft Graph — existing app registrations are NOT converted in place. Creation
+    Microsoft Graph - existing app registrations are NOT converted in place. Creation
     requires an agent identity blueprint + a human sponsor, and the caller needs the
     AgentIdentity.Create.All (or AgentIdentity.CreateAsManager) permission.
 

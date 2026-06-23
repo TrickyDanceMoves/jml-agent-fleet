@@ -31,7 +31,7 @@ Use the full review in:
 
 Implement in this order:
 
-0. ✅ DONE 2026-06-12 (Codex QC: PASS) — incorporate the user-approved,
+0. ✅ DONE 2026-06-12 (Codex QC: PASS) - incorporate the user-approved,
    truly transparent Glass JML logo into the OOBE surfaces
    (`electron-app/renderer/setup.html` and
    `electron-app/renderer/operator-select.html`). The approved source and
@@ -43,12 +43,12 @@ Implement in this order:
    runtime QC.
 1. Make operation status authoritative across chat, lifecycle, Dashboard, Operations,
    Glass Screen, Agent Certificates, and Audit.
-2. ✅ DONE 2026-06-11 — hybrid Entra Agent ID migration complete: blueprint FMI secret
+2. ✅ DONE 2026-06-11 - hybrid Entra Agent ID migration complete: blueprint FMI secret
    added (required AgentIdentityBlueprint.ReadWrite.All consent), Auditor validated over
    FMI (live UserSummary query), Approver cut over and validated (token minted as agent
    identity). Execution SPs retained for write agents (platform blocks write scopes on
    agent identities). SP retirement for the two read agents deferred until soak.
-3. ✅ DONE 2026-06-11 — Approver rail errors sanitized (`lcSummarizeError` in app.js):
+3. ✅ DONE 2026-06-11 - Approver rail errors sanitized (`lcSummarizeError` in app.js):
    one human-readable line in the rail; raw output stays on the operation record
    for the Glass Screen details drawer and audit.
 4. Upgrade replay from dot animation to narrated stage replay.

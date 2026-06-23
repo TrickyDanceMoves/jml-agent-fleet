@@ -36,6 +36,6 @@ contextBridge.exposeInMainWorld('panelApi', {
   onMsgMirror:       (cb)          => ipcRenderer.on('msg-mirror', (_, d) => cb(d)),
   onConversationReset:(cb)         => ipcRenderer.on('conversation-reset', () => cb()),
 
-  // Hard quit — terminates the entire application process
+  // Hard quit - terminates the entire application process
   appQuit:           ()            => ipcRenderer.send('app-quit'),
 });

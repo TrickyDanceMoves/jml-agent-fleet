@@ -71,7 +71,7 @@ if ($WhatIf) {
     exit 0
 }
 
-# Connect as Provisioner (must be enabled for the session — zero-trust at-rest disable)
+# Connect as Provisioner (must be enabled for the session - zero-trust at-rest disable)
 $provCfg = Get-Content (Join-Path $agentsRoot "provisioner\config.json") -Raw | ConvertFrom-Json
 try {
     Connect-AgentGraph -Config $provCfg
@@ -90,7 +90,7 @@ try {
         exit 1
     }
 
-    # Disable sign-in — blocks token issuance immediately
+    # Disable sign-in - blocks token issuance immediately
     Invoke-GraphWithRetry -Method PATCH `
         -Uri "https://graph.microsoft.com/v1.0/servicePrincipals/$($sp.id)" `
         -Body (@{ accountEnabled = $false } | ConvertTo-Json) | Out-Null

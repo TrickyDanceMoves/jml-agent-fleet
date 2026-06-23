@@ -8,7 +8,7 @@ param(
 # ── Requirements ──────────────────────────────────────────────────────────────
 # Requires Global Administrator or Conditional Access Administrator role.
 # Requires Azure AD Premium P2 for workload identity Conditional Access policies.
-# This script uses interactive auth — run it as a human admin, not a service principal.
+# This script uses interactive auth - run it as a human admin, not a service principal.
 
 $ErrorActionPreference = "Stop"
 
@@ -119,10 +119,10 @@ if (-not $WhatIf) {
 $policyState = if ($ReportOnly) { "enabledForReportingButNotEnforced" } else { "enabled" }
 Write-Log ("Creating CA policy in state: " + $policyState)
 
-# Build JSON as a raw string — PowerShell 5.1 ConvertTo-Json unwraps single-element
+# Build JSON as a raw string - PowerShell 5.1 ConvertTo-Json unwraps single-element
 # arrays which breaks schema validation. Workload identity CA policies use
 # clientApplications.includeServicePrincipals. The applications condition must use
-# "All" (not "none") — "none" causes a 1007 schema validation error.
+# "All" (not "none") - "none" causes a 1007 schema validation error.
 $spIdsJsonItems = @($spIds | ForEach-Object { '"' + $_ + '"' })
 $spIdsJsonArray = '[' + ($spIdsJsonItems -join ',') + ']'
 $caBodyJson = '{"displayName":"JML Agent Identity Restrictions","state":"' + $policyState + '","conditions":{"applications":{"includeApplications":["All"]},"clientApplications":{"includeServicePrincipals":' + $spIdsJsonArray + '},"locations":{"includeLocations":["All"],"excludeLocations":["' + $locationId + '"]}},"grantControls":{"operator":"OR","builtInControls":["block"]}}'

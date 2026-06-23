@@ -1,7 +1,7 @@
 'use strict';
 
 // Locks the Foundry IQ grounding contract: retrieval shape normalization,
-// the not-configured no-op, and — critically — fail-closed behavior when
+// the not-configured no-op, and - critically - fail-closed behavior when
 // grounding is configured but the service is unavailable or errors.
 const test = require('node:test');
 const assert = require('node:assert/strict');

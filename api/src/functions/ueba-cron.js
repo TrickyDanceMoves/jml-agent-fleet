@@ -1,7 +1,7 @@
 'use strict';
 
 /**
- * Daily UEBA cron — fires at 07:00 UTC every day.
+ * Daily UEBA cron - fires at 07:00 UTC every day.
  *
  * Analyses the past 7 days of audit log behaviour. Critical findings
  * trigger a Teams notification if shared/notifications.json is configured.

@@ -5,10 +5,10 @@ leaver risk decisions against this playbook via Foundry IQ.
 
 ## Stage order (never reorder)
 
-1. **Soft stage** — disable the account, then revoke all active sign-in sessions.
+1. **Soft stage** - disable the account, then revoke all active sign-in sessions.
    Reversible within the rollback window. No license or group change yet.
-2. **Confirmation** — Soft stage must complete and be confirmed before Hard.
-3. **Hard stage** — remove licenses, then group memberships. Irreversible.
+2. **Confirmation** - Soft stage must complete and be confirmed before Hard.
+3. **Hard stage** - remove licenses, then group memberships. Irreversible.
 
 ## Approval requirements
 
@@ -26,5 +26,5 @@ leaver risk decisions against this playbook via Foundry IQ.
 ## Anti-pattern (UEBA-flagged)
 
 - **Leaver-then-group-add**: offboarding a user and then adding them to any group
-  within 72 hours is a high-severity anomaly — it usually means a mistaken or
+  within 72 hours is a high-severity anomaly - it usually means a mistaken or
   malicious re-grant. Block and escalate.

@@ -1,41 +1,41 @@
 ﻿# JML Agent Fleet
 
-AI-powered identity lifecycle automation for Microsoft Entra ID. Eight agents — two AI-backed (Approver, Auditor) and six PowerShell — handle the full Joiner/Mover/Leaver (JML) workflow with zero-trust architecture, UEBA, drift detection, AI-assisted provisioning, and end-to-end HRIS integration. It borrows the patterns enterprise IGA platforms are built on — lifecycle workflow, approvals, least privilege, access review, risk scoring, and tamper-evident audit evidence — and applies them to a focused, governed Microsoft Entra JML console.
+AI-powered identity lifecycle automation for Microsoft Entra ID. Eight agents - two AI-backed (Approver, Auditor) and six PowerShell - handle the full Joiner/Mover/Leaver (JML) workflow with zero-trust architecture, UEBA, drift detection, AI-assisted provisioning, and end-to-end HRIS integration. It borrows the patterns enterprise IGA platforms are built on - lifecycle workflow, approvals, least privilege, access review, risk scoring, and tamper-evident audit evidence - and applies them to a focused, governed Microsoft Entra JML console.
 
 > **Naming:** *JML Agent Fleet* is the project (this repo and the agent fleet). It ships as the **JML Console** desktop app (the installer, releases, and winget package), whose command center is branded *JML Fleet · Identity Console* in-app.
 
-The reasoning agents run as **first-class Microsoft Entra Agent IDs** (live, hybrid by design — see [Agent Identity](#agent-identity--hybrid-entra-agent-id-live)), every operation streams through a live **Glass Screen command center**, and the AI layer is **provider-agnostic**: Approver and Auditor agents run on any OpenAI-compatible backend — **Azure AI Foundry**, Azure OpenAI, OpenAI, Anthropic Claude, or a local Ollama instance — switchable from Settings with no code change.
+The reasoning agents run as **first-class Microsoft Entra Agent IDs** (live, hybrid by design - see [Agent Identity](#agent-identity--hybrid-entra-agent-id-live)), every operation streams through a live **Glass Screen command center**, and the AI layer is **provider-agnostic**: Approver and Auditor agents run on any OpenAI-compatible backend - **Azure AI Foundry**, Azure OpenAI, OpenAI, Anthropic Claude, or a local Ollama instance - switchable from Settings with no code change.
 
-**[Interactive Case Study](https://trickydancemoves.github.io/jml-agent-fleet/docs/case-study.html)** — walkthrough of the architecture, agent design, and live operation flows.
+**[Interactive Case Study](https://trickydancemoves.github.io/jml-agent-fleet/docs/case-study.html)** - walkthrough of the architecture, agent design, and live operation flows.
 
 ## ⚡ Judging This for the Hackathon? Start Here
 
-**Microsoft Agents League 2026 — Enterprise Agents submission:** [project page](https://innovationstudio.microsoft.com/hackathons/Agents-League-Hackathon/project/125185)
+**Microsoft Agents League 2026 - Enterprise Agents submission:** [project page](https://innovationstudio.microsoft.com/hackathons/Agents-League-Hackathon/project/125185)
 
 Five minutes to the core of it:
 
-1. **The thesis** — autonomous AI agents should *propose* identity changes, never own directory-write authority. Microsoft Entra itself enforces this: write scopes are blocked on agent identities. This project's hybrid architecture (reasoning agents on **Entra Agent IDs**, execution behind a policy-gated control plane on least-privilege service principals) isn't a workaround — it's the platform-aligned answer, running live in a real tenant. The execution agents hold **zero standing write access**: privilege is **PIM-eligible only** and elevated per approved operation, so any permanent or direct assignment is flagged as drift.
-2. **See it** — the [screenshots below](#screenshots) are real captures from the running console: risk-scored approvals, a tamper-evident hash-chained audit trail replicated to Sentinel/Blob, UEBA findings, and the Glass Screen showing a live operation advance through Request → Risk → Execute → Verify → Complete.
-3. **Run it** — download the published installer from the [latest JML Console release](https://github.com/TrickyDanceMoves/jml-agent-fleet/releases/latest); the Setup Wizard binds your tenant and provisions the required identities with admin-consent links ([Installation](#installation)). Or run `npm start` from `electron-app/` for the development path.
-4. **Audit it** — [threat model](docs/threat-model.md) · [agent identity roadmap (now executed)](docs/agent-identity-roadmap.md) · [Electron hardening](docs/electron-security.md) · 173 automated tests enforced by the CI quality gate.
+1. **The thesis** - autonomous AI agents should *propose* identity changes, never own directory-write authority. Microsoft Entra itself enforces this: write scopes are blocked on agent identities. This project's hybrid architecture (reasoning agents on **Entra Agent IDs**, execution behind a policy-gated control plane on least-privilege service principals) isn't a workaround - it's the platform-aligned answer, running live in a real tenant. The execution agents hold **zero standing write access**: privilege is **PIM-eligible only** and elevated per approved operation, so any permanent or direct assignment is flagged as drift.
+2. **See it** - the [screenshots below](#screenshots) are real captures from the running console: risk-scored approvals, a tamper-evident hash-chained audit trail replicated to Sentinel/Blob, UEBA findings, and the Glass Screen showing a live operation advance through Request → Risk → Execute → Verify → Complete.
+3. **Run it** - download the published installer from the [latest JML Console release](https://github.com/TrickyDanceMoves/jml-agent-fleet/releases/latest); the Setup Wizard binds your tenant and provisions the required identities with admin-consent links ([Installation](#installation)). Or run `npm start` from `electron-app/` for the development path.
+4. **Audit it** - [threat model](docs/threat-model.md) · [agent identity roadmap (now executed)](docs/agent-identity-roadmap.md) · [Electron hardening](docs/electron-security.md) · 173 automated tests enforced by the CI quality gate.
 
 > **The model proposes; policy and approval decide what executes.**
 
-### Judge Quickstart — what to click (no tenant required)
+### Judge Quickstart - what to click (no tenant required)
 
-**Run it safely in ~5 minutes, no Microsoft tenant needed.** Launch in **demo mode** — it serves synthetic Contoso data and *simulates every action* (no Microsoft Graph call is made):
+**Run it safely in ~5 minutes, no Microsoft tenant needed.** Launch in **demo mode** - it serves synthetic Contoso data and *simulates every action* (no Microsoft Graph call is made):
 
 - **Packaged app:** `"JML Console.exe" --demo`
 - **From source:** `cd electron-app && npm start -- --demo`
 
 Then walk this path:
 
-1. **Glass Screen** — watch a lifecycle operation advance **Request → Risk → Execute → Verify → Complete**.
-2. **Approver agent** — ask it to *"offboard robert.martinez"*. Watch it **score risk**, cite the JML policy corpus (**Foundry IQ grounding**), and route the irreversible step to **admin approval** instead of executing.
-3. **Approvals** — see the queued offboard awaiting an admin's sign-off (separation of duties — the requester can't approve their own request).
-4. **Audit Log** — the **hash-chained** trail with live chain-integrity verification.
-5. **Security** — Identity Protection risky users, UEBA anomalies, and config drift; assign a finding to an operator.
-6. **Devices** — AI-assisted search for a user, then the device lifecycle (sync, lock, retire, wipe…) with **per-device Safe mode**.
+1. **Glass Screen** - watch a lifecycle operation advance **Request → Risk → Execute → Verify → Complete**.
+2. **Approver agent** - ask it to *"offboard robert.martinez"*. Watch it **score risk**, cite the JML policy corpus (**Foundry IQ grounding**), and route the irreversible step to **admin approval** instead of executing.
+3. **Approvals** - see the queued offboard awaiting an admin's sign-off (separation of duties - the requester can't approve their own request).
+4. **Audit Log** - the **hash-chained** trail with live chain-integrity verification.
+5. **Security** - Identity Protection risky users, UEBA anomalies, and config drift; assign a finding to an operator.
+6. **Devices** - AI-assisted search for a user, then the device lifecycle (sync, lock, retire, wipe…) with **per-device Safe mode**.
 
 **What needs a live tenant** (don't attempt without one): the Setup Wizard tenant bind, real Graph reads, **Live-mode** writes, and live Identity Protection pulls. Outside `--demo`, keep **Safe mode** on to explore without touching a directory.
 
@@ -95,14 +95,14 @@ Automates identity provisioning and deprovisioning across a Microsoft 365 / Entr
 
 ## The Problem
 
-HR platforms, identity providers, ticketing tools, manual approval chains. Identity ops live in the seams between systems — and that's where speed, consistency, and auditability go to die.
+HR platforms, identity providers, ticketing tools, manual approval chains. Identity ops live in the seams between systems - and that's where speed, consistency, and auditability go to die.
 
 | | |
 |---|---|
 | **Delayed** | Provisioning lags behind day-one needs, especially for cross-functional roles. |
 | **Excessive** | Permissions accumulate quietly. Access drift becomes the default state. |
 | **Fragmented** | Audit trails span four tools, three teams, and one heroic spreadsheet. |
-| **Manual** | Approvals route through email, chat, tickets — reviewable, but rarely reviewed. |
+| **Manual** | Approvals route through email, chat, tickets - reviewable, but rarely reviewed. |
 
 > Capability without governance is a liability. Identity is the wrong domain to learn that lesson twice.
 
@@ -123,7 +123,7 @@ The design response: AI works inside guardrails rather than replacing the admin.
 **Taxonomy (so the counts are unambiguous):** there are **eight operational agents** —
 the seven in the table above plus the **Certifier** (access review campaigns), which
 holds its own least-privilege app registration (AccessReview.ReadWrite.All +
-directory reads). They are supported by non-agent services — the **API** (Azure
+directory reads). They are supported by non-agent services - the **API** (Azure
 Functions), the **queue Worker**, the **Purview** HR connector, and the **Electron
 console**. The fleet provisions **eight** Entra app registrations, one per agent.
 Agents reason and act; services move data and host the control plane.
@@ -137,7 +137,7 @@ Agents reason and act; services move data and host the control plane.
 
 ### Device Lifecycle (Microsoft Intune + Entra)
 - AI-assisted device search joins **Entra device objects with Intune managed-device records** (compliance, encryption, last sync, primary user) for any user
-- Full lifecycle over managed-device Graph endpoints: **sync, enable/disable, remote lock, rotate BitLocker keys, rename, retire, wipe, delete** — with per-device Safe mode
+- Full lifecycle over managed-device Graph endpoints: **sync, enable/disable, remote lock, rotate BitLocker keys, rename, retire, wipe, delete** - with per-device Safe mode
 - Irreversible actions (wipe/delete) require an admin; a non-admin's request queues for a single admin's approval
 
 ### AI-Assisted Provisioning
@@ -145,11 +145,11 @@ Agents reason and act; services move data and host the control plane.
 - **Risk scoring**: `Invoke-RiskScore.ps1` produces a 0–100 risk score across: baseline operation risk, active freeze windows, sensitive licenses/groups, SoD conflicts, and dual-approval requirements
 - Risk gates every Live-mode submission: low (<25) proceeds, medium (25–49) warns, high (50–79) requires explicit confirmation, critical (≥80 or blocked) is rejected
 
-### Microsoft IQ — Foundry IQ Policy Grounding
-Every risk and approval decision is **grounded in the organization's own identity-governance policy corpus** using **Foundry IQ** (Azure AI Foundry knowledge retrieval) — the project's Microsoft IQ layer for the Enterprise Agents track.
+### Microsoft IQ - Foundry IQ Policy Grounding
+Every risk and approval decision is **grounded in the organization's own identity-governance policy corpus** using **Foundry IQ** (Azure AI Foundry knowledge retrieval) - the project's Microsoft IQ layer for the Enterprise Agents track.
 - The Approver's `score_risk` call retrieves relevant policy from a corpus of SoD rules, approved access patterns, freeze windows, and the offboarding playbook (`shared/policy-corpus/`), and **cites the source documents** in the risk card, the Glass Screen run details, and the audit record.
 - A grounded policy match (SoD violation, freeze window) escalates the operation's risk level and reasons.
-- **Fail-closed**: when grounding is configured but the Foundry IQ service is unreachable, the decision is marked blocked — the control plane refuses to act on ungrounded policy rather than guessing. (`electron-app/lib/foundry-iq.js`, contract locked by `test/foundry-iq.test.js`.)
+- **Fail-closed**: when grounding is configured but the Foundry IQ service is unreachable, the decision is marked blocked - the control plane refuses to act on ungrounded policy rather than guessing. (`electron-app/lib/foundry-iq.js`, contract locked by `test/foundry-iq.test.js`.)
 - Publish the corpus to an Azure AI Search index with `provisioner/Publish-PolicyCorpus.ps1`; enable in `approver/foundry-iq.json` (copy from the committed `.config.example.json`).
 
 ### Chat Agent Grounding Safeguards
@@ -189,7 +189,7 @@ Desktop app (`agents/electron-app/`) with a frameless operator selector at start
 | Tab | Purpose |
 |---|---|
 | Dashboard | Fleet health overview |
-| Glass Screen | Live command center: the active operation owns the page and advances through Request → Risk → Execute → Verify → Complete from real `operation-status` events — failures stop at the failing stage with a recovery action, recent runs replay on demand, evidence lives in a details drawer |
+| Glass Screen | Live command center: the active operation owns the page and advances through Request → Risk → Execute → Verify → Complete from real `operation-status` events - failures stop at the failing stage with a recovery action, recent runs replay on demand, evidence lives in a details drawer |
 | JML Fleet | Approver chat agent: submit joiner/mover/leaver/enroller operations |
 | Auditor | Auditor chat agent: query audit log, run reports |
 | Security | Live UEBA, drift, and Identity Protection findings with count badges |
@@ -209,13 +209,13 @@ Desktop app (`agents/electron-app/`) with a frameless operator selector at start
 - Each agent has an isolated app registration with least-privilege Graph API permissions
 - No agent can modify other app registrations; only the Provisioner can, and it is disabled at rest
 - Certificate-based auth (`Connect-AgentGraph` in `Helpers.ps1`) with DPAPI-encrypted secret fallback
-- Conditional Access, stated precisely: (1) `New-AgentConditionalAccess.ps1` automates a named-location policy for the service principals, but **SP enforcement requires Microsoft Entra Workload Identities Premium**, which the demo tenant does not hold — no SP policy is deployed; (2) the demo tenant **has an enabled Agent ID-scoped CA policy** (`AgentGeneralCAPol`, target `AllAgentIdResources`, grant `block`) verified via Graph — currently pre-staged with an empty principal scope, demonstrating that Agent ID CA works with the tenant's existing P1/P2 licensing where SP CA cannot
+- Conditional Access, stated precisely: (1) `New-AgentConditionalAccess.ps1` automates a named-location policy for the service principals, but **SP enforcement requires Microsoft Entra Workload Identities Premium**, which the demo tenant does not hold - no SP policy is deployed; (2) the demo tenant **has an enabled Agent ID-scoped CA policy** (`AgentGeneralCAPol`, target `AllAgentIdResources`, grant `block`) verified via Graph - currently pre-staged with an empty principal scope, demonstrating that Agent ID CA works with the tenant's existing P1/P2 licensing where SP CA cannot
 - `Test-AgentPermissions.ps1` detects and optionally repairs permission drift
 
-### Agent Identity — Hybrid Entra Agent ID (live)
-- **Auditor and Approver authenticate as Microsoft Entra Agent IDs** — first-class non-human AI identities with native owner/sponsor governance — via the two-step FMI token exchange (blueprint credential → exchange token → agent token), implemented in `Connect-AgentGraph` and validated live in-tenant
-- **Write agents (Joiner/Mover/Leaver/Enroller) deliberately stay on least-privilege service principals**: Entra blocks `User.ReadWrite.All` and `GroupMember.ReadWrite.All` on agent identities, which is precisely this project's thesis — reasoning agents propose and score; privileged execution stays behind the approval control plane
-- Provisioning is fully scripted: `New-AgentIdentities.ps1` (blueprint + six agent identities), `Grant-AgentIdentityPermissions.ps1`, `Enable-AgentIdAuth.ps1` — see [`docs/agent-identity-roadmap.md`](docs/agent-identity-roadmap.md) for the verified Graph contracts and platform constraints discovered along the way
+### Agent Identity - Hybrid Entra Agent ID (live)
+- **Auditor and Approver authenticate as Microsoft Entra Agent IDs** - first-class non-human AI identities with native owner/sponsor governance - via the two-step FMI token exchange (blueprint credential → exchange token → agent token), implemented in `Connect-AgentGraph` and validated live in-tenant
+- **Write agents (Joiner/Mover/Leaver/Enroller) deliberately stay on least-privilege service principals**: Entra blocks `User.ReadWrite.All` and `GroupMember.ReadWrite.All` on agent identities, which is precisely this project's thesis - reasoning agents propose and score; privileged execution stays behind the approval control plane
+- Provisioning is fully scripted: `New-AgentIdentities.ps1` (blueprint + six agent identities), `Grant-AgentIdentityPermissions.ps1`, `Enable-AgentIdAuth.ps1` - see [`docs/agent-identity-roadmap.md`](docs/agent-identity-roadmap.md) for the verified Graph contracts and platform constraints discovered along the way
 
 ## Architecture
 
@@ -274,7 +274,7 @@ agents/auditor/                 Scheduled intelligence
 
 ## AI Provider Architecture
 
-The agent intelligence layer is fully abstracted behind a provider interface (`electron-app/providers/`). Every AI call — streaming agent conversations, Graph query suggestions, and API response digests — flows through the same interface regardless of which backend is configured.
+The agent intelligence layer is fully abstracted behind a provider interface (`electron-app/providers/`). Every AI call - streaming agent conversations, Graph query suggestions, and API response digests - flows through the same interface regardless of which backend is configured.
 
 | Provider | Notes |
 |---|---|
@@ -282,17 +282,17 @@ The agent intelligence layer is fully abstracted behind a provider interface (`e
 | Azure OpenAI | Direct Azure OpenAI resource with deployment-level configuration. |
 | OpenAI | OpenAI API with model selection. |
 | Anthropic Claude | Claude API with separate agent (Opus) and fast (Haiku) model slots. |
-| Ollama | Local inference — no API key or network egress required. |
+| Ollama | Local inference - no API key or network egress required. |
 | Qwen (local) | Qwen 3 family via any OpenAI-compatible local runtime (Ollama `/v1` by default; LM Studio or vLLM by changing the base URL). No API key or egress. |
 
 Switch providers in **Settings → AI Provider** without restarting the app or losing conversation history. The Anthropic message and tool-call format is used as the internal canonical format; each provider adapter converts on the fly.
 
 ## Security & Governance Docs
 
-- [`docs/threat-model.md`](docs/threat-model.md) — STRIDE threat model, trust boundaries, fail-closed controls
-- [`docs/electron-security.md`](docs/electron-security.md) — renderer isolation, IPC hardening, known gaps
-- [`docs/agent-identity-roadmap.md`](docs/agent-identity-roadmap.md) — app registrations → Microsoft Entra Agent ID migration path
-- [`api/openapi.yaml`](api/openapi.yaml) — OpenAPI spec for the JML control-plane API (Copilot Studio action surface)
+- [`docs/threat-model.md`](docs/threat-model.md) - STRIDE threat model, trust boundaries, fail-closed controls
+- [`docs/electron-security.md`](docs/electron-security.md) - renderer isolation, IPC hardening, known gaps
+- [`docs/agent-identity-roadmap.md`](docs/agent-identity-roadmap.md) - app registrations → Microsoft Entra Agent ID migration path
+- [`api/openapi.yaml`](api/openapi.yaml) - OpenAPI spec for the JML control-plane API (Copilot Studio action surface)
 
 ## Copilot / Agent Integration
 
@@ -303,7 +303,7 @@ performs risk scoring, policy checks, human approval, just-in-time privilege, au
 Graph execution, and Sentinel evidence. **The model proposes; policy and approval decide
 what executes.**
 
-## Just-in-Time Privilege — design note
+## Just-in-Time Privilege - design note
 
 JIT privilege is enforced at the **control plane**: the Provisioner is disabled at rest
 and enabled only during active provisioning sessions, and every privileged action is
@@ -311,7 +311,7 @@ risk-scored, policy-checked, and approval-gated before least-privilege execution
 
 > Microsoft Entra **PIM for Groups does not support service principals as eligible
 > members**, so JIT *activation* cannot gate app-only agent identities. This is a platform
-> constraint, not a configuration gap — see [`docs/agent-identity-roadmap.md`](docs/agent-identity-roadmap.md).
+> constraint, not a configuration gap - see [`docs/agent-identity-roadmap.md`](docs/agent-identity-roadmap.md).
 > `pim-config.json` is retained for user-context PIM; `Invoke-PIMHelper.ps1` treats agent
 > PIM activation as non-fatal so agents proceed on their least-privilege app permissions.
 
@@ -321,7 +321,7 @@ What's live today and what comes next:
 
 | Area | Now | Roadmap |
 |---|---|---|
-| Agent identity | ✅ **Hybrid live**: Auditor + Approver run as Entra Agent IDs (FMI auth); write agents on least-privilege SPs (Entra blocks write scopes on agent identities — by design) | Retire the two legacy read-agent app registrations after soak |
+| Agent identity | ✅ **Hybrid live**: Auditor + Approver run as Entra Agent IDs (FMI auth); write agents on least-privilege SPs (Entra blocks write scopes on agent identities - by design) | Retire the two legacy read-agent app registrations after soak |
 | Credentials | NonExportable cert (SPs); blueprint secret (Agent IDs), DPAPI-protected | Federated identity credentials (no stored secret) |
 | JIT privilege | ✅ **PIM-eligible, zero standing write**: agents elevate just-in-time via PIM group eligibility (`New-PIMGroups.ps1`, `Grant-PIMPermissions.ps1`); drift detection + access certification flag any permanent/direct assignment. Plus Provisioner at-rest disable + approval gates | Agent-scoped governance as Entra expands native support |
 | Operator RBAC | Local Windows username / PIN, or **Entra device-code sign-in** for a real directory identity | Group-derived operator role from Entra |
@@ -329,7 +329,7 @@ What's live today and what comes next:
 | IQ / Grounding | ✅ **Foundry IQ live**: risk/approval decisions grounded on the JML policy corpus with citations and fail-closed behavior (`lib/foundry-iq.js`) | Expand the grounded policy corpus and surface citations in the operator UI |
 | AI observability | ✅ Per-turn run telemetry (provider, model, latency, tokens) in Settings → AI Provider | Foundry-native trace correlation IDs |
 | Copilot integration | ✅ OpenAPI action surface + Power Platform connector (`api/apiProperties.json`, `docs/copilot-studio-setup.md`) | Live Copilot Studio agent in tenant |
-| Electron sandbox | ✅ `sandbox: true` on every window; preloads carry no Node deps (operator username resolved via main-process IPC); CSP enforced on main renderer | — |
+| Electron sandbox | ✅ `sandbox: true` on every window; preloads carry no Node deps (operator username resolved via main-process IPC); CSP enforced on main renderer | - |
 | App updates | ✅ In-app auto-update (electron-updater via GitHub Releases): checks on launch, downloads in the background, notifies, and restarts to install | Phased/staged rollout channels |
 
 ## Quality Assurance

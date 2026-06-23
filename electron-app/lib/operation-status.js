@@ -67,7 +67,7 @@ function classifyToolResult(result, thrownError) {
   const errors = collectErrors(payload);
 
   // A parsed results object (or an explicit outcome) means the agent ran to its
-  // summary. That is the authoritative "the operation executed" signal — stray
+  // summary. That is the authoritative "the operation executed" signal - stray
   // [ERROR] log lines are non-fatal sub-step warnings (e.g. "group not found")
   // and must NOT downgrade a completed run to failed. Only an explicit
   // outcome:'failed' or a thrown error counts as a hard failure here.

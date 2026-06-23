@@ -1,5 +1,5 @@
 /* ============================================================
-   JML Fleet Console — Revamp Stylesheet
+   JML Fleet Console - Revamp Stylesheet
    Design tokens · shell · views · legacy-class shim
    Fonts: bundled Inter + system mono stack (no Google Fonts).
    ============================================================ */
@@ -70,7 +70,7 @@
   --r-lg: 10px;
   --r-xl: 14px;
 
-  /* Legacy variable aliases — keep so app.js getComputedStyle hooks survive */
+  /* Legacy variable aliases - keep so app.js getComputedStyle hooks survive */
   /* v2: violet is primary interactive; cyan demoted to --info only */
   --accent: var(--violet);
   --accent-soft: oklch(0.72 0.18 290 / .15);
@@ -99,7 +99,7 @@
   --radius: var(--r-2);
   --clr-danger: var(--coral);
 
-  /* Body background layers — overridable by alt themes */
+  /* Body background layers - overridable by alt themes */
   --bg-grad-1: radial-gradient(1100px 600px at 8% -10%, oklch(0.24 0.05 230 / .35), transparent 60%);
   --bg-grad-2: radial-gradient(900px 500px at 105% 100%, oklch(0.22 0.06 280 / .25), transparent 55%);
   --scrollbar-thumb: oklch(0.30 0.02 252);
@@ -187,7 +187,7 @@ button { font-family: inherit; color: inherit; background: none; border: 0; curs
 input, textarea, select { font-family: inherit; color: inherit; background: none; border: 0; outline: 0; }
 a { color: var(--cyan); text-decoration: none; }
 
-/* The `hidden` attribute means hidden — enforce it so a component's own
+/* The `hidden` attribute means hidden - enforce it so a component's own
    `display:` rule can never leave a hidden element on screen (the bug that
    produced a stray empty box on the Glass Screen). */
 [hidden] { display: none !important; }
@@ -249,7 +249,7 @@ html:not([data-theme="glass"]) .app { box-shadow: none; }
 .win-btn.close:hover { background: var(--coral); color: #fff; }
 .win-btn.power-btn { color: var(--text-2); }
 .win-btn.power-btn:hover { background: color-mix(in oklch, var(--coral) 12%, transparent); color: var(--coral); }
-/* App-function buttons — visually distinct from OS window chrome */
+/* App-function buttons - visually distinct from OS window chrome */
 .azure-btn, .docked-btn {
   border: 1px solid var(--border-strong);
   border-radius: 6px;
@@ -289,7 +289,7 @@ html:not([data-theme="glass"]) .app { box-shadow: none; }
 .sidebar-collapse:hover { color: var(--text); border-color: var(--border-strong); }
 .layout.sidebar-collapsed .sidebar-collapse svg { transform: rotate(180deg); }
 
-/* Collapsed sidebar — icon-only */
+/* Collapsed sidebar - icon-only */
 .layout.sidebar-collapsed .brand-text,
 .layout.sidebar-collapsed .side-tag,
 .layout.sidebar-collapsed .nav-section,
@@ -318,7 +318,7 @@ html:not([data-theme="glass"]) .app { box-shadow: none; }
 .layout.sidebar-collapsed .nav-item.active::before { left: -8px; }
 .layout.sidebar-collapsed .nav-item svg { width: 16px; height: 16px; }
 
-/* Tooltip stub — intentionally inactive (no data-label on nav items) */
+/* Tooltip stub - intentionally inactive (no data-label on nav items) */
 .layout.sidebar-collapsed .nav-item { position: relative; }
 .layout.sidebar-collapsed .nav-item::after {
   content: attr(data-label); position: absolute; left: 100%; top: 50%;
@@ -488,7 +488,7 @@ html:not([data-theme="glass"]) .app { box-shadow: none; }
   100% { box-shadow: 0 0 0 1px color-mix(in oklch, var(--coral) 65%, transparent), 0 0 14px color-mix(in oklch, var(--coral) 30%, transparent) inset; }
 }
 
-/* Sidebar footer / operator — V2 op-card style */
+/* Sidebar footer / operator - V2 op-card style */
 .sidebar-footer, .who {
   padding: 12px 10px; border-top: 1px solid var(--border);
   display: flex; align-items: center; gap: 10px;
@@ -543,7 +543,7 @@ html:not([data-theme="glass"]) .app { box-shadow: none; }
   letter-spacing: .08em; text-transform: uppercase;
   border: 1px solid; width: fit-content;
 }
-/* Role badges — muted; they signal role without competing with severity colors */
+/* Role badges - muted; they signal role without competing with severity colors */
 .role-admin    { color: var(--muted); border-color: transparent; background: transparent; }
 .role-helpdesk { color: var(--muted); border-color: transparent; background: transparent; }
 .role-viewer   { color: var(--muted); border-color: transparent; background: transparent; }
@@ -581,7 +581,7 @@ html:not([data-theme="glass"]) .main {
   transition: border-color .3s ease, box-shadow .3s ease;
 }
 
-/* Live-mode chrome tint — topbar bottom edge glows coral when writing to the tenant */
+/* Live-mode chrome tint - topbar bottom edge glows coral when writing to the tenant */
 .layout.live-mode .topbar {
   border-bottom-color: color-mix(in oklch, var(--coral) 55%, transparent);
   box-shadow: 0 1px 0 0 color-mix(in oklch, var(--coral) 20%, transparent);
@@ -668,7 +668,7 @@ html:not([data-theme="glass"]) .main {
 
 /* Keep the window controls + action icons always visible. Let the brand,
    crumbs, and tenant chip yield horizontal space (shrink/ellipsis) instead of
-   shoving the controls off the right edge — e.g. when the right nav hub is
+   shoving the controls off the right edge - e.g. when the right nav hub is
    expanded or the tenant domain is long. */
 .topbar > .brand-tb,
 .topbar > .crumbs             { min-width: 0; overflow: hidden; }
@@ -679,7 +679,7 @@ html:not([data-theme="glass"]) .main {
 .topbar .notif-bell-wrap,
 .topbar .window-controls      { flex-shrink: 0; }
 
-/* Icon button (topbar actions — search, bell, help) */
+/* Icon button (topbar actions - search, bell, help) */
 .iconbtn {
   width: 28px; height: 28px;
   display: inline-flex; align-items: center; justify-content: center;
@@ -990,7 +990,7 @@ html:not([data-theme="glass"]) .main {
   pointer-events: none;
 }
 
-/* "hidden — click to restore" hint appended to the title row */
+/* "hidden - click to restore" hint appended to the title row */
 .dash-section.dash-hidden .dash-section-hdr::after,
 .dash-section.dash-hidden .panel > .panel-h::after {
   content: "— click to restore";
@@ -1033,7 +1033,7 @@ html:not([data-theme="glass"]) .main {
 }
 .dash-section.span-2 { grid-column: 1 / -1; }
 .dash-section.span-1 { grid-column: span 1; min-width: 0; }
-/* Stretch handle on the right edge — drag to swap between span-1 and span-2 */
+/* Stretch handle on the right edge - drag to swap between span-1 and span-2 */
 .dash-section { position: relative; }
 .dash-section .span-toggle {
   position: absolute; top: 50%; right: -8px; transform: translateY(-50%);
@@ -1190,7 +1190,7 @@ html:not([data-theme="glass"]) .main {
   box-shadow: 0 0 0 3px currentColor; filter: opacity(.18);
 }
 
-/* Security at a Glance / Quick Actions (legacy dashboard widgets — restyled) */
+/* Security at a Glance / Quick Actions (legacy dashboard widgets - restyled) */
 .dash-sec-strip {
   display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;
 }
@@ -1244,7 +1244,7 @@ html:not([data-theme="glass"]) .main {
 .dash-action-label { font-size: 13px; font-weight: 500; }
 
 /* ============================================================
-   V2 DASHBOARD — Fleet strip, Live Ops, Telemetry
+   V2 DASHBOARD - Fleet strip, Live Ops, Telemetry
    ============================================================ */
 
 /* Fleet status strip header */
@@ -1471,7 +1471,7 @@ html:not([data-theme="glass"]) .main {
   max-width: 680px; line-height: 1.55;
 }
 
-/* Recent activity — uses .evt styling; only override expanded state */
+/* Recent activity - uses .evt styling; only override expanded state */
 .activity-item.expanded { background: var(--bg-2); }
 
 /* ============================================================
@@ -1623,7 +1623,7 @@ html:not([data-theme="glass"]) .main {
 .message-meta .meta-agent { color: var(--text-2); font-weight: 600; }
 .message-meta .meta-sep { opacity: .4; }
 
-/* streaming: content is already rendered HTML — pre-wrap causes double-spacing */
+/* streaming: content is already rendered HTML - pre-wrap causes double-spacing */
 .message-text { word-wrap: break-word; overflow-wrap: break-word; max-width: 100%; }
 .message-text.streaming { /* cursor only; whitespace handled by block HTML */ }
 
@@ -1631,7 +1631,7 @@ html:not([data-theme="glass"]) .main {
 .message-text .md-p { margin: 0 0 10px 0; line-height: 1.6; }
 .message-text .md-p:last-child { margin-bottom: 0; }
 
-/* Headings — three tiers with clear hierarchy */
+/* Headings - three tiers with clear hierarchy */
 .message-text .md-h1 {
   font-size: 15px; font-weight: 700; color: var(--text);
   margin: 14px 0 8px; letter-spacing: -.01em; line-height: 1.3;
@@ -1656,7 +1656,7 @@ html:not([data-theme="glass"]) .main {
   margin: 12px 0;
 }
 
-/* Lists — tighter indent, breathing room between items */
+/* Lists - tighter indent, breathing room between items */
 .message-text .md-list { padding-left: 18px; margin: 6px 0 10px; }
 .message-text .md-list:last-child { margin-bottom: 0; }
 .message-text .md-list li { margin-bottom: 5px; line-height: 1.55; }
@@ -1699,7 +1699,7 @@ html:not([data-theme="glass"]) .main {
 .message-text .md-table th { background: var(--bg-2); font-weight: 600; color: var(--text); }
 .message-text .md-table tr:nth-child(even) td { background: color-mix(in oklab,var(--bg-2),transparent 50%); }
 
-/* Strong — slightly brighter so it pops against body text */
+/* Strong - slightly brighter so it pops against body text */
 .message-text strong { color: var(--text); font-weight: 650; }
 
 /* Links */
@@ -1803,12 +1803,12 @@ strong.risk-low      { color: var(--emerald) !important; }
   0%, 60%, 100% { transform: translateY(0); opacity: 0.35; }
   30% { transform: translateY(-5px); opacity: 1; }
 }
-/* Static label — the bouncing dots are the single "thinking" animation. */
+/* Static label - the bouncing dots are the single "thinking" animation. */
 .thinking-label {
   font-size: 12px; color: var(--muted);
 }
 
-/* Streaming text cursor removed — the blinking caret was distracting. */
+/* Streaming text cursor removed - the blinking caret was distracting. */
 
 .welcome-msg {
   padding: 12px 14px; border: 1px dashed var(--border); border-radius: var(--r-2);
@@ -2291,7 +2291,7 @@ strong.risk-low      { color: var(--emerald) !important; }
   box-shadow: 0 0 0 2px color-mix(in oklab, var(--ok), transparent 70%);
 }
 .sec-assignee-chip.mine .sec-assignee-name { color: var(--ok); font-weight: 600; }
-/* "Assigned to me" left accent — coexists with the focused-row background */
+/* "Assigned to me" left accent - coexists with the focused-row background */
 .sec-finding-row.mine { box-shadow: inset 3px 0 0 0 var(--ok); }
 .sec-finding-age { font-family: var(--mono); font-size: 11.5px; color: var(--text-3); text-align: right; }
 
@@ -2671,7 +2671,7 @@ strong.risk-low      { color: var(--emerald) !important; }
   display: flex; align-items: center; justify-content: space-between;
 }
 .sched-h .ttl { font-size: 13px; font-weight: 600; }
-/* Schedule form — dynamic per-operation fields, wraps responsively. */
+/* Schedule form - dynamic per-operation fields, wraps responsively. */
 .sched-form {
   display: flex; flex-wrap: wrap; gap: 10px; align-items: center;
   padding: 14px 16px; border-top: 1px solid var(--border);
@@ -3234,7 +3234,7 @@ strong.risk-low      { color: var(--emerald) !important; }
 #graph-method {
   font-family: var(--mono); font-size: 11px; font-weight: 600;
   padding: 6px 10px; border-radius: 6px;
-  /* Neutral, high-contrast in every theme — was dark text on a blue gradient
+  /* Neutral, high-contrast in every theme - was dark text on a blue gradient
      that rendered the method label unreadable. */
   color: var(--text);
   background: var(--surface);
@@ -3926,7 +3926,7 @@ label { font-size: 12.5px; color: var(--text-2); }
 .users-hint-title { font-size: 14px; font-weight: 600; color: var(--text-2); }
 .users-hint-body  { font-size: 12.5px; color: var(--muted); max-width: 260px; line-height: 1.55; }
 
-/* Access Reviews — campaign history grouping */
+/* Access Reviews - campaign history grouping */
 .cert-campaign-group {
   border: 1px solid var(--border);
   border-radius: var(--r-2);
@@ -3973,8 +3973,8 @@ label { font-size: 12.5px; color: var(--text-2); }
   display: inline-block;
 }
 
-/* ── P2: Exports — coming-soon cards ──────────────────────────────────────── */
-/* Roadmap connectors — a compact footer strip instead of empty "planned" cards. */
+/* ── P2: Exports - coming-soon cards ──────────────────────────────────────── */
+/* Roadmap connectors - a compact footer strip instead of empty "planned" cards. */
 .exp-roadmap {
   margin-top: 14px; padding: 10px 14px;
   display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px;
@@ -4059,7 +4059,7 @@ label { font-size: 12.5px; color: var(--text-2); }
   border-color: color-mix(in oklch, var(--cyan) 60%, transparent);
 }
 
-/* ── D4: Graph runner — digest separator ──────────────────────────────────── */
+/* ── D4: Graph runner - digest separator ──────────────────────────────────── */
 #graph-digest-card {
   border-top: 2px solid var(--cyan);
 }
@@ -4531,7 +4531,7 @@ label { font-size: 12.5px; color: var(--text-2); }
 }
 .lc-state.partial .lc-sub { color: var(--amber); }
 #dash-page-sub.operation-failed { color: var(--coral); }
-/* Capturing — request started but intent not yet fully captured (awaiting input).
+/* Capturing - request started but intent not yet fully captured (awaiting input).
    Distinct from 'current' (agent actively processing): static cyan, no beat. */
 .lc-state.capturing .lc-dot {
   background: var(--bg-2);
@@ -4808,7 +4808,7 @@ label { font-size: 12.5px; color: var(--text-2); }
 .ci-stat-val { font-size: 14px; font-weight: 600; color: var(--text); }
 .ci-stat-val.mono { font-family: var(--mono); font-size: 12.5px; color: var(--cyan); }
 
-/* Real recent hash-chain links — newest on the right, connected. */
+/* Real recent hash-chain links - newest on the right, connected. */
 .ci-links { display: flex; align-items: center; gap: 0; margin: 14px 0; overflow-x: auto; padding-bottom: 2px; }
 .ci-links .ci-empty { font-size: 12px; color: var(--muted); padding: 6px 0; }
 .ci-node {
@@ -5228,7 +5228,7 @@ label { font-size: 12.5px; color: var(--text-2); }
 }
 
 /* ============================================================
-   Risk score card — SVG gauge
+   Risk score card - SVG gauge
    ============================================================ */
 
 .v2-risk-card {
@@ -5239,7 +5239,7 @@ label { font-size: 12.5px; color: var(--text-2); }
 }
 .v2-risk-top { display: flex; gap: 16px; align-items: flex-start; }
 
-/* Foundry IQ grounding block — the cited-policy evidence under the score */
+/* Foundry IQ grounding block - the cited-policy evidence under the score */
 .risk-grounding {
   margin-top: 12px; padding: 10px 12px;
   border-top: 1px solid var(--border);
@@ -5314,7 +5314,7 @@ label { font-size: 12.5px; color: var(--text-2); }
 }
 
 /* ============================================================
-   Agent scope tooltip — extra fields
+   Agent scope tooltip - extra fields
    ============================================================ */
 
 .tip-row .mono { font-family: var(--mono); font-size: 10.5px; }
@@ -5329,7 +5329,7 @@ label { font-size: 12.5px; color: var(--text-2); }
 }
 
 /* ============================================================
-   Plan list — reversibility badge + detail text
+   Plan list - reversibility badge + detail text
    ============================================================ */
 
 .plan-row .step-rev {
@@ -5352,7 +5352,7 @@ label { font-size: 12.5px; color: var(--text-2); }
 
 
 /* ============================================================
-   Attestation dialog — supplementary elements
+   Attestation dialog - supplementary elements
    ============================================================ */
 
 .attest-dialog .dialog-head-title {
@@ -5384,7 +5384,7 @@ label { font-size: 12.5px; color: var(--text-2); }
 }
 
 /* ============================================================
-   Security — drift remediation card
+   Security - drift remediation card
    ============================================================ */
 
 .drift-rem-card {
@@ -5831,14 +5831,14 @@ label { font-size: 12.5px; color: var(--text-2); }
 }
 
 /* ============================================================
-   GLASS THEME — Uniform Dark Frost
+   GLASS THEME - Uniform Dark Frost
    Opt-in via Settings → Appearance (localStorage.jmlTheme = 'glass',
    applied as <html data-theme="glass">). Contract:
    - Empty shell areas: ~4% tint, desktop/mica bleeds through fully.
    - Sidebar/topbar chrome: 6–12% tint + heavy blur.
    - Every text-holding panel (cards, tables, chat, modals): one
      uniform dark frost (~60%) so text reads on any wallpaper.
-   - Rows inside panels stay flat — the parent carries the frost.
+   - Rows inside panels stay flat - the parent carries the frost.
    - Text brightened instead of shadowed; no text-shadow.
    ============================================================ */
 html[data-theme="glass"] {
@@ -5869,7 +5869,7 @@ html[data-theme="glass"] {
   --scrollbar-thumb-hover: oklch(0.82 0.03 245 / 0.45);
 }
 
-/* Shell: fully transparent — the window itself is transparent and the
+/* Shell: fully transparent - the window itself is transparent and the
    desktop shows through the island gutters CRISP, with no OS blur
    (user decision 2026-06-11: acrylic was tried and rejected). Any paint
    here turns the theme into a flat backdrop (the "grayish" bug); cloud
@@ -5885,9 +5885,9 @@ html[data-theme="glass"] .layout,
 html[data-theme="glass"] .main,
 html[data-theme="glass"] .view {
   background: transparent;
-  /* Uniform panel material — every card/table/modal resolves to this */
+  /* Uniform panel material - every card/table/modal resolves to this */
   /* Row hover / inset wells inside panels: a flat step, not a slab */
-  /* Brighter secondary text — readability instead of shadows */
+  /* Brighter secondary text - readability instead of shadows */
 
 /* Empty shell: almost fully see-through (~4% tint + faint aurora) */
 }
@@ -5949,7 +5949,7 @@ html[data-theme="glass"] .chat-input-wrap {
 html[data-theme="glass"] .compose .send,
 html[data-theme="glass"] .chat-send { color: oklch(0.145 0.008 260); }
 
-/* Page headers float on the bare shell — give them the panel frost so
+/* Page headers float on the bare shell - give them the panel frost so
    titles and descriptions read on any wallpaper. */
 html[data-theme="glass"] .view > .head,
 html[data-theme="glass"] .v2-page-title {
@@ -6122,12 +6122,12 @@ html[data-theme="glass"] .tool-result-drawer {
   box-shadow: var(--glass-panel-shadow);
 }
 
-/* Assistant replies: flat inside the frosted chat shell — hairline
+/* Assistant replies: flat inside the frosted chat shell - hairline
    accent only, the parent panel provides the readable backing */
 
 
 /* ============================================================
-   GLASS SCREEN — live Command Center
+   GLASS SCREEN - live Command Center
    Motion communicates backend state change only: one-shot
    settles, no decorative loops, reduced-motion collapses all.
    ============================================================ */
@@ -6190,7 +6190,7 @@ html[data-theme="glass"] .tool-result-drawer {
 .gs-stage[data-selected="true"] { background: color-mix(in oklch, var(--cyan-dim) 14%, transparent); }
 /* (selected-orb ring rule lives after the base .gs-stage-orb definition below) */
 
-/* Per-stage detail card under the pipeline — fills out the hero with the
+/* Per-stage detail card under the pipeline - fills out the hero with the
    concrete calls/checks each stage runs. */
 .gs-stage-detail {
   margin: 4px 0 14px;
@@ -6218,7 +6218,7 @@ html[data-theme="glass"] .tool-result-drawer {
 .gs-act-name { font-family: var(--mono); font-size: 11.5px; color: var(--text); white-space: nowrap; }
 .gs-act-note { font-size: 11.5px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; }
 .gs-act[data-status="pending"] .gs-act-name { color: var(--text-2); }
-/* Expandable activity rows — click to reveal the exact licenses/groups/etc. */
+/* Expandable activity rows - click to reveal the exact licenses/groups/etc. */
 .gs-act-expandable { cursor: pointer; border-radius: 5px; margin: -2px -4px; padding: 2px 4px; }
 .gs-act-expandable:hover { background: color-mix(in oklch, var(--bg-2) 60%, transparent); }
 .gs-act-expandable:focus-visible { outline: 1px solid color-mix(in oklch, var(--cyan) 55%, transparent); outline-offset: 1px; }
@@ -6274,7 +6274,7 @@ html[data-theme="glass"] .tool-result-drawer {
 .gs-stage[data-state="active"] .gs-stage-orb {
   color: var(--violet);
   border-color: color-mix(in oklch, var(--violet) 65%, transparent);
-  /* restrained static halo — no perpetual pulse */
+  /* restrained static halo - no perpetual pulse */
   box-shadow: 0 0 10px color-mix(in oklch, var(--violet) 28%, transparent);
 }
 .gs-stage[data-state="succeeded"] .gs-stage-orb {
@@ -6425,7 +6425,7 @@ html[data-theme="glass"] .tool-result-drawer {
 .gs-run-outcome[data-outcome="awaiting"] { color: var(--warn); }
 .gs-run-outcome[data-outcome="failed"]   { color: var(--coral); }
 .gs-run-title { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); }
-/* Second-line "what it did" summary — wraps full-width under the title row. */
+/* Second-line "what it did" summary - wraps full-width under the title row. */
 .gs-run-summary {
   order: 10; flex-basis: 100%; width: 100%; padding-left: 28px;
   font-size: 11px; color: var(--muted);
@@ -6437,7 +6437,7 @@ html[data-theme="glass"] .tool-result-drawer {
 .gs-run-agent { font-family: var(--mono); font-size: 10.5px; color: var(--text-2); width: 76px; text-align: right; flex-shrink: 0; }
 .gs-run-mode  { font-family: var(--mono); font-size: 9.5px; color: var(--muted); width: 32px; text-align: right; flex-shrink: 0; }
 .gs-recent-empty { padding: 14px 12px; font-size: 12.5px; color: var(--muted); }
-/* Column header for the recent-runs rows — mirrors the .gs-recent-run flex widths. */
+/* Column header for the recent-runs rows - mirrors the .gs-recent-run flex widths. */
 .gs-recent-head-row {
   display: flex; align-items: center; gap: 12px;
   padding: 2px 12px 5px; border-bottom: 1px solid var(--border);

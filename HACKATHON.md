@@ -6,9 +6,9 @@
 
 **Coding period:** June 1 through June 14, 2026
 
-**Submission deadline:** June 14, 2026 at 11:59 PM Pacific Time — **submitted ✅**
+**Submission deadline:** June 14, 2026 at 11:59 PM Pacific Time - **submitted ✅**
 
-**Judging period:** June 14 through June 30, 2026 — results expected after June 30
+**Judging period:** June 14 through June 30, 2026 - results expected after June 30
 
 **Format:** Virtual, global, public code repository, and public demo video up to five minutes
 
@@ -21,13 +21,13 @@ Official references:
 
 **Demo readiness: GO with the checklist below.**
 
-**Enterprise Agents submission eligibility: GO — the Microsoft IQ requirement is met.**
+**Enterprise Agents submission eligibility: GO - the Microsoft IQ requirement is met.**
 
 The Enterprise Agents challenge asks teams to use at least one Microsoft IQ layer:
 Foundry IQ, Work IQ, Fabric IQ, or Web IQ. **JML integrates Foundry IQ** (Azure AI
 Foundry knowledge retrieval): every risk and approval decision is grounded on the
 organization's JML policy corpus with citations and fail-closed behavior
-(`electron-app/lib/foundry-iq.js`). Model hosting alone would not qualify — this is a
+(`electron-app/lib/foundry-iq.js`). Model hosting alone would not qualify - this is a
 policy-grounding IQ integration, not just inference.
 
 Track this and the remaining repository risks in
@@ -35,8 +35,8 @@ Track this and the remaining repository risks in
 
 ## Submission Checklist
 
-- [x] Register before June 12, 2026. **(Done — submitted before the June 14 deadline)**
-- [x] Integrate and demonstrate at least one Microsoft IQ layer. **(Foundry IQ — done)**
+- [x] Register before June 12, 2026. **(Done - submitted before the June 14 deadline)**
+- [x] Integrate and demonstrate at least one Microsoft IQ layer. **(Foundry IQ - done)**
 - [ ] Record a public YouTube or Vimeo demo no longer than five minutes.
 - [ ] Confirm the repository and demo disclose every third-party component used.
 - [ ] Use synthetic identities and sanitized tenant evidence in public screenshots.
@@ -85,7 +85,7 @@ session modes, and 173 automated console tests.
 | **Microsoft Entra ID** | Source of truth for users, groups, licenses, app identities, and governance |
 | **Microsoft Entra Agent ID** | First-class identities for the Approver and Auditor reasoning agents |
 | **Microsoft Graph API** | User lifecycle, group, license, session, risk, device, and identity operations |
-| **Microsoft Intune** | Device lifecycle + compliance via managed-device Graph endpoints — sync, remote lock, retire, wipe, BitLocker key rotation, and compliance/encryption state |
+| **Microsoft Intune** | Device lifecycle + compliance via managed-device Graph endpoints - sync, remote lock, retire, wipe, BitLocker key rotation, and compliance/encryption state |
 | **Microsoft Entra ID Protection** | Risky users and sign-in risk detections feed the security posture and the Approver's risk context |
 | **Azure AI Foundry** | Supported model inference provider for the reasoning agents |
 | **Azure Functions v4** | HRIS webhook and canonical JML event API |
@@ -94,7 +94,7 @@ session modes, and 173 automated console tests.
 | **Azure Blob Storage** | Optional audit evidence export |
 | **Microsoft Sentinel** | Optional audit and security finding ingestion |
 | **Microsoft Purview** | HR connector integration path |
-| **Foundry IQ** | Microsoft IQ layer — grounds risk/approval decisions on the JML policy corpus (`lib/foundry-iq.js`) |
+| **Foundry IQ** | Microsoft IQ layer - grounds risk/approval decisions on the JML policy corpus (`lib/foundry-iq.js`) |
 
 ## Five-Minute Demo
 

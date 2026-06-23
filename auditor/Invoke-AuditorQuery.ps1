@@ -96,8 +96,8 @@ switch ($QueryType) {
             }
         } catch {
             # The directory audit log needs AuditLog.Read.All. When that scope
-            # isn't consented, fall back to the current directory STATE — accounts
-            # that are presently disabled — which only needs User.Read.All. We
+            # isn't consented, fall back to the current directory STATE - accounts
+            # that are presently disabled - which only needs User.Read.All. We
             # can't date-filter (the user object has no "disabled at" timestamp),
             # so we return the disabled set with a clear note about the source so
             # the agent reports it accurately rather than just "permission denied".

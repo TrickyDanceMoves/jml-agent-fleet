@@ -12,7 +12,7 @@
  * timeout) kills the worker, rejects in-flight requests with
  * `err.sessionError = true`, and the next run() starts a fresh worker.
  * Script-level errors (a Graph 404, a bad query) reject WITHOUT
- * sessionError — callers must not retry those against a cold spawn.
+ * sessionError - callers must not retry those against a cold spawn.
  */
 
 const { spawn } = require('child_process');
@@ -87,7 +87,7 @@ class GraphPsSession {
         this.pending.delete(id);
         const err = new Error('Graph session timed out after ' + timeout + 'ms');
         err.sessionError = true;
-        // a hung worker can't be trusted — replace it on the next run()
+        // a hung worker can't be trusted - replace it on the next run()
         this._kill();
         reject(err);
       }, timeout);

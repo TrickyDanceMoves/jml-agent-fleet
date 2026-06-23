@@ -1,7 +1,7 @@
 'use strict';
 
 /**
- * Weekly drift detection cron — fires at 06:00 UTC every Monday.
+ * Weekly drift detection cron - fires at 06:00 UTC every Monday.
  *
  * Runs all drift checks and logs the summary. Critical findings trigger
  * a Teams notification if shared/notifications.json is configured.

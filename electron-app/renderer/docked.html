@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'">
-<title>JML Fleet — Docked</title>
+<title>JML Fleet - Docked</title>
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
   :root {
@@ -39,7 +39,7 @@
   html, body { height: 100%; background: transparent; overflow: hidden; margin: 0; padding: 0; }
   body { display: flex; flex-direction: column; font-family: var(--sans); color: var(--text); font-size: 12.5px; user-select: none; }
 
-  /* Shell wrapper — receives the visual treatment so html/body stay fully transparent */
+  /* Shell wrapper - receives the visual treatment so html/body stay fully transparent */
   .panel-shell {
     flex: 1; display: flex; flex-direction: column; overflow: hidden;
     background: var(--bg);
@@ -573,13 +573,13 @@
   body.slim-mode .rz-sw,
   body.slim-mode .rz-se { display: none !important; }
 
-  /* Vertical slim (right/left): hide side handles — top/bottom remain for height resize */
+  /* Vertical slim (right/left): hide side handles - top/bottom remain for height resize */
   body.slim-right .rz-e,
   body.slim-right .rz-w,
   body.slim-left .rz-e,
   body.slim-left .rz-w { display: none !important; }
 
-  /* Horizontal slim (top/bottom): hide top/bottom handles — sides remain for width resize */
+  /* Horizontal slim (top/bottom): hide top/bottom handles - sides remain for width resize */
   body.slim-top .rz-n,
   body.slim-top .rz-s,
   body.slim-bottom .rz-n,
@@ -595,7 +595,7 @@
   body.slim-bottom .rz-e,
   body.slim-bottom .rz-w { bottom: 4px; top: auto; height: 48px; }
 
-  /* ── Slim minimal — logo-only collapse ── */
+  /* ── Slim minimal - logo-only collapse ── */
   @keyframes brand-glow {
     0%, 100% {
       box-shadow: 0 0 10px var(--cyan), 0 0 24px color-mix(in oklch, var(--cyan) 40%, transparent);
@@ -644,7 +644,7 @@
     -webkit-backdrop-filter: blur(20px) saturate(1.5);
     border: 1px solid oklch(0.30 0.010 252 / 0.70);
     border-radius: 14px;
-    /* Inset highlights only — no external shadow bleed into transparent window region */
+    /* Inset highlights only - no external shadow bleed into transparent window region */
     box-shadow:
       inset 0 1px 0 oklch(0.42 0.015 252 / 0.45),
       inset 0 -1px 0 oklch(0.06 0.010 252 / 0.50),
@@ -721,7 +721,7 @@
   }
   .slim-stat:hover { background: oklch(0.16 0.010 252 / 0.7); }
 
-  /* Active stat — tinted hover background */
+  /* Active stat - tinted hover background */
   .slim-stat.active-coral:hover { background: color-mix(in oklch, var(--coral) 8%, oklch(0.16 0.010 252 / 0.7)); }
   .slim-stat.active-amber:hover { background: color-mix(in oklch, var(--amber) 8%, oklch(0.16 0.010 252 / 0.7)); }
   .slim-stat.active-cyan:hover  { background: color-mix(in oklch, var(--cyan)  8%, oklch(0.16 0.010 252 / 0.7)); }
@@ -745,7 +745,7 @@
   .slim-stat-num.active-amber { color: var(--amber); }
   .slim-stat-num.active-cyan  { color: var(--cyan);  }
 
-  /* Tooltip — right side for right-edge pill */
+  /* Tooltip - right side for right-edge pill */
   .slim-stat::after {
     content: attr(data-tip);
     position: absolute;
@@ -936,7 +936,7 @@
       <div class="slim-drag-pip"></div>
     </div>
 
-    <!-- Brand — click to expand panel -->
+    <!-- Brand - click to expand panel -->
     <div class="slim-brand" id="slim-brand"></div>
 
     <div class="slim-divider"></div>
@@ -988,7 +988,7 @@
 
     <div class="slim-divider"></div>
 
-    <!-- Mode indicator dot — click to toggle safe/live -->
+    <!-- Mode indicator dot - click to toggle safe/live -->
     <div class="slim-mode-dot" id="slim-mode-dot" title="Toggle safe/live mode"></div>
 
     <!-- Pinned console shortcuts (dynamic) -->
@@ -1072,7 +1072,7 @@
 
 <div class="panel-body">
 
-  <!-- Console Links — pinned shortcuts (dynamic, non-draggable) -->
+  <!-- Console Links - pinned shortcuts (dynamic, non-draggable) -->
   <div class="section" id="section-shortcuts" style="display:none">
     <div class="section-label" data-tip="Console Links">
       <span class="section-title">Console Links</span>

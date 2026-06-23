@@ -57,7 +57,7 @@ try {
 }
 Write-Log ("Found: " + $user.DisplayName + " | Dept: " + $user.Department + " | Title: " + $user.JobTitle)
 
-# SoD check — validate current + incoming groups don't create conflicts
+# SoD check - validate current + incoming groups don't create conflicts
 $incomingGroups = @($payload.groupsToAdd | Where-Object { $_ })
 Write-Log "Running SoD check (current memberships + incoming: $(if ($incomingGroups.Count) { $incomingGroups -join ', ' } else { '(none)' }))"
 $sodResult = & (Join-Path $agentsRoot "shared\Invoke-SoDCheck.ps1") `

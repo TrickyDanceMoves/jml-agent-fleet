@@ -9,7 +9,7 @@ The repository is **submission-ready for the Enterprise Agents track**.
 
 The product has a credible enterprise story, a working release, strong interaction
 design, a differentiated Agent ID architecture, and a passing automated test suite.
-The Enterprise Agents track requirement — use at least one Microsoft IQ layer — is
+The Enterprise Agents track requirement - use at least one Microsoft IQ layer - is
 met by **Foundry IQ** (live; grounds risk/approval decisions on the JML policy corpus).
 
 ## Readiness Scorecard
@@ -27,9 +27,9 @@ met by **Foundry IQ** (live; grounds risk/approval decisions on the JML policy c
 | Public data hygiene | Needs work | Tenant-specific identifiers and tenant-bearing screenshots remain tracked |
 | Open-source governance | Partial | Security and contribution guides are present; repository license still needs an owner decision |
 | API and worker tests | Ready | pi/test/ 8 tests (canonical schema, BambooHR adapter, api-key gate); worker/test/ 10 tests (dispatch routing, retry, dead-letter) |
-| Electron hardening | Ready — sandbox accepted gap | v1.1.13: trusted-sender IPC validation, IPC payload schema checks, unsafe-inline removed, renderer nav/popup/webview/permission/CSP hardened; sandbox remains disabled (documented in electron-security.md) |
+| Electron hardening | Ready - sandbox accepted gap | v1.1.13: trusted-sender IPC validation, IPC payload schema checks, unsafe-inline removed, renderer nav/popup/webview/permission/CSP hardened; sandbox remains disabled (documented in electron-security.md) |
 
-## Blocking Finding — RESOLVED 2026-06-12
+## Blocking Finding - RESOLVED 2026-06-12
 
 ### P0 - Enterprise Agents requires a Microsoft IQ layer ✅ DONE & LIVE
 
@@ -47,9 +47,9 @@ offboarding playbook's dual-approval requirement and the SoD policy). Endpoint a
 key live in the gitignored `approver/foundry-iq.json`; reproduce with
 `provisioner/Publish-PolicyCorpus.ps1`.
 
-Acceptance evidence — all met:
+Acceptance evidence - all met:
 
-1. ✅ Module calls the IQ layer — `electron-app/lib/foundry-iq.js`, invoked from the
+1. ✅ Module calls the IQ layer - `electron-app/lib/foundry-iq.js`, invoked from the
    Approver `score_risk` path in `main.js`.
 2. ✅ Tests verify grounded output and fail-closed behavior —
    `electron-app/test/foundry-iq.test.js` (8 tests incl. three fail-closed paths).
@@ -130,18 +130,18 @@ On June 12, 2026:
 
 ## Go-Live Checklist
 
-- [x] Add and demonstrate one Microsoft IQ layer. **(Foundry IQ — done 2026-06-12)**
+- [x] Add and demonstrate one Microsoft IQ layer. **(Foundry IQ - done 2026-06-12)**
 - [x] Sanitize public tenant identifiers and screenshots. **(Verified 2026-06-12: no tenant identifiers in tracked files; captures sanitize the domain.)**
-- [x] Add API and worker tests. **(Done 2026-06-12: `api/test/` 8 tests — canonical
-  schema, BambooHR adapter, api-key gate; `worker/test/` 10 tests — dispatch routing,
+- [x] Add API and worker tests. **(Done 2026-06-12: `api/test/` 8 tests - canonical
+  schema, BambooHR adapter, api-key gate; `worker/test/` 10 tests - dispatch routing,
   PIM activate/deactivate ordering, payload shapes, queue retry/dead-letter semantics.
   Worker refactored for testability: `src/message-handler.js` factory + injectable
   `dispatch` overrides. CI quality gate already runs `npm test` in both.)**
 - [x] Confirm Conditional Access state in the demo tenant. **(Verified 2026-06-12 via
   Graph: `AgentGeneralCAPol` enabled, target `AllAgentIdResources`, grant `block`,
-  principal scope empty/pre-staged. No SP policy — Workload Identities Premium not
+  principal scope empty/pre-staged. No SP policy - Workload Identities Premium not
   held. README wording updated to match.)**
 - [x] Decide repository license and add community health files. **(Proprietary / all-rights-reserved license, source-available for evaluation, + CONTRIBUTING + SECURITY.)**
-- [x] Record the demo using synthetic identities. **(2026-06-12: 90-second narrated cut rendered from sanitized captures — `.superpowers/jml-demo-video`, output `out/jml-demo-90s.mp4`.)**
+- [x] Record the demo using synthetic identities. **(2026-06-12: 90-second narrated cut rendered from sanitized captures - `.superpowers/jml-demo-video`, output `out/jml-demo-90s.mp4`.)**
 - [x] Run CI, dependency audits, and link checks. **(2026-06-12: quality gate green; npm audit 0 vulnerabilities incl. dev after esbuild 0.28.1 override; doc links verified.)**
 - [ ] Verify the five-minute public video and final submission links.

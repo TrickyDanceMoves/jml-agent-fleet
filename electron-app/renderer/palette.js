@@ -107,7 +107,7 @@ function wireItems() {
       if (ua === 'move')  { window.panelApi.runAction({ type: 'move', upn });       window.panelApi.openConsole('operations'); dismiss(); }
       if (ua === 'soft')  { window.panelApi.runAction({ type: 'soft-leave', upn }); window.panelApi.openConsole('operations'); dismiss(); }
       if (ua === 'hard') {
-        if (!confirm(`Hard Leave for ${upn} — permanently removes licenses, groups, and terminates the account. Continue?`)) return;
+        if (!confirm(`Hard Leave for ${upn} - permanently removes licenses, groups, and terminates the account. Continue?`)) return;
         window.panelApi.runAction({ type: 'hard-leave', upn });
         window.panelApi.openConsole('operations');
         dismiss();

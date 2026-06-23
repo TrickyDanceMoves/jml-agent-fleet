@@ -271,7 +271,7 @@ $riskyReport = [ordered]@{
     findings        = @(
         [ordered]@{
             severity = 'critical'
-            title    = 'Confirmed compromised user — sessions revoked'
+            title    = 'Confirmed compromised user - sessions revoked'
             count    = 1
             items    = @(
                 @{ userPrincipalName=$users.martinez; displayName='Robert Martinez'; riskLevel='high'; riskState='confirmedCompromised'; riskDetail='userPerformedSecuredPasswordChange'; riskLastUpdated=$now.AddDays(-5).ToString('o') }
@@ -376,7 +376,7 @@ $scheduledPath = Join-Path $agentsRoot 'approver\scheduled.json'
             stage             = 'Soft'
             ticketRef         = 'INC-1025'
         }
-        note        = 'End of contract — agreed last day'
+        note        = 'End of contract - agreed last day'
     }
     @{
         id          = 'sched-002'

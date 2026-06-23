@@ -250,7 +250,7 @@ test('BambooHR adapter preserves real names with legitimate punctuation', () => 
 });
 
 test('x-api-key gate rejects missing/wrong keys and accepts the configured key', () => {
-  // requireApiKey reads process.env.JML_API_KEY at module load — set it BEFORE require.
+  // requireApiKey reads process.env.JML_API_KEY at module load - set it BEFORE require.
   process.env.JML_API_KEY = 'correct-test-key';
   const { requireApiKey } = require(path.join(apiRoot, 'src', 'lib', 'api-key-auth.js'));
 

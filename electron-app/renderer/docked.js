@@ -49,7 +49,7 @@ let _dragId        = null;
 let _dropDir       = null; // 'before' | 'after'
 let _rz = null, _rzPending = null, _rzRaf = null;
 let _autoFitTimer = null;
-let _userResized   = false; // true after user manually resizes — suppresses autoFit
+let _userResized   = false; // true after user manually resizes - suppresses autoFit
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function escHtml(s) {
@@ -375,7 +375,7 @@ window.addEventListener('mousemove', (e) => {
 
 window.addEventListener('mouseup', () => {
   if (_rz) {
-    _userResized = true; // user explicitly set a height — don't autofit over it
+    _userResized = true; // user explicitly set a height - don't autofit over it
     _rz = null;
     document.body.style.cursor = '';
     if (!_slimMode) {
@@ -635,7 +635,7 @@ document.getElementById('slim-brand').addEventListener('click', (e) => {
 // Brand tooltip via JS tip system
 document.getElementById('slim-brand').addEventListener('mouseenter', () => {
   if (!_tip) return;
-  _tip.textContent = 'JML Fleet Console — expand';
+  _tip.textContent = 'JML Fleet Console - expand';
   _tip.style.display = 'block'; _tip.style.opacity = '0';
   const rect = document.getElementById('slim-brand').getBoundingClientRect();
   const tipW = _tip.offsetWidth, tipH = _tip.offsetHeight;
@@ -688,7 +688,7 @@ document.getElementById('qa-joiner').addEventListener('click', () => {
   document.querySelectorAll('.ac-tab').forEach(t => t.classList.remove('active'));
   const tab = document.querySelector('.ac-tab[data-agent="approver"]');
   if (tab) { tab.classList.add('active'); _chatAgent = 'approver'; }
-  acInput.value = 'Provision new joiner — ';
+  acInput.value = 'Provision new joiner - ';
   scheduleAutoFitPanel();
   setTimeout(() => {
     sec && sec.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
@@ -787,13 +787,13 @@ document.getElementById('qa-hard').addEventListener('click', async () => {
 // ── Quick operation result feedback ──────────────────────────────────────────
 window.panelApi.onQuickOpResult((data) => {
   if (data.approvalQueued) {
-    showToast('Approval queued — admin sign-off required', 'info');
+    showToast('Approval queued - admin sign-off required', 'info');
     return;
   }
   const label = data.type === 'leaver'
     ? ((data.data && data.data.stage) || 'Leaver') + ' Leave'
     : data.type === 'mover' ? 'Move' : 'Operation';
-  if (data.error) showToast(label + ' failed — ' + ((data.lines || [])[0] || 'unknown error'), 'error');
+  if (data.error) showToast(label + ' failed - ' + ((data.lines || [])[0] || 'unknown error'), 'error');
   else            showToast(label + ' complete', 'success');
 });
 
@@ -1004,10 +1004,10 @@ approvalList.addEventListener('click', async (e) => {
     try {
       const res = await window.panelApi.rejectPending(id);
       if (res.ok) {
-        showToast(`${label} request rejected — ${upn}`, 'info');
+        showToast(`${label} request rejected - ${upn}`, 'info');
         card.remove();
       } else {
-        showToast('Reject failed — ' + (res.error || 'unknown error'), 'error');
+        showToast('Reject failed - ' + (res.error || 'unknown error'), 'error');
         card.querySelectorAll('button').forEach(b => { b.disabled = false; });
       }
     } catch {
@@ -1020,10 +1020,10 @@ approvalList.addEventListener('click', async (e) => {
     try {
       const res = await window.panelApi.approvePending(id, writeToken);
       if (res.ok) {
-        showToast(`${label} approved — ${upn}`, 'success');
+        showToast(`${label} approved - ${upn}`, 'success');
         card.remove();
       } else {
-        showToast('Approve failed — ' + (res.error || 'unknown error'), 'error');
+        showToast('Approve failed - ' + (res.error || 'unknown error'), 'error');
         card.querySelectorAll('button').forEach(b => { b.disabled = false; });
       }
     } catch {
@@ -1064,7 +1064,7 @@ window.panelApi.onUpdate((data) => {
       slimApIcon.className = 'slim-stat-icon' + (cls ? ' ' + cls : '') + (n > 0 ? ' alerting' : '');
       if (slimApStat) {
         slimApStat.dataset.tip = n > 0
-          ? n + ' approval' + (n === 1 ? '' : 's') + ' pending — click to review'
+          ? n + ' approval' + (n === 1 ? '' : 's') + ' pending - click to review'
           : 'No pending approvals';
         slimApStat.className = 'slim-stat' + (n > 0 ? ' active-coral' : '');
       }
@@ -1101,7 +1101,7 @@ window.panelApi.onUpdate((data) => {
           </div>`;
         }).join('')
       : '<div class="cert-row"><div class="cert-dot none"></div><span class="cert-name">No agents</span></div>';
-    // Slim HUD — cert health stat
+    // Slim HUD - cert health stat
     const crit = data.certs.filter(c => c.daysLeft != null && c.daysLeft < 14).length;
     const warn = data.certs.filter(c => c.daysLeft != null && c.daysLeft >= 14 && c.daysLeft < 45).length;
     const slimCertNum  = document.getElementById('slim-stat-certs-num');
@@ -1116,7 +1116,7 @@ window.panelApi.onUpdate((data) => {
       if (slimCertStat) {
         slimCertStat.className = 'slim-stat' + (crit > 0 ? ' active-coral' : warn > 0 ? ' active-amber' : '');
         slimCertStat.dataset.tip = crit > 0
-          ? crit + ' cert' + (crit === 1 ? '' : 's') + ' expiring soon — click to review'
+          ? crit + ' cert' + (crit === 1 ? '' : 's') + ' expiring soon - click to review'
           : warn > 0
             ? warn + ' cert' + (warn === 1 ? '' : 's') + ' expiring in <45d'
             : 'All agent certs healthy';
@@ -1146,7 +1146,7 @@ window.panelApi.onUpdate((data) => {
     } else {
       hrAge.style.display = 'none';
     }
-    // Slim HUD — HR queue stat
+    // Slim HUD - HR queue stat
     const slimHrNum  = document.getElementById('slim-stat-hr-num');
     const slimHrIcon = document.getElementById('slim-stat-hr-icon');
     const slimHrStat = document.getElementById('slim-stat-hr');
@@ -1211,7 +1211,7 @@ document.querySelectorAll('.ac-tab').forEach(tab => {
   });
 });
 
-// Operator changed — drop the previous user's chat and reset to the default tab.
+// Operator changed - drop the previous user's chat and reset to the default tab.
 if (window.panelApi.onConversationReset) {
   window.panelApi.onConversationReset(() => {
     _chatAgent = 'approver';
@@ -1316,7 +1316,7 @@ window.panelApi.onAgentChunk((d) => {
     _chatMsgEl.textContent += d.text;
     acScrollBottom();
   } else if (d.type === 'tool_start') {
-    // No tool chips — keep the gray thinking line as the only activity cue.
+    // No tool chips - keep the gray thinking line as the only activity cue.
     acFinalizeStreaming();
     const empty = acThread.querySelector('.ac-empty');
     if (empty) empty.remove();

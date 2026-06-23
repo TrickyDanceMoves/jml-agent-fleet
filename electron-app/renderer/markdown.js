@@ -3,7 +3,7 @@
 // Shared, self-contained markdown renderer for agent replies. Mirrors the main
 // console's renderer so the docked/overlay agent chat renders the same prose
 // (headings, lists, tables, code, bold/italic/links) plus the risk/delete
-// colour cues — instead of raw markdown text.
+// colour cues - instead of raw markdown text.
 // Exposed as window.JMLMarkdown.render(text).
 (function (global) {
   function escHtml(s) {

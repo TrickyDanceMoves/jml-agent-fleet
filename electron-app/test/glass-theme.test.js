@@ -37,8 +37,8 @@ test('glass shell remains visibly transparent instead of becoming a dark theme',
   // Sidebar island frost: near-solid (~85%). Without OS blur the desktop
   // shows through islands CRISP, so readable text needs dense backing;
   // the see-through feel comes from the fully transparent gutters.
-  assert.ok(sidebarAlpha <= 0.92, `glass sidebar alpha ${sidebarAlpha} is fully opaque — keep a hint of glow`);
-  assert.ok(sidebarAlpha >= 0.72, `glass sidebar alpha ${sidebarAlpha} too thin — crisp desktop bleed makes nav text unreadable`);
+  assert.ok(sidebarAlpha <= 0.92, `glass sidebar alpha ${sidebarAlpha} is fully opaque - keep a hint of glow`);
+  assert.ok(sidebarAlpha >= 0.72, `glass sidebar alpha ${sidebarAlpha} too thin - crisp desktop bleed makes nav text unreadable`);
   assert.match(css, /html\[data-theme="glass"\]\s+\.layout,[\s\S]*?background:\s*transparent/s);
   // Floating shell geometry: gutters around the grid, rounded islands —
   // sidebar and content column float separately over the desktop.

@@ -4,10 +4,10 @@
 
 .DESCRIPTION
     Opens four separate PowerShell windows:
-      1. Azurite  — Azure Storage emulator (queue + table on default ports)
-      2. Worker   — polls jml-events queue, invokes PS1 agents
-      3. API      — Azure Functions on http://localhost:7071
-      4. ngrok    — public HTTPS tunnel → localhost:7071 (for BambooHR webhooks)
+      1. Azurite  - Azure Storage emulator (queue + table on default ports)
+      2. Worker   - polls jml-events queue, invokes PS1 agents
+      3. API      - Azure Functions on http://localhost:7071
+      4. ngrok    - public HTTPS tunnel → localhost:7071 (for BambooHR webhooks)
 
     Press Ctrl+C in each window to stop.
 

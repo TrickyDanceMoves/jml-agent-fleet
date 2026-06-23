@@ -76,7 +76,7 @@ $bytes     = [System.Text.Encoding]::UTF8.GetBytes($content)
 # ── WORM / immutability ─────────────────────────────────────────────────────────
 # Optional tamper-proofing for compliance: write the audit blob under a
 # time-based retention (WORM) policy and/or a legal hold so it cannot be
-# altered or deleted until the retention window expires — even by a storage
+# altered or deleted until the retention window expires - even by a storage
 # account owner. Requires version-level immutability enabled on the container
 # or account. Configure ImmutabilityDays (int) and/or LegalHold (bool).
 $immutabilityDays = if ($config.PSObject.Properties.Name -contains 'ImmutabilityDays') { [int]$config.ImmutabilityDays } else { 0 }

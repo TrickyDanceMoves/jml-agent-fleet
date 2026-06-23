@@ -65,7 +65,7 @@ test('terminal update removes the active state and preserves history', () => {
 
 test('a running operation interrupts replay; a pending approval does not', () => {
   assert.equal(liveOperationInterruptsReplay('op-old', op({ id: 'op-new', status: 'running' })), true);
-  // A pending approval is not "live" — it must not yank the operator out of a replay.
+  // A pending approval is not "live" - it must not yank the operator out of a replay.
   assert.equal(liveOperationInterruptsReplay('op-old', op({ id: 'op-new', status: 'awaiting_approval' })), false);
 });
 
@@ -102,7 +102,7 @@ test('audit enrichment adds evidence but never overwrites fresher operation-stat
   const audit = [{
     id: 'op-1',
     timestamp: '2026-06-10T18:00:05.000Z',
-    outcome: 'success', // older audit record claims success — must not win
+    outcome: 'success', // older audit record claims success - must not win
     hash: 'a3f8c1d92b4e6708',
     details: { ticketRef: 'INC-1042' },
   }];

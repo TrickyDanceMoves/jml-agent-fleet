@@ -5,7 +5,7 @@
 
 .DESCRIPTION
     The Certifier (access review campaigns) historically borrowed the
-    Provisioner's credential — which carries Application.ReadWrite.All and is
+    Provisioner's credential - which carries Application.ReadWrite.All and is
     far more privilege than campaign management needs. This script gives the
     Certifier its own identity with only:
 

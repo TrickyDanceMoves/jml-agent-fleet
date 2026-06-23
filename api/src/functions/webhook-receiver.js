@@ -66,7 +66,7 @@ app.http('webhookReceiver', {
           return { status: 401, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ error: 'Invalid webhook signature' }) };
         }
       } else {
-        // No HMAC secret configured — fall back to x-api-key header
+        // No HMAC secret configured - fall back to x-api-key header
         const { authorized } = requireApiKey(request);
         if (!authorized) {
           return { status: 401, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ error: 'Unauthorized' }) };

@@ -9,7 +9,7 @@
     Per the Agent ID model: permissions live on the AGENT IDENTITY (credentials live
     on the blueprint). For each agent identity (resolved by display name) this assigns
     the same Graph app roles its SP holds today, then admin-consents them by virtue of
-    the signed-in admin. Reports per-permission success/failure — some high-risk Graph
+    the signed-in admin. Reports per-permission success/failure - some high-risk Graph
     permissions may be blocked for agent identities, which this surfaces.
 
 .EXAMPLE

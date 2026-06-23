@@ -19,7 +19,7 @@ class AnthropicProvider {
     const started = Date.now();
 
     // Prompt caching: the system prompt and tool table are static for the whole
-    // session — mark both ephemeral so multi-turn conversations re-read them from
+    // session - mark both ephemeral so multi-turn conversations re-read them from
     // cache instead of re-billing full input tokens every turn.
     const systemBlocks = [{ type: 'text', text: system, cache_control: { type: 'ephemeral' } }];
     const cachedTools  = (tools && tools.length)

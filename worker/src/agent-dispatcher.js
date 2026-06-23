@@ -17,7 +17,7 @@ const path = require('path');
 const fs = require('fs');
 const { spawnSync } = require('child_process');
 
-// agents/ root — agent-dispatcher.js lives at agents/worker/src/
+// agents/ root - agent-dispatcher.js lives at agents/worker/src/
 const AGENTS_ROOT = path.resolve(__dirname, '..', '..');
 
 function buildJoinerPayload(event) {
@@ -75,7 +75,7 @@ const PIM_HELPER = path.join(AGENTS_ROOT, 'shared', 'Invoke-PIMHelper.ps1');
 const EVENT_TYPE_TO_AGENT = { hire: 'joiner', terminate: 'leaver', transfer: 'mover' };
 
 function invokePIM(action, agentName, justification) {
-  if (!fs.existsSync(PIM_HELPER)) return; // helper not present — skip silently
+  if (!fs.existsSync(PIM_HELPER)) return; // helper not present - skip silently
   const result = invokePs1(PIM_HELPER, ['-Action', action, '-AgentName', agentName, '-Justification', justification]);
   if (result.exitCode !== 0) {
     // PIM failure on deactivate is non-fatal; on activate it throws to the caller

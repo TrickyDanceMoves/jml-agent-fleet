@@ -106,7 +106,7 @@ function doResize() {
 // ── Keyboard ──────────────────────────────────────────────────────────────────
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') {
-    // Don't close overlay if a modal is currently open — let the modal handle ESC
+    // Don't close overlay if a modal is currently open - let the modal handle ESC
     const pinOpen     = document.getElementById('ov-pin-overlay')?.style.display !== 'none';
     const confirmOpen = document.getElementById('ov-confirm-overlay')?.style.display !== 'none';
     if (pinOpen || confirmOpen) return;
@@ -131,7 +131,7 @@ ovClr.addEventListener('click', () => {
   window.overlayApi.clearHistory(_agent);
 });
 
-// Operator changed — drop the previous user's transcript entirely and reset
+// Operator changed - drop the previous user's transcript entirely and reset
 // to the default agent tab. The server already cleared the stored history.
 if (window.overlayApi.onConversationReset) {
   window.overlayApi.onConversationReset(() => {
@@ -298,7 +298,7 @@ window.overlayApi.onAgentChunk((d) => {
     _msgEl.innerHTML = ovMarkdown(_msgEl._raw);
     ovThread.scrollTop = ovThread.scrollHeight;
   } else if (d.type === 'tool_start') {
-    // No tool chips — keep the gray thinking line as the only activity cue.
+    // No tool chips - keep the gray thinking line as the only activity cue.
     if (_msgEl) { _msgEl.classList.remove('streaming'); _msgEl = null; }
     showThinking();
     ovThread.scrollTop = ovThread.scrollHeight;
@@ -455,12 +455,12 @@ ovApprovals.addEventListener('click', async (e) => {
     try {
       const res = await window.overlayApi.rejectPending(id);
       if (res.ok) {
-        showToast(`${label} rejected — ${upn}`, 'info');
+        showToast(`${label} rejected - ${upn}`, 'info');
         card.remove();
         updateDivider();
         scheduleResize();
       } else {
-        showToast('Reject failed — ' + (res.error || 'unknown'), 'error');
+        showToast('Reject failed - ' + (res.error || 'unknown'), 'error');
         card.querySelectorAll('button').forEach(b => { b.disabled = false; });
       }
     } catch {
@@ -473,12 +473,12 @@ ovApprovals.addEventListener('click', async (e) => {
     try {
       const res = await window.overlayApi.approvePending(id, writeToken);
       if (res.ok) {
-        showToast(`${label} approved — ${upn}`, 'success');
+        showToast(`${label} approved - ${upn}`, 'success');
         card.remove();
         updateDivider();
         scheduleResize();
       } else {
-        showToast('Approve failed — ' + (res.error || 'unknown'), 'error');
+        showToast('Approve failed - ' + (res.error || 'unknown'), 'error');
         card.querySelectorAll('button').forEach(b => { b.disabled = false; });
       }
     } catch {

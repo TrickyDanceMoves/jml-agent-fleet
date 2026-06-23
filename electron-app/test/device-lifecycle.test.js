@@ -111,7 +111,7 @@ test('Devices tab is wired end to end (UI + preload + main IPC)', () => {
   assert.match(ps, /rebootNow/);
   assert.match(ps, /remoteLock/);
   assert.match(ps, /rotateBitLockerKeys/);
-  // No colourful emoji icons left on the tab — OS icons are inline SVGs.
+  // No colourful emoji icons left on the tab - OS icons are inline SVGs.
   assert.match(app, /function osIcon\(os\)[\s\S]*?<svg/);
   assert.ok(!/['"`]🪟|🧨|🧹|📋/.test(app), 'no emoji glyphs in the devices module');
   // Preload bridges.

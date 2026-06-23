@@ -34,7 +34,7 @@ const REPORTS_DIR   = path.join(__dirname, '..', 'auditor', 'reports');
 const TENANT_DOMAIN   = 'contoso.onmicrosoft.com';
 const SETUP_FILE      = path.join(AGENTS_DIR, 'approver', 'setup.json');
 const INT_CONFIG_FILE = path.join(AGENTS_DIR, 'approver', 'integrations.config.json');
-// Durable tenant config — the source of truth for which tenant the console is
+// Durable tenant config - the source of truth for which tenant the console is
 // wired to. Written by the first-run wizard and Settings → Tenant regardless of
 // whether per-agent config.json credential files exist yet (they don't on a
 // fresh install). Until this is written, the console stays unconfigured/stateless
@@ -44,7 +44,7 @@ const TENANT_CONFIG_FILE = path.join(AGENTS_DIR, 'approver', 'tenant.json');
 // Stamp every child process with the console operator identity so Write-AuditEntry picks it up
 process.env.JML_CONSOLE_OPERATOR = os.userInfo().username;
 
-// BOM-safe JSON file reader — config files saved by PS/VS Code may have UTF-8 BOM
+// BOM-safe JSON file reader - config files saved by PS/VS Code may have UTF-8 BOM
 function readJson(filePath) {
   return JSON.parse(fs.readFileSync(filePath, 'utf8').split(String.fromCharCode(0xFEFF)).join(''));
 }
@@ -65,7 +65,7 @@ function writeTenantConfig(patch) {
 
 const PENDING_DIR    = path.join(AGENTS_DIR, 'approver', 'pending');
 // Approval tokens carry a 30-min TTL, then linger as "EXPIRED" for a short grace
-// so an operator can see they lapsed — after that they're pruned from the queue.
+// so an operator can see they lapsed - after that they're pruned from the queue.
 const APPROVAL_TTL_MS        = 30 * 60 * 1000;
 const APPROVAL_EXPIRY_GRACE_MS = 10 * 60 * 1000;
 // Start the TTL clock on pending approvals only once an admin operator is logged
@@ -168,7 +168,7 @@ function getAIProvider() {
 // Microsoft IQ layer (Enterprise Agents track): grounds risk/approval decisions
 // in the JML policy corpus via Azure AI Foundry knowledge retrieval. Fail-closed
 // when configured-but-unavailable so the control plane never acts on ungrounded
-// policy. Config at approver/foundry-iq.json (gitignored — holds the key).
+// policy. Config at approver/foundry-iq.json (gitignored - holds the key).
 const { FoundryIQ, GroundingUnavailableError } = require('./lib/foundry-iq');
 const FOUNDRY_IQ_CONFIG_FILE = path.join(AGENTS_DIR, 'approver', 'foundry-iq.json');
 let _foundryIq = null;
@@ -193,7 +193,7 @@ function buildPolicyQuery(input = {}) {
     `and offboarding requirements relevant to this operation.`;
 }
 
-// AI observability — append a trace line per model turn (provider, model, latency,
+// AI observability - append a trace line per model turn (provider, model, latency,
 // tokens). Gives Foundry-style run telemetry regardless of which provider is active.
 const AI_TRACES_FILE = path.join(AGENTS_DIR, 'approver', 'ai-traces.jsonl');
 function recordAITrace(agent, trace) {
@@ -246,7 +246,7 @@ You are the Approver Agent for a JML identity lifecycle management system.
 You are the intelligent gatekeeper for identity change requests in Microsoft Entra ID.
 
 Tenant: ${domain}
-Current date: ${currentDateLine()} — treat this as today for freeze-window and relative-date reasoning.
+Current date: ${currentDateLine()} - treat this as today for freeze-window and relative-date reasoning.
 UPN format: firstname.lastname@${domain}
 
 Request types:
@@ -259,19 +259,19 @@ Rules:
 - Never invent or guess values
 - Always confirm full details before calling a tool
 - For leavers, confirm each stage before executing it (no need to explain the
-  two-stage model unless asked — a one-line "Soft stage next: disables sign-in" is enough)
+  two-stage model unless asked - a one-line "Soft stage next: disables sign-in" is enough)
 - Auto-generate UPNs as firstname.lastname@${domain}
 - Use lookup_user to verify a user exists (or disambiguate a partial name) before operating on them
 - Use list_available_licenses / list_groups to confirm exact SKU and group names before assigning them
 
 AI-ASSISTED PROVISIONING:
 
-For JOINER and MOVER requests — only call suggest_provisioning if the operator explicitly
+For JOINER and MOVER requests - only call suggest_provisioning if the operator explicitly
 asks for suggestions (e.g. "what should I assign?", "any recommendations?") or appears
 unsure about which licenses or groups to use. Do not call it automatically. If they
 already know what they want, proceed directly without suggesting.
 
-For ALL operations in LIVE mode — before calling any submit_* tool, call score_risk with
+For ALL operations in LIVE mode - before calling any submit_* tool, call score_risk with
 the full operation details. Then:
 - riskLevel 'low' or 'medium': show the assessment briefly, then proceed.
 - riskLevel 'high': show the risk reasons and ask the operator to explicitly confirm
@@ -279,38 +279,38 @@ the full operation details. Then:
 - riskLevel 'critical' or blocked=true: do NOT proceed. Explain the block clearly.
 - dualApproval=true: inform the operator that a second approval token is required.
 
-In WHATIF mode score_risk is informational — show it but don't gate on it.
+In WHATIF mode score_risk is informational - show it but don't gate on it.
 
 OPERATOR ROLE CONTEXT:
 Current operator role: ${currentRole || 'unknown'}
 
 Role-based action boundaries:
-- admin: full authority — can submit all operation types including Hard leavers and
+- admin: full authority - can submit all operation types including Hard leavers and
   permanent user deletes (submit_leaver_delete) in Live mode.
 - helpdesk: can submit Joiners, Enrollers, Movers, and Soft leavers in Live mode.
   Hard leavers and permanent deletes are always escalated to the admin approval queue —
   inform the operator that after submitting, an admin must approve from the Approvals tab
   before execution. If a Soft leaver is blocked (user holds privileged roles), it is escalated too.
-- viewer: read-only — all submit tools are blocked. Remind the operator to switch to
+- viewer: read-only - all submit tools are blocked. Remind the operator to switch to
   an admin or helpdesk account.
 
 DELETE vs HARD LEAVE: submit_leaver_delete PERMANENTLY removes the user object (recoverable
 from the Entra recycle bin for 30 days) and is separate from a Hard leave (which only strips
 licenses/groups and leaves a disabled account). Only delete when the operator explicitly asks
-to delete/remove the account entirely — never as part of a routine offboarding.
+to delete/remove the account entirely - never as part of a routine offboarding.
 
 When the current operator is helpdesk and they request a Hard leaver:
 1. Acknowledge that it will be submitted for admin approval.
-2. Proceed with submit_leaver_hard — the system will automatically route it.
+2. Proceed with submit_leaver_hard - the system will automatically route it.
 3. Show the approval token and tell them to notify an admin.
 
 READ-ONLY TENANT QUERIES:
 You also have the auditor's query_* tools (user counts, licenses, recent joins,
 soft vs hard leavers, admin roles, groups, JML activity, stale accounts, guests). Use them freely to answer
-questions or verify state — they are read-only and safe in any mode. Use lookup_user
+questions or verify state - they are read-only and safe in any mode. Use lookup_user
 for a single-user deep dive.
 
-SECURITY POSTURE: you can also read the latest security scan — query_risky_users
+SECURITY POSTURE: you can also read the latest security scan - query_risky_users
 (Identity Protection), query_signin_anomalies (UEBA), query_config_drift, and
 query_security_posture (combined). Pass live:true to refresh from Graph. Use these
 to answer security questions, and to sanity-check a target before a sensitive
@@ -324,17 +324,17 @@ rename, retire (remove company data), wipe (factory reset), or delete (remove th
 Entra device object). Always confirm the exact device and action first.
 SEPARATION OF DUTIES: wipe and delete are irreversible and require an ADMIN. If
 the current operator is an admin you may proceed; if they are helpdesk, the
-request is NOT executed — it queues for an admin to approve from the Approvals
+request is NOT executed - it queues for an admin to approve from the Approvals
 tab (tell them so). The same applies to Hard and Delete leavers. When offboarding,
 offer to retire or wipe the user's managed devices as a follow-up.
 
 RESPONSE STYLE (always follow):
 - Be brief. Routine confirmations and acknowledgements: 1-3 short sentences.
 - Lead with the outcome. One line of what happened, then only essential details.
-- Do not restate, paraphrase, or echo the operator's request back — just respond.
+- Do not restate, paraphrase, or echo the operator's request back - just respond.
 - Never explain the JML process, leaver stages, agent roles, or permission scopes
   (User.RW, Group.RW, etc.) unless the operator explicitly asks how something works.
-- Never enumerate your tools or describe what you are about to do — just do it.
+- Never enumerate your tools or describe what you are about to do - just do it.
 - Always write UPNs in full (e.g. sarah.chen@${domain}). Never truncate.
 - No # or ## headings. Use **bold** labels sparingly for key values: names, UPNs,
   risk levels, tokens, outcomes.
@@ -345,7 +345,7 @@ RESPONSE STYLE (always follow):
 function buildAuditorSystem(domain) { return `
 You are the JML Audit Agent -- a read-only intelligence layer over Microsoft Entra ID.
 Tenant: ${domain}
-Current date: ${currentDateLine()} — treat this as today. Every timestamp your tools return is accurate; report dates exactly as given and never assume an earlier year or "correct" them.
+Current date: ${currentDateLine()} - treat this as today. Every timestamp your tools return is accurate; report dates exactly as given and never assume an earlier year or "correct" them.
 
 You NEVER suggest or make changes to the directory. Strictly observational.
 
@@ -354,7 +354,7 @@ You have two roles:
 1. TENANT INTELLIGENCE: Answer questions about the live tenant state using your query tools.
    Available: user counts, license utilization, member/regular user lists, recent joins, soft leavers (accounts disabled) vs hard leavers (license + group removal), admin roles, group summary, JML activity, stale accounts, guest users, single-user deep dive (query_user_detail).
    SECURITY POSTURE: you CAN report on security risk. For Identity Protection risky/compromised users call query_risky_users; for anomalous sign-in or suspicious behavior patterns call query_signin_anomalies (UEBA); for configuration/access drift call query_config_drift; for a broad "any risks/concerns flagged?" question call query_security_posture. These read the latest security scan by default; when the operator asks for current/fresh/live data, pass live:true to query Microsoft Graph Identity Protection directly. Never claim you lack access to risky users or sign-in anomalies. If a tool returns available:false, say a scan needs to run (or offer live:true) rather than that the data doesn't exist.
-   DEVICE INTELLIGENCE: you can report on user devices. For a user's devices and their compliance call list_user_devices; for one device call query_device_detail; for cleanup candidates call query_stale_devices. (You are read-only — to actually act on a device the operator uses the Approver agent.)
+   DEVICE INTELLIGENCE: you can report on user devices. For a user's devices and their compliance call list_user_devices; for one device call query_device_detail; for cleanup candidates call query_stale_devices. (You are read-only - to actually act on a device the operator uses the Approver agent.)
    Present numbers prominently. Offer follow-up queries when results are interesting.
    Never provide tenant counts, UPNs, names, or lists unless they appear in the latest tool result. For standard/regular users, call query_member_users. To answer how many or which users have NO license, call query_unlicensed_users -- it returns the exact count and full UPN list; never estimate the unlicensed total by subtracting license aggregates. Do not combine overlapping categories as if they add up to a total.
 
@@ -388,8 +388,8 @@ You have two roles:
    FREEZE WINDOWS: Identity changes are blocked on weekends (Saturday and Sunday, all day).
 
 RESPONSE STYLE (always follow):
-- Be brief. Lead with the answer — the number or finding first, context after.
-- Do not restate, paraphrase, or echo the operator's question back — answer it directly.
+- Be brief. Lead with the answer - the number or finding first, context after.
+- Do not restate, paraphrase, or echo the operator's question back - answer it directly.
 - Never recite system internals (agent roles, permission scopes, stage definitions)
   unless the operator explicitly asks how something works.
 - Always write UPNs in full (e.g. sarah.chen@${domain}). Never truncate.
@@ -499,7 +499,7 @@ const APPROVER_TOOLS = [
   },
   {
     name: 'submit_leaver_delete',
-    description: 'Permanently DELETE the user object from Entra ID — a separate, irreversible action distinct from a hard leave (which only strips licenses/groups and leaves a disabled account). The deleted user is recoverable from the Entra recycle bin for 30 days. Requires admin approval.',
+    description: 'Permanently DELETE the user object from Entra ID - a separate, irreversible action distinct from a hard leave (which only strips licenses/groups and leaves a disabled account). The deleted user is recoverable from the Entra recycle bin for 30 days. Requires admin approval.',
     input_schema: {
       type: 'object',
       properties: { userPrincipalName: { type: 'string' } },
@@ -537,7 +537,7 @@ const APPROVER_TOOLS = [
       properties: {
         operation:    { type: 'string', enum: ['joiner', 'mover', 'leaver'], description: 'Which JML operation to schedule.' },
         scheduledFor: { type: 'string', description: 'ISO 8601 datetime (with timezone) when the operation should run. Resolve relative phrasing like "next Monday 9am" to an absolute datetime using the current date.' },
-        whatif:       { type: 'boolean', description: 'Safe mode — simulate, no tenant change. Defaults to the current session mode.' },
+        whatif:       { type: 'boolean', description: 'Safe mode - simulate, no tenant change. Defaults to the current session mode.' },
         payload: {
           type: 'object',
           description: 'Operation fields. joiner: givenName, surname, department, jobTitle, usageLocation, manager, licenses[], groups[] (UPN auto-generated). mover: userPrincipalName, department, jobTitle, manager, licensesToAdd[], licensesToRemove[], groupsToAdd[], groupsToRemove[]. leaver: userPrincipalName, stage (Soft|Hard|Delete), ticketRef.'
@@ -548,7 +548,7 @@ const APPROVER_TOOLS = [
   },
   {
     name: 'manage_device',
-    description: "Manage a user's device through its lifecycle. Identify the device by its Entra device id, Azure AD deviceId, or display name (use list_user_devices first to resolve it). Actions: enable / disable (Entra device sign-in), sync (force Intune check-in), restart, lock (remote lock), bitlocker (rotate BitLocker recovery keys), rename, retire (remove company data, leave personal data), wipe (factory reset — irreversible), delete (remove the Entra device object — irreversible). Irreversible actions (wipe, delete) are NOT executed on request — they queue for a second admin's approval. Always confirm the exact device and action with the operator first.",
+    description: "Manage a user's device through its lifecycle. Identify the device by its Entra device id, Azure AD deviceId, or display name (use list_user_devices first to resolve it). Actions: enable / disable (Entra device sign-in), sync (force Intune check-in), restart, lock (remote lock), bitlocker (rotate BitLocker recovery keys), rename, retire (remove company data, leave personal data), wipe (factory reset - irreversible), delete (remove the Entra device object - irreversible). Irreversible actions (wipe, delete) are NOT executed on request - they queue for a second admin's approval. Always confirm the exact device and action with the operator first.",
     input_schema: {
       type: 'object',
       properties: {
@@ -582,7 +582,7 @@ const AUDITOR_TOOLS = [
     input_schema: { type: 'object', properties: { topN: { type: 'integer' } }, required: [] } },
   { name: 'query_member_users',   description: 'Member/regular user accounts, optionally only enabled accounts. Use this to list standard user UPNs.',
     input_schema: { type: 'object', properties: { topN: { type: 'integer' }, enabledOnly: { type: 'boolean' } }, required: [] } },
-  { name: 'query_unlicensed_users', description: 'Definitive per-user list of member users with NO license assigned (assignedLicenses empty). Use this to answer "how many / which users have no license" — returns the exact count and full UPN list, not an aggregate estimate.',
+  { name: 'query_unlicensed_users', description: 'Definitive per-user list of member users with NO license assigned (assignedLicenses empty). Use this to answer "how many / which users have no license" - returns the exact count and full UPN list, not an aggregate estimate.',
     input_schema: { type: 'object', properties: { enabledOnly: { type: 'boolean' } }, required: [] } },
   { name: 'query_risky_users',    description: 'Identity Protection risky users: flagged accounts with risk level (high/medium/low). Reads the latest security scan by default; set live:true to pull current data straight from Microsoft Graph Identity Protection.',
     input_schema: { type: 'object', properties: { live: { type: 'boolean', description: 'Query Graph live instead of the cached scan.' } }, required: [] } },
@@ -596,14 +596,14 @@ const AUDITOR_TOOLS = [
     input_schema: { type: 'object', properties: { upnOrName: { type: 'string', description: 'Full UPN or display-name prefix.' } }, required: ['upnOrName'] } },
   { name: 'query_device_detail', description: 'Deep-dive a single device by Entra device id, Azure AD deviceId, or display name: OS, trust type, compliance, encryption, enrollment, last sync.',
     input_schema: { type: 'object', properties: { deviceId: { type: 'string' }, deviceName: { type: 'string' } }, required: [] } },
-  { name: 'query_stale_devices',  description: 'Devices with no sign-in in the last N days (default 90) — stale/abandoned device cleanup candidates.',
+  { name: 'query_stale_devices',  description: 'Devices with no sign-in in the last N days (default 90) - stale/abandoned device cleanup candidates.',
     input_schema: { type: 'object', properties: { days: { type: 'integer' }, topN: { type: 'integer' } }, required: [] } },
   { name: 'query_user_detail',    description: 'Deep-dive a single user by UPN or display name: profile, status, manager, licenses, groups, last sign-in.',
     input_schema: { type: 'object', properties: { upnOrName: { type: 'string' } }, required: ['upnOrName'] } }
 ];
 
 // The Approver also gets every read-only tenant query (RBAC-safe for all roles:
-// reads never mutate state). query_user_detail is excluded — the Approver's
+// reads never mutate state). query_user_detail is excluded - the Approver's
 // lookup_user covers the same need.
 APPROVER_TOOLS.push(...AUDITOR_TOOLS.filter(t => t.name !== 'query_user_detail'));
 
@@ -615,7 +615,7 @@ function writePayloadFile(payload) {
   return p;
 }
 
-// NOTE: there is intentionally no synchronous runPs — execFileSync in the
+// NOTE: there is intentionally no synchronous runPs - execFileSync in the
 // main process blocks the event loop and freezes every window. Use
 // runPsAsync (script files) or runPsCommand (inline commands).
 function runPsAsync(scriptPath, params = {}) {
@@ -632,7 +632,7 @@ function runPsAsync(scriptPath, params = {}) {
     execFile('powershell', args, { encoding: 'utf8', timeout: 120000 }, (err, stdout, stderr) => {
       if (err) {
         // Exit code 2 is the agent scripts' "completed with non-fatal errors"
-        // (partial) convention — they print the full results JSON before exiting
+        // (partial) convention - they print the full results JSON before exiting
         // 2. Resolve it so the caller classifies it as partial, not a hard
         // failure. Genuine failures exit 1 (or are killed/spawn errors).
         if (err.code === 2 && !err.killed) { resolve(stdout); return; }
@@ -666,7 +666,7 @@ function extractPsError(stdout, stderr) {
     const m = out[i].match(/\[ERROR\]\s*(.+)$/i);
     if (m) return m[1].trim().slice(0, 240);
   }
-  // PowerShell exceptions / native errors land on stderr — surface the first
+  // PowerShell exceptions / native errors land on stderr - surface the first
   // substantive line, dropping positional noise and the "Cmdlet : " prefix.
   const errLines = clean(stderr).filter(l =>
     !/^At line:|^\+|^\s*~+\s*$|CategoryInfo|FullyQualifiedErrorId/i.test(l));
@@ -677,7 +677,7 @@ function extractPsError(stdout, stderr) {
 }
 
 // Async inline-PowerShell runner. Query/search IPC handlers must use this
-// instead of execFileSync — a sync child process blocks the entire main
+// instead of execFileSync - a sync child process blocks the entire main
 // process event loop, freezing every window until Graph responds.
 function runPsCommand(ps, { timeout = 60000 } = {}) {
   assertExternalExecutionAllowed(PRESENTATION_MODE, 'PowerShell command execution');
@@ -727,7 +727,7 @@ async function runAuditorGraph(body, { timeout = 60000 } = {}) {
   try {
     return await getGraphSession().run(body, { timeout });
   } catch (e) {
-    if (!e.sessionError) throw e; // real query error — do not retry cold
+    if (!e.sessionError) throw e; // real query error - do not retry cold
     return runPsCommand(auditorGraphPreamble() + body, { timeout });
   }
 }
@@ -805,7 +805,7 @@ function pollCertExpiry() {
       if (c.daysLeft != null && c.daysLeft <= 30 && !_certAlerted.has(c.agent)) {
         _certAlerted.add(c.agent);
         sendToast(
-          'Cert Expiring — ' + c.agent,
+          'Cert Expiring - ' + c.agent,
           `The ${c.agent} agent certificate expires in ${c.daysLeft} day${c.daysLeft !== 1 ? 's' : ''}. Renew via Agent Certs.`
         );
       }
@@ -860,7 +860,7 @@ async function pollHrQueue() {
       } catch {}
     }
     pushPanelUpdate({ hrQueue: { count, oldestMin } });
-  } catch { /* Azurite not running — leave last known panel state intact */ }
+  } catch { /* Azurite not running - leave last known panel state intact */ }
 }
 
 function showMainWindow() {
@@ -872,7 +872,7 @@ function buildTrayMenu() {
     ? fs.readdirSync(PENDING_DIR).filter(f => f.endsWith('.json')).length : 0;
   return Menu.buildFromTemplate([
     { label: 'Show Console',  click: showMainWindow },
-    { label: pendingCount > 0 ? `Approvals — ${pendingCount} pending` : 'Approvals', click: () => { showMainWindow(); } },
+    { label: pendingCount > 0 ? `Approvals - ${pendingCount} pending` : 'Approvals', click: () => { showMainWindow(); } },
     { type: 'separator' },
     { label: dockedWin && !dockedWin.isDestroyed() ? 'Hide Docked Panel' : 'Show Docked Panel',
       click: () => {
@@ -1022,7 +1022,7 @@ function createDockedPanel() {
   });
   dockedWin.webContents.once('did-finish-load', () => {
     pushFreshPanelData();
-    // Sample-data overlay is capture/QC only — production panels must show
+    // Sample-data overlay is capture/QC only - production panels must show
     // real (possibly empty) state, never fake approvals or events.
     if (CAPTURE_MODE) setTimeout(() => pushPanelUpdate(buildMockPanelData()), 300);
   });
@@ -1204,12 +1204,12 @@ function routeBlockedLeaverToApproval(input, stage, reason, requiredApproverRole
     requestedByRole: reqRole2,
     requiredApproverRole: reqRole,
     requestedAt: new Date().toISOString(),
-    // No expiry yet — the TTL clock only starts once an admin operator is logged
+    // No expiry yet - the TTL clock only starts once an admin operator is logged
     // in to act on it (set by maybeStartApprovalTimers), so a request submitted
     // overnight can't lapse before any admin has a chance to see it.
     expiresAt: null,
     input: { userPrincipalName: input.userPrincipalName, stage, ticketRef: input.ticketRef || '' },
-    note: reason || 'Hard-stage leaver submitted by helpdesk — admin approval required to execute.',
+    note: reason || 'Hard-stage leaver submitted by helpdesk - admin approval required to execute.',
     status: 'pending'
   };
   fs.writeFileSync(path.join(PENDING_DIR, token + '.json'), JSON.stringify(record, null, 2), 'utf8');
@@ -1236,7 +1236,7 @@ function routeDeviceActionToApproval(input, reason, requestedBy, requestedByRole
   const reqRole2 = requestedByRole || currentRole;
   const action   = String(input.action || '').toLowerCase();
   const subject  = input.deviceName || input.deviceId || 'device';
-  const note     = reason || `Device ${action} requested by a non-admin — an admin must approve before execution.`;
+  const note     = reason || `Device ${action} requested by a non-admin - an admin must approve before execution.`;
   if (PRESENTATION_MODE) {
     const token = `demo-${Date.now().toString(36)}`;
     MOCK_APPROVALS.unshift({
@@ -1313,10 +1313,10 @@ function approvalGate(op) {
   const reqRole   = String(op.requiredApproverRole || 'admin').toLowerCase();
   const actorRole = (currentRole || 'viewer').toLowerCase();
   if (reqRole === 'admin' && actorRole !== 'admin') {
-    return { ok: false, error: 'Admin approval required — a helpdesk operator cannot give final sign-off on this offboarding.' };
+    return { ok: false, error: 'Admin approval required - a helpdesk operator cannot give final sign-off on this offboarding.' };
   }
   if (op.requestedBy && currentOperator && String(op.requestedBy) === String(currentOperator)) {
-    return { ok: false, error: 'Separation of duties — you submitted this request, so a different admin must approve it.' };
+    return { ok: false, error: 'Separation of duties - you submitted this request, so a different admin must approve it.' };
   }
   return { ok: true };
 }
@@ -1435,7 +1435,7 @@ function latestSecurityReport(prefix) {
 // ── Live Identity Protection (Microsoft Graph) ──────────────────────────────
 // Pull current risky users / risk detections straight from Graph via the warm
 // auditor session, instead of the cached scan report. Requires the auditor app
-// to hold IdentityRiskyUser.Read.All / IdentityRiskEvent.Read.All — a missing
+// to hold IdentityRiskyUser.Read.All / IdentityRiskEvent.Read.All - a missing
 // scope surfaces as { available:false, note } the agent can relay.
 async function liveRiskyUsersGraph() {
   const ps = `
@@ -1473,7 +1473,7 @@ async function securityPostureQuery(toolName, input = {}) {
   const live = !!input.live;
   const noScan = 'No security-scan report found yet. Run a scan from the Security tab (or the scheduled Auditor scan), or call again with live:true to query Microsoft Graph directly.';
   const liveErr = (e) => ({ available: false, live: true, error: (e && e.message) || String(e),
-    note: 'Live Identity Protection query failed — the auditor app may lack IdentityRiskyUser.Read.All / IdentityRiskEvent.Read.All consent, or no tenant is connected. The latest cached scan is still available without live:true.' });
+    note: 'Live Identity Protection query failed - the auditor app may lack IdentityRiskyUser.Read.All / IdentityRiskEvent.Read.All consent, or no tenant is connected. The latest cached scan is still available without live:true.' });
 
   if (toolName === 'query_risky_users') {
     if (live) { try { return await liveRiskyUsersGraph(); } catch (e) { return liveErr(e); } }
@@ -1492,7 +1492,7 @@ async function securityPostureQuery(toolName, input = {}) {
     if (!r) return { available: false, note: noScan };
     return { source: 'Config/access drift (latest scan)', summary: r.summary || null, count: (r.findings || []).length, findings: r.findings || [] };
   }
-  // query_security_posture — combined summary
+  // query_security_posture - combined summary
   if (live) {
     const out = { source: 'Live security posture (Graph)' };
     try { const ru = await liveRiskyUsersGraph(); out.riskyUsers = { count: ru.count, top: (ru.users || []).slice(0, 5) }; } catch (e) { out.riskyUsers = liveErr(e); }
@@ -1535,11 +1535,11 @@ async function executeTool(agent, toolName, input, whatif) {
     return executeDemoTool(agent, toolName, input || {}, !!whatif);
   }
 
-  // Security posture reads — available to both auditor and approver (pure reads).
+  // Security posture reads - available to both auditor and approver (pure reads).
   if (SECURITY_POSTURE_TOOLS.has(toolName)) {
     return await securityPostureQuery(toolName, input || {});
   }
-  // Device reads (Entra + Intune) — available to both agents (pure reads).
+  // Device reads (Entra + Intune) - available to both agents (pure reads).
   if (DEVICE_READ_TOOLS[toolName]) {
     return await deviceReadQuery(toolName, input || {});
   }
@@ -1561,7 +1561,7 @@ async function executeTool(agent, toolName, input, whatif) {
     return _parseMultilineJson(raw, 'No output from auditor query script');
   }
 
-  // Approver read-only tenant queries — same dispatch as the auditor branch.
+  // Approver read-only tenant queries - same dispatch as the auditor branch.
   if (AUDITOR_QUERY_MAP[toolName]) {
     const unavailable = auditorQueryUnavailable();
     if (unavailable) return unavailable;
@@ -1642,7 +1642,7 @@ async function executeTool(agent, toolName, input, whatif) {
       operation: op,
       scheduledFor: scheduled.scheduledFor,
       mode: scheduled.whatif ? 'Safe' : 'Live',
-      message: `Scheduled ${op} for ${new Date(when).toLocaleString()} (${scheduled.whatif ? 'Safe' : 'Live'} mode). It will run automatically — view or cancel it under Operations → Scheduled.`,
+      message: `Scheduled ${op} for ${new Date(when).toLocaleString()} (${scheduled.whatif ? 'Safe' : 'Live'} mode). It will run automatically - view or cancel it under Operations → Scheduled.`,
     };
   }
 
@@ -1659,16 +1659,16 @@ async function executeTool(agent, toolName, input, whatif) {
     if (!valid.includes(action)) return { error: `manage_device: action must be one of ${valid.join(', ')}.` };
     if (action === 'rename' && !input.newName) return { error: 'manage_device: rename requires newName.' };
     if (!input.deviceId && !input.deviceName) {
-      return { error: 'manage_device: provide deviceId or deviceName — call list_user_devices first to resolve it.' };
+      return { error: 'manage_device: provide deviceId or deviceName - call list_user_devices first to resolve it.' };
     }
     // Irreversible actions (wipe/delete) require an admin. A non-admin's request
     // is queued for an admin to approve; an admin operator runs it directly.
     if (!w && IRREVERSIBLE_DEVICE_ACTIONS.has(action) && role !== 'admin') {
       const tok = routeDeviceActionToApproval(
         { action, deviceId: input.deviceId, deviceName: input.deviceName, newName: input.newName, ticketRef: input.ticketRef },
-        `Device ${action} requested by ${role} via the Approver agent — an admin must approve before execution.`);
+        `Device ${action} requested by ${role} via the Approver agent - an admin must approve before execution.`);
       return { approvalQueued: true, token: tok,
-        message: `Device ${action} queued — an admin must approve before it runs.` };
+        message: `Device ${action} queued - an admin must approve before it runs.` };
     }
     const _pf = writePayloadFile({
       action,
@@ -1682,7 +1682,7 @@ async function executeTool(agent, toolName, input, whatif) {
   }
 
   // LIVE-mode risk gate: every submit_* in Live mode requires a fresh score_risk
-  // result. The gate is enforced here — not just in the system prompt — so a
+  // result. The gate is enforced here - not just in the system prompt - so a
   // prompt-injected or confused model cannot skip the risk assessment.
   if (toolName.startsWith('submit_') && !w) {
     const risk = state.approver.lastRisk;
@@ -1693,9 +1693,9 @@ async function executeTool(agent, toolName, input, whatif) {
       return { error: 'RISK_GATE: Operation is blocked. Reasons: ' + (risk.reasons || []).join('; ') };
     }
     if (risk.riskLevel === 'critical') {
-      return { error: 'RISK_GATE: Risk level is critical — operation refused. Reasons: ' + (risk.reasons || []).join('; ') };
+      return { error: 'RISK_GATE: Risk level is critical - operation refused. Reasons: ' + (risk.reasons || []).join('; ') };
     }
-    state.approver.lastRisk = null; // consumed — next submit needs a fresh score
+    state.approver.lastRisk = null; // consumed - next submit needs a fresh score
   }
 
   // Irreversible offboarding (Hard / Delete leaver) requires an admin. A
@@ -1705,9 +1705,9 @@ async function executeTool(agent, toolName, input, whatif) {
       && (currentRole || 'viewer').toLowerCase() !== 'admin') {
     const stage = toolName.endsWith('delete') ? 'Delete' : 'Hard';
     const tok = routeBlockedLeaverToApproval(input, stage,
-      `${stage} leaver requested by ${currentRole || 'operator'} via the Approver agent — an admin must approve before execution.`, 'admin');
+      `${stage} leaver requested by ${currentRole || 'operator'} via the Approver agent - an admin must approve before execution.`, 'admin');
     return { approvalQueued: true, token: tok,
-      message: `${stage} offboard queued — an admin must approve before it runs.` };
+      message: `${stage} offboard queued - an admin must approve before it runs.` };
   }
 
   switch (toolName) {
@@ -1742,7 +1742,7 @@ async function executeTool(agent, toolName, input, whatif) {
       if (res && res.error) return res;
 
       // Foundry IQ grounding: cite the org's own policy corpus for this decision.
-      // Fail-closed — if grounding is configured but unavailable, the risk result
+      // Fail-closed - if grounding is configured but unavailable, the risk result
       // is marked blocked so the Live gate refuses to proceed on ungrounded policy.
       const iq = getFoundryIQ();
       if (iq.isConfigured()) {
@@ -1762,7 +1762,7 @@ async function executeTool(agent, toolName, input, whatif) {
           if (e instanceof GroundingUnavailableError) {
             res.blocked = true;
             res.grounding = { source: 'Foundry IQ', unavailable: true, error: e.message, citations: [] };
-            res.reasons = [...(res.reasons || []), 'Policy grounding unavailable — failing closed (no decision without cited policy).'];
+            res.reasons = [...(res.reasons || []), 'Policy grounding unavailable - failing closed (no decision without cited policy).'];
           } else { throw e; }
         }
       }
@@ -1815,15 +1815,15 @@ async function executeTool(agent, toolName, input, whatif) {
       const _stage = toolName === 'submit_leaver_hard' ? 'Hard'
         : toolName === 'submit_leaver_delete' ? 'Delete' : 'Soft';
       // Destructive offboards (Hard removal, permanent Delete) need an admin's
-      // final say — a non-admin operator queues them for approval. Soft leavers
+      // final say - a non-admin operator queues them for approval. Soft leavers
       // pass through (the PS1 still blocks privileged-role holders).
       const _destructive = _stage === 'Hard' || _stage === 'Delete';
       const _isAdmin = (currentRole || 'viewer').toLowerCase() === 'admin';
       if (!_isAdmin && _destructive && !w) {
         const _tok = routeBlockedLeaverToApproval(input, _stage,
-          `${_stage}-stage leaver submitted by ${currentRole || 'operator'} — admin sign-off required before execution.`,
+          `${_stage}-stage leaver submitted by ${currentRole || 'operator'} - admin sign-off required before execution.`,
           'admin');
-        return { approvalQueued: true, token: _tok, message: `${_stage} leavers require admin approval. Request queued — an admin operator must approve from the Approvals tab.` };
+        return { approvalQueued: true, token: _tok, message: `${_stage} leavers require admin approval. Request queued - an admin operator must approve from the Approvals tab.` };
       }
       if (!_isAdmin && _destructive && w) {
         return { approvalRequired: true, message: `${_stage}-stage leavers require admin approval in Live mode. This request would be queued for admin sign-off.` };
@@ -1837,9 +1837,9 @@ async function executeTool(agent, toolName, input, whatif) {
         // Soft leaver blocked by PS1 because user holds privileged roles → escalate
         if (currentRole === 'helpdesk' && !w && _stdout.includes('BLOCKED: Operator role')) {
           const _tok = routeBlockedLeaverToApproval(input, _stage,
-            'User holds privileged Entra directory roles — admin approval required to proceed.',
+            'User holds privileged Entra directory roles - admin approval required to proceed.',
             'admin');
-          return { approvalQueued: true, token: _tok, message: 'User holds privileged roles. Approval request submitted — an admin operator must approve from the Approvals tab.' };
+          return { approvalQueued: true, token: _tok, message: 'User holds privileged roles. Approval request submitted - an admin operator must approve from the Approvals tab.' };
         }
         if (currentRole === 'helpdesk' && w && _stdout.includes('BLOCKED: Operator role')) {
           return { approvalRequired: true, message: 'This user holds privileged roles. In Live mode, this leaver would be routed to the Approvals tab for admin sign-off.' };
@@ -1887,7 +1887,7 @@ async function runAgentLoop(sender, agent, userText) {
           onToolStart: (toolName) => { sender.send('msg-chunk', { agent, type: 'tool_start', toolName }); }
         });
       } catch (err) {
-        if (ac.signal.aborted) break; // operator pressed Stop — end the turn quietly
+        if (ac.signal.aborted) break; // operator pressed Stop - end the turn quietly
         throw err;
       }
 
@@ -2004,11 +2004,11 @@ async function runAgentLoop(sender, agent, userText) {
 function _isTrustedSender(event) {
   try {
     const u = (event && event.senderFrame && event.senderFrame.url) || '';
-    if (!u) return true; // internal / pre-navigation frame — other gates apply
+    if (!u) return true; // internal / pre-navigation frame - other gates apply
     return new URL(u).protocol === 'file:'; // only our packaged renderer pages
   } catch { return false; }
 }
-// Field validators (type/shape only — format/RBAC stay in the handlers).
+// Field validators (type/shape only - format/RBAC stay in the handlers).
 const _isStr = (v) => typeof v === 'string';
 const _optStr = (v) => v === undefined || typeof v === 'string';
 const _optBool = (v) => v === undefined || typeof v === 'boolean';
@@ -2168,7 +2168,7 @@ function auditChainStatus(rawLines, entries) {
   };
 }
 
-// Demo/capture audit is trusted, pre-sealed sample data — report it verified.
+// Demo/capture audit is trusted, pre-sealed sample data - report it verified.
 function demoChainStatus() {
   const head = (typeof MOCK_AUDIT !== 'undefined' && MOCK_AUDIT[0]) || null;
   return { configured: true, total: (typeof MOCK_AUDIT !== 'undefined' ? MOCK_AUDIT.length : 0),
@@ -2237,7 +2237,7 @@ ipcMain.handle('export-evidence-packet', async (event, payload) => {
     }
 
     const packet = {
-      packetType: 'JML Agent Fleet — Compliance Evidence Packet',
+      packetType: 'JML Agent Fleet - Compliance Evidence Packet',
       generatedAt: new Date().toISOString(),
       generatedBy: process.env.JML_CONSOLE_OPERATOR || 'unknown',
       tenantDomain: getActiveTenantDomain(),
@@ -2314,7 +2314,7 @@ ipcMain.on('get-security-reports', (event) => {
 // Direct IPC surface for the Devices UI, reusing the same scripts the chat
 // agents call. Reads are open to any role; writes mirror the manage_device RBAC
 // (read-only blocked, destructive wipe/delete admin-only) and require a fresh
-// PIN write token in Live mode — the same gate as the quick lifecycle ops.
+// PIN write token in Live mode - the same gate as the quick lifecycle ops.
 ipcMain.handle('get-user-devices', async (_e, { upnOrName } = {}) => {
   if (PRESENTATION_MODE) return executeDemoTool('approver', 'list_user_devices', { upnOrName });
   if (!upnOrName) return { error: 'upnOrName required' };
@@ -2343,7 +2343,7 @@ ipcMain.handle('device-action', async (_e, payload = {}) => {
   if (role === 'viewer' || role === 'guest') return { ok: false, error: 'Device management requires a helpdesk or admin account.' };
   if (act === 'rename' && !newName) return { ok: false, error: 'rename requires a new name.' };
   if (!deviceId && !deviceName) return { ok: false, error: 'deviceId or deviceName required.' };
-  // Live writes require a fresh PIN write token — same gate as quick lifecycle ops.
+  // Live writes require a fresh PIN write token - same gate as quick lifecycle ops.
   if (!whatif) {
     if (!writeToken) return { ok: false, error: 'PIN verification required for Live device actions.' };
     const check = consumeWriteToken(writeToken, currentOperator);
@@ -2353,9 +2353,9 @@ ipcMain.handle('device-action', async (_e, payload = {}) => {
   // directly; a non-admin's request is queued for an admin to approve.
   if (!whatif && IRREVERSIBLE_DEVICE_ACTIONS.has(act) && role !== 'admin') {
     const tok = routeDeviceActionToApproval({ action: act, deviceId, deviceName, newName, ticketRef },
-      `Device ${act} requested by ${currentOperator || role} — an admin must approve before execution.`);
+      `Device ${act} requested by ${currentOperator || role} - an admin must approve before execution.`);
     return { ok: true, approvalQueued: true, token: tok,
-      message: `Device ${act} queued — an admin must approve before it runs.` };
+      message: `Device ${act} queued - an admin must approve before it runs.` };
   }
   const _pf = writePayloadFile({ action: act, deviceId, deviceName, newName, ticketRef });
   try {
@@ -2400,7 +2400,7 @@ async function _runExport(event, type, scriptName) {
     const cfgName = type === 'sentinel' ? 'sentinel.config.json' : 'blob-export.config.json';
     if (!fs.existsSync(path.join(AGENTS_DIR, 'auditor', cfgName))) {
       event.sender.send('export-run-result', { ok: false, type, configured: false,
-        error: `Not configured — create auditor/${cfgName} (copy the .example) with your ${type === 'sentinel' ? 'Log Analytics workspace' : 'storage account'} details, then run again.` });
+        error: `Not configured - create auditor/${cfgName} (copy the .example) with your ${type === 'sentinel' ? 'Log Analytics workspace' : 'storage account'} details, then run again.` });
       return;
     }
     const raw = await runPsAsync(script, {});
@@ -2574,7 +2574,7 @@ ipcMain.handle('panel-approve-pending', async (event, { id, writeToken }) => {
     });
   }
   const role = (currentRole || 'viewer').toLowerCase();
-  if (role === 'viewer' || role === 'guest') return { ok: false, error: 'Read-only role — blocked' };
+  if (role === 'viewer' || role === 'guest') return { ok: false, error: 'Read-only role - blocked' };
   if (!writeToken) return { ok: false, error: 'PIN verification required' };
   const check = consumeWriteToken(writeToken, currentOperator);
   if (!check.ok) return { ok: false, error: 'Invalid write token: ' + check.reason };
@@ -2624,7 +2624,7 @@ ipcMain.handle('panel-reject-pending', (_, { id }) => {
     let upn = '';
     try { upn = readJson(file).input?.userPrincipalName || ''; } catch {}
     if (fs.existsSync(file)) fs.unlinkSync(file);
-    resolveApprovalOperation(id, 'failed', 'Rejected by ' + (currentOperator || 'an admin') + ' — no tenant change.');
+    resolveApprovalOperation(id, 'failed', 'Rejected by ' + (currentOperator || 'an admin') + ' - no tenant change.');
     sendToast('Approval Rejected', (upn || id) + ' rejected and removed from the queue.');
     setTimeout(pollTrayApprovals, 400);
     return { ok: true, upn };
@@ -2633,7 +2633,7 @@ ipcMain.handle('panel-reject-pending', (_, { id }) => {
   }
 });
 
-// Shared user cache — populated by Graph searches from main window, queried by panel/overlay
+// Shared user cache - populated by Graph searches from main window, queried by panel/overlay
 let _sharedUserCache = [];
 
 ipcMain.handle('search-users', async (event, query) => {
@@ -2695,10 +2695,10 @@ ipcMain.on('get-pending-approvals', (event) => {
 function requireWriteToken(event, payload, eventName) {
   const role = (currentRole || 'viewer').toLowerCase();
   if (role === 'viewer' || role === 'guest') {
-    event.sender.send(eventName, { ok: false, error: 'Read-only role — write operations blocked' });
+    event.sender.send(eventName, { ok: false, error: 'Read-only role - write operations blocked' });
     return false;
   }
-  // WhatIf flows are non-destructive — skip the token requirement
+  // WhatIf flows are non-destructive - skip the token requirement
   if (payload && (payload.whatif === true || payload.preview === true)) return true;
   const token = payload && payload.writeToken;
   if (!token) {
@@ -2781,7 +2781,7 @@ ipcMain.on('reject-pending', (event, { id }) => {
     let upn = '';
     try { upn = readJson(file).input?.userPrincipalName || ''; } catch {}
     if (fs.existsSync(file)) fs.unlinkSync(file);
-    resolveApprovalOperation(id, 'failed', 'Rejected by ' + (currentOperator || 'an admin') + ' — no tenant change.');
+    resolveApprovalOperation(id, 'failed', 'Rejected by ' + (currentOperator || 'an admin') + ' - no tenant change.');
     sendToast('Approval Rejected', (upn || 'Request') + ' was rejected and removed from the queue.');
     event.sender.send('reject-result', { ok: true });
   } catch (err) {
@@ -3051,7 +3051,7 @@ ipcMain.handle('get-ai-provider-config', () => {
     };
   }
   _ensureProviderConfig();
-  // Mask stored API keys — return length > 0 indicator instead of value
+  // Mask stored API keys - return length > 0 indicator instead of value
   const safe = JSON.parse(JSON.stringify(_aiProviderConfig));
   for (const key of ['claude', 'openai', 'azure-openai', 'azure-foundry']) {
     const node = safe[key];
@@ -3215,7 +3215,7 @@ ipcMain.handle('quarantine-agent', async (event, payload) => {
       mode: whatif ? 'safe' : 'live',
     });
   }
-  // Real (non-WhatIf) quarantine is a privileged mutation — require a write token
+  // Real (non-WhatIf) quarantine is a privileged mutation - require a write token
   // and admin role, same gate as other destructive operations.
   if (!whatif) {
     if ((currentRole || 'viewer').toLowerCase() !== 'admin') {
@@ -3343,7 +3343,7 @@ ipcMain.on('window-close', () => {
   else if (!dockedWin.isVisible()) { dockedWin.show(); }
 });
 // Wipe the previous operator's chat transcript from memory and every chat
-// surface when the operator changes — no session should inherit another
+// surface when the operator changes - no session should inherit another
 // operator's conversation. Clears both the agent message state and the
 // overlay/docked display history, then tells each window to reset its UI.
 function resetConversationsForOperatorChange() {
@@ -3459,7 +3459,7 @@ function createMainWindow() {
     icon: APP_ICON,
     // Crisp transparent floating shell (user decision 2026-06-11): the desktop
     // shows through the island gutters unblurred. Deliberately NO
-    // backgroundMaterial — acrylic/mica blur was tried and rejected, and it
+    // backgroundMaterial - acrylic/mica blur was tried and rejected, and it
     // also goes solid gray whenever the window loses focus.
     transparent: true,
     backgroundColor: '#00000000',
@@ -3541,7 +3541,7 @@ ipcMain.on('resolve-current-user', (event) => {
   }
 });
 
-// Decode a JWT payload (no signature check — used only to read non-sensitive
+// Decode a JWT payload (no signature check - used only to read non-sensitive
 // claims like `tid` from a token we just received over TLS for our own use).
 function decodeJwtClaims(jwt) {
   try {
@@ -3554,7 +3554,7 @@ function decodeJwtClaims(jwt) {
 
 // Entra directory roles → app role. A user who already holds an admin-tier
 // directory role in the tenant should not need a hand-maintained operators.json
-// entry to operate the console — their tenant privilege is the source of truth.
+// entry to operate the console - their tenant privilege is the source of truth.
 // Keyed by the role *template* GUID (stable across tenants); see
 // https://learn.microsoft.com/entra/identity/role-based-access-control/permissions-reference
 const ENTRA_ROLE_TEMPLATE_TO_APP_ROLE = {
@@ -3569,7 +3569,7 @@ const APP_ROLE_RANK = { viewer: 0, helpdesk: 1, admin: 2 };
 // Resolve the strongest app role granted by the signed-in user's *active*
 // Entra directory roles. Uses transitiveMemberOf so roles assigned via a
 // role-assignable group are caught too (not just directly assigned ones).
-// Least-privileged scope is User.Read — already granted — so no extra consent.
+// Least-privileged scope is User.Read - already granted - so no extra consent.
 // Returns null when the user holds no mapped *active* directory role, or on any
 // error; callers fall back to the local operators.json mapping. Note: a role
 // that is PIM-eligible but not currently activated is NOT a membership and will
@@ -3614,7 +3614,7 @@ ipcMain.on('entra-signin-start', async (event) => {
   try {
     // Resolve the tenant from the durable tenant.json first; fall back to an
     // agent config if one exists. When NOTHING is configured yet (fresh install)
-    // we don't block — we sign in against the `organizations` authority (any
+    // we don't block - we sign in against the `organizations` authority (any
     // work/school account) and discover + persist the tenant from the resulting
     // token. This breaks the chicken-and-egg: sign-in no longer requires a
     // pre-connected tenant, and setup no longer requires a prior sign-in.
@@ -3635,7 +3635,7 @@ ipcMain.on('entra-signin-start', async (event) => {
 
     // In-app sign-in popup: loads the real Microsoft device-auth page with the
     // code pre-filled (otc param), so the operator only confirms and signs in.
-    // Sandboxed, no preload — it is a plain Microsoft login page.
+    // Sandboxed, no preload - it is a plain Microsoft login page.
     let authWin = new BrowserWindow({
       width: 480, height: 680,
       // Parent to whichever shell launched sign-in: operator-select normally, or
@@ -3666,7 +3666,7 @@ ipcMain.on('entra-signin-start', async (event) => {
       throw new Error(tok.error_description || tok.error || 'Sign-in failed');
     }
     closeAuthWin();
-    if (!token) throw new Error('Sign-in timed out — try again');
+    if (!token) throw new Error('Sign-in timed out - try again');
 
     const me = await (await fetch('https://graph.microsoft.com/v1.0/me?$select=displayName,userPrincipalName',
       { headers: { Authorization: `Bearer ${token}` } })).json();
@@ -3731,7 +3731,7 @@ ipcMain.on('switch-operator', (event, { name }) => {
   if (win && !win.isDestroyed()) win.webContents.send('operator-switched', { name, role: currentRole });
 });
 
-// ── Operator authentication (PIN / Windows) — gates write-mode operations ────
+// ── Operator authentication (PIN / Windows) - gates write-mode operations ────
 function readOperatorAuth() {
   try { return readJson(OPERATOR_AUTH_FILE) || {}; } catch { return {}; }
 }
@@ -3822,7 +3822,7 @@ ipcMain.handle('preview-tenant-config', (event, { tenantId, primaryDomain, regio
   const changes = [];
   // The durable tenant.json is always part of the diff so the save flow has
   // something to apply even on a fresh install where no agent config.json
-  // files exist yet — otherwise the renderer reports "no changes" and the
+  // files exist yet - otherwise the renderer reports "no changes" and the
   // tenant is never written.
   const cur = readTenantConfig();
   const tdiff = {};
@@ -3862,7 +3862,7 @@ ipcMain.handle('save-tenant-config', (event, { tenantId, primaryDomain, region, 
   if (!tenantId || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(tenantId)) {
     return { ok: false, error: 'Tenant ID must be a GUID' };
   }
-  // Persist to the durable source of truth first — this is what makes the save
+  // Persist to the durable source of truth first - this is what makes the save
   // succeed on a fresh install where no agent config.json files exist yet.
   let tenantConfigError = null;
   try {
@@ -3881,7 +3881,7 @@ ipcMain.handle('save-tenant-config', (event, { tenantId, primaryDomain, region, 
       if (primaryDomain) cfg.PrimaryDomain = primaryDomain;
       if (region) cfg.Region = region;
       if (clientIds && clientIds[agent]) cfg.ClientId = clientIds[agent];
-      // Strip BOM-safe write with UTF-8 (no BOM) — match what readJson handles
+      // Strip BOM-safe write with UTF-8 (no BOM) - match what readJson handles
       fs.writeFileSync(cfgPath, JSON.stringify(cfg, null, 2) + '\n', 'utf8');
       updated.push(agent);
     } catch (e) {
@@ -3992,7 +3992,7 @@ ipcMain.handle('get-operator-activity', (event, { limit }) => {
 // Track an in-flight Connect-MgGraph process. Sign-in is long-running so it
 // runs in the background and the renderer polls for status.
 // Tenant onboarding signs into the TARGET tenant via the OAuth device-code flow
-// over direct HTTPS — the same proven path as operator sign-in. The earlier
+// over direct HTTPS - the same proven path as operator sign-in. The earlier
 // approach spawned Connect-MgGraph and screen-scraped its console output, which
 // silently hangs on Windows PowerShell 5.1: the device-code line is block-
 // buffered in the redirected stdout pipe while Connect-MgGraph blocks on auth,
@@ -4052,7 +4052,7 @@ async function startWizardDeviceCode() {
       if (tok.error === 'slow_down') { interval += 5000; continue; }
       throw new Error(tok.error_description || tok.error || 'Sign-in failed');
     }
-    throw new Error('Sign-in timed out — try again');
+    throw new Error('Sign-in timed out - try again');
   } catch (e) {
     if (aborted()) return;
     _signinState.status = 'error';
@@ -4065,7 +4065,7 @@ async function startWizardDeviceCode() {
 // Token guard for the Step-2/Step-3 PowerShell steps that need a Graph session.
 function wizardGraphTokenOrThrow() {
   if (!_wizardToken || Date.now() > _wizardTokenExp) {
-    throw new Error('Tenant sign-in expired — run Step 1 (sign in) again');
+    throw new Error('Tenant sign-in expired - run Step 1 (sign in) again');
   }
   return _wizardToken;
 }
@@ -4179,12 +4179,12 @@ ipcMain.handle('deploy-agent-certificates', async (event, { agents }) => {
       || (fs.existsSync(configPath) ? (readJson(configPath) || {}).ClientId : null);
 
     if (!resolvedClientId) {
-      results.push({ agent, ok: false, error: 'no ClientId in config.json — run Step 2 first' });
+      results.push({ agent, ok: false, error: 'no ClientId in config.json - run Step 2 first' });
       continue;
     }
     // Defense-in-depth: only a well-formed GUID may reach the Graph $filter below.
     if (!/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(String(resolvedClientId))) {
-      results.push({ agent, ok: false, error: 'ClientId is not a valid GUID — refusing to query Graph' });
+      results.push({ agent, ok: false, error: 'ClientId is not a valid GUID - refusing to query Graph' });
       continue;
     }
 
@@ -4376,7 +4376,7 @@ function logOperatorActivity(event, details) {
 
 // In-memory write-token registry. Each successful PIN verification mints a
 // short-TTL single-use token; write-IPC handlers require it. This closes the
-// devtools-bypass gap — the renderer alone can't fake a verified state.
+// devtools-bypass gap - the renderer alone can't fake a verified state.
 const writeTokens = new Map(); // token → { user, expires, used }
 const WRITE_TOKEN_TTL_MS = 60 * 1000; // 60 seconds
 function mintWriteToken(user) {
@@ -4400,7 +4400,7 @@ function consumeWriteToken(token, expectedUser) {
 
 // Validate a Windows credential by invoking PowerShell's
 // System.DirectoryServices.AccountManagement.PrincipalContext.ValidateCredentials.
-// Credentials are passed via stdin as JSON — they never appear on the command line
+// Credentials are passed via stdin as JSON - they never appear on the command line
 // or in process listings. Returns boolean; any error / timeout → false.
 function verifyWindowsCredential(username, password) {
   assertExternalExecutionAllowed(PRESENTATION_MODE, 'Windows credential verification');
@@ -4441,7 +4441,7 @@ ipcMain.handle('verify-operator-pin', (event, { user, pin }) => {
   if (entry.mode === 'windows') {
     // Windows-auth flow: validate the entered value against the current Windows
     // user's password via PrincipalContext.ValidateCredentials (machine context).
-    // Uses the OS username — the operator name in operator-auth.json may differ.
+    // Uses the OS username - the operator name in operator-auth.json may differ.
     verified = verifyWindowsCredential(os.userInfo().username, pin);
   } else if (entry.mode === 'pin') {
     if (!entry.pinHash || !entry.salt) return { ok: false, error: 'corrupt PIN entry' };
@@ -4555,7 +4555,7 @@ const MOCK_APPROVALS = [
       stage: 'Hard', ticketRef: 'INC-1020',
       givenName: 'Robert', surname: 'Martinez',
     },
-    note: 'User holds privileged Entra directory roles — admin approval required to proceed.'
+    note: 'User holds privileged Entra directory roles - admin approval required to proceed.'
   },
   {
     id: 'INC-1025', token: 'INC-1025',
@@ -4571,7 +4571,7 @@ const MOCK_APPROVALS = [
       licenses: ['Microsoft 365 E3'],
       groups: ['Engineering-All', 'Dev-Team'],
     },
-    note: 'New hire provisioning — license assignment pending admin sign-off.'
+    note: 'New hire provisioning - license assignment pending admin sign-off.'
   },
   {
     id: 'INC-1031', token: 'INC-1031',
@@ -4586,7 +4586,7 @@ const MOCK_APPROVALS = [
       department: 'Platform', jobTitle: 'Engineering Manager',
       groupsToAdd: ['Platform-Leads'], groupsToRemove: ['Engineering-IC'],
     },
-    note: 'Department transfer touches a sensitive group — separation-of-duties review required.'
+    note: 'Department transfer touches a sensitive group - separation-of-duties review required.'
   },
   {
     id: 'INC-1034', token: 'INC-1034',
@@ -4599,7 +4599,7 @@ const MOCK_APPROVALS = [
       stage: 'Soft', ticketRef: 'INC-1034',
       givenName: 'Marcus', surname: 'Johnson',
     },
-    note: 'Contractor end-of-engagement — soft disable pending manager confirmation.'
+    note: 'Contractor end-of-engagement - soft disable pending manager confirmation.'
   },
   {
     id: 'INC-1037', token: 'INC-1037',
@@ -4614,7 +4614,7 @@ const MOCK_APPROVALS = [
       department: 'Sales', jobTitle: 'Account Executive',
       licenses: ['Microsoft 365 E5'],
     },
-    note: 'Device enrollment + license — routine, awaiting batch sign-off.'
+    note: 'Device enrollment + license - routine, awaiting batch sign-off.'
   }
 ];
 const demoScheduledOps = [];
@@ -4694,7 +4694,7 @@ const MOCK_AUDIT = [
 ];
 // Give the demo entries a coherent hash chain so the Chain Integrity panel shows
 // a realistic, verifiable chain (newest-first: each entry's prevHash === the
-// next/older entry's hash). Deterministic 64-hex synthesis — demo only.
+// next/older entry's hash). Deterministic 64-hex synthesis - demo only.
 (function chainMockAudit() {
   const synth = (s) => {
     let h = 0x811c9dc5 >>> 0, out = '';
@@ -4905,7 +4905,7 @@ function installDemoHandlers() {
   // session to admin. They must NEVER register on a normal production launch.
   if (!(PRESENTATION_MODE || DEMO_STATE_MODE || DEMO_DRIVE_MODE || HACKATHON_CAPTURE_MODE ||
         CAPTURE_MODE || CAPTURE_CHROME_MODE || GLASS_CAPTURE_MODE)) {
-    console.warn('installDemoHandlers() called without a demo/capture flag — ignoring for safety.');
+    console.warn('installDemoHandlers() called without a demo/capture flag - ignoring for safety.');
     return;
   }
   // Override every fetch the renderer makes on a timer or on tab-activation, so
@@ -4981,7 +4981,7 @@ const TAB_INJECT = {
       }
       const ia = document.getElementById('input-approver');
       if (ia) {
-        ia.value = 'Offboard Robert Martinez — INC-1020, terminated yesterday. Soft stage first.';
+        ia.value = 'Offboard Robert Martinez - INC-1020, terminated yesterday. Soft stage first.';
         ia.focus();
       }
       // Mark the Soft Leave assist chip as the active intent.
@@ -4999,10 +4999,10 @@ const TAB_INJECT = {
       if (ia) ia.value = '';
       if (!c || c.querySelectorAll('.message').length > 1) return;
       c.innerHTML = \`
-        <div class="message user"><div class="message-bubble">I need to offboard Robert Martinez — INC-1020. He was terminated yesterday.</div></div>
+        <div class="message user"><div class="message-bubble">I need to offboard Robert Martinez - INC-1020. He was terminated yesterday.</div></div>
         <div class="message assistant"><div class="message-avatar avatar-approver"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/></svg></div><div class="message-body"><div class="message-text">
           Before submitting in LIVE mode I'll run a risk score.<br><br>
-          <strong>Risk Score: 68 / 100 — HIGH</strong><br>
+          <strong>Risk Score: 68 / 100 - HIGH</strong><br>
           &bull; After-hours pattern flagged for this user by UEBA<br>
           &bull; Sensitive license: Microsoft 365 E3<br>
           &bull; No active freeze window<br><br>
@@ -5010,12 +5010,12 @@ const TAB_INJECT = {
         </div></div></div>
         <div class="message user"><div class="message-bubble">Confirmed. Go ahead.</div></div>
         <div class="message assistant"><div class="message-avatar avatar-approver"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/></svg></div><div class="message-body"><div class="message-text">
-          ✅ <strong>Soft leaver complete — INC-1020</strong><br>
+          ✅ <strong>Soft leaver complete - INC-1020</strong><br>
           &bull; Account disabled<br>
           &bull; All active sessions revoked<br>
           &bull; Purview IRM termination record submitted<br>
           &bull; Audit entry written and hash-chained<br><br>
-          Hard stage (license + group removal) requires dual approval. Token <strong>A3F9C1</strong> created — expires in 30 min.
+          Hard stage (license + group removal) requires dual approval. Token <strong>A3F9C1</strong> created - expires in 30 min.
         </div></div></div>
       \`;
       c.scrollTop = c.scrollHeight;
@@ -5033,7 +5033,7 @@ const TAB_INJECT = {
         <div class="message assistant"><div class="message-avatar avatar-auditor"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/></svg></div><div class="message-body"><div class="message-text">
           Found <strong>3 failed/partial entries</strong> in the last 7 days:<br><br>
           &bull; <code>enroller</code> &rarr; priya.patel@... &mdash; failed &times;2, partial &times;1 (INC-1011)<br>
-          &nbsp;&nbsp;Error: Device not found in Intune on first two attempts. Third attempt partial — serial unconfirmed.<br><br>
+          &nbsp;&nbsp;Error: Device not found in Intune on first two attempts. Third attempt partial - serial unconfirmed.<br><br>
           These triggered a <strong>UEBA warning</strong>: repeated-failures rule (3 events on same subject within 60 min).
         </div></div></div>
         <div class="message user"><div class="message-bubble">Any off-hours or suspicious access patterns?</div></div>
@@ -5042,7 +5042,7 @@ const TAB_INJECT = {
           <strong>1. After-hours leaver</strong><br>
           robert.martinez offboarded at 02:14 UTC, 5 days ago (INC-1020). Normal ops window is 08:00–18:00 UTC.<br><br>
           <strong>2. Leaver-then-group-add</strong><br>
-          james.wilson offboarded at 09:04, then added to Contractors-External at 11:30 — 2h 26m later. This may indicate re-engagement without a formal ticket.<br><br>
+          james.wilson offboarded at 09:04, then added to Contractors-External at 11:30 - 2h 26m later. This may indicate re-engagement without a formal ticket.<br><br>
           Robert Martinez is also <strong>confirmedCompromised</strong> in Identity Protection. Sessions were auto-revoked.
         </div></div></div>
       \`;
@@ -5118,7 +5118,7 @@ const TAB_INJECT = {
       const dc = document.getElementById('graph-digest-card');
       if(dc){ dc.style.display='block'; dc.style.visibility='visible'; }
       const dt = document.getElementById('graph-digest-text');
-      if(dt) dt.textContent = '10 users in tenant. 9 accounts enabled, 1 disabled (robert.martinez — offboarded via leaver agent, INC-1020). Active users all hold M365 E3 (ENTERPRISEPACK). Emma Rodriguez additionally has Power BI Standard. No guest accounts in this result set.';
+      if(dt) dt.textContent = '10 users in tenant. 9 accounts enabled, 1 disabled (robert.martinez - offboarded via leaver agent, INC-1020). Active users all hold M365 E3 (ENTERPRISEPACK). Emma Rodriguez additionally has Power BI Standard. No guest accounts in this result set.';
     })();
   `
 };
@@ -5184,7 +5184,7 @@ async function runCapture() {
   createOperatorWindow();
   await new Promise(r => operatorWin.webContents.once('did-finish-load', r));
   // Always set the theme explicitly so the OOBE brand mark matches the capture
-  // theme — otherwise a stale localStorage jmlTheme from a prior run leaks the
+  // theme - otherwise a stale localStorage jmlTheme from a prior run leaks the
   // wrong logo (e.g. glass logo on a default-theme capture).
   const opTheme = (process.argv.find(a => a.startsWith('--theme=')) || '').split('=')[1] || '';
   await operatorWin.webContents.executeJavaScript(`
@@ -5229,13 +5229,13 @@ async function runCapture() {
   await sleep(1200);
 
   // Full demo seed so EVERY tab is populated for screenshots (security, users,
-  // audit, operators, HR queue, live ops) — not just dashboard/approvals.
+  // audit, operators, HR queue, live ops) - not just dashboard/approvals.
   installDemoHandlers();
   seedDemoData(win);
   await sleep(400);
 
   // Remove overflow constraints so all content is visible in tall screenshots.
-  // IMPORTANT: do NOT set height:auto on .content or .layout — those are flex/grid
+  // IMPORTANT: do NOT set height:auto on .content or .layout - those are flex/grid
   // shell containers and height:auto causes .view.active{flex:1} to collapse to 0.
   // Instead: (1) remove overflow clipping on shells, (2) expand the active view and
   // any tab-specific scroller directly.
@@ -5246,7 +5246,7 @@ async function runCapture() {
 
   const REMOVE_OVERFLOW = `
     (function(){
-      // Shell containers — remove clipping only, preserve flex/grid height
+      // Shell containers - remove clipping only, preserve flex/grid height
       ['.content', '.layout'].forEach(s => {
         document.querySelectorAll(s).forEach(el => {
           el.style.overflow  = 'visible';
@@ -5263,7 +5263,7 @@ async function runCapture() {
         el.style.height    = '';
         el.style.opacity   = '';
       });
-      // Active view — expand to full content height so all content renders.
+      // Active view - expand to full content height so all content renders.
       // Also kill the viewfade animation (opacity starts at 0 with fill-mode:both)
       // which can freeze at opacity=0 in software-render / --disable-gpu mode.
       document.querySelectorAll('.view.active').forEach(el => {
@@ -5293,7 +5293,7 @@ async function runCapture() {
 
   const TABS = [
     // [tabId, ipcTriggerJs, extraWaitMs]
-    // NOTE: dashboard/agent-health are NOT triggered via window.api — those real IPC
+    // NOTE: dashboard/agent-health are NOT triggered via window.api - those real IPC
     // handlers can't connect to Entra in capture mode and would overwrite mock data
     // with error responses.  Mock data is re-sent inside the loop instead (see below).
     ['dashboard',      null, 2000],
@@ -5367,7 +5367,7 @@ async function runCapture() {
   }
 
   for (const [tab, ipcJs, wait] of TABS) {
-    // Navigate — reset capture inline styles first, then force a single active
+    // Navigate - reset capture inline styles first, then force a single active
     // view after switchTab so stale frames cannot remain visible.
     const activeViewId = await win.webContents.executeJavaScript(`
       (function(){
@@ -5399,7 +5399,7 @@ async function runCapture() {
     }
     await sleep(500);
     if (ipcJs) {
-      try { await win.webContents.executeJavaScript(ipcJs); } catch(e) { /* IPC trigger failed — skip */ }
+      try { await win.webContents.executeJavaScript(ipcJs); } catch(e) { /* IPC trigger failed - skip */ }
     }
     // Re-send mock data that real IPC handlers would wipe in capture mode
     if (tab === 'approvals') win.webContents.send('pending-approvals', MOCK_APPROVALS);
@@ -5489,7 +5489,7 @@ async function runCaptureChrome() {
     console.log('Captured:', name);
   };
 
-  // Docked panel — expanded then slim
+  // Docked panel - expanded then slim
   createDockedPanel();
   await new Promise(r => dockedWin.webContents.once('did-finish-load', r));
   await glass(dockedWin); await sleep(500);
@@ -5500,7 +5500,7 @@ async function runCaptureChrome() {
   await shot(dockedWin, 'docked-slim.png');
   try { dockedWin.close(); } catch (_) {} dockedWin = null;
 
-  // Overlay — active then idle
+  // Overlay - active then idle
   createOverlayWindow();
   await new Promise(r => overlayWin.webContents.once('did-finish-load', r));
   await glass(overlayWin); await sleep(500);
@@ -5849,7 +5849,7 @@ ipcMain.handle('complete-first-run', (event, { winAuth, tenantId, primaryDomain,
 
     if (tenantId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(tenantId)) {
       const domain = primaryDomain ? String(primaryDomain).slice(0, 200) : '';
-      // Durable source of truth — persists even when no agent config.json exists.
+      // Durable source of truth - persists even when no agent config.json exists.
       try { writeTenantConfig({ tenantId, primaryDomain: domain }); } catch {}
       // Mirror into any agent configs that already exist.
       for (const agent of AGENT_DIRS) {
@@ -6001,7 +6001,7 @@ app.whenReady().then(() => {
     createMainWindow();
   } else if (isFirstRun()) { createSetupWindow(); } else { createOperatorWindow(); }
 
-  // Global hotkey — Ctrl+Shift+J summons palette
+  // Global hotkey - Ctrl+Shift+J summons palette
   globalShortcut.register('CommandOrControl+Shift+J', () => {
     if (paletteWin && !paletteWin.isDestroyed()) {
       paletteWin.close();
@@ -6010,10 +6010,10 @@ app.whenReady().then(() => {
     }
   });
 
-  // Global hotkey — Ctrl+Shift+D toggles docked panel
+  // Global hotkey - Ctrl+Shift+D toggles docked panel
   globalShortcut.register('CommandOrControl+Shift+D', () => { toggleDockedPanel(); });
 
-  // Global hotkey — Ctrl+Shift+Space toggles agent overlay
+  // Global hotkey - Ctrl+Shift+Space toggles agent overlay
   globalShortcut.register('CommandOrControl+Shift+Space', toggleOverlayWindow);
 
   setInterval(pollTrayApprovals, 30000);
@@ -6053,12 +6053,12 @@ app.whenReady().then(() => {
           const _destructive = _stage === 'Hard' || _stage === 'Delete';
           const _schedRole = String(op.requestedByRole || 'viewer').toLowerCase();
           // A scheduled Hard/Delete offboard created by a non-admin must not
-          // fire unattended — queue it for admin sign-off instead of executing.
+          // fire unattended - queue it for admin sign-off instead of executing.
           if (_destructive && _schedRole !== 'admin' && !w) {
             const _tok = routeBlockedLeaverToApproval(
               { userPrincipalName: payload.userPrincipalName, ticketRef: payload.ticketRef },
               _stage,
-              `Scheduled ${_stage}-stage leaver created by ${op.requestedByRole || 'a non-admin operator'} — admin sign-off required before execution.`,
+              `Scheduled ${_stage}-stage leaver created by ${op.requestedByRole || 'a non-admin operator'} - admin sign-off required before execution.`,
               'admin', op.requestedBy, op.requestedByRole);
             op.status = 'awaiting-approval';
             op.approvalToken = _tok;
@@ -6260,10 +6260,10 @@ ipcMain.on('run-quick-leaver', async (event, payload) => {
   if (!whatif && isIrreversibleLeaver(_stg) && _role !== 'admin') {
     const tok = routeBlockedLeaverToApproval(
       { userPrincipalName: upn, ticketRef: reason }, _stg,
-      `${_stg}-stage leaver requested by ${currentOperator || 'operator'} — an admin must approve before execution.`,
+      `${_stg}-stage leaver requested by ${currentOperator || 'operator'} - an admin must approve before execution.`,
       'admin');
     event.sender.send('quick-op-result', { type: 'leaver', approvalQueued: true, token: tok,
-      lines: [`[APPROVAL] ${_stg} offboard queued — an admin must approve before it runs.`] });
+      lines: [`[APPROVAL] ${_stg} offboard queued - an admin must approve before it runs.`] });
     return;
   }
   try {
@@ -6278,7 +6278,7 @@ ipcMain.on('run-quick-leaver', async (event, payload) => {
     if (currentRole === 'helpdesk' && !whatif && stdout.includes('BLOCKED: Operator role')) {
       const tok = routeBlockedLeaverToApproval({ userPrincipalName: upn, ticketRef: reason }, stage || 'Soft');
       event.sender.send('quick-op-result', { type: 'leaver', approvalQueued: true, token: tok,
-        lines: ['[APPROVAL] User holds privileged Entra directory roles — approval request submitted for admin review.'] });
+        lines: ['[APPROVAL] User holds privileged Entra directory roles - approval request submitted for admin review.'] });
       return;
     }
     event.sender.send('quick-op-result', { type: 'leaver', lines: [err.message], data: null, error: true });

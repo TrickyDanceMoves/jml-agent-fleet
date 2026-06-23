@@ -27,7 +27,7 @@ $pimCfg    = Get-Content (Join-Path $agentsRoot "shared\pim-config.json") | Conv
 $joinerCfg = Get-Content (Join-Path $agentsRoot "joiner\config.json") | ConvertFrom-Json
 $tenantId  = $joinerCfg.TenantId
 
-# Microsoft Graph Command Line Tools — well-known public client that supports
+# Microsoft Graph Command Line Tools - well-known public client that supports
 # device code flow and the PrivilegedAccess delegated scopes.
 $clientId  = "14d82eec-204b-4c2f-b7e8-296a70dab67e"
 $scope     = "https://graph.microsoft.com/.default offline_access"

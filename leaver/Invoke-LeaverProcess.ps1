@@ -81,7 +81,7 @@ $results = [ordered]@{
     Errors            = @()
 }
 
-# Steps 2-3: Soft stage (disable + revoke) — only for Soft/Both (Delete is pure)
+# Steps 2-3: Soft stage (disable + revoke) - only for Soft/Both (Delete is pure)
 if ($Stage -eq "Soft" -or $Stage -eq "Both") {
 
 # Step 2 - Disable account
@@ -125,7 +125,7 @@ if (-not $WhatIf) {
 
 } # end Stage -ne "Hard"
 
-# Steps 4-5: Hard stage (licenses + groups) — only for Hard/Both (Delete is pure)
+# Steps 4-5: Hard stage (licenses + groups) - only for Hard/Both (Delete is pure)
 if ($Stage -eq "Hard" -or $Stage -eq "Both") {
 
 # Step 4 - Remove licenses
@@ -181,7 +181,7 @@ try {
     foreach ($group in $groups) {
         if (-not $WhatIf) {
             try {
-                # Idempotent remove — tolerates an already-removed membership so a
+                # Idempotent remove - tolerates an already-removed membership so a
                 # resumed leaver converges instead of failing.
                 $st = Remove-AgentGroupMember -GroupId $group.id -UserId $user.Id
                 if ($st -eq 'absent') { Write-Log ("Already not a member, skipping: " + $group.displayName) "SKIP" }
@@ -202,7 +202,7 @@ try {
 
 } # end Hard stage
 
-# Delete stage — permanently remove the user object. Separate from Hard leave
+# Delete stage - permanently remove the user object. Separate from Hard leave
 # (which only strips licenses/groups and leaves a disabled account). Deleting
 # the user inherently removes its license and group associations.
 if ($Stage -eq "Delete") {
