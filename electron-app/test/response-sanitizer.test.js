@@ -3,7 +3,11 @@
 const assert = require('node:assert/strict');
 const test = require('node:test');
 
-const { stripQueryEcho } = require('../lib/response-sanitizer');
+const {
+  sanitizeTenantIdentity,
+  sanitizeTenantPayload,
+  stripQueryEcho,
+} = require('../lib/response-sanitizer');
 
 test('removes leading "you asked" query echoes from agent replies', () => {
   const query = 'How many hard leavers were processed in the last 30 days?';
@@ -56,4 +60,55 @@ test('does not strip a header that does not overlap the query', () => {
   const query = 'show license utilization';
   const text = '**Microsoft 365 E5:** 450 / 500 assigned.';
   assert.equal(stripQueryEcho(text, query), text);
+});
+
+test('sanitizes configured tenant identity from presentation text', () => {
+  const privateDomain = 'private-example.onmicrosoft.com';
+  const privateTenantId = '11111111-2222-3333-4444-555555555555';
+  const text = [
+    `This tenant is ${privateDomain}.`,
+    `Use firstname.lastname@${privateDomain}.`,
+    `Tenant ID: ${privateTenantId}.`,
+  ].join(' ');
+
+  const sanitized = sanitizeTenantIdentity(text, {
+    domains: [privateDomain],
+    tenantIds: [privateTenantId],
+  });
+
+  assert.equal(
+    sanitized,
+    'This tenant is contoso.onmicrosoft.com. Use firstname.lastname@contoso.onmicrosoft.com. Tenant ID: 00000000-0000-0000-0000-000000000000.',
+  );
+});
+
+test('sanitizes tenant identity recursively without mutating provider payloads', () => {
+  const payload = [{
+    role: 'assistant',
+    content: [{
+      type: 'tool_result',
+      content: JSON.stringify({
+        userPrincipalName: 'alex@private-example.onmicrosoft.com',
+        tenantId: '11111111-2222-3333-4444-555555555555',
+      }),
+    }],
+  }];
+
+  const sanitized = sanitizeTenantPayload(payload, {
+    domains: ['private-example.onmicrosoft.com'],
+    tenantIds: ['11111111-2222-3333-4444-555555555555'],
+  });
+
+  assert.match(sanitized[0].content[0].content, /alex@contoso\.onmicrosoft\.com/);
+  assert.match(sanitized[0].content[0].content, /00000000-0000-0000-0000-000000000000/);
+  assert.match(payload[0].content[0].content, /private-example\.onmicrosoft\.com/);
+});
+
+test('sanitizes unlisted onmicrosoft domains in presentation content', () => {
+  const text = 'The alternate sign-in is alex@secondary-private.onmicrosoft.com.';
+
+  assert.equal(
+    sanitizeTenantIdentity(text),
+    'The alternate sign-in is alex@contoso.onmicrosoft.com.',
+  );
 });

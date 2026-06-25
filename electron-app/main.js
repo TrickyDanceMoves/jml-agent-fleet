@@ -21,7 +21,11 @@ const {
   groundedFallback,
   validateGroundedAssistantText,
 } = require('./lib/agent-grounding');
-const { stripQueryEcho } = require('./lib/response-sanitizer');
+const {
+  sanitizeTenantIdentity,
+  sanitizeTenantPayload,
+  stripQueryEcho,
+} = require('./lib/response-sanitizer');
 
 const PRESENTATION_MODE = isDemoMode(process.argv);
 
@@ -217,6 +221,7 @@ const state = {
 // configured value in the UI (the UI reads get-tenant-config, which returns
 // empty until a tenant is actually saved).
 function getActiveTenantDomain() {
+  if (PRESENTATION_MODE) return TENANT_DOMAIN;
   const t = readTenantConfig();
   if (t.primaryDomain) return t.primaryDomain;
   for (const agent of AGENT_DIRS) {
@@ -229,6 +234,30 @@ function getActiveTenantDomain() {
     } catch {}
   }
   return TENANT_DOMAIN;
+}
+
+function getPresentationTenantSanitizerOptions() {
+  if (!PRESENTATION_MODE) return null;
+
+  const domains = new Set();
+  const tenantIds = new Set();
+  const addConfig = (cfg = {}) => {
+    if (cfg.primaryDomain) domains.add(String(cfg.primaryDomain));
+    if (cfg.PrimaryDomain) domains.add(String(cfg.PrimaryDomain));
+    if (cfg.tenantId) tenantIds.add(String(cfg.tenantId));
+    if (cfg.TenantId) tenantIds.add(String(cfg.TenantId));
+    if (cfg.TenantID) tenantIds.add(String(cfg.TenantID));
+  };
+
+  addConfig(readTenantConfig());
+  for (const agent of AGENT_DIRS) {
+    try {
+      const cfgPath = path.join(AGENTS_DIR, agent, 'config.json');
+      if (fs.existsSync(cfgPath)) addConfig(readJson(cfgPath));
+    } catch {}
+  }
+
+  return { domains: [...domains], tenantIds: [...tenantIds] };
 }
 
 // Human-readable "today" for agent prompts. Without a date anchor an LLM
@@ -1860,8 +1889,12 @@ async function runAgentLoop(sender, agent, userText) {
     return;
   }
 
+  const tenantSanitizer = getPresentationTenantSanitizerOptions();
+  const safeUserText = tenantSanitizer
+    ? sanitizeTenantIdentity(userText, tenantSanitizer)
+    : userText;
   const agentState = state[agent];
-  agentState.messages.push({ role: 'user', content: userText });
+  agentState.messages.push({ role: 'user', content: safeUserText });
 
   const domain       = getActiveTenantDomain();
   const systemPrompt = agent === 'approver' ? buildApproverSystem(domain) : buildAuditorSystem(domain);
@@ -1879,9 +1912,11 @@ async function runAgentLoop(sender, agent, userText) {
       let pendingText = '';
       try {
         response = await provider.streamTurn({
-          system:      systemPrompt,
+          system:      tenantSanitizer ? sanitizeTenantIdentity(systemPrompt, tenantSanitizer) : systemPrompt,
           tools,
-          messages:    agentState.messages,
+          messages:    tenantSanitizer
+            ? sanitizeTenantPayload(agentState.messages, tenantSanitizer)
+            : agentState.messages,
           signal:      ac.signal,
           onText:      (text) => { pendingText += text; },
           onToolStart: (toolName) => { sender.send('msg-chunk', { agent, type: 'tool_start', toolName }); }
@@ -1899,7 +1934,10 @@ async function runAgentLoop(sender, agent, userText) {
         // NEW identities (a joiner's UPN does not exist yet) and explains the
         // firstname.lastname@domain format, so gating it on UPN/number grounding
         // wrongly blocks its normal replies. Only validate the auditor.
-        let safeText = stripQueryEcho(text, userText);
+        const tenantSafeText = tenantSanitizer
+          ? sanitizeTenantIdentity(text, tenantSanitizer)
+          : text;
+        let safeText = stripQueryEcho(tenantSafeText, safeUserText);
         if (agent === 'auditor') {
           const facts = collectGroundingFacts(collectConversationToolContents(agentState.messages));
           const validation = validateGroundedAssistantText(safeText || pendingText, facts);
@@ -1957,7 +1995,10 @@ async function runAgentLoop(sender, agent, userText) {
           const classified = classifyToolResult(result);
           // Pass structured result for cards that render it (risk score, provisioning suggestions)
           const sendResult = (tool.name === 'score_risk' || tool.name === 'suggest_provisioning') ? result : undefined;
-          sender.send('msg-chunk', { agent, type: 'tool_done', toolName: tool.name, success: classified.status === 'succeeded', result: sendResult });
+          const safeSendResult = tenantSanitizer
+            ? sanitizeTenantPayload(sendResult, tenantSanitizer)
+            : sendResult;
+          sender.send('msg-chunk', { agent, type: 'tool_done', toolName: tool.name, success: classified.status === 'succeeded', result: safeSendResult });
         } catch (err) {
           toolError = err;
           result = { error: err.message };
@@ -2058,11 +2099,18 @@ ipcMain.on = (channel, listener) => _ipcOn(channel, (event, ...args) => {
 
 // ── IPC handlers ──────────────────────────────────────────────────────────────
 ipcMain.on('send-message', (event, { agent, text }) => {
+  const tenantSanitizer = getPresentationTenantSanitizerOptions();
+  const safeText = tenantSanitizer
+    ? sanitizeTenantIdentity(text, tenantSanitizer)
+    : text;
   // Store and mirror the user turn before the agent responds
-  _pushConvTurn(agent, 'user', text);
-  _broadcastMirror(event.sender, agent, 'user', text);
-  runAgentLoop(event.sender, agent, text).catch(err => {
-    event.sender.send('msg-error', { agent, text: err.message });
+  _pushConvTurn(agent, 'user', safeText);
+  _broadcastMirror(event.sender, agent, 'user', safeText);
+  runAgentLoop(event.sender, agent, safeText).catch(err => {
+    const safeError = tenantSanitizer
+      ? sanitizeTenantIdentity(err.message, tenantSanitizer)
+      : err.message;
+    event.sender.send('msg-error', { agent, text: safeError });
   });
 });
 

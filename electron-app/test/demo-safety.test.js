@@ -131,3 +131,31 @@ test('preload exposes a generic current user in demo and capture modes', () => {
   assert.match(main, /additionalArguments:\s*demoPreloadArgs\(\)/);
   assert.doesNotMatch(main, /nick\.bohanan@contoso\.onmicrosoft\.com/);
 });
+
+test('presentation chat sanitizes tenant identity before and after provider calls', () => {
+  const main = fs.readFileSync(path.join(__dirname, '..', 'main.js'), 'utf8');
+  const start = main.indexOf('async function runAgentLoop');
+  const end = main.indexOf("\nipcMain.on('send-message'", start);
+  const loop = start >= 0 && end > start ? main.slice(start, end) : '';
+
+  assert.ok(loop, 'runAgentLoop must exist');
+  assert.match(loop, /getPresentationTenantSanitizerOptions/);
+  assert.match(loop, /sanitizeTenantPayload\(agentState\.messages/);
+  assert.match(loop, /sanitizeTenantIdentity\(text/);
+  assert.match(loop, /system:\s+tenantSanitizer\s+\?\s+sanitizeTenantIdentity\(systemPrompt/);
+  assert.match(loop, /sanitizeTenantPayload\(sendResult/);
+  assert.ok(
+    loop.indexOf('sanitizeTenantIdentity(text') < loop.indexOf("type: 'text', text: safeText"),
+    'model text must be sanitized before it is rendered',
+  );
+
+  const sendStart = main.indexOf("ipcMain.on('send-message'");
+  const sendEnd = main.indexOf("\nipcMain.on('abort-agent'", sendStart);
+  const sendHandler = sendStart >= 0 && sendEnd > sendStart ? main.slice(sendStart, sendEnd) : '';
+  assert.match(sendHandler, /sanitizeTenantIdentity\(text/);
+  assert.match(sendHandler, /sanitizeTenantIdentity\(err\.message/);
+  assert.ok(
+    sendHandler.indexOf('sanitizeTenantIdentity(text') < sendHandler.indexOf('_pushConvTurn'),
+    'operator text must be sanitized before it enters the rendered transcript',
+  );
+});

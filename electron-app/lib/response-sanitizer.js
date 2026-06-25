@@ -1,5 +1,49 @@
 'use strict';
 
+const DEMO_TENANT_DOMAIN = 'contoso.onmicrosoft.com';
+const DEMO_TENANT_ID = '00000000-0000-0000-0000-000000000000';
+
+function escapeRegExp(value) {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function sanitizeTenantIdentity(text, {
+  domains = [],
+  tenantIds = [],
+  demoDomain = DEMO_TENANT_DOMAIN,
+  demoTenantId = DEMO_TENANT_ID,
+} = {}) {
+  let out = String(text ?? '');
+
+  out = out.replace(
+    /\b[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.onmicrosoft\.com\b/gi,
+    match => match.toLowerCase() === String(demoDomain).toLowerCase() ? match : demoDomain,
+  );
+
+  for (const domain of new Set(domains.filter(Boolean).map(String))) {
+    if (domain.toLowerCase() === String(demoDomain).toLowerCase()) continue;
+    out = out.replace(new RegExp(escapeRegExp(domain), 'gi'), demoDomain);
+  }
+
+  for (const tenantId of new Set(tenantIds.filter(Boolean).map(String))) {
+    if (tenantId.toLowerCase() === String(demoTenantId).toLowerCase()) continue;
+    out = out.replace(new RegExp(escapeRegExp(tenantId), 'gi'), demoTenantId);
+  }
+
+  return out;
+}
+
+function sanitizeTenantPayload(value, options) {
+  if (typeof value === 'string') return sanitizeTenantIdentity(value, options);
+  if (Array.isArray(value)) return value.map(item => sanitizeTenantPayload(item, options));
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, item]) => [key, sanitizeTenantPayload(item, options)]),
+    );
+  }
+  return value;
+}
+
 // Removes query-echo preambles from an agent reply so the answer leads. The
 // only "what you asked" cue should be the gray thinking line in the UI - the
 // reply itself must not restate the operator's question. Handles both lead-in
@@ -57,4 +101,10 @@ function stripQueryEcho(text, query) {
   return out.trim();
 }
 
-module.exports = { stripQueryEcho };
+module.exports = {
+  DEMO_TENANT_DOMAIN,
+  DEMO_TENANT_ID,
+  sanitizeTenantIdentity,
+  sanitizeTenantPayload,
+  stripQueryEcho,
+};
