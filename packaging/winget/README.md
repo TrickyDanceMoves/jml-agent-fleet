@@ -6,24 +6,24 @@ Community-repo manifest for installing JML Console via `winget`.
 winget install NicholasBohanan.JMLConsole
 ```
 
-## Files (`1.1.12/`)
+## Files (`1.1.14/`)
 - `NicholasBohanan.JMLConsole.yaml` - version manifest
 - `NicholasBohanan.JMLConsole.installer.yaml` - installer (NSIS / `nullsoft`, x64, per-user)
 - `NicholasBohanan.JMLConsole.locale.en-US.yaml` - listing metadata
 
 Validated with `winget validate` (schema 1.6.0). Installer SHA256 is pinned to the
-`v1.1.12` GitHub release asset `JML.Console.Setup.1.1.12.exe`.
+`v1.1.14` GitHub release asset `JML.Console.Setup.1.1.14.exe`.
 
 ## Submitting to the public catalog
 
 The manifest must be PR'd into [`microsoft/winget-pkgs`](https://github.com/microsoft/winget-pkgs)
-under `manifests/n/NicholasBohanan/JMLConsole/1.1.12/`.
+under `manifests/n/NicholasBohanan/JMLConsole/1.1.14/`.
 
 Easiest path - let the tool build and open the PR for you:
 
 ```
 winget install Microsoft.WingetCreate
-wingetcreate submit --token <github-pat> ".\packaging\winget\1.1.12"
+wingetcreate submit --token <github-pat> ".\packaging\winget\1.1.14"
 ```
 
 Or `wingetcreate new <installer-url>` to regenerate from scratch, then `submit`.
