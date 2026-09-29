@@ -132,7 +132,7 @@
   },
   "devDependencies": {
     "@fontsource/inter": "^5.2.8",
-    "electron": "^42.5.1",
+    "electron": "^42.10.0",
     "electron-builder": "^26.15.3",
     "png-to-ico": "^3.0.1"
   }
